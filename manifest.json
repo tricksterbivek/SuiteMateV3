@@ -19,6 +19,7 @@
     }
   },
   "permissions": [
+    "activeTab",
     "storage"
   ],
   "host_permissions": [
@@ -36,7 +37,8 @@
       "css": [
         "src/styles/font.css",
         "src/styles/code.css",
-        "src/styles/netsuite.css"
+        "src/styles/netsuite.css",
+        "src/styles/v3-compat.css"
       ],
       "js": [
         "src/shared/settings.js",

@@ -1,0 +1,78 @@
+html:not(.ext-f).isRedwood[data-path="/app/accounting/transactions/salesord.nl"] {
+    --suitemate-v3-table-header-bg: var(--theme-secondary-light);
+    --suitemate-v3-table-header-color: var(--text-0);
+    --suitemate-v3-table-header-border: var(--theme-secondary);
+    --sln-header-bg-color: var(--suitemate-v3-table-header-bg);
+    --sln-header-color: var(--suitemate-v3-table-header-color);
+    --sln-header-font-weight: 600
+}
+
+html:not(.ext-f).isRedwood[data-path="/app/accounting/transactions/salesord.nl"] #item_splits .uir-machine-headerrow>td {
+    background-color: var(--suitemate-v3-table-header-bg) !important;
+    border-bottom: 1px solid var(--suitemate-v3-table-header-border) !important
+}
+
+html:not(.ext-f).isRedwood[data-path="/app/accounting/transactions/salesord.nl"] #item_splits .uir-machine-headerrow>td>.listheader,
+html:not(.ext-f).isRedwood[data-path="/app/accounting/transactions/salesord.nl"] #item_splits .uir-machine-headerrow::before {
+    color: var(--suitemate-v3-table-header-color) !important;
+    font-size: 12px !important;
+    font-weight: 600 !important
+}
+
+html:not(.ext-f).isRedwood[data-path="/app/accounting/transactions/salesord.nl"] #item_splits .uir-machine-headerrow::before {
+    border-bottom: 1px solid var(--suitemate-v3-table-header-border)
+}
+
+html:not(.ext-f).isRedwood[data-path="/app/accounting/transactions/salesord.nl"] .uir-tab-list-tabs,
+html:not(.ext-f).isRedwood[data-path="/app/accounting/transactions/salesord.nl"] .uir-tab-list-tabs>.bgtabbar,
+html:not(.ext-f).isRedwood[data-path="/app/accounting/transactions/salesord.nl"] .uir-tab-list-tabs .formtaboff {
+    background-color: var(--theme-main) !important
+}
+
+html:not(.ext-f).isRedwood[data-path="/app/accounting/transactions/salesord.nl"] .uir-tab-list-tabs .formtabon,
+html:not(.ext-f).isRedwood[data-path="/app/accounting/transactions/salesord.nl"] .uir-tab-list-tabs .formtaboff:has(>a:hover) {
+    background-color: var(--theme-main-light) !important
+}
+
+html:not(.ext-f).isRedwood[data-path="/app/accounting/transactions/salesord.nl"] .uir-tab-list-tabs :is(.formtabon, .formtaboff) {
+    background-image: none !important
+}
+
+html:not(.ext-f).isRedwood[data-path="/app/accounting/transactions/salesord.nl"] .uir-tab-list-tabs :is(.formtabon, .formtaboff)>a.formtabtext {
+    color: #fff !important;
+    -webkit-text-fill-color: #fff
+}
+
+html:not(.ext-f).isRedwood[data-path="/app/accounting/transactions/salesord.nl"] :is(.uir-tab-list-tabs, .uir-subtab-panel-tabs-row) :is(.formtabon, .formsubtabon) {
+    border-bottom-color: light-dark(var(--theme-main), var(--theme-main-light)) !important
+}
+
+html:not(.ext-f).isRedwood[data-path="/app/accounting/transactions/salesord.nl"] td.fgroup_title.uir-field-group {
+    background-color: var(--row-even-bg-color) !important;
+    border-left: 0 !important;
+    border-bottom: 2px solid var(--theme-secondary) !important;
+    border-radius: 0 !important;
+    padding: 0 !important
+}
+
+html:not(.ext-f).isRedwood[data-path="/app/accounting/transactions/salesord.nl"] td.fgroup_title.uir-field-group:hover {
+    background-color: var(--row-even-bg-color) !important
+}
+
+html:not(.ext-f).isRedwood[data-path="/app/accounting/transactions/salesord.nl"] td.fgroup_title.uir-field-group>div.fgroup_title {
+    width: max-content;
+    max-width: 100%;
+    min-height: 28px;
+    align-items: center;
+    background-color: var(--theme-secondary-light) !important;
+    color: var(--text-0) !important;
+    padding: 2px 10px !important
+}
+
+html:not(.ext-f).isRedwood[data-path="/app/accounting/transactions/salesord.nl"] td.fgroup_title.uir-field-group:hover>div.fgroup_title {
+    background-color: var(--theme-secondary-light-light) !important
+}
+
+html:not(.ext-f).isRedwood[data-path="/app/accounting/transactions/salesord.nl"]:not(.disable_radii) td.fgroup_title.uir-field-group>div.fgroup_title {
+    border-radius: 5px 5px 0 0
+}

@@ -7,6 +7,7 @@ The styling foundation is not complete because the extension loads. It is comple
 - Compare V3 against V1 at the same viewport, role, account, data, and NetSuite UI version.
 - Test Light, Dark, and System modes.
 - Test both rounded and Boxy UI settings.
+- Test Main and Secondary colors on at least two roles and confirm they remain isolated.
 - Capture before and after screenshots for every page group.
 - Record browser console errors and failed network requests.
 - Treat any blocked click, hidden control, shifted field, clipped menu, or broken scroll area as a release blocker.
@@ -36,6 +37,13 @@ The styling foundation is not complete because the extension loads. It is comple
 - Keyboard focus remains visible and tab order is usable.
 - Horizontal and vertical scrolling remains available where NetSuite requires it.
 - Disabling SuiteMate V3 restores native NetSuite styling immediately.
+- Changing Main updates the primary sublist bar, active tab, and other V1 main-theme accents without changing field-group or table colors.
+- Changing Secondary updates field-group dropdowns, Item table headers, and other V1 secondary-theme surfaces without a page reload.
+- Keeping either color picker open updates NetSuite immediately without clicking away from the picker.
+- Swap Colors exchanges the current role's Main and Secondary values.
+- Default Colors removes only the current role's custom colors.
+- Reset All restores appearance defaults and removes all saved role colors.
+- Switching roles applies that role's saved colors and does not leak colors from another role.
 
 ## Exit gate
 

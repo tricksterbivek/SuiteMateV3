@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SuiteMate V3 popup role fixture</title>
+    <link rel="stylesheet" href="../../src/popup/popup.css">
+    <script src="chrome-stub.js"></script>
+  </head>
+  <body>
+    <script>
+      fetch("../../src/popup/popup.html")
+        .then((response) => response.text())
+        .then((source) => {
+          const popupDocument = new DOMParser().parseFromString(source, "text/html");
+          document.body.replaceChildren(popupDocument.querySelector("main"));
+
+          const settingsScript = document.createElement("script");
+          settingsScript.src = "../../src/shared/settings.js";
+          settingsScript.addEventListener("load", () => {
+            const popupScript = document.createElement("script");
+            popupScript.src = "../../src/popup/popup.js";
+            document.body.append(popupScript);
+          });
+          document.body.append(settingsScript);
+        });
+    </script>
+  </body>
+</html>

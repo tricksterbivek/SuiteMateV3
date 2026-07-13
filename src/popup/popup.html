@@ -40,8 +40,39 @@
           <input id="squareCorners" name="squareCorners" type="checkbox">
         </label>
 
+        <section id="roleTheme" class="theme-card" aria-labelledby="roleThemeTitle">
+          <div class="theme-heading">
+            <div>
+              <strong id="roleThemeTitle">Role colors</strong>
+              <small>V1 Main and Secondary theme</small>
+            </div>
+            <span id="themeState" class="theme-state">Default</span>
+          </div>
+
+          <p id="roleContext" class="role-context">Finding the current NetSuite role...</p>
+
+          <div class="color-grid">
+            <label class="color-control" for="mainColor">
+              <span>Main</span>
+              <input id="mainColor" class="role-color" type="color" value="#607799">
+              <code id="mainColorValue">#607799</code>
+            </label>
+
+            <label class="color-control" for="secondaryColor">
+              <span>Secondary</span>
+              <input id="secondaryColor" class="role-color" type="color" value="#a2a4a8">
+              <code id="secondaryColorValue">#a2a4a8</code>
+            </label>
+          </div>
+
+          <div class="theme-actions">
+            <button id="swapColors" type="button">Swap colors</button>
+            <button id="resetColors" type="button">Default colors</button>
+          </div>
+        </section>
+
         <div class="actions">
-          <button id="reset" type="button">Reset</button>
+          <button id="reset" type="button">Reset all</button>
           <output id="status" aria-live="polite"></output>
         </div>
       </form>

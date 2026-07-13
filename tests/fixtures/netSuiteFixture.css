@@ -57,7 +57,12 @@ body {
 }
 
 .uir-tabs {
+  display: flex;
   margin-bottom: 0;
+}
+
+.uir-tabs > :is(.formtabon, .formtaboff) {
+  border-bottom: 2px solid transparent;
 }
 
 .uir-tabs a {

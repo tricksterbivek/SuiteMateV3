@@ -4,6 +4,8 @@
   const settingsApi = globalThis.SuiteMateV3Settings;
   const root = document.documentElement;
   const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  let currentSettings = settingsApi.DEFAULTS;
+  let roleContext = null;
 
   function setClass(name, enabled) {
     root.classList.toggle(name, Boolean(enabled));
@@ -101,13 +103,128 @@
     return mode === "dark" || (mode === "system" && darkModeQuery.matches);
   }
 
+  function readRoleContext(sourceDocument) {
+    const sessionScript = sourceDocument.querySelector(
+      'script[src^="/javascript/sessionstatus/session_status_init.jsp?"]'
+    );
+    if (!sessionScript?.src) {
+      return null;
+    }
+
+    const params = new URL(sessionScript.src, location.origin).searchParams;
+    const id = params.get("id")?.replace(/_RP(?=~)/, "");
+    if (!id) {
+      return null;
+    }
+
+    const companyName = params.get("companyName")?.trim() ?? "";
+    const roleName = params.get("roleName")?.trim() ?? "";
+
+    return {
+      id,
+      name: [companyName, roleName].filter(Boolean).join(" - ") || id,
+      companyId: params.get("companyId") ?? "",
+      roleId: params.get("roleId") ?? ""
+    };
+  }
+
+  function findRoleContext() {
+    const documents = [document];
+
+    try {
+      if (window.top !== window && window.top.document !== document) {
+        documents.push(window.top.document);
+      }
+    } catch {}
+
+    for (const sourceDocument of documents) {
+      const context = readRoleContext(sourceDocument);
+      if (context) {
+        return context;
+      }
+    }
+
+    return null;
+  }
+
+  function applyThemeVariables(theme, enabled) {
+    for (const name of settingsApi.THEME_VARIABLE_NAMES) {
+      root.style.removeProperty(name);
+    }
+
+    if (!enabled || !theme?.customized) {
+      return;
+    }
+
+    const variables = settingsApi.deriveThemeVariables(theme);
+    for (const [name, value] of Object.entries(variables)) {
+      root.style.setProperty(name, value);
+    }
+  }
+
+  function applyThemeColors(settings, enabled) {
+    const theme = roleContext
+      ? settingsApi.getRoleTheme(settings, roleContext.id)
+      : null;
+    applyThemeVariables(theme, enabled);
+  }
+
+  function previewThemeColors(message) {
+    updateRoleContext();
+    if (!roleContext || message?.roleId !== roleContext.id) {
+      return false;
+    }
+
+    const main = settingsApi.normalizeHexColor(message.colors?.main);
+    const secondary = settingsApi.normalizeHexColor(message.colors?.secondary);
+    if (!main || !secondary) {
+      return false;
+    }
+
+    const previewSettings = settingsApi.withRoleTheme(currentSettings, roleContext, { main, secondary });
+    const theme = settingsApi.getRoleTheme(previewSettings, roleContext.id);
+    applyThemeVariables(theme, currentSettings.enabled);
+    return true;
+  }
+
+  function updateRoleContext() {
+    const nextRoleContext = findRoleContext();
+    if (!nextRoleContext || nextRoleContext.id === roleContext?.id) {
+      return Boolean(nextRoleContext);
+    }
+
+    roleContext = nextRoleContext;
+    applySettings(currentSettings);
+    return true;
+  }
+
+  function detectRoleContextWhenRendered() {
+    if (updateRoleContext()) {
+      return;
+    }
+
+    const observer = new MutationObserver(() => {
+      if (updateRoleContext()) {
+        observer.disconnect();
+      }
+    });
+
+    observer.observe(root, { childList: true, subtree: true });
+    window.setTimeout(() => observer.disconnect(), 15000);
+  }
+
   function applySettings(settings) {
     const value = settingsApi.normalize(settings);
     const enabled = value.enabled;
 
+    currentSettings = value;
+
     setClass("ext-f", !enabled);
     setClass("isDarkMode", enabled && resolveDarkMode(value.mode));
     setClass("disable_radii", enabled && value.squareCorners);
+    setClass("sfc", enabled);
+    setClass("sln", enabled);
+    applyThemeColors(value, enabled);
     root.dataset.suitemateV3 = enabled ? "active" : "disabled";
     root.dataset.suitemateV3Mode = value.mode;
   }
@@ -124,6 +241,7 @@
   updateLocationMetadata();
   classifyPage();
   detectRedwoodWhenRendered();
+  detectRoleContextWhenRendered();
   loadSettings();
 
   if (document.readyState === "loading") {
@@ -132,6 +250,7 @@
       () => {
         setClass("document-ready", true);
         classifyPage();
+        updateRoleContext();
       },
       { once: true }
     );
@@ -152,6 +271,18 @@
   });
   window.addEventListener("hashchange", updateLocationMetadata);
   darkModeQuery.addEventListener("change", loadSettings);
+
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type === settingsApi.ROLE_CONTEXT_MESSAGE) {
+      updateRoleContext();
+      sendResponse({ roleContext });
+      return;
+    }
+
+    if (message?.type === settingsApi.THEME_PREVIEW_MESSAGE) {
+      sendResponse({ applied: previewThemeColors(message) });
+    }
+  });
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
     const change = changes[settingsApi.STORAGE_KEY];

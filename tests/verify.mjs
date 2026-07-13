@@ -3,13 +3,14 @@ import { createHash } from "node:crypto";
 import { readFile, access } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8"));
 
 assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.name, "SuiteMate V3");
-assert.deepEqual(manifest.permissions, ["storage"]);
+assert.deepEqual(manifest.permissions, ["activeTab", "storage"]);
 assert.deepEqual(manifest.host_permissions, ["https://*.netsuite.com/*"]);
 assert.equal("background" in manifest, false);
 
@@ -37,12 +38,25 @@ for (const match of popupHtml.matchAll(/(?:src|href)="([^"]+)"/g)) {
   }
 }
 
-for (const fixture of ["tests/fixtures/classic.html", "tests/fixtures/redwood.html"]) {
+for (const fixture of [
+  "tests/fixtures/classic.html",
+  "tests/fixtures/redwood.html",
+  "tests/fixtures/sales-order.html",
+  "tests/fixtures/popup-role.html",
+  "tests/fixtures/theme-runtime.html"
+]) {
   const html = await readFile(resolve(root, fixture), "utf8");
   for (const match of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
     const reference = match[1];
-    if (!reference.startsWith("#")) {
-      await access(resolve(root, dirname(fixture), reference));
+    if (
+      !reference.startsWith("#") &&
+      !reference.startsWith("data:") &&
+      !reference.startsWith("/javascript/")
+    ) {
+      const target = reference.startsWith("/")
+        ? resolve(root, `.${reference}`)
+        : resolve(root, dirname(fixture), reference);
+      await access(target);
     }
   }
 }
@@ -60,6 +74,98 @@ for (const file of extensionSources) {
   assert.equal(/https?:\/\//.test(source), false, `${file} contains a remote dependency`);
   assert.equal(/SuiteAdvanced|ExtPay|payment|license/i.test(source), false, `${file} crosses the styling-only boundary`);
 }
+
+const themeRuntimeSource = await readFile(resolve(root, "src/runtime/theme-runtime.js"), "utf8");
+assert.match(themeRuntimeSource, /setClass\("sfc", enabled\)/, "V1 frozen-column styling is not enabled");
+assert.match(themeRuntimeSource, /setClass\("sln", enabled\)/, "V1 sublist line-number styling is not enabled");
+assert.match(
+  themeRuntimeSource,
+  /message\?\.type === settingsApi\.THEME_PREVIEW_MESSAGE/,
+  "Live theme preview messages are not handled"
+);
+const popupSource = await readFile(resolve(root, "src/popup/popup.js"), "utf8");
+assert.match(popupSource, /addEventListener\("input"/, "Color input does not trigger live preview");
+assert.match(popupSource, /addEventListener\("pagehide"/, "Pending live colors are not flushed when the popup closes");
+
+const compatibilityStyles = await readFile(resolve(root, "src/styles/v3-compat.css"), "utf8");
+assert.match(
+  compatibilityStyles,
+  /--suitemate-v3-table-header-bg: var\(--theme-secondary-light\)/,
+  "Sales Order table headers are not controlled by Secondary"
+);
+assert.match(
+  compatibilityStyles,
+  /border-bottom-color: light-dark\(var\(--theme-main\), var\(--theme-main-light\)\)/,
+  "Sales Order sublist tabs are not controlled by Main"
+);
+assert.match(
+  compatibilityStyles,
+  /\.uir-tab-list-tabs \.formtaboff \{\s+background-color: var\(--theme-main\) !important/,
+  "Inactive Sales Order subtabs are not controlled by Main"
+);
+assert.match(
+  compatibilityStyles,
+  /\.uir-tab-list-tabs \.formtabon,[\s\S]*?background-color: var\(--theme-main-light\) !important/,
+  "The active Sales Order subtab is not controlled by Main Light"
+);
+assert.match(
+  compatibilityStyles,
+  /\.uir-tab-list-tabs>\.bgtabbar/,
+  "The Sales Order subtab bar background is not controlled by Main"
+);
+assert.match(
+  compatibilityStyles,
+  /background-color: var\(--theme-secondary-light\) !important;/,
+  "Sales Order field groups are not controlled by Secondary"
+);
+assert.doesNotMatch(
+  compatibilityStyles,
+  /suitemate-v3-table-header-(?:bg|border): var\(--theme-main/,
+  "Sales Order table headers still depend on Main"
+);
+
+const settingsSource = await readFile(resolve(root, "src/shared/settings.js"), "utf8");
+const settingsSandbox = {};
+settingsSandbox.globalThis = settingsSandbox;
+runInNewContext(settingsSource, settingsSandbox);
+const settingsApi = settingsSandbox.SuiteMateV3Settings;
+assert.equal(settingsApi.THEME_PREVIEW_MESSAGE, "SUITEMATE_V3_PREVIEW_ROLE_THEME");
+const roleContext = { id: "9845683_SB2~11596~3~N", name: "DBG Health (SB2) - Administrator" };
+const roleSettings = settingsApi.withRoleTheme(settingsApi.DEFAULTS, roleContext, {
+  main: "#123456",
+  secondary: "#abcdef"
+});
+assert.equal(settingsApi.getRoleTheme(roleSettings, roleContext.id).customized, true);
+assert.deepEqual(
+  JSON.parse(JSON.stringify(settingsApi.deriveThemeVariables(settingsApi.getRoleTheme(roleSettings, roleContext.id)))),
+  {
+    "--custom-theme-main": "light-dark(#123456, #102f4d)",
+    "--custom-theme-main-light": "light-dark(#597189, #415d78)",
+    "--custom-theme-secondary": "light-dark(#abcdef, #89a4bf)",
+    "--custom-theme-secondary-light": "light-dark(#c4dcf4, #b3d2f1)",
+    "--custom-theme-secondary-light-light": "light-dark(#ddebf9, #cde1f5)"
+  },
+  "V1 theme color variants changed"
+);
+const mainOnlySettings = settingsApi.withRoleTheme(settingsApi.DEFAULTS, roleContext, { main: "#ff0000" });
+const mainOnlyTheme = settingsApi.getRoleTheme(mainOnlySettings, roleContext.id);
+assert.equal(mainOnlyTheme.mainCustomized, true);
+assert.equal(mainOnlyTheme.secondaryCustomized, false);
+assert.deepEqual(Object.keys(settingsApi.deriveThemeVariables(mainOnlyTheme)), [
+  "--custom-theme-main",
+  "--custom-theme-main-light"
+]);
+const swappedTheme = settingsApi.getRoleTheme(
+  settingsApi.swapRoleTheme(mainOnlySettings, roleContext),
+  roleContext.id
+);
+assert.equal(swappedTheme.mainCustomized, false);
+assert.equal(swappedTheme.secondaryCustomized, true);
+assert.equal(swappedTheme.secondary, "#ff0000");
+assert.equal(
+  settingsApi.getRoleTheme(settingsApi.withoutRoleTheme(roleSettings, roleContext.id), roleContext.id).customized,
+  false
+);
 
 const expectedStyleHashes = {
   "src/styles/font.css": "ecc7a99f6b820ee9290ab4a3ca2ff1ea4829c1a539c0d42becb19a3d5ea446cf",
@@ -86,5 +192,5 @@ for (const [file, expectedHash] of Object.entries(expectedStyleHashes)) {
 }
 
 console.log(
-  `Verified ${referencedFiles.size} manifest resources, ${Object.keys(expectedStyleHashes).length} V1 style hashes, and the styling-only scope.`
+  `Verified ${referencedFiles.size} manifest resources, ${Object.keys(expectedStyleHashes).length} V1 style hashes, role theme derivation, and the styling-only scope.`
 );

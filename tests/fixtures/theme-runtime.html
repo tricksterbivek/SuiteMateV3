@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SuiteMate V3 theme runtime fixture</title>
+    <script src="chrome-stub.js"></script>
+    <script type="application/json" src="/javascript/sessionstatus/session_status_init.jsp?id=FIXTURE~1~3~N&companyName=Fixture+Company&roleName=Administrator&companyId=FIXTURE&roleId=3"></script>
+    <script src="../../src/shared/settings.js"></script>
+    <script src="../../src/runtime/theme-runtime.js"></script>
+  </head>
+  <body>
+    <button id="previewMain" type="button">Preview Main color</button>
+    <output id="result" aria-live="polite"></output>
+
+    <script>
+      document.querySelector("#previewMain").addEventListener("click", () => {
+        const response = SuiteMateV3Fixture.dispatchRuntimeMessage({
+          type: SuiteMateV3Settings.THEME_PREVIEW_MESSAGE,
+          roleId: "FIXTURE~1~3~N",
+          colors: {
+            main: "#2864a8",
+            secondary: "#a2a4a8"
+          }
+        });
+        document.querySelector("#result").textContent = response?.applied ? "Preview applied" : "Preview rejected";
+      });
+    </script>
+  </body>
+</html>
