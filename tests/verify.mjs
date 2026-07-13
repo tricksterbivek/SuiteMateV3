@@ -80,7 +80,8 @@ const extensionSources = [
 
 for (const file of extensionSources) {
   const source = await readFile(resolve(root, file), "utf8");
-  assert.equal(/https?:\/\//.test(source), false, `${file} contains a remote dependency`);
+  const sourceWithoutApprovedLinks = source.replaceAll("https://suitesense.vercel.app/", "");
+  assert.equal(/https?:\/\//.test(sourceWithoutApprovedLinks), false, `${file} contains an unapproved remote dependency`);
   assert.equal(/SuiteAdvanced|ExtPay|payment|license/i.test(source), false, `${file} contains an excluded V1 integration`);
 }
 
@@ -299,6 +300,12 @@ assert.match(studioSource, /content\.textContent = core\.displayValue\(value\)/,
 assert.match(studioSource, /Mod-Shift-p/, "Paged keyboard shortcut is missing");
 assert.match(studioSource, /Mod-Shift-e/, "Export keyboard shortcut is missing");
 assert.match(studioSource, /Mod-Shift-l/, "Clear keyboard shortcut is missing");
+assert.match(
+  studioSource,
+  /id="suiteql-suitesense" href="https:\/\/suitesense\.vercel\.app\/" target="_blank" rel="noopener noreferrer"/,
+  "SuiteSense is not exposed as a safe external SuiteQL resource"
+);
+assert.match(studioSource, />Generate with SuiteSense<\//, "SuiteSense action text is missing");
 assert.doesNotMatch(backgroundSource, /nlapijsonhandler/i, "SuiteQL uses the unrelated legacy NLAPI JSON endpoint");
 
 let backgroundMessageListener;

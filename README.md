@@ -15,6 +15,7 @@ SuiteMate V3 restores the SuiteMate V1 NetSuite visual system and adds focused d
 - SuiteQL Studio on `/app/common/search/ubersearchresults.nl?suiteql`
 - Locally bundled CodeMirror SQL editor with per-tab drafts and resize persistence
 - Authenticated V1-style SuiteQL execution, optional progressive paging, sorting, loaded-row CSV export, and table inspection
+- SuiteSense link for generating SuiteQL from plain English
 
 Saved queries, query history, variables, datasets, special result rendering, multi-tab query workflows, and Export All remain deferred.
 

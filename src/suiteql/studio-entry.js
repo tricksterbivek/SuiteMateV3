@@ -513,6 +513,7 @@ import { keymap } from "@codemirror/view";
           <p>Queries run with the permissions of the current NetSuite role.</p>
         </div>
         <nav aria-label="SuiteQL resources">
+          <a id="suiteql-suitesense" href="https://suitesense.vercel.app/" target="_blank" rel="noopener noreferrer" title="Generate SuiteQL from plain English with SuiteSense">Generate with SuiteSense</a>
           <button id="suiteql-inspect-table" type="button">Inspect Table</button>
           <a href="/app/recordscatalog/rcbrowser.nl" target="_blank" rel="noopener">Records Catalog</a>
         </nav>

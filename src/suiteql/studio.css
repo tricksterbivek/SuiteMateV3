@@ -118,6 +118,18 @@ html.suiteql-v3 #suitemate-suiteql-studio button.primary:hover:not(:disabled) {
     color: #fff
 }
 
+html.suiteql-v3 .suiteql-studio-header #suiteql-suitesense {
+    border-color: var(--theme-main);
+    background: var(--theme-main);
+    color: #fff
+}
+
+html.suiteql-v3 .suiteql-studio-header #suiteql-suitesense:hover {
+    border-color: var(--theme-main-dark);
+    background: var(--theme-main-dark);
+    color: #fff
+}
+
 html.suiteql-v3 #suitemate-suiteql-studio button:disabled {
     opacity: .48;
     cursor: default

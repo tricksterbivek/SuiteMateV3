@@ -66,6 +66,7 @@ The styling foundation is not complete because the extension loads. It is comple
 - Enter a query, resize the editor, refresh the tab, and confirm the query, Paged setting, and editor height are restored in the same tab.
 - Use Inspect Table with a valid table name and confirm the Records Catalog opens in a new tab.
 - Confirm invalid table names do not open a route.
+- Select Generate with SuiteSense and confirm `https://suitesense.vercel.app/` opens in a new tab without replacing the Studio draft.
 - Recheck Sales Order view and edit pages after the SuiteQL pass.
 - Repeat the SuiteQL execution pass in Release Preview before every NetSuite release and treat a changed bridge response as a release blocker.
 
