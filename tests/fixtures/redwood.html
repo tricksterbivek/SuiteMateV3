@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SuiteMate V3 Redwood fixture</title>
+    <link rel="stylesheet" href="../../src/styles/font.css">
+    <link rel="stylesheet" href="../../src/styles/code.css">
+    <link rel="stylesheet" href="../../src/styles/netsuite.css">
+    <link rel="stylesheet" href="netSuiteFixture.css">
+    <script src="chrome-stub.js"></script>
+    <script src="../../src/shared/settings.js"></script>
+    <script src="../../src/runtime/theme-runtime.js"></script>
+  </head>
+  <body>
+    <header data-widget="NetsuiteSystemHeader">
+      <strong>NetSuite Redwood</strong>
+      <nav aria-label="Main navigation"><span>Transactions</span><span>Lists</span><span>Reports</span></nav>
+    </header>
+    <main id="div__body">
+      <div class="fixture-title">
+        <div>
+          <div class="uir-record-type">Customer</div>
+          <h1 class="uir-page-title-firstline">Sample Customer</h1>
+          <span class="uir-record-status">Active</span>
+        </div>
+        <div class="fixture-actions uir-header-buttons">
+          <button class="uir-button">Edit</button>
+          <button class="uir-button">Actions</button>
+        </div>
+      </div>
+
+      <section class="fixture-fields">
+        <label class="uir-field-wrapper"><span class="uir-label">Company Name</span><input class="input" value="Sample Customer"></label>
+        <label class="uir-field-wrapper"><span class="uir-label">Email</span><input class="input" value="customer@example.com"></label>
+        <label class="uir-field-wrapper"><span class="uir-label">Subsidiary</span><select class="uir-input-dropdown-native"><option>Australia</option></select></label>
+      </section>
+
+      <nav class="uir-tabs" aria-label="Record tabs">
+        <a class="formtabon" href="#contacts">Contacts</a><a class="formtaboff" href="#transactions">Transactions</a><a class="formtaboff" href="#system">System Notes</a>
+      </nav>
+
+      <section id="contacts" class="uir-machine-table-container">
+        <table>
+          <tbody>
+            <tr class="uir-machine-headerrow"><td>Name</td><td>Job Title</td><td>Email</td><td>Phone</td></tr>
+            <tr class="uir-machine-row"><td>Alex Sample</td><td>Buyer</td><td>alex@example.com</td><td>02 5550 1010</td></tr>
+            <tr class="uir-machine-row"><td>Taylor Sample</td><td>Finance</td><td>taylor@example.com</td><td>02 5550 2020</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </body>
+</html>

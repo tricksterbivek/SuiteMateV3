@@ -1,0 +1,89 @@
+﻿html:not(.ext-f):not([data-code-style="No Theme"]):not([data-code-style="NetSuite Editor"]) {
+    color-scheme: var(--sa-code-cs)
+}
+
+html:not(.ext-f):not([data-code-style="No Theme"]):not([data-code-style="NetSuite Editor"]) .uir-page-title-record .uir-record-name {
+    color: var(--sa-code-txt) !important
+}
+
+html:not(.ext-f):not([data-code-style="No Theme"]):not([data-code-style="NetSuite Editor"]) .cm-editor {
+    background-color: var(--sa-code-bg) !important;
+    color: var(--sa-code-txt) !important
+}
+
+@media not (prefers-reduced-motion) {
+    html:not(.ext-f):not([data-code-style="No Theme"]):not([data-code-style="NetSuite Editor"]) .cm-editor {
+        transition-property: background-color, color;
+        transition-duration: .3s
+    }
+}
+
+html:not(.ext-f):not([data-code-style="No Theme"]):not([data-code-style="NetSuite Editor"]) .cm-scroller {
+    font-family: var(--sa-code-fnt) !important
+}
+
+html:not(.ext-f):not([data-code-style="No Theme"]):not([data-code-style="NetSuite Editor"]) .cm-scroller :is(.cm-cursor, .cm-dropCursor) {
+    border-left-color: var(--sa-code-txt) !important
+}
+
+html:not(.ext-f):not([data-code-style="No Theme"]):not([data-code-style="NetSuite Editor"]) .cm-selectionBackground {
+    background-color: rgb(from var(--sa-code-sel-bg) r g b/50%) !important
+}
+
+html:not(.ext-f):not([data-code-style="No Theme"]):not([data-code-style="NetSuite Editor"]) .cm-focused>.cm-scroller>.cm-selectionLayer .cm-selectionBackground {
+    background-color: var(--sa-code-sel-bg) !important
+}
+
+html:not(.ext-f):not([data-code-style="No Theme"]):not([data-code-style="NetSuite Editor"]) :is(.cm-activeLine, .cm-activeLineGutter) {
+    background-color: rgb(from var(--sa-code-txt) r g b/10%) !important
+}
+
+html:not(.ext-f):not([data-code-style="No Theme"]):not([data-code-style="NetSuite Editor"]) .cm-activeLineGutter {
+    color: var(--sa-code-txt) !important
+}
+
+html:not(.ext-f):not([data-code-style="No Theme"]):not([data-code-style="NetSuite Editor"]) .cm-gutters {
+    background-color: var(--sa-code-gut-bg) !important;
+    color: var(--sa-code-gut-txt) !important;
+    border-right-color: var(--sa-code-gut-brdr, transparent) !important
+}
+
+html:not(.ext-f):not([data-code-style="No Theme"]):not([data-code-style="NetSuite Editor"]):not(:is([data-code-style^="WebStorm ("], [data-code-style^="Slack ("])) .cm-gutters {
+    border-right: 0
+}
+
+html:not(.ext-f):not([data-code-style="No Theme"]):not([data-code-style="NetSuite Editor"]) .cm-tooltip {
+    background-color: var(--sa-code-bg) !important;
+    border-color: rgb(from var(--sa-code-txt) r g b/60%) !important
+}
+
+html:not(.ext-f):not([data-code-style="No Theme"]):not([data-code-style="NetSuite Editor"]) .cm-line>span {
+    color: var(--sa-code-txt)
+}
+
+html:not(.ext-f):not([data-code-style="No Theme"]):not([data-code-style="NetSuite Editor"]) .cm-line>:is(.ͼg, .ͼt, .ͼq, .ͼr, .ͼl) {
+    color: var(--sa-json-prop);
+    font-weight: var(--sa-json-prop-fw)
+}
+
+html:not(.ext-f):not([data-code-style="No Theme"]):not([data-code-style="NetSuite Editor"]) .cm-line>:is(.ͼd, .ͼu) {
+    color: var(--sa-json-num);
+    font-weight: var(--sa-json-num-fw)
+}
+
+html:not(.ext-f):not([data-code-style="No Theme"]):not([data-code-style="NetSuite Editor"]) .cm-line>:is(.ͼe, .ͼ13, .ͼf) {
+    color: var(--sa-json-str);
+    font-weight: var(--sa-json-str-fw)
+}
+
+html:not(.ext-f):not([data-code-style="No Theme"]):not([data-code-style="NetSuite Editor"]) .cm-line>:is(.ͼc, .ͼ12) {
+    color: var(--sa-json-bool);
+    font-weight: var(--sa-json-bool-fw);
+    font-style: var(--sa-json-bool-fs)
+}
+
+html:not(.ext-f):not([data-code-style="No Theme"]):not([data-code-style="NetSuite Editor"]) .cm-line>:is(.ͼb, .ͼp) {
+    color: var(--sa-json-null);
+    font-weight: var(--sa-json-null-fw);
+    font-style: var(--sa-json-null-fs)
+}

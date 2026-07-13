@@ -1,0 +1,151 @@
+html:not(.ext-f) #div__scrollbarSpacer {
+    display: none
+}
+
+html:not(.ext-f) #body {
+    min-height: 0 !important
+}
+
+html:not(.ext-f) #tbl__innerscroll>tbody>tr>td>table {
+    width: 100%
+}
+
+html:not(.ext-f) #tbl__innerscroll>tbody>tr>td>table>tbody>tr>td[align] {
+    width: 30%
+}
+
+html:not(.ext-f) #tbl__innerscroll>tbody>tr>td>table>tbody>tr>td[align]>table[width="330px"] {
+    width: 100%
+}
+
+html:not(.ext-f) [id^=tr_fldarr_] .uir-fieldarrangement-fieldwraptable {
+    width: 100%;
+    border-collapse: collapse
+}
+
+html:not(.ext-f) .uir-fieldarrangement-fieldwraptable-outer {
+    padding-bottom: 0 !important
+}
+
+html:not(.ext-f) [id^=bundle_grp_] {
+    height: max(100vh - 268px, 140px) !important;
+    width: 100% !important
+}
+
+html:not(.ext-f) tr.uir-list-row-tr:hover>td td,
+html:not(.ext-f) #bundlebuilder_summgrpdiv .smallgraytext[nodata=T] {
+    background-color: rgba(0, 0, 0, 0) !important
+}
+
+html:not(.ext-f) #header {
+    position: sticky;
+    top: 0;
+    z-index: 1
+}
+
+html:not(.ext-f) #main_form {
+    padding-bottom: 0 !important
+}
+
+html:not(.ext-f) #div__scrollbody {
+    height: max(100vh - 225px, 183px) !important
+}
+
+html:not(.ext-f) :is(#div__nav, #navpanediv, #div_rightpane) {
+    height: auto !important
+}
+
+html:not(.ext-f):not(.isRedwood) {
+    --ss-top-1: 27px;
+    --ss-top-2: 46px
+}
+
+html:not(.ext-f).isRedwood {
+    --ss-top-1: 28px;
+    --ss-top-2: 53px
+}
+
+html:not(.ext-f) #__tab tr:has(>:is([style^="padding-left:30px !important;"], [style^="padding-left:10px;"]))>td {
+    background-color: light-dark(#ebebeb, var(--dark-3)) !important
+}
+
+html:not(.ext-f) #__tab tr:has(>[style^="padding-left:10px;"]) {
+    position: sticky;
+    top: var(--ss-top-1);
+    z-index: 2
+}
+
+html:not(.ext-f) #__tab tr:has(>[style^="padding-left:30px !important;"]) {
+    position: sticky;
+    top: var(--ss-top-2);
+    z-index: 1
+}
+
+html:not(.ext-f) #compgrpdiv table {
+    width: 100%
+}
+
+html:not(.ext-f) .uir-bundlebuilder-objects-item-label {
+    display: flex;
+    gap: 5px
+}
+
+html:not(.ext-f) .uir-bundlebuilder-objects-item-label .smallgraytext {
+    align-self: center;
+    margin-left: auto
+}
+
+html:not(.ext-f) tr:has(>.uir-bundlebuilder-check-box),
+html:not(.ext-f) tr:has(>.uir-bundlebuilder-check-box) label {
+    cursor: pointer
+}
+
+html:not(.ext-f) tr:has(>.uir-bundlebuilder-check-box):hover {
+    background-color: var(--row-hover-bg-color)
+}
+
+html:not(.ext-f) tr:has(>.uir-bundlebuilder-check-box)>td {
+    vertical-align: middle;
+    padding-block: 1px
+}
+
+html:not(.ext-f) tr:has(>.uir-bundlebuilder-check-box)>td:first-child {
+    padding-left: 4px
+}
+
+html:not(.ext-f) tr:has(>.uir-bundlebuilder-check-box)>td:last-child {
+    padding-right: 8px
+}
+
+html:not(.ext-f).isDarkMode :is(#bundle_grp_1, #bundle_grp_2, #bundle_grp_3) {
+    border-top-color: var(--dark-3) !important
+}
+
+html:not(.ext-f).isDarkMode #bundlebuilder_summgrpdiv .smallgraytext[nodata=T] {
+    color: var(--dark-text-2)
+}
+
+html:not(.ext-f).isRedwood .uir_assistant_current_step {
+    color: #fff
+}
+
+html:not(.ext-f).isRedwood .uir_assistant_step_complete {
+    color: var(--text-3)
+}
+
+html:not(.ext-f).isRedwood .uir_assistant_step_complete::before {
+    background-color: currentColor
+}
+
+html:not(.ext-f).isRedwood .uir_assistant_step_incomplete {
+    color: var(--text-1)
+}
+
+html:not(.ext-f).isRedwood .uir_assistant_step_label {
+    color: currentColor
+}
+
+html:not(.ext-f).isRedwood.isDarkMode :is([src="/uiredwood/img/form/chevron_down.svg"], .treeNodeRow img, .uir-bundlebuilder-info-icon, .uir-bundlebuilder-arrow, .uir-bundlebuilder-summary-box-checked-icon, .uir-bundlebuilder-tree-field-linked-icon),
+html:not(.ext-f).isRedwood.isDarkMode :is(.uir-bundlebuilder-summary-folder-icon, .uir-bundlebuilder-summary-object-icon, .uir-bundlebuilder-content-item)::before {
+    filter: invert(1)
+}

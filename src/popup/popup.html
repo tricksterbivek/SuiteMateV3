@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SuiteMate V3 styling</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="../../icons/48.png" alt="" width="40" height="40">
+        <div>
+          <h1>SuiteMate V3</h1>
+          <p>V1 styling foundation</p>
+        </div>
+      </header>
+
+      <form id="settings">
+        <label class="toggle-row" for="enabled">
+          <span>
+            <strong>NetSuite styling</strong>
+            <small>Apply the V1 visual system</small>
+          </span>
+          <input id="enabled" name="enabled" type="checkbox">
+        </label>
+
+        <fieldset>
+          <legend>Appearance</legend>
+          <label><input type="radio" name="mode" value="light"> Light</label>
+          <label><input type="radio" name="mode" value="dark"> Dark</label>
+          <label><input type="radio" name="mode" value="system"> System</label>
+        </fieldset>
+
+        <label class="toggle-row" for="squareCorners">
+          <span>
+            <strong>Boxy UI</strong>
+            <small>Remove rounded corners</small>
+          </span>
+          <input id="squareCorners" name="squareCorners" type="checkbox">
+        </label>
+
+        <div class="actions">
+          <button id="reset" type="button">Reset</button>
+          <output id="status" aria-live="polite"></output>
+        </div>
+      </form>
+    </main>
+
+    <script src="../shared/settings.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

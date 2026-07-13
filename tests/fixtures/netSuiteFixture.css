@@ -1,0 +1,94 @@
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+[data-widget="NetsuiteSystemHeader"],
+[data-widget="ClassicSystemHeader"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 54px;
+  padding: 0 24px;
+  background: #25364d;
+  color: #fff;
+}
+
+[data-widget="NetsuiteSystemHeader"] nav,
+[data-widget="ClassicSystemHeader"] nav {
+  display: flex;
+  gap: 22px;
+}
+
+#div__body {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 22px 28px 60px;
+}
+
+.fixture-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.fixture-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.fixture-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.uir-field-wrapper {
+  display: grid;
+  gap: 5px;
+}
+
+.uir-field-wrapper input,
+.uir-field-wrapper select,
+.uir-field-wrapper textarea {
+  width: 100%;
+}
+
+.uir-tabs {
+  margin-bottom: 0;
+}
+
+.uir-tabs a {
+  display: inline-block;
+  padding: 10px 18px;
+}
+
+.uir-machine-table-container {
+  overflow: auto;
+}
+
+.uir-machine-table-container table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.uir-machine-table-container td {
+  padding: 9px 10px;
+}
+
+.totallingtable {
+  width: 360px;
+  margin: 22px 0 0 auto;
+}
+
+.totallingtable td {
+  padding: 8px;
+}
+
+@media (max-width: 760px) {
+  .fixture-fields {
+    grid-template-columns: 1fr;
+  }
+}

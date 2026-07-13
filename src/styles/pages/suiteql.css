@@ -1,0 +1,665 @@
+﻿html.suiteql-results [name=ssr] {
+    visibility: hidden;
+    width: 0;
+    height: 0;
+    position: absolute
+}
+
+html.suiteql-results .uir-page-title-firstline {
+    display: flex;
+    align-items: start
+}
+
+html.suiteql-results #footer_actions_form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 0 25px 15px 25px
+}
+
+html.suiteql-results .buttons-divider {
+    width: 1px;
+    height: 26px;
+    align-self: center;
+    background: light-dark(#b5b5b5, var(--dark-text-2))
+}
+
+html.suiteql-results #suiteql-control-bar {
+    display: flex;
+    align-items: end
+}
+
+html.suiteql-results #suiteql-buttons {
+    display: flex;
+    gap: 6px
+}
+
+html.suiteql-results .uir-button {
+    margin-right: 0 !important
+}
+
+html.suiteql-results #uir_totalcount {
+    white-space: nowrap;
+    padding: 0
+}
+
+html.suiteql-results :is(#div__footer, .uir-list-name:not([data-l=T]), .page-title-menu>.ns-menu>[data-nsps-type], .cm-tooltip-autocomplete, #suiteql, #footer_actions_form:not(:has(.cm-editor)):not(:has(#suiteql-container))+#body_actions),
+html.suiteql-results #header:has(>[data-nsps-id=columnheader__noresults])>td {
+    display: none
+}
+
+html.suiteql-results.isRedwood:not(.isDarkMode) #suiteql-container {
+    background-color: #fff
+}
+
+html.suiteql-results #suiteql-stats {
+    display: flex;
+    gap: 15px;
+    margin-left: auto;
+    font-size: 13px
+}
+
+html.suiteql-results #suiteql-stats:has(:empty) {
+    display: none
+}
+
+html.suiteql-results #suiteql-stats span::before {
+    content: attr(data-label) ": ";
+    text-transform: uppercase
+}
+
+html.suiteql-results {
+    --suiteql-header-height-half: calc(var(--suiteql-header-height) / 2);
+    --suiteql-size-calc: clamp(83px, calc(var(--suiteql-size, 40vh) - var(--suiteql-header-height-half)), calc(100vh - var(--suiteql-header-height) - var(--suiteql-top, 90px) - 150px))
+}
+
+html.suiteql-results .cm-editor {
+    min-height: 83px !important
+}
+
+html.suiteql-results.suiteql-manual-height .cm-editor {
+    height: var(--suiteql-size-calc)
+}
+
+html.suiteql-results:not(.suiteql-manual-height) .cm-editor {
+    max-height: calc(50vh - 134px)
+}
+
+html.suiteql-results #body_actions {
+    position: relative;
+    padding-top: 10px
+}
+
+html.suiteql-results #body_actions::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    height: 10px;
+    width: 100%;
+    cursor: row-resize;
+    box-sizing: border-box;
+    background: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACMAAAAFCAMAAAD48qVAAAAADFBMVEX///+IiIiIiIiIiIi6oTq7AAAAA3RSTlMAcOB1Q19QAAAAGklEQVR42mMgHjAyMWIlkAETMxM2ghRzCAMAGxIATCezWL8AAAAASUVORK5CYII=) no-repeat center center;
+    border-block: solid 1px #000;
+    background-color: light-dark(#dddddd, #555555);
+    border-color: light-dark(#cccccc, #666666)
+}
+
+html.suiteql-results #body_actions:hover:not(:has(*:hover))::before {
+    background-color: light-dark(rgb(233.75, 233.75, 233.75), rgb(72.25, 72.25, 72.25));
+    border-color: light-dark(rgb(216.75, 216.75, 216.75), rgb(89.25, 89.25, 89.25))
+}
+
+html.suiteql-results.suiteql-resizing {
+    user-select: none
+}
+
+html.suiteql-results.suiteql-resizing::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1000;
+    cursor: row-resize
+}
+
+html.suiteql-results.suiteql-resizing #body_actions::before {
+    background-color: light-dark(rgb(246.5, 246.5, 246.5), rgb(59.5, 59.5, 59.5));
+    border-color: light-dark(rgb(229.5, 229.5, 229.5), rgb(76.5, 76.5, 76.5))
+}
+
+html.suiteql-results #div__body {
+    padding-bottom: 300px;
+    background-color: rgba(0, 0, 0, 0)
+}
+
+html.suiteql-results .uir-list-header-td[data-type=number]>.listheader {
+    justify-content: end;
+    flex-direction: row-reverse
+}
+
+html.suiteql-results .row-group:empty {
+    display: block;
+    min-height: var(--min-height)
+}
+
+html.suiteql-results .uir-list-row-tr[data-bg=l] {
+    color-scheme: light
+}
+
+html.suiteql-results .uir-list-row-tr[data-bg=d] {
+    color-scheme: dark
+}
+
+html.suiteql-results .uir-list-row-tr[data-bg] .dottedlink {
+    color: var(--link-text) !important
+}
+
+html.suiteql-results .uir-list-row-tr[data-bg]>.uir-list-row-cell {
+    color: var(--text-0) !important
+}
+
+html.suiteql-results .uir-list-row-cell {
+    max-width: 200px;
+    line-height: 1.4
+}
+
+html.suiteql-results .uir-list-row-cell[data-type=null]>div {
+    font-style: italic;
+    font-family: var(--monospace-font);
+    color: light-dark(rgb(from var(--light-text-2) r g b/0.6), rgb(from var(--dark-text-2) r g b/0.6)) !important
+}
+
+html.suiteql-results .uir-list-row-cell[data-type=number] {
+    text-align: right
+}
+
+html.suiteql-results .uir-list-row-cell[data-type=number]>div {
+    font-family: var(--monospace-font)
+}
+
+html.suiteql-results .uir-list-row-cell[data-size=md] {
+    max-width: 300px
+}
+
+html.suiteql-results .uir-list-row-cell[data-size=lg] {
+    max-width: 400px
+}
+
+html.suiteql-results .uir-list-row-cell[data-size=xl] {
+    max-width: 500px
+}
+
+html.suiteql-results .uir-list-row-cell[data-size=xxl] {
+    max-width: 600px
+}
+
+html.suiteql-results .uir-list-row-cell>div {
+    width: max-content;
+    min-width: 100%;
+    max-width: 100%;
+    word-wrap: break-word
+}
+
+html.suiteql-results #suiteql-status {
+    padding: 25px;
+    font-size: 13px;
+    white-space: pre;
+    font-family: var(--monospace-font)
+}
+
+html.suiteql-results #suiteql-status.loading::before {
+    content: "";
+    display: block;
+    width: 64px;
+    height: 64px;
+    margin: auto;
+    animation: spin 1.6s linear infinite;
+    background: var(--icon-loading) no-repeat;
+    background-size: contain
+}
+
+html.suiteql-results:not(.suiteql-results-loaded) .listheader {
+    visibility: hidden
+}
+
+html.suiteql-results:not(.suiteql-results-loaded) #row0:not(:has(#suiteql-status)) {
+    display: none
+}
+
+html.suiteql-results [data-widget=Modal] [data-window-section=resize-corner] {
+    z-index: 2
+}
+
+html.suiteql-results [data-widget=Modal] div:has(>[data-window-section=resize-corner]) {
+    display: contents
+}
+
+html.suiteql-results:not(.isRedwood) [data-window-section=content]:has(>.modal-body) {
+    font-size: 14px;
+    line-height: 20px;
+    display: grid;
+    grid-template-rows: min-content 1fr;
+    gap: 12px
+}
+
+html.suiteql-results:not(.isRedwood) [data-window-section=content]:has(>.modal-body) .dottedlink {
+    color: var(--link-text);
+    border-bottom: 0;
+    cursor: pointer
+}
+
+html.suiteql-results:not(.isRedwood) [data-window-section=content]:has(>.modal-body) .dottedlink:hover {
+    text-decoration: underline
+}
+
+html.suiteql-results:not(.isRedwood) [data-window-section=content]:has(>.modal-body) table.uir-button {
+    display: table
+}
+
+html.suiteql-results:not(.isRedwood) .modal-header {
+    display: flex;
+    gap: 6px
+}
+
+html.suiteql-results:not(.isRedwood) .modal-header>.uir-input-text {
+    margin-left: auto
+}
+
+html.suiteql-results.isRedwood [data-window-section=content] {
+    --sa-size-s: var(--nsn-uif-redwood-size-s, 16px);
+    --sa-size-m: var(--nsn-uif-redwood-size-m, 24px);
+    --sa-size-l: var(--nsn-uif-redwood-size-l, 32px)
+}
+
+html.suiteql-results.isRedwood [data-window-section=content]:has(>.modal-body) {
+    font-size: 14px;
+    line-height: 20px;
+    display: grid;
+    grid-template-rows: min-content 1fr
+}
+
+html.suiteql-results.isRedwood [data-window-section=content]:has(>.modal-body) .dottedlink {
+    color: var(--link-text);
+    border-bottom: 0;
+    cursor: pointer
+}
+
+html.suiteql-results.isRedwood [data-window-section=content]:has(>.modal-body) .dottedlink:hover {
+    text-decoration: underline
+}
+
+html.suiteql-results.isRedwood [data-window-section=content]:has(>.modal-body) table.uir-button {
+    display: table
+}
+
+html.suiteql-results.isRedwood [data-window-section=content]:has(>.modal-body)>.modal-body {
+    padding-top: var(--sa-size-s);
+    padding-inline: var(--sa-size-m)
+}
+
+html.suiteql-results.isRedwood [data-window-section=content]:has(>.modal-body)>.modal-body:has(>.modal-subtabs) {
+    padding-top: calc(var(--sa-size-s)/2)
+}
+
+html.suiteql-results.isRedwood [data-window-section=content]:has(>.modal-body)>.modal-footer {
+    padding-inline: var(--sa-size-m)
+}
+
+html.suiteql-results.isRedwood [data-window-section=content]:has(>.modal-body)>.modal-footer,
+html.suiteql-results.isRedwood [data-window-section=content]:has(>.modal-body):not(:has(>.modal-footer)) .modal-footer {
+    padding-bottom: var(--sa-size-s)
+}
+
+html.suiteql-results.isRedwood .modal-header {
+    display: flex;
+    gap: 8px;
+    padding: var(--sa-size-s) var(--sa-size-m);
+    background: light-dark(var(--nsn-uif-redwood-color-light-neutral-20), var(--dark-2))
+}
+
+html.suiteql-results.isRedwood .modal-header>.uir-input-text {
+    margin-left: auto
+}
+
+html.suiteql-results .modal-body {
+    overflow: auto;
+    flex: 1
+}
+
+html.suiteql-results .modal-body:has(>.modal-table) {
+    border: solid 1px var(--table-border-color)
+}
+
+html.suiteql-results .modal-body:has(>.modal-table>tbody:empty)::after {
+    content: "";
+    display: block;
+    margin: 10px auto;
+    background: var(--icon-loading) no-repeat;
+    background-size: contain;
+    height: 32px;
+    width: 32px;
+    animation: spin 1.6s linear infinite
+}
+
+html.suiteql-results:not(.isRedwood) .modal-subtabs {
+    height: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    row-gap: 10px
+}
+
+html.suiteql-results:not(.isRedwood) .modal-subtabs::after {
+    content: "";
+    flex: 1;
+    height: 28px;
+    background-color: var(--theme-main);
+    border-radius: 0 5px 5px 0
+}
+
+html.suiteql-results:not(.isRedwood) .modal-subtabs>label {
+    color: #fff;
+    height: 28px;
+    place-content: center;
+    padding: 5px 12px;
+    background-color: var(--theme-main)
+}
+
+html.suiteql-results:not(.isRedwood) .modal-subtabs>label>[type=radio] {
+    display: none
+}
+
+html.suiteql-results:not(.isRedwood) .modal-subtabs>label:not(:has(>:checked)) {
+    cursor: pointer
+}
+
+html.suiteql-results:not(.isRedwood) .modal-subtabs>label:not(:has(>:checked))+div {
+    display: none
+}
+
+html.suiteql-results:not(.isRedwood) .modal-subtabs>label:has(>:checked) {
+    background-color: var(--theme-main-light);
+    clip-path: var(--selected-subtab-clip-path)
+}
+
+html.suiteql-results:not(.isRedwood) .modal-subtabs>label:first-child {
+    border-radius: 5px 0 0 5px
+}
+
+html.suiteql-results:not(.isRedwood) .modal-subtabs>div {
+    order: 1;
+    width: 100%;
+    height: calc(100% - 38px);
+    line-height: 1.5;
+    font-size: .9em;
+    display: flex;
+    flex-direction: column;
+    gap: 12px
+}
+
+html.suiteql-results.isRedwood .modal-subtabs {
+    height: 100%;
+    display: flex;
+    flex-wrap: wrap
+}
+
+html.suiteql-results.isRedwood .modal-subtabs::after {
+    content: "";
+    flex: 1;
+    height: 48px
+}
+
+html.suiteql-results.isRedwood .modal-subtabs>label {
+    height: 48px;
+    align-content: center;
+    padding-inline: calc(var(--sa-size-l)/2);
+    border-bottom: 3px solid rgba(0, 0, 0, 0);
+    font-size: var(--nsn-uif-redwood-font-size-body-sm);
+    font-weight: var(--nsn-uif-redwood-font-weight-semi-bold)
+}
+
+html.suiteql-results.isRedwood .modal-subtabs>label>[type=radio] {
+    display: none
+}
+
+html.suiteql-results.isRedwood .modal-subtabs>label:not(:has(>:checked)) {
+    color: light-dark(var(--nsn-uif-redwood-color-light-text-secondary), var(--dark-text-1));
+    cursor: pointer
+}
+
+html.suiteql-results.isRedwood .modal-subtabs>label:not(:has(>:checked)):hover {
+    border-bottom-color: light-dark(var(--theme-main-light), var(--theme-main))
+}
+
+html.suiteql-results.isRedwood .modal-subtabs>label:not(:has(>:checked))+div {
+    display: none
+}
+
+html.suiteql-results.isRedwood .modal-subtabs>label:has(>:checked) {
+    color: light-dark(var(--nsn-uif-redwood-color-light-text-primary), var(--dark-text-0));
+    border-bottom-color: light-dark(var(--theme-main), var(--theme-main-light))
+}
+
+html.suiteql-results.isRedwood .modal-subtabs>div {
+    border-top: 1px solid light-dark(var(--nsn-uif-redwood-color-light-border-divider), var(--table-border-color));
+    padding-top: var(--sa-size-s);
+    order: 1;
+    width: 100%;
+    height: calc(100% - 48px);
+    line-height: 1.5;
+    font-size: .9em;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sa-size-s)
+}
+
+html.suiteql-results .modal-table {
+    width: 100%;
+    border-collapse: collapse
+}
+
+html.suiteql-results .modal-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 1
+}
+
+html.suiteql-results .modal-table th {
+    text-align: left
+}
+
+html.suiteql-results .modal-table>tbody>tr:hover>td {
+    background: var(--row-hover-bg-color) !important
+}
+
+html.suiteql-results .modal-table>tbody>tr:nth-child(odd)>td {
+    background: var(--row-odd-bg-color)
+}
+
+html.suiteql-results .modal-table>tbody>tr:not(:last-child)>td {
+    border-bottom: 1px solid var(--table-border-color)
+}
+
+html.suiteql-results .modal-table>tbody>tr>td {
+    padding: 6px;
+    vertical-align: top
+}
+
+html.suiteql-results .modal-table>tbody>tr>td .current {
+    margin-left: 5px;
+    display: inline-block
+}
+
+html.suiteql-results .modal-table>tbody>tr>td .current::after {
+    content: "•";
+    color: #006aff;
+    display: inline-block;
+    position: relative;
+    bottom: 2px;
+    scale: 2;
+    font-family: var(--monospace-font)
+}
+
+html.suiteql-results .modal-table .actions-cell,
+html.suiteql-results .modal-table .actions-cell+td {
+    white-space: nowrap
+}
+
+html.suiteql-results .modal-table tfoot {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    background: light-dark(#fff, var(--dark-1))
+}
+
+html.suiteql-results .modal-table tfoot>tr>td {
+    padding: 6px
+}
+
+html.suiteql-results:not(.isRedwood) .modal-table th {
+    padding: 4px 6px;
+    font-size: 11px;
+    background: light-dark(#e5e5e5, var(--dark-3));
+    color: light-dark(#666, var(--dark-text-2))
+}
+
+html.suiteql-results:not(.isRedwood) .modal-table th:first-child,
+html.suiteql-results:not(.isRedwood) .modal-table>tbody>tr>td:first-child {
+    padding-left: 12px !important
+}
+
+html.suiteql-results:not(.isRedwood) .modal-table th:last-child,
+html.suiteql-results:not(.isRedwood) .modal-table>tbody>tr>td:last-child {
+    padding-right: 12px !important
+}
+
+html.suiteql-results.isRedwood .modal-table th {
+    border-bottom: 1px solid var(--nsn-uif-redwood-color-light-border-divider);
+    font-weight: var(--nsn-uif-redwood-font-weight-semi-bold);
+    background: light-dark(#fff, var(--dark-1));
+    color: light-dark(#666, var(--dark-text-2))
+}
+
+html.suiteql-results.isRedwood .modal-table th,
+html.suiteql-results.isRedwood .modal-table>tbody>tr>td {
+    padding: 4px var(--sa-size-s);
+    font-size: var(--nsn-uif-redwood-font-size-body-sm);
+    line-height: var(--sa-size-s)
+}
+
+html.suiteql-results.isRedwood .modal-table th:first-child,
+html.suiteql-results.isRedwood .modal-table>tbody>tr>td:first-child {
+    padding-left: var(--sa-size-m) !important
+}
+
+html.suiteql-results.isRedwood .modal-table th:last-child,
+html.suiteql-results.isRedwood .modal-table>tbody>tr>td:last-child {
+    padding-right: var(--sa-size-m) !important
+}
+
+html.suiteql-results.isRedwood .modal-footer {
+    line-height: 2
+}
+
+html.suiteql-results .modal-footer {
+    font-size: var(--nsn-uif-redwood-font-size-body-sm, 14px)
+}
+
+html.suiteql-results pre {
+    display: inline-block;
+    padding-inline: 5px;
+    border-radius: 5px;
+    font-family: var(--monospace-font);
+    background: light-dark(#e5e5e5, var(--dark-gray-1));
+    color: light-dark(#333, var(--dark-text-1));
+    margin: 0;
+    line-height: 1.5
+}
+
+html.suiteql-results tr:hover pre {
+    background: light-dark(#d0d0d0, var(--dark-gray-2));
+    color: light-dark(#000, var(--dark-text-0))
+}
+
+html.suiteql-results #sa-suiteql-vars_frame .modal-table th {
+    width: 50%
+}
+
+html.suiteql-results #sa-suiteql-vars_frame .modal-table th:is(:first-child, :last-child) {
+    width: 1px
+}
+
+html.suiteql-results #sa-suiteql-vars_frame .modal-table>tbody>tr>td>textarea {
+    display: block;
+    width: 100% !important;
+    min-height: 30px;
+    resize: vertical;
+    font-family: var(--monospace-font);
+    field-sizing: content
+}
+
+html.suiteql-results #sa-suiteql-vars_frame .modal-table>tbody>tr>td:has(>input) {
+    text-align: center
+}
+
+html.suiteql-results #sa-suiteql-vars_frame .modal-table>tbody>tr>td label {
+    display: flex;
+    width: 17px;
+    height: 17px;
+    margin-inline: auto;
+    margin-top: 7px;
+    border: 1px solid var(--field-border-color);
+    background-color: var(--field-backgroud-color);
+    background-repeat: no-repeat;
+    background-position: center;
+    cursor: pointer;
+    outline: none
+}
+
+html.suiteql-results #sa-suiteql-vars_frame .modal-table>tbody>tr>td label>input {
+    margin: auto;
+    cursor: pointer;
+    opacity: 0
+}
+
+html.suiteql-results #sa-suiteql-vars_frame .modal-table>tbody>tr>td label:has(>input:hover) {
+    border-color: var(--field-hover-border-color)
+}
+
+html.suiteql-results #sa-suiteql-vars_frame .modal-table>tbody>tr>td label:has(>input:checked) {
+    background-image: var(--icon-fieldCheckmark)
+}
+
+html.suiteql-results #sa-suiteql-vars_frame .modal-table>tbody>tr>td label:has(>input:focus) {
+    box-shadow: 0 0 2px 2px rgba(64, 143, 219, .75);
+    border-color: #408fdb
+}
+
+html.suiteql-results #sa-suiteql-vars_frame .modal-table .delete {
+    display: block;
+    cursor: pointer;
+    background-size: contain;
+    background: var(--icon-xMark) no-repeat center;
+    width: 16px;
+    height: 16px;
+    margin-inline: auto;
+    margin-top: 7px
+}
+
+html.suiteql-results #sa-suiteql-vars_frame .modal-table .delete:focus {
+    outline: none;
+    box-shadow: 0 0 2px 2px rgba(64, 143, 219, .75)
+}
+
+html.suiteql-results #sa-suiteql-vars_frame .modal-table tfoot>tr>td {
+    padding: 0;
+    vertical-align: top
+}
+
+html.suiteql-results #sa-suiteql-vars_frame .modal-table tfoot>tr>td>div {
+    padding: 6px;
+    border-top: solid 1px var(--table-border-color)
+}
+
+html.suiteql-results.isDarkMode #sa-suiteql-vars_frame .modal-table>tbody>tr>td label:has(>input:checked) {
+    background-image: var(--icon-machineSprites);
+    background-position: 1px -328px
+}

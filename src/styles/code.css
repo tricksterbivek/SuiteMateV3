@@ -1,0 +1,345 @@
+:root {
+    --sa-code-fnt: var(--monospace-font);
+    --sa-code-sel-bg: rgb(166, 210, 255)
+}
+
+[data-code-style="NetSuite Editor"] {
+    --sa-code-cs: light;
+    --sa-code-bg: #fafafa;
+    --sa-code-txt: #000;
+    --sa-code-gut-bg: #f7f7f7;
+    --sa-code-gut-txt: #999;
+    --sa-code-gut-brdr: #ddd;
+    --sa-code-sel-bg: #d7d4f0;
+    --sa-json-prop: #a11;
+    --sa-json-num: #164;
+    --sa-json-str: #a11;
+    --sa-json-bool: #219;
+    --sa-json-null: #219;
+    --sa-xml-tag-name: #f50;
+    --sa-xml-attr-val: #a11
+}
+
+[data-code-style^="WebStorm ("] {
+    --sa-code-fnt: "JetBrains Mono", var(--monospace-font)
+}
+
+[data-code-style="WebStorm (Light)"] {
+    --sa-code-cs: light;
+    --sa-code-bg: #fff;
+    --sa-code-txt: #080808;
+    --sa-code-gut-bg: #f7f8fa;
+    --sa-code-gut-txt: #aeb3c2;
+    --sa-code-gut-brdr: #ebecf0;
+    --sa-code-sel-bg: #a6d2ff;
+    --sa-json-prop: #871094;
+    --sa-json-num: #1750eb;
+    --sa-json-str: #067d17;
+    --sa-json-bool: #0033b3;
+    --sa-json-null: #0033b3;
+    --sa-xml-tag: #080808;
+    --sa-xml-tag-name: #0033b3;
+    --sa-xml-ns-prefix: #871094;
+    --sa-xml-attr-name: #174ad4;
+    --sa-xml-attr-val: #067d17
+}
+
+[data-code-style="WebStorm (Dark)"] {
+    --sa-code-cs: dark;
+    --sa-code-bg: #1e1f22;
+    --sa-code-txt: #a9b7c6;
+    --sa-code-gut-bg: #151617;
+    --sa-code-gut-txt: #696d75;
+    --sa-code-gut-brdr: #313438;
+    --sa-code-sel-bg: #214283;
+    --sa-json-prop: #828eba;
+    --sa-json-prop-fw: 600;
+    --sa-json-num: #bcbec4;
+    --sa-json-str: #94907f;
+    --sa-json-str-fw: 600;
+    --sa-json-bool: #597cc2;
+    --sa-json-null: #597cc2;
+    --sa-xml-tag: #d5b778;
+    --sa-xml-tag-name: #d5b778;
+    --sa-xml-ns-prefix: #828eba;
+    --sa-xml-ns-prefix-fw: 600;
+    --sa-xml-attr-name: #bcbec4;
+    --sa-xml-attr-val: #94907f;
+    --sa-xml-attr-val-fw: 600
+}
+
+[data-code-style="WebStorm (Auto)"] {
+    --sa-code-bg: light-dark(#fff, #1e1f22);
+    --sa-code-txt: light-dark(#080808, #a9b7c6);
+    --sa-code-gut-bg: light-dark(#f7f8fa, #151617);
+    --sa-code-gut-txt: light-dark(#aeb3c2, #696d75);
+    --sa-code-gut-brdr: light-dark(#ebecf0, #313438);
+    --sa-code-sel-bg: light-dark(#a6d2ff, #214283);
+    --sa-json-prop: light-dark(#871094, #828eba);
+    --sa-json-num: light-dark(#1750eb, #bcbec4);
+    --sa-json-str: light-dark(#067d17, #94907f);
+    --sa-json-bool: light-dark(#0033b3, #597cc2);
+    --sa-json-null: light-dark(#0033b3, #597cc2);
+    --sa-xml-tag: light-dark(#080808, #d5b778);
+    --sa-xml-tag-name: light-dark(#0033b3, #d5b778);
+    --sa-xml-ns-prefix: light-dark(#871094, #828eba);
+    --sa-xml-attr-name: light-dark(#174ad4, #bcbec4);
+    --sa-xml-attr-val: light-dark(#067d17, #94907f)
+}
+
+[data-code-style="WebStorm (Auto)"].isDarkMode {
+    --sa-json-prop-fw: 600;
+    --sa-json-str-fw: 600;
+    --sa-xml-ns-prefix-fw: 600;
+    --sa-xml-attr-val-fw: 600
+}
+
+[data-code-style^="VS Code ("] {
+    --sa-code-fnt: Monaco, var(--monospace-font)
+}
+
+[data-code-style="VS Code (Light)"] {
+    --sa-code-cs: light;
+    --sa-code-bg: #fff;
+    --sa-code-txt: #3b3b3b;
+    --sa-code-gut-txt: #6e7681;
+    --sa-code-sel-bg: #add6ff80;
+    --sa-json-prop: #0451a5;
+    --sa-json-num: #098658;
+    --sa-json-str: #a31515;
+    --sa-json-bool: #00f;
+    --sa-json-null: #00f;
+    --sa-xml-tag: #808080;
+    --sa-xml-tag-name: #800000;
+    --sa-xml-ns-prefix: #267f99;
+    --sa-xml-attr-name: #e50000;
+    --sa-xml-attr-val: #00f
+}
+
+[data-code-style="VS Code (Dark)"] {
+    --sa-code-cs: dark;
+    --sa-code-bg: #1e1e1e;
+    --sa-code-txt: #ccc;
+    --sa-code-gut-txt: #6e7681;
+    --sa-code-sel-bg: #add6ff26;
+    --sa-json-prop: #9cdcfe;
+    --sa-json-num: #b5cea8;
+    --sa-json-str: #ce9178;
+    --sa-json-bool: #569cd6;
+    --sa-json-null: #569cd6;
+    --sa-xml-tag: #808080;
+    --sa-xml-tag-name: #569cd6;
+    --sa-xml-ns-prefix: #4ec9b0;
+    --sa-xml-attr-name: #9cdcfe;
+    --sa-xml-attr-val: #ce9178
+}
+
+[data-code-style="VS Code (Auto)"] {
+    --sa-code-bg: light-dark(#fff, #1e1e1e);
+    --sa-code-txt: light-dark(#3b3b3b, #ccc);
+    --sa-code-gut-txt: light-dark(#6e7681, #6e7681);
+    --sa-code-sel-bg: light-dark(#add6ff80, #add6ff26);
+    --sa-json-prop: light-dark(#0451a5, #9cdcfe);
+    --sa-json-num: light-dark(#098658, #b5cea8);
+    --sa-json-str: light-dark(#a31515, #ce9178);
+    --sa-json-bool: light-dark(#00f, #569cd6);
+    --sa-json-null: light-dark(#00f, #569cd6);
+    --sa-xml-tag: light-dark(#808080, #808080);
+    --sa-xml-tag-name: light-dark(#800000, #569cd6);
+    --sa-xml-ns-prefix: light-dark(#267f99, #4ec9b0);
+    --sa-xml-attr-name: light-dark(#e50000, #9cdcfe);
+    --sa-xml-attr-val: light-dark(#00f, #ce9178)
+}
+
+[data-code-style="Notepad++"] {
+    --sa-code-cs: light;
+    --sa-code-fnt: "Courier New", var(--monospace-font);
+    --sa-code-bg: #fff;
+    --sa-code-txt: #000;
+    --sa-code-gut-bg: #e6e6e6;
+    --sa-code-gut-txt: #808080;
+    --sa-code-gut-fw: 600;
+    --sa-code-sel-bg: #fdd095;
+    --sa-json-prop: #808080;
+    --sa-json-num: #f00;
+    --sa-json-str: #808080;
+    --sa-json-bool: #000080;
+    --sa-json-bool-fw: 600;
+    --sa-json-bool-fs: italic;
+    --sa-json-null: #000080;
+    --sa-json-null-fw: 600;
+    --sa-json-null-fs: italic;
+    --sa-xml-tag: #00f;
+    --sa-xml-tag-name: #00f;
+    --sa-xml-ns-prefix: #f00;
+    --sa-xml-attr-name: #f00;
+    --sa-xml-attr-val: #8000ff;
+    --sa-xml-attr-val-fw: 600
+}
+
+[data-code-style=Lighty] {
+    --sa-code-cs: light;
+    --sa-code-bg: #fafafa;
+    --sa-code-txt: #000;
+    --sa-code-gut-bg: #f7f7f7;
+    --sa-code-gut-txt: #999;
+    --sa-json-num: #1a01cc;
+    --sa-json-num-fw: 600;
+    --sa-json-str: #0b7500;
+    --sa-json-bool: #1a01cc;
+    --sa-json-bool-fw: 600;
+    --sa-json-null: #1a01cc;
+    --sa-json-null-fw: 600;
+    --sa-xml-tag: #1a01cc;
+    --sa-xml-tag-name: #1a01cc;
+    --sa-xml-ns-prefix: #b75400;
+    --sa-xml-attr-val: #0b7500;
+    --sa-xml-attr-val-fw: 600
+}
+
+[data-code-style^="Slack ("] {
+    --sa-code-fnt: Monaco, Menlo, var(--monospace-font)
+}
+
+[data-code-style="Slack (Light)"] {
+    --sa-code-cs: light;
+    --sa-code-bg: #fff;
+    --sa-code-txt: #1d1c1d;
+    --sa-code-gut-bg: #fbfbfb;
+    --sa-code-gut-txt: #1d1c1db2;
+    --sa-code-gut-brdr: #ebebeb;
+    --sa-code-sel-bg: #d9d9d9;
+    --sa-json-prop: #a11;
+    --sa-json-num: #164;
+    --sa-json-str: #a11;
+    --sa-json-bool: #219;
+    --sa-json-null: #219;
+    --sa-xml-tag: #170;
+    --sa-xml-tag-name: #170;
+    --sa-xml-ns-prefix: #170;
+    --sa-xml-attr-name: #00c;
+    --sa-xml-attr-val: #a11
+}
+
+[data-code-style="Slack (Dark)"] {
+    --sa-code-cs: dark;
+    --sa-code-bg: #1a1d21;
+    --sa-code-txt: #d1d2d3;
+    --sa-code-gut-bg: #e8e8e80a;
+    --sa-code-gut-txt: #e8e8e87f;
+    --sa-code-gut-brdr: #e8e8e821;
+    --sa-code-sel-bg: #873051;
+    --sa-json-prop: #e6db74;
+    --sa-json-num: #a06fca;
+    --sa-json-str: #e6db74;
+    --sa-json-bool: #f39b35;
+    --sa-json-null: #f39b35;
+    --sa-xml-tag: #d1d2d3;
+    --sa-xml-tag-name: #fc4384;
+    --sa-xml-ns-prefix: #fc4384;
+    --sa-xml-attr-name: #a06fca;
+    --sa-xml-attr-val: #94907f
+}
+
+[data-code-style="Slack (Auto)"] {
+    --sa-code-bg: light-dark(#fff, #1a1d21);
+    --sa-code-txt: light-dark(#1d1c1d, #d1d2d3);
+    --sa-code-gut-bg: light-dark(#fbfbfb, #e8e8e80a);
+    --sa-code-gut-txt: light-dark(#1d1c1db2, #e8e8e87f);
+    --sa-code-gut-brdr: light-dark(#ebebeb, #e8e8e821);
+    --sa-code-sel-bg: light-dark(#d9d9d9, #873051);
+    --sa-json-prop: light-dark(#a11, #e6db74);
+    --sa-json-num: light-dark(#164, #a06fca);
+    --sa-json-str: light-dark(#a11, #e6db74);
+    --sa-json-bool: light-dark(#219, #f39b35);
+    --sa-json-null: light-dark(#219, #f39b35);
+    --sa-xml-tag: light-dark(#170, #d1d2d3);
+    --sa-xml-tag-name: light-dark(#170, #fc4384);
+    --sa-xml-ns-prefix: light-dark(#170, #fc4384);
+    --sa-xml-attr-name: light-dark(#00c, #a06fca);
+    --sa-xml-attr-val: light-dark(#a11, #94907f)
+}
+
+[data-code-style="One Dark Pro"] {
+    --sa-code-cs: dark;
+    --sa-code-bg: #282c34;
+    --sa-code-txt: #abb2bf;
+    --sa-code-sel-bg: #2a5c93;
+    --sa-json-prop: #e06c75;
+    --sa-json-num: #d19a66;
+    --sa-json-str: #98c379;
+    --sa-json-bool: #d19a66;
+    --sa-json-null: #d19a66;
+    --sa-xml-tag: #abb2bf;
+    --sa-xml-tag-name: #e06c75;
+    --sa-xml-ns-prefix: #e06c75;
+    --sa-xml-attr-name: #d19a66;
+    --sa-xml-attr-val: #98c379
+}
+
+[data-code-style="Darcula 1"] {
+    --sa-code-cs: dark;
+    --sa-code-bg: #2b2b2b;
+    --sa-code-txt: #aeb5bd;
+    --sa-code-gut-bg: #313335;
+    --sa-code-gut-txt: #787878;
+    --sa-code-sel-bg: #214283;
+    --sa-json-prop: #828eba;
+    --sa-json-num: #267dff;
+    --sa-json-str: #807d6e;
+    --sa-json-str-fw: 600;
+    --sa-json-bool: #5c7ab8;
+    --sa-json-bool-fw: 600;
+    --sa-json-null: #5c7ab8;
+    --sa-json-null-fw: 600;
+    --sa-xml-tag: #e8bf6a;
+    --sa-xml-tag-name: #e8bf6a;
+    --sa-xml-ns-prefix: #828eba;
+    --sa-xml-attr-name: #bababa;
+    --sa-xml-attr-val: #807d6e;
+    --sa-xml-attr-val-fw: 600
+}
+
+[data-code-style="Darcula 2"] {
+    --sa-code-cs: dark;
+    --sa-code-bg: #2b2b2b;
+    --sa-code-txt: #a9b7c6;
+    --sa-code-gut-bg: #313335;
+    --sa-code-gut-txt: #787878;
+    --sa-code-sel-bg: #214283;
+    --sa-json-prop: #9876aa;
+    --sa-json-num: #6897bb;
+    --sa-json-str: #6a8759;
+    --sa-json-str-fw: 600;
+    --sa-json-bool: #cc7832;
+    --sa-json-bool-fw: 600;
+    --sa-json-null: #cc7832;
+    --sa-json-null-fw: 600;
+    --sa-xml-tag: #e8bf6a;
+    --sa-xml-tag-name: #e8bf6a;
+    --sa-xml-ns-prefix: #9876aa;
+    --sa-xml-attr-name: #bababa;
+    --sa-xml-attr-val: #6a8759;
+    --sa-xml-attr-val-fw: 600
+}
+
+[data-code-style="High Contrast"] {
+    --sa-code-cs: dark;
+    --sa-code-bg: #131314;
+    --sa-code-txt: #ebebeb;
+    --sa-code-gut-bg: #131314;
+    --sa-code-gut-txt: #999;
+    --sa-code-sel-bg: #006280;
+    --sa-json-prop: #ed94ff;
+    --sa-json-num: #3cf;
+    --sa-json-str: #54b33e;
+    --sa-json-bool: #ed864a;
+    --sa-json-bool-fw: 600;
+    --sa-json-null: #ed864a;
+    --sa-json-null-fw: 600;
+    --sa-xml-tag: #ffeb3b;
+    --sa-xml-tag-name: #ed94ff;
+    --sa-xml-ns-prefix: #ff9800;
+    --sa-xml-attr-name: #f88;
+    --sa-xml-attr-val: #54b33e
+}

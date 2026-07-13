@@ -1,0 +1,256 @@
+html.isLoginURL .login-page-box-logo-link:has(+#companyLogo),
+html.isLoginURL #login-submit:disabled::before {
+    display: none !important
+}
+
+html.isLoginURL body {
+    display: grid;
+    grid-template-rows: 1fr
+}
+
+@media not (prefers-reduced-motion) {
+    html.isLoginURL body {
+        transition: background-position .8s ease-in-out
+    }
+}
+
+html.isLoginURL .login-page-form-field>input {
+    box-shadow: 0 0 0 1000px light-dark(#fff, var(--dark-0)) inset
+}
+
+html.isLoginURL .login-page-body {
+    --_t: 0.8
+}
+
+@media(prefers-reduced-transparency: reduce) {
+    html.isLoginURL .login-page-body {
+        --_t: 0.95
+    }
+}
+
+html.isLoginURL :is(.login-page-box, .login-page-banners) {
+    background-color: rgb(from light-dark(#fff, var(--dark-2)) r g b/var(--_t)) !important
+}
+
+html.isLoginURL .login-page-footer {
+    background-color: rgb(from light-dark(#e7f2f5, var(--dark-3)) r g b/var(--_t))
+}
+
+html.isLoginURL:not(.window-loaded) .login-page-banner {
+    visibility: hidden
+}
+
+html.isLoginURL:not(.document-ready) .login-page-box-logos {
+    visibility: hidden;
+    font-size: inherit
+}
+
+html.isLoginURL .login-page-banner {
+    display: flex;
+    gap: 24px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-color: var(--text-1) rgba(0, 0, 0, 0);
+    border-radius: 8px;
+    scrollbar-width: thin;
+    scroll-behavior: smooth
+}
+
+html.isLoginURL .login-page-banner>.hidden {
+    display: block;
+    scroll-snap-align: start;
+    flex-shrink: 0
+}
+
+@supports(top: anchor(top)) and selector(::scroll-button(*)) {
+    html.isLoginURL .login-page-banner {
+        --_size: 20px;
+        --_gap: calc(var(--_size) / 1.5);
+        --_pad: calc(var(--_size) / 2);
+        --_base_ld: light-dark(var(--dark-text-1), var(--light-text-1));
+        --_ns_color: var(--nsn-uif-redwood-color-light-brand-120, rgb(54, 103, 125));
+        --_base_color: light-dark(var(--_ns_color), hsl(from var(--_ns_color) h s calc(l * 1.7)));
+        anchor-scope: --ads;
+        anchor-name: --ads;
+        scrollbar-width: none;
+        scroll-marker-group: after;
+        --r: 9px;
+        --s: 10px;
+        --x: calc(var(--_size) * 2.2);
+        --y: calc(var(--_size) / 2);
+        --_m: calc(2 * var(--r)) calc(2 * var(--r)) radial-gradient(#000 70%, #0000 72%);
+        --_g: conic-gradient(from 90deg at calc(100% - var(--r)) calc(100% - var(--r)), #0000 25%, #000 0);
+        --_d: calc(var(--s) + var(--r));
+        mask: calc(100% - var(--_d) - var(--x)) 100%/var(--_m), 100% calc(100% - var(--_d) - var(--y))/var(--_m), radial-gradient(var(--s) at 100% 100%, rgba(0, 0, 0, 0) 99%, #000 calc(100% + 1px)) calc(-1 * var(--r) - var(--x)) calc(-1 * var(--r) - var(--y)), var(--_g) calc(-1 * var(--_d) - var(--x)) 0, var(--_g) 0 calc(-1 * var(--_d) - var(--y));
+        mask-repeat: no-repeat
+    }
+
+    html.isLoginURL .login-page-banner::before {
+        content: "";
+        position: absolute;
+        bottom: anchor(bottom);
+        right: anchor(right);
+        width: calc(var(--_pad) + var(--_size)*2 + var(--_gap));
+        height: calc(var(--_pad) + var(--_size));
+        z-index: 1;
+        position-anchor: --ads;
+        border-radius: 8px 0 0 0
+    }
+
+    html.isLoginURL .login-page-banner::scroll-button(*) {
+        --_white: 100%;
+        --_color: color-mix(in srgb, var(--_base_color) var(--_white), var(--_base_ld));
+        background: var(--_color);
+        height: var(--_size);
+        width: var(--_size);
+        cursor: pointer;
+        padding: 0;
+        position: absolute;
+        z-index: 2;
+        position-anchor: --ads;
+        bottom: anchor(bottom);
+        border: none
+    }
+
+    html.isLoginURL .login-page-banner::scroll-button(*):enabled:hover {
+        --_white: 80%
+    }
+
+    html.isLoginURL .login-page-banner::scroll-button(*):enabled:active {
+        --_white: 70%;
+        scale: .9
+    }
+
+    html.isLoginURL .login-page-banner::scroll-button(*):disabled {
+        --_white: 40%;
+        cursor: unset
+    }
+
+    html.isLoginURL .login-page-banner::scroll-button(*):focus {
+        outline-offset: 4px
+    }
+
+    html.isLoginURL .login-page-banner::scroll-button(left) {
+        content: "" /"Left";
+        clip-path: polygon(100% 0, 0 50%, 100% 100%);
+        right: calc(anchor(right) + var(--_size) + var(--_gap))
+    }
+
+    html.isLoginURL .login-page-banner::scroll-button(right) {
+        content: "" /"Right";
+        clip-path: polygon(0 0, 100% 50%, 0 100%);
+        right: anchor(right)
+    }
+
+    html.isLoginURL .login-page-banner::scroll-marker-group {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        translate: 0 4px
+    }
+
+    html.isLoginURL .login-page-banner>.hidden::scroll-marker {
+        --_white: 100%;
+        --_color: color-mix(in srgb, var(--_base_color) var(--_white), var(--_base_ld));
+        content: "";
+        border: 2px solid var(--_color);
+        border-radius: 4px;
+        width: 8px;
+        height: 4px
+    }
+
+    html.isLoginURL .login-page-banner>.hidden::scroll-marker:not(:target-current):hover {
+        --_white: 80%;
+        background: var(--_color)
+    }
+
+    html.isLoginURL .login-page-banner>.hidden::scroll-marker:not(:target-current):active {
+        --_white: 70%
+    }
+
+    html.isLoginURL .login-page-banner>.hidden::scroll-marker:target-current {
+        background: var(--_color);
+        cursor: unset
+    }
+
+    html.isLoginURL .login-page-banner>.hidden::scroll-marker:focus {
+        outline-offset: 4px
+    }
+}
+
+html.isLoginURL .login-page-form-forgot {
+    align-self: start
+}
+
+html.isLoginURL.isDarkMode .login-page-box-logo-link path[fill="#264759"] {
+    fill: var(--dark-text-1) !important
+}
+
+html.isLoginURL.isDarkMode .login-page-form-field>label {
+    color: var(--dark-text-2) !important
+}
+
+html.isLoginURL.isDarkMode .login-page-form-field>input {
+    color: var(--dark-text-1) !important;
+    -webkit-text-fill-color: var(--dark-text-1) !important
+}
+
+html.isLoginURL.isDarkMode .login-page-form-field>.validation-message {
+    color: var(--dark-text-1)
+}
+
+html.isLoginURL.isDarkMode .login-page-form-checkbox input {
+    filter: invert(1)
+}
+
+html.isLoginURL.isDarkMode #login-submit:disabled {
+    background-color: var(--dark-3);
+    border-color: var(--dark-3);
+    color: var(--dark-text-3)
+}
+
+html.isLoginURL.isDarkMode #login-submit:disabled>svg {
+    fill: var(--dark-text-3)
+}
+
+html.isLoginURL.isDarkMode .login-page-box-footer {
+    color: var(--dark-text-2)
+}
+
+html.isLoginURL .login-page-box-logos {
+    margin-bottom: 20px;
+    text-align: center
+}
+
+html.isLoginURL .login-page-box-logos>* {
+    margin-block: 0 !important;
+    margin-inline: auto
+}
+
+html.isLoginURL .login-page-box-logo-link>svg {
+    height: 42px
+}
+
+html.isLoginURL #companyLogo {
+    margin-bottom: 16px;
+    max-width: 100%;
+    max-height: 80px
+}
+
+html.isLoginURL #companyLogo:not(.transparent) {
+    background-color: #fff;
+    box-shadow: 0 0 0 4px #fff;
+    border-radius: 4px
+}
+
+html.isLoginURL #companyName {
+    font-size: 19px !important;
+    line-height: 28px;
+    color: light-dark(#4d5f79, var(--dark-text-1));
+    font-weight: bold;
+    margin-bottom: 12px
+}
+
+html.isLoginURL #environment {
+    margin-bottom: 12px
+}

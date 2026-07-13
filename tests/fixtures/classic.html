@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SuiteMate V3 classic fixture</title>
+    <link rel="stylesheet" href="../../src/styles/font.css">
+    <link rel="stylesheet" href="../../src/styles/code.css">
+    <link rel="stylesheet" href="../../src/styles/netsuite.css">
+    <link rel="stylesheet" href="netSuiteFixture.css">
+    <script src="chrome-stub.js"></script>
+    <script src="../../src/shared/settings.js"></script>
+    <script src="../../src/runtime/theme-runtime.js"></script>
+  </head>
+  <body>
+    <header data-widget="ClassicSystemHeader">
+      <strong>NetSuite</strong>
+      <nav aria-label="Main navigation"><span>Transactions</span><span>Lists</span><span>Reports</span></nav>
+    </header>
+    <main id="div__body">
+      <div class="fixture-title">
+        <div>
+          <div class="uir-record-type">Sales Order</div>
+          <h1 class="uir-page-title-firstline">Sales Order #SO10428</h1>
+          <span class="uir-record-status">Pending Fulfillment</span>
+        </div>
+        <div class="fixture-actions uir-header-buttons">
+          <input class="uir-button" type="button" value="Save">
+          <input class="uir-button" type="button" value="Cancel">
+        </div>
+      </div>
+
+      <section class="fixture-fields">
+        <label class="uir-field-wrapper"><span class="uir-label">Customer</span><input class="input" value="Sample Customer"></label>
+        <label class="uir-field-wrapper"><span class="uir-label">Date</span><input class="input" value="13/07/2026"></label>
+        <label class="uir-field-wrapper"><span class="uir-label">Status</span><select class="uir-input-dropdown-native"><option>Pending Fulfillment</option></select></label>
+        <label class="uir-field-wrapper"><span class="uir-label">Memo</span><textarea class="input">Fixture transaction for visual testing</textarea></label>
+        <label class="uir-field-wrapper"><span class="uir-label">Location</span><input class="input" value="Sydney Warehouse" disabled></label>
+      </section>
+
+      <nav class="uir-tabs" aria-label="Record tabs">
+        <a class="formtabon" href="#items">Items</a><a class="formtaboff" href="#shipping">Shipping</a><a class="formtaboff" href="#billing">Billing</a>
+      </nav>
+
+      <section id="items" class="uir-machine-table-container">
+        <table>
+          <tbody>
+            <tr class="uir-machine-headerrow"><td>Item</td><td>Description</td><td>Quantity</td><td>Rate</td><td>Amount</td></tr>
+            <tr class="uir-machine-row"><td>SKU-1001</td><td>Sample product one</td><td>2</td><td>$18.00</td><td>$36.00</td></tr>
+            <tr class="uir-machine-row"><td>SKU-2004</td><td>Sample product two</td><td>1</td><td>$24.00</td><td>$24.00</td></tr>
+            <tr class="uir-machine-row"><td>SKU-3012</td><td>Sample product three</td><td>3</td><td>$12.00</td><td>$36.00</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <table class="totallingtable">
+        <caption>Summary</caption>
+        <tbody><tr><td>Subtotal</td><td>$96.00</td></tr><tr><td>Tax</td><td>$9.60</td></tr><tr><td><strong>Total</strong></td><td><strong>$105.60</strong></td></tr></tbody>
+      </table>
+    </main>
+  </body>
+</html>

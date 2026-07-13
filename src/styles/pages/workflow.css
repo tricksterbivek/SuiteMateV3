@@ -1,0 +1,254 @@
+html:not(.ext-f) #diagrammer-title,
+html:not(.ext-f) #tab-workflow #selected,
+html:not(.ext-f) #workflow-desktop>.cleaner {
+    display: none !important
+}
+
+html:not(.ext-f) #workflow-desktop {
+    --panel-size-calc: clamp(300px, calc(var(--panel-size, 331px) + 14px), calc(100% - 300px));
+    display: grid;
+    grid-template-columns: auto min-content min-content 7px var(--panel-size-calc);
+    grid-template-rows: min-content auto;
+    padding-right: 0;
+    min-width: unset !important;
+    height: calc(100% - 15px) !important
+}
+
+html:not(.ext-f) #workflow-desktop>div:has(.uir-button) {
+    grid-column-start: 3;
+    grid-row-start: 1
+}
+
+html:not(.ext-f) .resize-bar {
+    grid-column-start: 4;
+    grid-row-start: 2;
+    margin-inline: -1px;
+    z-index: 1;
+    background: var(--icon-grippy) no-repeat center center;
+    border-inline: solid 1px #000;
+    background-color: light-dark(#dddddd, #555555);
+    border-color: light-dark(#cccccc, #666666);
+    cursor: col-resize
+}
+
+html:not(.ext-f) .resize-bar:hover {
+    background-color: light-dark(rgb(233.75, 233.75, 233.75), rgb(72.25, 72.25, 72.25));
+    border-color: light-dark(rgb(216.75, 216.75, 216.75), rgb(89.25, 89.25, 89.25))
+}
+
+html:not(.ext-f) #workflow-view-button-info-icon {
+    grid-column-start: 2;
+    grid-row-start: 1
+}
+
+html:not(.ext-f) #page-title-menu {
+    grid-column-start: 5
+}
+
+html:not(.ext-f) #panel {
+    grid-column-start: 5;
+    grid-row-start: 2;
+    margin-right: 0;
+    width: auto;
+    position: static;
+    display: flex;
+    flex-direction: column;
+    height: auto !important
+}
+
+html:not(.ext-f) #panel-switcher {
+    background-color: rgba(0, 0, 0, 0);
+    display: flex
+}
+
+html:not(.ext-f) #panel-switcher .tab-switch {
+    background: var(--theme-main) !important;
+    color: #fff !important;
+    font-weight: normal !important
+}
+
+html:not(.ext-f) #panel-switcher .tab-switch.active {
+    cursor: default;
+    clip-path: var(--selected-subtab-clip-path)
+}
+
+html:not(.ext-f) #panel-switcher .tab-switch.hidden {
+    cursor: default;
+    visibility: visible
+}
+
+html:not(.ext-f) #panel-body {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column
+}
+
+html:not(.ext-f) #panel-body>.tab {
+    overflow: hidden
+}
+
+html:not(.ext-f) #panel-body>.tab>div {
+    display: flex;
+    flex-direction: column;
+    max-height: 100%
+}
+
+html:not(.ext-f) #panel-body .content {
+    height: auto !important
+}
+
+html:not(.ext-f) #panel-body .content .trigger-row {
+    position: sticky;
+    top: 0
+}
+
+html:not(.ext-f) #panel-body .content .action-row {
+    width: auto
+}
+
+html:not(.ext-f) #panel-body .content .add-entry {
+    position: sticky;
+    bottom: 0
+}
+
+html:not(.ext-f).panel-resizing {
+    user-select: none
+}
+
+html:not(.ext-f).panel-resizing::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1000;
+    cursor: col-resize
+}
+
+html:not(.ext-f).panel-resizing .resize-bar {
+    background-color: light-dark(rgb(246.5, 246.5, 246.5), rgb(59.5, 59.5, 59.5));
+    border-color: light-dark(rgb(229.5, 229.5, 229.5), rgb(76.5, 76.5, 76.5))
+}
+
+html:not(.ext-f) #new-state-button {
+    top: 10px
+}
+
+html:not(.ext-f) #diagrammer-wrapper {
+    grid-column: span 3/span 3;
+    grid-row-start: 2
+}
+
+html:not(.ext-f) #diagrammer {
+    margin-top: 0;
+    margin-right: -2px;
+    height: 100% !important
+}
+
+html:not(.ext-f) #workflow-info-switcher,
+html:not(.ext-f) #tab-workflow .header .icons {
+    margin-top: 0
+}
+
+html:not(.ext-f) #div__body>.uir-table-block {
+    padding-bottom: 100px
+}
+
+html:not(.ext-f)[data-path$="/nextgen/workflowdesktop.nl"] #body {
+    min-height: unset !important
+}
+
+html:not(.ext-f)[data-path$="/nextgen/workflowdesktop.nl"][data-params*="|e=T|'"] #workflow-desktop #tab-state .content {
+    height: calc(100vh - 274px) !important
+}
+
+html:not(.ext-f)[data-path$="/nextgen/workflowdesktop.nl"].isDarkMode .ui-widget-content {
+    background-color: var(--dark-1)
+}
+
+html:not(.ext-f)[data-path$="/nextgen/workflowdesktop.nl"].isDarkMode .ui-widget-content .wf-panel-center-inner>img:only-child {
+    filter: invert(0.87)
+}
+
+html:not(.ext-f)[data-path$="/nextgen/workflowdesktop.nl"].isDarkMode .x-window-mc>center,
+html:not(.ext-f)[data-path$="/nextgen/workflowdesktop.nl"].isDarkMode .row-buttons {
+    background-color: var(--dark-1) !important
+}
+
+html:not(.ext-f)[data-path$="/nextgen/workflowdesktop.nl"].isDarkMode .workflow-tooltip {
+    border-color: var(--dark-3) !important
+}
+
+html:not(.ext-f)[data-path$="/nextgen/workflowdesktop.nl"] .ui-dialog {
+    top: 10px !important;
+    left: 10px !important;
+    width: calc(100vw - 20px) !important
+}
+
+html:not(.ext-f)[data-path$="/nextgen/workflowdesktop.nl"] .ui-dialog>.ui-dialog-titlebar {
+    cursor: default
+}
+
+html:not(.ext-f)[data-path$="/nextgen/workflowdesktop.nl"] .ui-dialog>.dialog {
+    height: calc(100vh - 50px) !important
+}
+
+html:not(.ext-f).isDarkMode #workflow-desktop :is(#diagrammer, #panel, .category-row, .trigger-row, .action-row, .action-group-parent-row, .field-row, .no-data-row),
+html:not(.ext-f).isDarkMode #workflow-desktop #panel-body .header,
+html:not(.ext-f).isDarkMode #workflow-desktop #panel-body .content .minor {
+    border-color: var(--dark-3) !important
+}
+
+html:not(.ext-f).isDarkMode #workflow-desktop #diagrammer.loading {
+    background: rgba(0, 0, 0, 0) !important
+}
+
+html:not(.ext-f).isDarkMode #workflow-desktop .category-row {
+    background-color: var(--dark-3)
+}
+
+html:not(.ext-f).isDarkMode #workflow-desktop .trigger-row {
+    background-color: var(--dark-2)
+}
+
+html:not(.ext-f).isDarkMode #workflow-desktop :is(.action-arguments, .field-info) {
+    color: var(--dark-text-2)
+}
+
+html:not(.ext-f).isDarkMode #workflow-desktop .action-row.inactive :is(.action-type, .action-arguments) {
+    opacity: .7
+}
+
+html:not(.ext-f).isDarkMode #workflow-desktop #workflow-title {
+    color: var(--dark-text-1)
+}
+
+html:not(.ext-f).isDarkMode #workflow-desktop #workflow-title .name {
+    color: var(--dark-text-2)
+}
+
+html:not(.ext-f).isDarkMode #workflow-desktop #diagrammer rect:not([fill=none]) {
+    fill: var(--dark-2);
+    stroke: var(--dark-3)
+}
+
+html:not(.ext-f).isDarkMode #workflow-desktop #diagrammer g text tspan {
+    fill: var(--dark-text-1)
+}
+
+html:not(.ext-f).isDarkMode #workflow-desktop #diagrammer [stroke="url(#ygc0_0)"] {
+    fill: rgba(0, 0, 0, 0)
+}
+
+html:not(.ext-f)[data-path^="/app/common/workflow/setup/workflow"].isDarkMode .ac_container .pgm_bg,
+html:not(.ext-f)[data-path^="/app/common/workflow/setup/workflow"].isDarkMode .ac_table {
+    background-image: none;
+    border: 0
+}
+
+html:not(.ext-f)[data-path$="/workflowaction.nl"] body {
+    overflow-y: auto !important
+}
+
+html:not(.ext-f)[data-path$="/workflowaction.nl"] #div__body {
+    width: auto !important;
+    height: auto !important
+}

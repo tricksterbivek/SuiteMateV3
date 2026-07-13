@@ -1,0 +1,124 @@
+html:not(.ext-f) body {
+    cursor: auto
+}
+
+html:not(.ext-f) #div__header+* {
+    margin-top: 0 !important
+}
+
+html:not(.ext-f) #helpcenter_content {
+    overflow-x: hidden
+}
+
+@media not (prefers-reduced-motion) {
+    html:not(.ext-f) #helpcenter_content {
+        scroll-behavior: smooth
+    }
+}
+
+html:not(.ext-f) .nshelp_navbuttons {
+    white-space: nowrap
+}
+
+html:not(.ext-f) .nshelp_navbuttons a {
+    padding-left: 0 !important;
+    font-size: 24px;
+    color: var(--link-text)
+}
+
+html:not(.ext-f) .nshelp_navbuttons a:not(:first-child) {
+    margin-left: 8px
+}
+
+html:not(.ext-f) .nshelp_navbuttons a svg {
+    width: 28px;
+    height: 28px;
+    margin: -6px 0
+}
+
+html:not(.ext-f) .nshelp_navheader {
+    position: sticky;
+    top: 0;
+    z-index: 500
+}
+
+html:not(.ext-f) .nshelp_navigation_panel>.nshelp_menu>.ns-menuitem>a#nshelp_frontpage {
+    background-position: 14px 5px !important
+}
+
+html:not(.ext-f) .nshelp_navigation_panel>.nshelp_menu>.ns-menuitem>a#nshelp_frontpage:has(>svg) {
+    background-image: none !important
+}
+
+html:not(.ext-f) .ns-active>#nshelp_frontpage>svg>path {
+    fill: #24385b
+}
+
+html:not(.ext-f) #maintable {
+    width: 100%
+}
+
+html:not(.ext-f) pre.nshelp {
+    max-height: 100%;
+    font-family: var(--monospace-font);
+    white-space: pre-wrap;
+    border: 0;
+    border-radius: 6px
+}
+
+html:not(.ext-f) .uir-tree-node {
+    padding-top: 0;
+    padding-bottom: 0
+}
+
+html:not(.ext-f) .treeNodeRow>span[alttext] {
+    white-space: normal;
+    word-break: break-word;
+    display: inline-block
+}
+
+html:not(.ext-f) #tree_helpcenter_b_c>span>.treeNodeRow>span[alttext] {
+    max-width: calc(100% - 23px)
+}
+
+html:not(.ext-f) #tree_helpcenter_b_c>span>.treeNodeRow+span .treeNodeRow>span[alttext] {
+    max-width: calc(100% - 41px)
+}
+
+html:not(.ext-f) #tree_helpcenter_b_c>span>.treeNodeRow+span .treeNodeRow+span .treeNodeRow>span[alttext] {
+    max-width: calc(100% - 60px)
+}
+
+html:not(.ext-f) #tree_helpcenter_b_c>span>.treeNodeRow+span .treeNodeRow+span .treeNodeRow+span .treeNodeRow>span[alttext] {
+    max-width: calc(100% - 79px)
+}
+
+html:not(.ext-f) #tree_helpcenter_b_c>span>.treeNodeRow+span .treeNodeRow+span .treeNodeRow+span .treeNodeRow+span .treeNodeRow>span[alttext] {
+    max-width: calc(100% - 99px)
+}
+
+html:not(.ext-f) #tree_helpcenter_b_c>span>.treeNodeRow+span .treeNodeRow+span .treeNodeRow+span .treeNodeRow+span .treeNodeRow+span .treeNodeRow>span[alttext] {
+    max-width: calc(100% - 118px)
+}
+
+html:not(.ext-f) a[href^="#img"] .view-image {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: auto;
+    background-color: rgba(0, 0, 0, .5);
+    opacity: 1;
+    border-color: #ccc;
+    padding: 100%;
+    cursor: pointer
+}
+
+html:not(.ext-f) .result-document b>i {
+    text-shadow: 0 0 2px #ff0;
+    font-style: normal
+}
+
+html:not(.ext-f) #nshelp_search_results .results .pagination {
+    display: none
+}

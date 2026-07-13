@@ -1,0 +1,277 @@
+html:not(.ext-f).isScriptURL[data-params*="|action=edit_file|"] {
+    display: none
+}
+
+html:not(.ext-f).isScriptURL[data-params*="|id="][data-script-type=SCRIPTLET] #deployments_div .uir-list-row-cell:first-child:not(.has-link)>a::after {
+    content: ""
+}
+
+html:not(.ext-f).isScriptURL[data-params*="|id="][data-script-type=SCRIPTLET] #deployments_div .uir-list-row-cell:first-child:not(.has-link)>a::after,
+html:not(.ext-f).isScriptURL[data-params*="|id="][data-script-type=SCRIPTLET] #deployments_div .uir-list-row-cell:first-child.has-link>a:last-child {
+    display: inline-block;
+    margin: -1px 0;
+    background: var(--icon-field-open) no-repeat;
+    background-size: contain;
+    width: 20px;
+    height: 20px;
+    float: right;
+}
+
+html:not(.ext-f).isScriptURL[data-params*="|id="]:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]) #deployments_splits a[id=deployments_displayval]::before {
+    content: "";
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    background-size: contain;
+    background-position: center center;
+    background-repeat: no-repeat;
+    animation: spin 1.6s linear infinite;
+    scale: 0;
+    margin-right: 6px;
+    margin-bottom: -1px
+}
+
+@media not (prefers-reduced-motion) {
+    html:not(.ext-f).isScriptURL[data-params*="|id="]:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]) #deployments_splits a[id=deployments_displayval]::before {
+        transition: scale .3s
+    }
+}
+
+html:not(.ext-f).isScriptURL[data-params*="|id="]:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]).isDarkMode #deployments_splits a[id=deployments_displayval]::before {
+    filter: invert(1)
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #instancestatuspage_fs_lbl_uir_label+span::after {
+    content: "";
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    background-size: contain;
+    background-position: center center;
+    background-repeat: no-repeat;
+    animation: spin 1.6s linear infinite;
+    scale: 0;
+    margin-left: 6px;
+    margin-bottom: -2px
+}
+
+@media not (prefers-reduced-motion) {
+    html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #instancestatuspage_fs_lbl_uir_label+span::after {
+        transition: scale .3s, filter .3s
+    }
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #instancestatuspage_fs_lbl_uir_label+span[data-status="0"]::after {
+    background-image: url(data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMjQgMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0ibTEyIDBhMTIgMTIgMCAxIDAgMTIgMTIgMTIuMDEzIDEyLjAxMyAwIDAgMCAtMTItMTJ6bTAgMjFhOSA5IDAgMSAxIDktOSA5LjAxIDkuMDEgMCAwIDEgLTkgOXptMS41LTEwLjMxYTIgMiAwIDEgMSAtMyAwdi00LjE5YTEuNSAxLjUgMCAwIDEgMyAweiIvPjwvc3ZnPg==)
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #instancestatuspage_fs_lbl_uir_label+span[data-status="1"]::after {
+    background-image: var(--icon-loading)
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #instancestatuspage_fs_lbl_uir_label+span[data-status]::after {
+    scale: 1
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="].isDarkMode #instancestatuspage_fs_lbl_uir_label+span::after {
+    filter: invert(1)
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #schfedule_wrapper:has(#sa-traffic) {
+    display: flex !important;
+    gap: 20px;
+    align-items: start
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #schfedule_wrapper:has(#sa-traffic) #schfedule_div {
+    width: auto !important
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] :has(>#sa-traffic) {
+    --low: light-dark(#f5f5f5, var(--dark-2));
+    --high: light-dark(#006aff, #378aff);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-block: 10px
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] :has(>#sa-traffic)>h3 {
+    font-size: 20px;
+    text-box: trim-both cap alphabetic;
+    margin: 0
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] :has(>#sa-traffic)>span {
+    font-size: 14px;
+    color: var(--text-2);
+    white-space: pre-wrap;
+    text-box: trim-both cap alphabetic
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-legend {
+    background: linear-gradient(to right, var(--low) 10%, var(--high) 90%);
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 150px;
+    margin-inline: auto;
+    font-size: 14px;
+    position: relative
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-legend::before {
+    content: "Low";
+    translate: calc(-100% - 10px) 0
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-legend::after {
+    content: "High";
+    translate: calc(100% + 10px) 0
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-traffic {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(25, 1fr);
+    font-size: 12px;
+    color: var(--text-2);
+    min-width: 402px;
+    min-height: 525px
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-traffic .cell {
+    padding: 1px 8px
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-traffic .data {
+    display: flex;
+    padding: 1px
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-traffic .data::after {
+    content: "";
+    width: 100%;
+    --percent: calc(var(--v, 0) * 100%);
+    background: color-mix(in srgb, var(--high) var(--percent), var(--low))
+}
+
+@media not (prefers-reduced-motion) {
+    html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-traffic .data::after {
+        transition: background-color 1s
+    }
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-traffic.loaded .data {
+    anchor-scope: --tooltip;
+    cursor: pointer
+}
+
+@supports not (position-anchor: --tooltip) {
+    html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-traffic.loaded .data {
+        position: relative
+    }
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-traffic.loaded .data:is(:hover, :has(>:checked)) {
+    outline: 2px solid var(--text-0);
+    outline-offset: -1px;
+    z-index: 1;
+    border-radius: 3px
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-traffic.loaded .data:hover {
+    anchor-name: --tooltip;
+    z-index: 2
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-traffic.loaded .data:hover[data-tooltip]::before {
+    content: attr(data-tooltip);
+    position: absolute;
+    background: var(--field-backgroud-color);
+    color: var(--text-0);
+    border: 1px solid var(--field-border-color);
+    padding: 3px 6px;
+    white-space: nowrap;
+    z-index: 10;
+    position-anchor: --tooltip;
+    position-area: center right;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, .3);
+    pointer-events: none
+}
+
+@supports(position-anchor: --tooltip) {
+    html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-traffic.loaded .data:hover[data-tooltip]::before {
+        translate: 4px -1px
+    }
+}
+
+@supports not (position-anchor: --tooltip) {
+    html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-traffic.loaded .data:hover[data-tooltip]::before {
+        left: 100%;
+        top: 50%;
+        translate: 4px calc(-50% - 2px)
+    }
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-traffic.loaded .data:has(>:checked) {
+    outline: 4px solid var(--text-0);
+    outline-offset: -2px;
+    border-radius: 4px
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-traffic.loaded .data:has(>:checked)[data-tooltip]:hover::before {
+    translate: 5px -1px
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-traffic input {
+    display: none
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-traffic .x-axis {
+    text-align: center
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-traffic .x-axis:empty::before {
+    content: "-"
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-traffic .y-axis {
+    text-align: right
+}
+
+html:not(.ext-f):is(.isScriptURL:is([data-script-type=SCHEDULED], [data-script-type=MAPREDUCE]), .isDeploymentURL)[data-params*="|id="] #sa-traffic .y-axis:empty::before {
+    content: "-"
+}
+
+html:not(.ext-f):is(.isScriptURL, .isDeploymentURL) :is(.sa-object-link, .sa-record-link) {
+    cursor: pointer
+}
+
+html:not(.ext-f).isDeploymentURL :is([data-walkthrough="Field:url"], [data-field-name=url], [data-walkthrough="Field:externalurl"], [data-field-name=externalurl]) {
+    max-width: calc(50vw - 40px)
+}
+
+html:not(.ext-f).isDeploymentURL :is([data-walkthrough="Field:url"], [data-field-name=url], [data-walkthrough="Field:externalurl"], [data-field-name=externalurl]) .uir-field {
+    overflow-wrap: anywhere
+}
+
+html:not(.ext-f).isDeploymentURL :is([data-walkthrough="Field:url"], [data-field-name=url], [data-walkthrough="Field:externalurl"], [data-field-name=externalurl]) .uir-field:not(:has(.input)),
+html:not(.ext-f).isDeploymentURL :is([data-walkthrough="Field:url"], [data-field-name=url], [data-walkthrough="Field:externalurl"], [data-field-name=externalurl]) .uir-field>.input {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: start;
+    gap: 3px
+}
+
+html:not(.ext-f).isScriptStatusURL .labelSpanEdit .dottedlink {
+    color: var(--link-text);
+    border-bottom: none
+}
+
+html:not(.ext-f).isScriptStatusURL .labelSpanEdit .dottedlink:hover {
+    text-decoration: underline
+}

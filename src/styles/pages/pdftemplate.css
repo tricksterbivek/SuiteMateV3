@@ -1,0 +1,242 @@
+﻿html:not(.ext-f) #pdftemplate-version {
+    display: none
+}
+
+html:not(.ext-f) #pdftemplate-desktop {
+    opacity: 0
+}
+
+html:not(.ext-f) #pdftemplate-desktop.loaded {
+    opacity: 1
+}
+
+html:not(.ext-f) #pdftemplate-name[data-revisions]::after {
+    content: "Version: " attr(data-revisions);
+    font-size: 12px;
+    margin-left: 10px
+}
+
+html:not(.ext-f) .primary-color-back {
+    background-color: var(--theme-main)
+}
+
+html:not(.ext-f) .uir-rteditor,
+html:not(.ext-f) .tox-edit-area>div {
+    border-color: var(--theme-main) !important
+}
+
+html:not(.ext-f) .ͼ1 .cm-scroller {
+    font-family: var(--monospace-font)
+}
+
+html:not(.ext-f) :is(#save-error-text, #validation-error) p[onclick] {
+    display: none
+}
+
+html:not(.ext-f) :is(#save-error-text, #validation-error) .secondary-light-color-back {
+    display: block !important
+}
+
+html:not(.ext-f) .cke_top {
+    border: 0
+}
+
+html:not(.ext-f) #pdftemplate-buttons {
+    display: flex
+}
+
+html:not(.ext-f) #pdftemplate-buttons>:is(div:first-child, input) {
+    height: 28px
+}
+
+html:not(.ext-f) #pdftemplate-buttons .page-title-menu .ns-menuitem {
+    height: 28px
+}
+
+html:not(.ext-f) #pdftemplate-buttons .page-title-menu a {
+    padding-block: 0 !important
+}
+
+html:not(.ext-f) #spn_ACTIONMENU_d1>.pgm_bg {
+    position: relative;
+    z-index: 51;
+    height: 28px
+}
+
+html:not(.ext-f) #div_ACTIONMENU_d1 {
+    top: 4px !important;
+    box-shadow: 0 0 2px 2px rgba(0, 0, 0, .2)
+}
+
+html:not(.ext-f) :is(#new-element-buttons, .cke_button_icon.svg) svg>path {
+    fill: var(--theme-main-light) !important
+}
+
+html:not(.ext-f) #pdfeditor-new-element-dialog input[type=checkbox]+label {
+    border-color: var(--light-field-border-color)
+}
+
+html:not(.ext-f) #pdfeditor-new-element-dialog input[type=checkbox]+label:hover {
+    border-color: var(--light-field-hover-border-color)
+}
+
+html:not(.ext-f) #templatesetup-dialog {
+    background-color: #fff
+}
+
+html:not(.ext-f).isDarkMode :is(#new-element-buttons, .cke_button_icon.svg) svg>path {
+    fill: var(--theme-secondary-light-light) !important
+}
+
+html:not(.ext-f).isDarkMode :is(.cke_combo_button, #newelement-search) {
+    background-color: var(--dark-0);
+    border-color: var(--dark-field-border-color);
+    color: var(--dark-text-1)
+}
+
+html:not(.ext-f).isDarkMode :is(.cke_combo_button, #newelement-search):hover {
+    border-color: var(--dark-field-hover-border-color)
+}
+
+html:not(.ext-f).isDarkMode #pdfeditor-new-element-dialog input[type=checkbox]+label {
+    background-color: var(--dark-0);
+    border-color: var(--dark-field-border-color)
+}
+
+html:not(.ext-f).isDarkMode #pdfeditor-new-element-dialog input[type=checkbox]+label:hover {
+    border-color: var(--dark-field-hover-border-color)
+}
+
+html:not(.ext-f).isDarkMode #pdfeditor-new-element-dialog input[type=checkbox]+label::after {
+    background-image: var(--icon-machineSprites);
+    background-position: 0 -331px
+}
+
+html:not(.ext-f).isDarkMode .cke_combo_text {
+    color: var(--dark-text-1)
+}
+
+html:not(.ext-f).isDarkMode .new-element-vr {
+    border-left-color: var(--dark-text-2)
+}
+
+html:not(.ext-f).isDarkMode .new-element-btn:hover,
+html:not(.ext-f).isDarkMode a:is(.cke_button_off, .cke_button_disabled):is(:hover, :focus, :active) {
+    border-color: var(--dark-text-2)
+}
+
+html:not(.ext-f).isDarkMode .cke_toolbar_separator {
+    box-shadow: 1px 0 1px var(--dark-text-2)
+}
+
+html:not(.ext-f).isDarkMode a.cke_dialog_tab {
+    background-color: var(--dark-2);
+    color: var(--dark-text-1);
+    background-image: none;
+    border-color: var(--dark-3)
+}
+
+html:not(.ext-f).isDarkMode a.cke_dialog_tab_selected {
+    background-color: var(--dark-1);
+    border-bottom-color: var(--dark-1)
+}
+
+html:not(.ext-f).isDarkMode .cke_dialog_contents {
+    border-top-color: var(--dark-3)
+}
+
+html:not(.ext-f).isDarkMode :is(#templatesetup-dialog, .cke_dialog_contents) {
+    background-color: var(--dark-1)
+}
+
+html:not(.ext-f).isDarkMode .cke_dialog_body {
+    background-color: var(--dark-1)
+}
+
+html:not(.ext-f).isDarkMode #templatesetup-primary-title {
+    color: var(--dark-0)
+}
+
+html:not(.ext-f).isDarkMode .ui-widget-content,
+html:not(.ext-f).isDarkMode .cke_dialog_ui_input_select>option {
+    color: var(--dark-text-1)
+}
+
+html:not(.ext-f).isDarkMode .pdfeditor-warning-dialog .ui-widget-content {
+    background-color: var(--dark-2)
+}
+
+html:not(.ext-f).isDarkMode .cke_dialog_body label,
+html:not(.ext-f).isDarkMode :where(.newelement-checkbox-label, .newelement-item-type, .newelement-item-id, .cke_dialog_ui_html) {
+    color: var(--dark-text-2)
+}
+
+html:not(.ext-f).isDarkMode .cke_dialog_image_ratiolock>a {
+    filter: brightness(0) invert(1)
+}
+
+html:not(.ext-f) .newelement-item:hover :where(.newelement-item-type, .newelement-item-id) {
+    color: #fff
+}
+
+html:not(.ext-f) :is(.cke_combo_button, #newelement-search):is(:focus, :active) {
+    border: 1px solid #408fdb !important;
+    box-shadow: 0 0 2px 2px rgba(64, 143, 219, .75)
+}
+
+html:not(.ext-f) .cke_dialog_body label,
+html:not(.ext-f) .newelement-checkbox-label {
+    text-transform: none
+}
+
+html:not(.ext-f) .cls-2 {
+    opacity: 1
+}
+
+html:not(.ext-f) :is(.new-element-btn, a.cke_button):not(:hover) {
+    border-color: rgba(0, 0, 0, 0)
+}
+
+html:not(.ext-f) .cke_button_icon.svg {
+    background-image: none !important
+}
+
+html:not(.ext-f) .cke_button_icon.svg>svg {
+    transform: scale(1.7)
+}
+
+html:not(.ext-f) #templatesetup-primary-title {
+    background-color: var(--theme-secondary-light);
+    padding: 4px 8px
+}
+
+html:not(.ext-f) .ui-widget.ui-dialog {
+    background-color: rgba(0, 0, 0, 0)
+}
+
+html:not(.ext-f):not(.disable_radii) :is(#templatesetup-primary-title, .newelement_fgroup_title) {
+    border-radius: 5px
+}
+
+html:not(.ext-f):not(.disable_radii) .ui-widget.ui-dialog {
+    border-radius: 8px;
+    overflow: hidden
+}
+
+html:not(.ext-f):not(.disable_radii) .cke_dialog_body {
+    border-radius: 8px;
+    overflow: hidden
+}
+
+html:not(.ext-f) .newelement-div-header {
+    position: sticky;
+    top: 0
+}
+
+html:not(.ext-f) .cke_dialog_ui_input_select {
+    border-radius: 0
+}
+
+html:not(.ext-f) .fieldIdDropdownDiv {
+    max-height: 50vh !important
+}

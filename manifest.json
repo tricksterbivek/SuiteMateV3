@@ -1,0 +1,173 @@
+{
+  "manifest_version": 3,
+  "name": "SuiteMate V3",
+  "short_name": "SuiteMate V3",
+  "version": "3.0.0",
+  "description": "Recreates the SuiteMate V1 NetSuite visual styling without adding product features.",
+  "icons": {
+    "16": "icons/16.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "action": {
+    "default_title": "SuiteMate V3 styling",
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16": "icons/16.png",
+      "48": "icons/48.png",
+      "128": "icons/128.png"
+    }
+  },
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://*.netsuite.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.netsuite.com/*"
+      ],
+      "exclude_matches": [
+        "https://www.netsuite.com/*",
+        "https://*.extforms.netsuite.com/*"
+      ],
+      "css": [
+        "src/styles/font.css",
+        "src/styles/code.css",
+        "src/styles/netsuite.css"
+      ],
+      "js": [
+        "src/shared/settings.js",
+        "src/runtime/theme-runtime.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://*.netsuite.com/app/setup/assistants/bundlebuilder.nl",
+        "https://*.netsuite.com/app/setup/assistants/bundlebuilder.nl?*"
+      ],
+      "css": [
+        "src/styles/pages/bundlebuilder.css"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://*.netsuite.com/app/common/record/edittextmediaitem.nl?*"
+      ],
+      "css": [
+        "src/styles/pages/codeeditor.css"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://*.netsuite.com/app/center/card.nl",
+        "https://*.netsuite.com/app/center/card.nl?*"
+      ],
+      "css": [
+        "src/styles/pages/dashboard.css"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://*.netsuite.com/core/help/fieldhelp.nl?*"
+      ],
+      "css": [
+        "src/styles/pages/fieldhelp.css"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://*.netsuite.com/app/common/media/mediaitem.nl",
+        "https://*.netsuite.com/app/common/media/mediaitem.nl?*"
+      ],
+      "css": [
+        "src/styles/pages/file.css"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://*.netsuite.com/app/common/media/mediaitemfolders.nl",
+        "https://*.netsuite.com/app/common/media/mediaitemfolders.nl?*"
+      ],
+      "css": [
+        "src/styles/pages/filecabinet.css"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://*.netsuite.com/app/help/helpcenter.nl",
+        "https://*.netsuite.com/app/help/helpcenter.nl?*"
+      ],
+      "css": [
+        "src/styles/pages/helpcenter.css"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://*.netsuite.com/app/login/secure/enterpriselogin.nl",
+        "https://*.netsuite.com/app/login/secure/enterpriselogin.nl?*",
+        "https://*.netsuite.com/pages/customerlogin.jsp",
+        "https://*.netsuite.com/pages/customerlogin.jsp?*"
+      ],
+      "css": [
+        "src/styles/pages/login.css"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://*.netsuite.com/app/common/custom/advancedprint/pdftemplate.nl",
+        "https://*.netsuite.com/app/common/custom/advancedprint/pdftemplate.nl?*"
+      ],
+      "css": [
+        "src/styles/pages/pdftemplate.css"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://*.netsuite.com/app/common/scripting/*.nl",
+        "https://*.netsuite.com/app/common/scripting/*.nl?*"
+      ],
+      "css": [
+        "src/styles/pages/scripting.css"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://*.netsuite.com/app/common/search/ubersearchresults.nl?*"
+      ],
+      "css": [
+        "src/styles/pages/suiteql.css"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://*.netsuite.com/app/common/workflow/setup/*"
+      ],
+      "css": [
+        "src/styles/pages/workflow.css"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

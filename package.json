@@ -1,0 +1,9 @@
+{
+  "name": "suitemate-v3",
+  "version": "3.0.0",
+  "private": true,
+  "description": "SuiteMate V3 NetSuite styling foundation",
+  "scripts": {
+    "test": "node --check src/shared/settings.js && node --check src/runtime/theme-runtime.js && node --check src/popup/popup.js && node tests/verify.mjs"
+  }
+}
