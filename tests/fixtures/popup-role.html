@@ -9,7 +9,10 @@
   </head>
   <body>
     <script>
-      fetch("../../src/popup/popup.html")
+      window.close = () => {
+        document.documentElement.dataset.popupCloseRequested = "true";
+      };
+      fetch("../../src/popup/popup.html?fixture=3.1.0")
         .then((response) => response.text())
         .then((source) => {
           const popupDocument = new DOMParser().parseFromString(source, "text/html");
@@ -18,9 +21,14 @@
           const settingsScript = document.createElement("script");
           settingsScript.src = "../../src/shared/settings.js";
           settingsScript.addEventListener("load", () => {
-            const popupScript = document.createElement("script");
-            popupScript.src = "../../src/popup/popup.js";
-            document.body.append(popupScript);
+            const coreScript = document.createElement("script");
+            coreScript.src = "../../src/suiteql/core.js";
+            coreScript.addEventListener("load", () => {
+              const popupScript = document.createElement("script");
+              popupScript.src = "../../src/popup/popup.js";
+              document.body.append(popupScript);
+            });
+            document.body.append(coreScript);
           });
           document.body.append(settingsScript);
         });

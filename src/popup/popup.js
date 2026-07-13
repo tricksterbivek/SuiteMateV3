@@ -2,6 +2,7 @@
   "use strict";
 
   const api = globalThis.SuiteMateV3Settings;
+  const suiteql = globalThis.SuiteMateV3SuiteQLCore;
   const form = document.querySelector("#settings");
   const enabledInput = document.querySelector("#enabled");
   const squareCornersInput = document.querySelector("#squareCorners");
@@ -15,11 +16,13 @@
   const swapColorsButton = document.querySelector("#swapColors");
   const resetColorsButton = document.querySelector("#resetColors");
   const resetButton = document.querySelector("#reset");
+  const openSuiteQLButton = document.querySelector("#openSuiteQL");
+  const suiteqlToolContext = document.querySelector("#suiteqlToolContext");
   const status = document.querySelector("#status");
   const LIVE_COLOR_SAVE_INTERVAL_MS = 500;
   let currentSettings = api.DEFAULTS;
   let currentRoleContext = null;
-  let activeNetSuiteTabId = null;
+  let activeNetSuiteTab = null;
   let settingsWriteQueue = Promise.resolve();
   let liveColorSaveTimer = 0;
   let lastLiveColorSaveAt = 0;
@@ -86,13 +89,22 @@
 
   async function getActiveRoleContext() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !tab.url?.includes(".netsuite.com/")) {
+    if (!tab?.id || !suiteql.isAllowedNetSuiteUrl(tab.url)) {
+      activeNetSuiteTab = null;
+      openSuiteQLButton.disabled = true;
+      suiteqlToolContext.textContent = "Open a NetSuite tab to launch Studio.";
       return null;
     }
 
-    activeNetSuiteTabId = tab.id;
-    const response = await chrome.tabs.sendMessage(tab.id, { type: api.ROLE_CONTEXT_MESSAGE });
-    return response?.roleContext ?? null;
+    activeNetSuiteTab = tab;
+    openSuiteQLButton.disabled = false;
+    suiteqlToolContext.textContent = "Launches in this NetSuite account.";
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, { type: api.ROLE_CONTEXT_MESSAGE });
+      return response?.roleContext ?? null;
+    } catch {
+      return null;
+    }
   }
 
   function writeSettings(value) {
@@ -124,11 +136,11 @@
   }
 
   function previewRoleColors() {
-    if (!activeNetSuiteTabId || !currentRoleContext) {
+    if (!activeNetSuiteTab?.id || !currentRoleContext) {
       return;
     }
 
-    void chrome.tabs.sendMessage(activeNetSuiteTabId, {
+    void chrome.tabs.sendMessage(activeNetSuiteTab.id, {
       type: api.THEME_PREVIEW_MESSAGE,
       roleId: currentRoleContext.id,
       colors: {
@@ -200,6 +212,26 @@
     clearLiveColorSaveTimer();
     render(await writeSettings(api.DEFAULTS));
     showStatus("All styling reset");
+  });
+
+  openSuiteQLButton.addEventListener("click", async () => {
+    const studioUrl = suiteql.createStudioUrl(activeNetSuiteTab?.url);
+    if (!activeNetSuiteTab?.id || !studioUrl) {
+      openSuiteQLButton.disabled = true;
+      suiteqlToolContext.textContent = "Open a NetSuite tab to launch Studio.";
+      return;
+    }
+
+    openSuiteQLButton.disabled = true;
+    suiteqlToolContext.textContent = "Opening SuiteQL Studio...";
+    try {
+      await chrome.tabs.update(activeNetSuiteTab.id, { url: studioUrl });
+      window.close();
+    } catch (error) {
+      console.error("SuiteMate V3 could not open SuiteQL Studio.", error);
+      openSuiteQLButton.disabled = false;
+      suiteqlToolContext.textContent = "Could not open Studio in this tab.";
+    }
   });
 
   window.addEventListener("pagehide", () => {

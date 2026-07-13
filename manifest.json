@@ -2,15 +2,15 @@
   "manifest_version": 3,
   "name": "SuiteMate V3",
   "short_name": "SuiteMate V3",
-  "version": "3.0.0",
-  "description": "Recreates the SuiteMate V1 NetSuite visual styling without adding product features.",
+  "version": "3.1.0",
+  "description": "Restores the SuiteMate V1 NetSuite UI and adds focused developer tools.",
   "icons": {
     "16": "icons/16.png",
     "48": "icons/48.png",
     "128": "icons/128.png"
   },
   "action": {
-    "default_title": "SuiteMate V3 styling",
+    "default_title": "SuiteMate V3",
     "default_popup": "src/popup/popup.html",
     "default_icon": {
       "16": "icons/16.png",
@@ -20,8 +20,12 @@
   },
   "permissions": [
     "activeTab",
+    "scripting",
     "storage"
   ],
+  "background": {
+    "service_worker": "src/background/service-worker.js"
+  },
   "host_permissions": [
     "https://*.netsuite.com/*"
   ],
@@ -155,9 +159,14 @@
         "https://*.netsuite.com/app/common/search/ubersearchresults.nl?*"
       ],
       "css": [
-        "src/styles/pages/suiteql.css"
+        "src/styles/pages/suiteql.css",
+        "src/suiteql/studio.css"
       ],
-      "run_at": "document_start"
+      "js": [
+        "src/suiteql/core.js",
+        "dist/suiteql-studio.js"
+      ],
+      "run_at": "document_idle"
     },
     {
       "matches": [

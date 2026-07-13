@@ -1,4 +1,4 @@
-# SuiteMate V3 styling smoke test
+# SuiteMate V3 smoke test
 
 The styling foundation is not complete because the extension loads. It is complete only when the visual comparison and functional regression checks pass.
 
@@ -45,6 +45,30 @@ The styling foundation is not complete because the extension loads. It is comple
 - Reset All restores appearance defaults and removes all saved role colors.
 - Switching roles applies that role's saved colors and does not leak colors from another role.
 
+## SuiteQL Core Studio pass
+
+- Open the extension popup from an authenticated NetSuite tab and select Open SuiteQL Studio.
+- Confirm the active tab navigates to `/app/common/search/ubersearchresults.nl?suiteql` on the same account domain.
+- Confirm a normal Global Search page without the `suiteql` parameter remains native and unchanged.
+- Run `SELECT id, tranid FROM transaction WHERE ROWNUM <= 10 ORDER BY id`.
+- Confirm the request uses the authenticated same-account `PlatformClientScriptHandler.nl` `queryApiBridge` and makes no external request.
+- Confirm the editor has line numbers, SQL highlighting, selection execution, and visible keyboard focus.
+- Confirm row count, execution time, sorting, 250-row client pages, numeric values, text values, and null values render correctly.
+- Export loaded rows and confirm the account identifier and timestamp appear in the filename.
+- Open the CSV and confirm commas, quotes, line breaks, and formula-like string values are safe.
+- Run a deliberately invalid field and confirm the NetSuite error code and message are readable.
+- Run an unpaged query that reaches 5,000 rows and confirm the limit warning appears.
+- Enable Paged mode for a query with a unique `ORDER BY`, then load at least two 1,000-row NetSuite pages.
+- Confirm loaded count and total count remain distinct and accurate.
+- Try Paged mode without `ORDER BY` and confirm Studio requires explicit confirmation.
+- Press Escape during an active request and confirm Studio releases the UI, discards late results, and does not claim NetSuite processing was canceled.
+- Verify Ctrl or Cmd + E executes, Ctrl or Cmd + Shift + P toggles Paged, Ctrl or Cmd + Shift + E exports, and Ctrl or Cmd + Shift + L clears results.
+- Enter a query, resize the editor, refresh the tab, and confirm the query, Paged setting, and editor height are restored in the same tab.
+- Use Inspect Table with a valid table name and confirm the Records Catalog opens in a new tab.
+- Confirm invalid table names do not open a route.
+- Recheck Sales Order view and edit pages after the SuiteQL pass.
+- Repeat the SuiteQL execution pass in Release Preview before every NetSuite release and treat a changed bridge response as a release blocker.
+
 ## Exit gate
 
-Feature development may begin only when all required areas pass, all release blockers are resolved, and the final comparison evidence is retained.
+The SuiteQL milestone is complete only when the styling regressions remain clear, the SuiteQL checks pass, and final evidence is retained.

@@ -25,6 +25,35 @@ header {
   margin-bottom: 18px;
 }
 
+.tool-card {
+  display: grid;
+  gap: 11px;
+  margin-bottom: 12px;
+  border: 1px solid #c9d3e1;
+  border-radius: 9px;
+  padding: 13px 14px;
+  background: linear-gradient(145deg, #f8fbff, #eef3f9);
+}
+
+.tool-card > div {
+  display: grid;
+  gap: 3px;
+}
+
+.tool-card .primary-action {
+  width: 100%;
+  border-color: #607799;
+  padding-block: 8px;
+  background: #607799;
+  color: #fff;
+  font-weight: 600;
+}
+
+.tool-card .primary-action:hover:not(:disabled) {
+  border-color: #4c607d;
+  background: #4c607d;
+}
+
 header img {
   border-radius: 10px;
 }
