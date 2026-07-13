@@ -19,8 +19,8 @@
         </div>
         <nav aria-label="SuiteQL resources">
           <a id="suiteql-suitesense" href="https://suitesense.vercel.app/" target="_blank" rel="noopener noreferrer" title="Generate SuiteQL from plain English with SuiteSense">Generate with SuiteSense</a>
-          <button id="suiteql-inspect-table" type="button">Inspect Table</button>
-          <a href="/app/recordscatalog/rcbrowser.nl" target="_blank" rel="noopener">Records Catalog</a>
+          <button id="suiteql-inspect-table" type="button" hidden>Inspect Table</button>
+          <a id="suiteql-records-catalog" href="/app/recordscatalog/rcbrowser.nl" target="_blank" rel="noopener" hidden>Records Catalog</a>
         </nav>
       </header>
       <section id="suiteql-control-bar" aria-label="SuiteQL controls">

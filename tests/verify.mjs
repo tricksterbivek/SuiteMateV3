@@ -306,6 +306,8 @@ assert.match(
   "SuiteSense is not exposed as a safe external SuiteQL resource"
 );
 assert.match(studioSource, />Generate with SuiteSense<\//, "SuiteSense action text is missing");
+assert.match(studioSource, /id="suiteql-inspect-table" type="button" hidden/, "Inspect Table is visible");
+assert.match(studioSource, /id="suiteql-records-catalog"[^>]+hidden/, "Records Catalog is visible");
 assert.doesNotMatch(backgroundSource, /nlapijsonhandler/i, "SuiteQL uses the unrelated legacy NLAPI JSON endpoint");
 
 let backgroundMessageListener;
