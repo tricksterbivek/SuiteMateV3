@@ -68,18 +68,28 @@ html:not(.ext-f) :is(
     .uir-select-input-container,
     .uir-select-input-container>input
 ) {
-    border-radius: var(--suitemate-radius-surface)
+    border-radius: var(--suitemate-radius-surface) !important
 }
 
 html:not(.ext-f) :is(.uir-popup, .uir-menu, .page-title-menu .ns-menu, .n-w-window[data-role=contextmenu]) {
     border-radius: var(--suitemate-radius-overlay)
 }
 
+html:not(.ext-f) [data-widget=Popover]:has([data-widget=Menu][role=menu]),
+html:not(.ext-f) [data-widget=Popover]:has([data-widget=Menu][role=menu])>div,
+html:not(.ext-f) [data-widget=Popover] [data-widget=Menu][role=menu],
+html:not(.ext-f) [data-widget=Popover]>div:has([data-widget=WindowBody]>[data-widget=ScrollPanel] [data-widget=Menu]) {
+    border-radius: var(--suitemate-radius-overlay) !important
+}
+
+html:not(.ext-f) [data-widget=Popover]:has([data-widget=Menu][role=menu])>div,
 html:not(.ext-f) [data-widget=Popover]>div:has([data-widget=WindowBody]>[data-widget=ScrollPanel] [data-widget=Menu]),
-html:not(.ext-f) :is(.ddmDivButtonY, .ddmDivButtonG),
-html:not(.ext-f) .n-w-window[data-role=contextmenu] {
-    border-radius: var(--suitemate-radius-overlay);
-    overflow: hidden
+html:not(.ext-f) :is(.ddmDivButtonY, .ddmDivButtonG) {
+    overflow: hidden !important
+}
+
+html:not(.ext-f) :is(.ddmDivButtonY, .ddmDivButtonG) {
+    border-radius: var(--suitemate-radius-overlay) !important
 }
 
 html:not(.ext-f) :is(.uir-alert-box, .n-w-window--modal) {

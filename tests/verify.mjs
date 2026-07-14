@@ -165,8 +165,13 @@ assert.match(
 );
 assert.match(
   radiusStyles,
-  /\[data-widget=Popover\]>div:has\(\[data-widget=WindowBody\]>\[data-widget=ScrollPanel\] \[data-widget=Menu\]\)/,
+  /\[data-widget=Popover\]:has\(\[data-widget=Menu\]\[role=menu\]\)/,
   "Redwood navigation popovers do not use the V1 overlay radius"
+);
+assert.match(
+  radiusStyles,
+  /\[data-widget=Popover\][\s\S]*?border-radius: var\(--suitemate-radius-overlay\) !important/,
+  "Redwood's generated navigation styles can override the V1 overlay radius"
 );
 assert.match(
   radiusStyles,
@@ -175,7 +180,7 @@ assert.match(
 );
 assert.match(
   radiusStyles,
-  /:is\([\s\S]*?input\.input:not\(\[type=button\]\)[\s\S]*?\.uir-input-dropdown-native[\s\S]*?\.uir-select-input-container>input[\s\S]*?border-radius: var\(--suitemate-radius-surface\)/,
+  /:is\([\s\S]*?input\.input:not\(\[type=button\]\)[\s\S]*?\.uir-input-dropdown-native[\s\S]*?\.uir-select-input-container>input[\s\S]*?border-radius: var\(--suitemate-radius-surface\) !important/,
   "Editable NetSuite fields do not use the global V1 surface radius"
 );
 assert.match(
