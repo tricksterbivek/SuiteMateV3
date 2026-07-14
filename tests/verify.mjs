@@ -165,6 +165,21 @@ assert.match(
 );
 assert.match(
   radiusStyles,
+  /\[data-widget=Popover\]>div:has\(\[data-widget=WindowBody\]>\[data-widget=ScrollPanel\] \[data-widget=Menu\]\)/,
+  "Redwood navigation popovers do not use the V1 overlay radius"
+);
+assert.match(
+  radiusStyles,
+  /:is\(\.ddmDivButtonY, \.ddmDivButtonG\)/,
+  "Legacy NetSuite navigation dropdowns do not use the V1 overlay radius"
+);
+assert.match(
+  radiusStyles,
+  /:is\([\s\S]*?input\.input:not\(\[type=button\]\)[\s\S]*?\.uir-input-dropdown-native[\s\S]*?\.uir-select-input-container>input[\s\S]*?border-radius: var\(--suitemate-radius-surface\)/,
+  "Editable NetSuite fields do not use the global V1 surface radius"
+);
+assert.match(
+  radiusStyles,
   /:is\(\.uir-alert-box, \.n-w-window--modal\)/,
   "NetSuite dialogs do not use the V1 dialog radius"
 );

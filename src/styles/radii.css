@@ -60,8 +60,26 @@ html:not(.ext-f) :is(.n-f-fieldgroup-heading, .uir-field-arrangement--title-bar,
     border-radius: var(--suitemate-radius-surface)
 }
 
+html:not(.ext-f) :is(
+    input.input:not([type=button]):not([type=submit]):not([type=checkbox]):not([type=radio]):not([type=image]),
+    textarea.input,
+    select.input,
+    .uir-input-dropdown-native,
+    .uir-select-input-container,
+    .uir-select-input-container>input
+) {
+    border-radius: var(--suitemate-radius-surface)
+}
+
 html:not(.ext-f) :is(.uir-popup, .uir-menu, .page-title-menu .ns-menu, .n-w-window[data-role=contextmenu]) {
     border-radius: var(--suitemate-radius-overlay)
+}
+
+html:not(.ext-f) [data-widget=Popover]>div:has([data-widget=WindowBody]>[data-widget=ScrollPanel] [data-widget=Menu]),
+html:not(.ext-f) :is(.ddmDivButtonY, .ddmDivButtonG),
+html:not(.ext-f) .n-w-window[data-role=contextmenu] {
+    border-radius: var(--suitemate-radius-overlay);
+    overflow: hidden
 }
 
 html:not(.ext-f) :is(.uir-alert-box, .n-w-window--modal) {
