@@ -133,6 +133,11 @@ assert.match(
 );
 assert.match(
   compatibilityStyles,
+  /\.uir-machine-table-container \.uir-machine-table \.uir-machine-headerrow>td[\s\S]*?border-bottom: 1px solid var\(--suitemate-v3-table-header-border\) !important/,
+  "Editable NetSuite machine-table borders are not controlled by Secondary"
+);
+assert.match(
+  compatibilityStyles,
   /\.uir-machine-table-container \{\s+--sln-header-bg-color: var\(--suitemate-v3-table-header-bg\)/,
   "Sublist line-number headers are not controlled by Secondary"
 );
@@ -160,6 +165,11 @@ assert.match(
   compatibilityStyles,
   /\.uir-tab-list-tabs \.uir-unroll-tabs-button[\s\S]*?background-color: var\(--theme-main\) !important/,
   "The global NetSuite tab overflow control is not controlled by Main"
+);
+assert.match(
+  compatibilityStyles,
+  /\.uir-tab-list>\.uir-unroll-tabs-button[\s\S]*?background-color: var\(--theme-main\) !important/,
+  "The legacy NetSuite tab overflow control is not controlled by Main"
 );
 assert.match(
   compatibilityStyles,

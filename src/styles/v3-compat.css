@@ -15,6 +15,10 @@ html:not(.ext-f) .uir-machine-table-container .uir-machine-headerrow>td {
     border-bottom: 1px solid var(--suitemate-v3-table-header-border) !important
 }
 
+html:not(.ext-f) .uir-machine-table-container .uir-machine-table .uir-machine-headerrow>td {
+    border-bottom: 1px solid var(--suitemate-v3-table-header-border) !important
+}
+
 html:not(.ext-f) :is(.uir-list-header-td, .uir-machine-headerrow>td) :is(.listheader, [class*=listheader]) {
     color: var(--suitemate-v3-table-header-color) !important;
     font-size: 12px !important;
@@ -35,7 +39,8 @@ html:not(.ext-f).sln .uir-machine-table-container .uir-machine-headerrow::before
 html:not(.ext-f) .uir-tab-list-tabs,
 html:not(.ext-f) .uir-tab-list-tabs>.bgtabbar,
 html:not(.ext-f) .uir-tab-list-tabs .formtaboff,
-html:not(.ext-f) .uir-tab-list-tabs .uir-unroll-tabs-button {
+html:not(.ext-f) .uir-tab-list-tabs .uir-unroll-tabs-button,
+html:not(.ext-f) .uir-tab-list>.uir-unroll-tabs-button {
     background-color: var(--theme-main) !important
 }
 
