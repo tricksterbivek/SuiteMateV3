@@ -133,7 +133,7 @@ assert.match(
 );
 assert.match(
   compatibilityStyles,
-  /\.uir-machine-table-container \.uir-machine-table \.uir-machine-headerrow>td[\s\S]*?border-bottom: 1px solid var\(--suitemate-v3-table-header-border\) !important/,
+  /\.uir-machine-table-container \.uir-machine-table \.uir-machine-headerrow>td[\s\S]*?--table-border-color: var\(--suitemate-v3-table-header-border\)[\s\S]*?border-bottom: 1px solid var\(--suitemate-v3-table-header-border\) !important/,
   "Editable NetSuite machine-table borders are not controlled by Secondary"
 );
 assert.match(

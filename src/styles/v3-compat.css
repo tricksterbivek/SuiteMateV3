@@ -16,6 +16,7 @@ html:not(.ext-f) .uir-machine-table-container .uir-machine-headerrow>td {
 }
 
 html:not(.ext-f) .uir-machine-table-container .uir-machine-table .uir-machine-headerrow>td {
+    --table-border-color: var(--suitemate-v3-table-header-border);
     border-bottom: 1px solid var(--suitemate-v3-table-header-border) !important
 }
 
