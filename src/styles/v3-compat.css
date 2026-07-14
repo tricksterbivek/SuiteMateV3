@@ -110,5 +110,5 @@ html:not(.ext-f) td.fgroup_title.uir-field-group:hover>div.fgroup_title {
 }
 
 html:not(.ext-f):not(.disable_radii) td.fgroup_title.uir-field-group>div.fgroup_title {
-    border-radius: 5px 5px 0 0
+    border-radius: var(--suitemate-radius-surface) var(--suitemate-radius-surface) 0 0
 }

@@ -26,6 +26,7 @@ assert.deepEqual(globalThemeContentScript.css, [
   "src/styles/font.css",
   "src/styles/code.css",
   "src/styles/netsuite.css",
+  "src/styles/radii.css",
   "src/styles/v3-compat.css"
 ]);
 
@@ -106,6 +107,11 @@ assert.match(themeRuntimeSource, /setClass\("sfc", enabled\)/, "V1 frozen-column
 assert.match(themeRuntimeSource, /setClass\("sln", enabled\)/, "V1 sublist line-number styling is not enabled");
 assert.match(
   themeRuntimeSource,
+  /setClass\("disable_radii", enabled && value\.squareCorners\)/,
+  "The V1 Boxy UI class is not driven by the global radius setting"
+);
+assert.match(
+  themeRuntimeSource,
   /message\?\.type === settingsApi\.THEME_PREVIEW_MESSAGE/,
   "Live theme preview messages are not handled"
 );
@@ -116,6 +122,62 @@ assert.match(popupSource, /createStudioUrl\(activeNetSuiteTab\?\.url\)/, "The po
 assert.match(popupSource, /chrome\.tabs\.update/, "The popup does not open Studio in the active tab");
 
 const compatibilityStyles = await readFile(resolve(root, "src/styles/v3-compat.css"), "utf8");
+const radiusStyles = await readFile(resolve(root, "src/styles/radii.css"), "utf8");
+for (const [token, value] of Object.entries({
+  "--suitemate-radius-control": "3px",
+  "--suitemate-radius-compact": "4px",
+  "--suitemate-radius-surface": "5px",
+  "--suitemate-radius-overlay": "8px",
+  "--suitemate-radius-dialog": "10px",
+  "--suitemate-radius-pill": "20px"
+})) {
+  assert.equal(radiusStyles.includes(`${token}: ${value};`), true, `${token} changed from the V1 radius scale`);
+}
+assert.match(
+  radiusStyles,
+  /html:not\(\.ext-f\)\.disable_radii[\s\S]*?--suitemate-radius-surface: 0px/,
+  "Boxy UI does not disable the global radius tokens"
+);
+assert.match(
+  radiusStyles,
+  /--nsn-uif-redwood-border-rounded-corners: var\(--suitemate-radius-surface\)/,
+  "The V1 surface radius is not mapped to Redwood controls"
+);
+assert.match(
+  radiusStyles,
+  /:is\(\.uir-tab-list, \.n-w-tab-list\.style-standalone, \[data-widget=ScrollTabList\]\)/,
+  "Primary NetSuite tab containers do not use the global surface radius"
+);
+assert.match(
+  radiusStyles,
+  /:is\(div\.bgsubtabbar, \.uir-subtab-panel-tabs\)/,
+  "Nested NetSuite tab containers do not use the global surface radius"
+);
+assert.match(
+  radiusStyles,
+  /:is\(\.uir-list-body, \.uir-list-table-container, \.uir-machine-table-container\)/,
+  "NetSuite list and machine-table containers do not use the global surface radius"
+);
+assert.match(
+  radiusStyles,
+  /:is\(\.uir-popup, \.uir-menu, \.page-title-menu \.ns-menu, \.n-w-window\[data-role=contextmenu\]\)/,
+  "NetSuite overlays do not use the V1 overlay radius"
+);
+assert.match(
+  radiusStyles,
+  /:is\(\.uir-alert-box, \.n-w-window--modal\)/,
+  "NetSuite dialogs do not use the V1 dialog radius"
+);
+assert.doesNotMatch(
+  radiusStyles,
+  /data-path=|salesord\.nl|search\.nl|suiteql/,
+  "The radius layer contains page-specific styling"
+);
+assert.match(
+  compatibilityStyles,
+  /border-radius: var\(--suitemate-radius-surface\) var\(--suitemate-radius-surface\) 0 0/,
+  "Field-group radii do not use the global V1 surface token"
+);
 assert.match(
   compatibilityStyles,
   /--suitemate-v3-table-header-bg: var\(--theme-secondary-light\)/,
@@ -203,6 +265,8 @@ settingsSandbox.globalThis = settingsSandbox;
 runInNewContext(settingsSource, settingsSandbox);
 const settingsApi = settingsSandbox.SuiteMateV3Settings;
 assert.equal(settingsApi.THEME_PREVIEW_MESSAGE, "SUITEMATE_V3_PREVIEW_ROLE_THEME");
+assert.equal(settingsApi.DEFAULTS.squareCorners, false);
+assert.equal(settingsApi.normalize({ squareCorners: true }).squareCorners, true);
 const roleContext = { id: "9845683_SB2~11596~3~N", name: "DBG Health (SB2) - Administrator" };
 const roleSettings = settingsApi.withRoleTheme(settingsApi.DEFAULTS, roleContext, {
   main: "#123456",

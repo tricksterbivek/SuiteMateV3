@@ -21,7 +21,7 @@ Saved queries, query history, variables, datasets, special result rendering, mul
 
 ## Source boundary
 
-The 15 V1 CSS sources under `src/styles` are copied byte-for-byte from `../suitematev1` and protected by hash checks. `src/styles/v3-compat.css` contains only the live NetSuite compatibility corrections identified during V3 testing. V3 does not execute V1 feature scripts.
+The 15 V1 CSS sources under `src/styles` are copied byte-for-byte from `../suitematev1` and protected by hash checks. The V3-owned `src/styles/radii.css` and `src/styles/v3-compat.css` files contain the live NetSuite compatibility corrections identified during V3 testing. V3 does not execute V1 feature scripts.
 
 The popup uses `activeTab` to read the current NetSuite role identity and open SuiteQL Studio on the same account domain. Theme colors are saved against that role identity in `chrome.storage.sync`, matching V1's role-specific behavior.
 
