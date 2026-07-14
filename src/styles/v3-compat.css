@@ -1,7 +1,9 @@
 html:not(.ext-f) {
     --suitemate-v3-table-header-bg: var(--theme-secondary-light);
     --suitemate-v3-table-header-color: var(--text-0);
-    --suitemate-v3-table-header-border: var(--theme-secondary)
+    --suitemate-v3-table-header-border: var(--theme-secondary);
+    --suitemate-v3-subtab-bg: var(--theme-secondary-light);
+    --suitemate-v3-subtab-active-bg: var(--theme-secondary)
 }
 
 html:not(.ext-f) :is(.uir-list-headerrow, .uir-list-header-td, .uir-machine-headerrow>td) {
@@ -63,15 +65,17 @@ html:not(.ext-f) :is(.uir-tab-list-tabs, .uir-subtab-panel-tabs-row) :is(.formta
     border-bottom-color: light-dark(var(--theme-main), var(--theme-main-light)) !important
 }
 
+html:not(.ext-f) .uir-subtab-panel-tabs,
+html:not(.ext-f) .uir-subtab-panel-tabs>.bgsubtabbar,
 html:not(.ext-f) .uir-subtab-panel-tabs-row,
-html:not(.ext-f) .uir-subtab-panel-tabs-row>.bgsubtabbar,
-html:not(.ext-f) .uir-subtab-panel-tabs-row .formsubtaboff {
-    background-color: var(--theme-secondary-light) !important
+html:not(.ext-f) .uir-subtab-panel-tabs-row .formsubtaboff,
+html:not(.ext-f) .uir-list-control-bar {
+    background-color: var(--suitemate-v3-subtab-bg) !important
 }
 
 html:not(.ext-f) .uir-subtab-panel-tabs-row .formsubtabon,
 html:not(.ext-f) .uir-subtab-panel-tabs-row .formsubtaboff:has(>a:hover) {
-    background-color: var(--theme-secondary) !important
+    background-color: var(--suitemate-v3-subtab-active-bg) !important
 }
 
 html:not(.ext-f) .uir-subtab-panel-tabs-row :is(.formsubtabon, .formsubtaboff) {

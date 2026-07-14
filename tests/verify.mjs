@@ -123,6 +123,21 @@ assert.match(popupSource, /chrome\.tabs\.update/, "The popup does not open Studi
 
 const compatibilityStyles = await readFile(resolve(root, "src/styles/v3-compat.css"), "utf8");
 const radiusStyles = await readFile(resolve(root, "src/styles/radii.css"), "utf8");
+assert.match(
+  compatibilityStyles,
+  /--suitemate-v3-subtab-bg: var\(--theme-secondary-light\)/,
+  "Nested subtab surfaces are not controlled by the Secondary Color"
+);
+assert.match(
+  compatibilityStyles,
+  /\.uir-subtab-panel-tabs,[\s\S]*?\.uir-subtab-panel-tabs>\.bgsubtabbar,[\s\S]*?\.uir-subtab-panel-tabs-row,[\s\S]*?\.uir-list-control-bar[\s\S]*?background-color: var\(--suitemate-v3-subtab-bg\) !important/,
+  "Native role colors can leak through shared nested-subtab surfaces"
+);
+assert.doesNotMatch(
+  compatibilityStyles,
+  /\.uir-subtab-panel-tabs-row>\.bgsubtabbar/,
+  "The nested-subtab background selector points at a child that does not exist"
+);
 for (const [token, value] of Object.entries({
   "--suitemate-radius-control": "3px",
   "--suitemate-radius-compact": "4px",
@@ -255,12 +270,12 @@ assert.match(
 );
 assert.match(
   compatibilityStyles,
-  /\.uir-subtab-panel-tabs-row \.formsubtaboff[\s\S]*?background-color: var\(--theme-secondary-light\) !important/,
+  /\.uir-subtab-panel-tabs-row \.formsubtaboff[\s\S]*?background-color: var\(--suitemate-v3-subtab-bg\) !important/,
   "Inactive nested NetSuite tabs are not controlled by Secondary Light"
 );
 assert.match(
   compatibilityStyles,
-  /\.uir-subtab-panel-tabs-row \.formsubtabon,[\s\S]*?background-color: var\(--theme-secondary\) !important/,
+  /\.uir-subtab-panel-tabs-row \.formsubtabon,[\s\S]*?background-color: var\(--suitemate-v3-subtab-active-bg\) !important/,
   "The active nested NetSuite tab is not controlled by Secondary"
 );
 assert.match(
