@@ -15,6 +15,20 @@ assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
 assert.deepEqual(manifest.host_permissions, ["https://*.netsuite.com/*"]);
 assert.equal(manifest.background.service_worker, "src/background/service-worker.js");
 
+const globalThemeContentScript = manifest.content_scripts.find((entry) =>
+  entry.css?.includes("src/styles/netsuite.css")
+);
+assert.ok(globalThemeContentScript, "The global NetSuite theme content script is missing");
+assert.deepEqual(globalThemeContentScript.matches, ["https://*.netsuite.com/*"]);
+assert.equal(globalThemeContentScript.run_at, "document_start");
+assert.equal(globalThemeContentScript.all_frames, true);
+assert.deepEqual(globalThemeContentScript.css, [
+  "src/styles/font.css",
+  "src/styles/code.css",
+  "src/styles/netsuite.css",
+  "src/styles/v3-compat.css"
+]);
+
 const referencedFiles = new Set([
   ...Object.values(manifest.icons),
   manifest.action.default_popup,
@@ -44,6 +58,8 @@ for (const fixture of [
   "tests/fixtures/classic.html",
   "tests/fixtures/redwood.html",
   "tests/fixtures/sales-order.html",
+  "tests/fixtures/saved-search-results.html",
+  "tests/fixtures/saved-search-edit.html",
   "tests/fixtures/popup-role.html",
   "tests/fixtures/theme-runtime.html",
   "tests/fixtures/suiteql-classic.html",
@@ -103,37 +119,72 @@ const compatibilityStyles = await readFile(resolve(root, "src/styles/v3-compat.c
 assert.match(
   compatibilityStyles,
   /--suitemate-v3-table-header-bg: var\(--theme-secondary-light\)/,
-  "Sales Order table headers are not controlled by Secondary"
+  "Global NetSuite table headers are not controlled by Secondary"
+);
+assert.match(
+  compatibilityStyles,
+  /:is\(\.uir-list-headerrow, \.uir-list-header-td, \.uir-machine-headerrow>td\)/,
+  "The global table-header selector is missing"
+);
+assert.match(
+  compatibilityStyles,
+  /\.uir-list-body \.uir-list-headerrow>td\.uir-list-header-td,[\s\S]*?\.uir-machine-table-container \.uir-machine-headerrow>td[\s\S]*?border-bottom: 1px solid var\(--suitemate-v3-table-header-border\) !important/,
+  "Global NetSuite table-header borders are not controlled by Secondary"
+);
+assert.match(
+  compatibilityStyles,
+  /\.uir-machine-table-container \{\s+--sln-header-bg-color: var\(--suitemate-v3-table-header-bg\)/,
+  "Sublist line-number headers are not controlled by Secondary"
 );
 assert.match(
   compatibilityStyles,
   /border-bottom-color: light-dark\(var\(--theme-main\), var\(--theme-main-light\)\)/,
-  "Sales Order sublist tabs are not controlled by Main"
+  "Global NetSuite tabs are not controlled by Main"
 );
 assert.match(
   compatibilityStyles,
-  /\.uir-tab-list-tabs \.formtaboff \{\s+background-color: var\(--theme-main\) !important/,
-  "Inactive Sales Order subtabs are not controlled by Main"
+  /html:not\(\.ext-f\) \.uir-tab-list-tabs \.formtaboff,[\s\S]*?background-color: var\(--theme-main\) !important/,
+  "Inactive global NetSuite tabs are not controlled by Main"
 );
 assert.match(
   compatibilityStyles,
-  /\.uir-tab-list-tabs \.formtabon,[\s\S]*?background-color: var\(--theme-main-light\) !important/,
-  "The active Sales Order subtab is not controlled by Main Light"
+  /html:not\(\.ext-f\) \.uir-tab-list-tabs \.formtabon,[\s\S]*?background-color: var\(--theme-main-light\) !important/,
+  "The active global NetSuite tab is not controlled by Main Light"
 );
 assert.match(
   compatibilityStyles,
   /\.uir-tab-list-tabs>\.bgtabbar/,
-  "The Sales Order subtab bar background is not controlled by Main"
+  "The global NetSuite tab bar background is not controlled by Main"
 );
 assert.match(
   compatibilityStyles,
-  /background-color: var\(--theme-secondary-light\) !important;/,
-  "Sales Order field groups are not controlled by Secondary"
+  /\.uir-tab-list-tabs \.uir-unroll-tabs-button[\s\S]*?background-color: var\(--theme-main\) !important/,
+  "The global NetSuite tab overflow control is not controlled by Main"
+);
+assert.match(
+  compatibilityStyles,
+  /\.uir-subtab-panel-tabs-row \.formsubtaboff[\s\S]*?background-color: var\(--theme-secondary-light\) !important/,
+  "Inactive nested NetSuite tabs are not controlled by Secondary Light"
+);
+assert.match(
+  compatibilityStyles,
+  /\.uir-subtab-panel-tabs-row \.formsubtabon,[\s\S]*?background-color: var\(--theme-secondary\) !important/,
+  "The active nested NetSuite tab is not controlled by Secondary"
+);
+assert.match(
+  compatibilityStyles,
+  /td\.fgroup_title\.uir-field-group>div\.fgroup_title[\s\S]*?background-color: var\(--theme-secondary-light\) !important/,
+  "Global NetSuite field groups are not controlled by Secondary"
 );
 assert.doesNotMatch(
   compatibilityStyles,
   /suitemate-v3-table-header-(?:bg|border): var\(--theme-main/,
-  "Sales Order table headers still depend on Main"
+  "Global NetSuite table headers still depend on Main"
+);
+assert.doesNotMatch(
+  compatibilityStyles,
+  /data-path=|salesord\.nl|#item_splits/,
+  "The compatibility layer still contains page-specific styling"
 );
 
 const settingsSource = await readFile(resolve(root, "src/shared/settings.js"), "utf8");
