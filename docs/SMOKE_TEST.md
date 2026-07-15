@@ -62,9 +62,9 @@ The styling foundation is not complete because the extension loads. It is comple
 - Reload the popup and confirm only the selected Main and Secondary hex values persist. Generated shades must be recalculated from those values.
 - Confirm no palette object or metadata is written to synced storage and no external request is made.
 
-## SuiteQL Core Studio pass
+## SuiteQL Console pass
 
-- Open the extension popup from an authenticated NetSuite tab and select Open SuiteQL Studio.
+- Open the extension popup from an authenticated NetSuite tab and select Open SuiteQL Console.
 - Confirm the active tab navigates to `/app/common/search/ubersearchresults.nl?suiteql` on the same account domain.
 - Confirm a normal Global Search page without the `suiteql` parameter remains native and unchanged.
 - Run `SELECT id, tranid FROM transaction WHERE ROWNUM <= 10 ORDER BY id`.
@@ -77,12 +77,12 @@ The styling foundation is not complete because the extension loads. It is comple
 - Run an unpaged query that reaches 5,000 rows and confirm the limit warning appears.
 - Enable Paged mode for a query with a unique `ORDER BY`, then load at least two 1,000-row NetSuite pages.
 - Confirm loaded count and total count remain distinct and accurate.
-- Try Paged mode without `ORDER BY` and confirm Studio requires explicit confirmation.
-- Press Escape during an active request and confirm Studio releases the UI, discards late results, and does not claim NetSuite processing was canceled.
+- Try Paged mode without `ORDER BY` and confirm Console requires explicit confirmation.
+- Press Escape during an active request and confirm Console releases the UI, discards late results, and does not claim NetSuite processing was canceled.
 - Verify Ctrl or Cmd + E executes, Ctrl or Cmd + Shift + P toggles Paged, Ctrl or Cmd + Shift + E exports, and Ctrl or Cmd + Shift + L clears results.
 - Enter a query, resize the editor, refresh the tab, and confirm the query, Paged setting, and editor height are restored in the same tab.
-- Confirm Inspect Table and Records Catalog remain hidden in the Studio header.
-- Select Generate with SuiteSense and confirm `https://suitesense.vercel.app/` opens in a new tab without replacing the Studio draft.
+- Confirm Inspect Table and Records Catalog remain hidden in the Console header.
+- Select Generate with SuiteSense and confirm `https://suitesense.vercel.app/` opens in a new tab without replacing the Console draft.
 - Recheck Sales Order view and edit pages after the SuiteQL pass.
 - Repeat the SuiteQL execution pass in Release Preview before every NetSuite release and treat a changed bridge response as a release blocker.
 

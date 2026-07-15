@@ -22,7 +22,7 @@ importScripts(chrome.runtime.getURL("src/suiteql/core.js"));
     if (!validateSender(sender)) {
       return bridgeError(message?.requestId, {
         code: "INVALID_SENDER",
-        message: "SuiteQL requests are accepted only from SuiteQL Studio in the active NetSuite page."
+        message: "SuiteQL requests are accepted only from SuiteQL Console in the active NetSuite page."
       });
     }
     if (typeof message?.requestId !== "string" || !message.requestId.trim()) {

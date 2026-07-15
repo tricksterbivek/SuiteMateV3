@@ -509,8 +509,8 @@ import { keymap } from "@codemirror/view";
     root.innerHTML = `
       <header class="suiteql-studio-header">
         <div>
-          <h1>SuiteQL Studio</h1>
-          <p>Queries run with the permissions of the current NetSuite role.</p>
+          <h1>SuiteQL Console</h1>
+          <p>Query NetSuite with the permissions of the current role.</p>
         </div>
         <nav aria-label="SuiteQL resources">
           <a id="suiteql-suitesense" href="https://suitesense.vercel.app/" target="_blank" rel="noopener noreferrer" title="Generate SuiteQL from plain English with SuiteSense">Generate with SuiteSense</a>
@@ -520,12 +520,12 @@ import { keymap } from "@codemirror/view";
       </header>
       <section id="suiteql-control-bar" aria-label="SuiteQL controls">
         <div id="suiteql-buttons">
-          <button id="suiteql-execute" class="primary" type="button">Execute</button>
-          <button id="suiteql-abort" type="button" disabled>Abort</button>
-          <label class="suiteql-toggle"><input id="suiteql-paged" type="checkbox"> Paged</label>
+          <button id="suiteql-execute" class="primary" type="button" aria-keyshortcuts="Control+E Meta+E" title="Execute query (Ctrl or Command + E)">Execute</button>
+          <button id="suiteql-abort" type="button" aria-keyshortcuts="Escape" title="Stop waiting for the active query (Escape)" disabled>Abort</button>
+          <label class="suiteql-toggle" title="Toggle progressive paging (Ctrl or Command + Shift + P)"><input id="suiteql-paged" type="checkbox"> Paged</label>
           <span class="buttons-divider" aria-hidden="true"></span>
-          <button id="suiteql-export" type="button" disabled>Export</button>
-          <button id="suiteql-clear" type="button" disabled>Clear Results</button>
+          <button id="suiteql-export" type="button" aria-keyshortcuts="Control+Shift+E Meta+Shift+E" title="Export loaded rows as CSV (Ctrl or Command + Shift + E)" disabled>Export CSV</button>
+          <button id="suiteql-clear" type="button" aria-keyshortcuts="Control+Shift+L Meta+Shift+L" title="Clear results (Ctrl or Command + Shift + L)" disabled>Clear Results</button>
         </div>
         <div id="suiteql-stats" aria-live="polite">
           <span id="suiteql-row-count" data-label="Rows"></span>
@@ -587,7 +587,7 @@ import { keymap } from "@codemirror/view";
 
   function initialize() {
     document.documentElement.classList.add("suiteql-results", "suiteql-v3");
-    document.title = "SuiteQL Studio";
+    document.title = "SuiteQL Console";
     createMarkup();
 
     const urlQuery = params.get("suiteql")?.trim() || "";
