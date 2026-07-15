@@ -48,6 +48,13 @@ for (const file of referencedFiles) {
 }
 
 const popupHtml = await readFile(resolve(root, manifest.action.default_popup), "utf8");
+assert.equal((popupHtml.match(/class="role-color" type="hidden"/g) ?? []).length, 2, "The canonical Main and Secondary values changed");
+assert.match(popupHtml, /id="mainColorTrigger"[^>]*aria-haspopup="dialog"/, "The Main unified picker trigger is missing");
+assert.match(popupHtml, /id="secondaryColorTrigger"[^>]*aria-haspopup="dialog"/, "The Secondary unified picker trigger is missing");
+assert.match(popupHtml, /id="colorPickerModal"[\s\S]*?role="dialog"[\s\S]*?aria-modal="true"/, "The unified picker is not an accessible modal");
+assert.match(popupHtml, /id="pickerMaterialShades"/, "Material shades are not contained inside the unified picker");
+assert.doesNotMatch(popupHtml, /type="color"|mainMaterialShades|secondaryMaterialShades/, "The separate or native picker UI remains active");
+assert.doesNotMatch(popupHtml, /Generate|company logo|recommended pair/i, "A separate palette workflow remains in the popup");
 for (const match of popupHtml.matchAll(/(?:src|href)="([^"]+)"/g)) {
   const reference = match[1];
   if (!reference.startsWith("#")) {
@@ -89,6 +96,7 @@ const extensionSources = [
   "src/popup/popup.html",
   "src/popup/popup.css",
   "src/popup/popup.js",
+  "src/palette/material-palette.js",
   "src/suiteql/core.js",
   "src/suiteql/studio-entry.js",
   "src/suiteql/studio.css",
@@ -120,6 +128,22 @@ assert.match(popupSource, /addEventListener\("input"/, "Color input does not tri
 assert.match(popupSource, /addEventListener\("pagehide"/, "Pending live colors are not flushed when the popup closes");
 assert.match(popupSource, /createStudioUrl\(activeNetSuiteTab\?\.url\)/, "The popup does not build the account-scoped Studio URL");
 assert.match(popupSource, /chrome\.tabs\.update/, "The popup does not open Studio in the active tab");
+assert.match(
+  popupSource,
+  /paletteApi\.generateMaterialShades\(seed\)/,
+  "Material shades are not derived from the unified picker's active color"
+);
+assert.match(
+  popupSource,
+  /activePicker\.input\.value = hex;[\s\S]*?handleLiveColorInput\(activePicker\.input\)/,
+  "Unified picker changes do not use the existing live preview flow"
+);
+assert.match(popupSource, /requestAnimationFrame/, "Pointer movement is not coalesced before live preview");
+assert.match(popupSource, /saveRoleColors\(\{ \[picker\.colorName\]: picker\.input\.value \}\)/, "Closing the unified picker does not flush its final value");
+assert.match(popupSource, /setModalBackgroundInert\(true\)/, "Background controls remain interactive while the picker is open");
+assert.match(popupSource, /event\.key === "Escape" && activePicker/, "Escape does not close the unified picker");
+assert.doesNotMatch(popupSource, /companyLogo|logoPixel|generateLogo|recommendedPalette/i, "Logo-specific palette code remains in the popup");
+assert.doesNotMatch(themeRuntimeSource, /companyLogo|logoPixel|LOGO_MAX/i, "Logo-specific palette code remains in the NetSuite runtime");
 
 const compatibilityStyles = await readFile(resolve(root, "src/styles/v3-compat.css"), "utf8");
 const radiusStyles = await readFile(resolve(root, "src/styles/radii.css"), "utf8");
@@ -338,6 +362,46 @@ assert.equal(
   settingsApi.getRoleTheme(settingsApi.withoutRoleTheme(roleSettings, roleContext.id), roleContext.id).customized,
   false
 );
+
+const materialPaletteSource = await readFile(resolve(root, "dist/material-palette.js"), "utf8");
+const materialPaletteSandbox = {};
+materialPaletteSandbox.globalThis = materialPaletteSandbox;
+runInNewContext(materialPaletteSource, materialPaletteSandbox);
+const { generateMaterialShades } = materialPaletteSandbox.SuiteMateV3MaterialPalette;
+const materialShades = generateMaterialShades("#607799");
+assert.equal(materialShades.source, "#607799");
+assert.deepEqual(JSON.parse(JSON.stringify(Object.keys(materialShades.shades))), [
+  "50", "100", "200", "300", "400", "500", "600", "700", "800", "900"
+]);
+for (const hex of Object.values(materialShades.shades)) {
+  assert.match(hex, /^#[0-9a-f]{6}$/);
+}
+function relativeLuminance(hex) {
+  const channels = hex.slice(1).match(/.{2}/g).map((value) => Number.parseInt(value, 16) / 255);
+  const linear = channels.map((value) => value <= 0.04045
+    ? value / 12.92
+    : ((value + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+}
+const materialLuminances = Object.values(materialShades.shades).map(relativeLuminance);
+for (let index = 1; index < materialLuminances.length; index += 1) {
+  assert.equal(materialLuminances[index] < materialLuminances[index - 1], true, "Material tones are not ordered light to dark");
+}
+assert.equal(JSON.stringify(generateMaterialShades("#607799")), JSON.stringify(materialShades));
+assert.equal(generateMaterialShades("#60g"), null);
+assert.equal(generateMaterialShades("#678").source, "#667788");
+assert.equal(generateMaterialShades("#12345678"), null);
+assert.equal(generateMaterialShades(null), null);
+assert.equal(Object.isFrozen(materialShades), true);
+assert.equal(Object.isFrozen(materialShades.shades), true);
+const neutralShades = generateMaterialShades("#808080");
+assert.equal(neutralShades.chroma, 0);
+for (const hex of Object.values(neutralShades.shades)) {
+  const [red, green, blue] = hex.slice(1).match(/.{2}/g);
+  assert.equal(red, green);
+  assert.equal(green, blue);
+}
+assert.notEqual(generateMaterialShades("#ffffff").source, generateMaterialShades("#ffffff").shades[500]);
 
 const coreSource = await readFile(resolve(root, "src/suiteql/core.js"), "utf8");
 const coreSandbox = { URL, Date };
@@ -656,6 +720,7 @@ assert.equal(invalidFieldBackgroundResponse.error.code, "SSS_SEARCH_ERROR_OCCURR
 assert.equal(invalidFieldBackgroundResponse.error.message, "Field 'invalid_field' was not found.");
 
 await access(resolve(root, "dist/suiteql-studio.js"));
+await access(resolve(root, "dist/material-palette.js"));
 await access(resolve(root, "save/SUITEMATE_V1_MASTER_FEATURE_INVENTORY.md"));
 
 const expectedStyleHashes = {

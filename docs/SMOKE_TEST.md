@@ -45,6 +45,23 @@ The styling foundation is not complete because the extension loads. It is comple
 - Reset All restores appearance defaults and removes all saved role colors.
 - Switching roles applies that role's saved colors and does not leak colors from another role.
 
+## Material shade enhancement pass
+
+- Select Main and confirm one unified SuiteMate color picker opens with saturation, brightness, hue, hex, and Material shade controls.
+- Confirm the picker fits inside the extension popup without requiring the user to find controls below the Main or Secondary fields.
+- Change Main with the saturation and brightness plane, hue control, accessible range controls, and hex field.
+- Confirm the Material shades update in real time without closing the picker.
+- Confirm Main still previews immediately in NetSuite and uses the existing throttled save behavior.
+- Choose a Main Material shade and confirm it updates only Main through the same preview and persistence path.
+- Select Done, close, the backdrop, and Escape in separate passes and confirm each closes the picker while preserving the latest live color.
+- Confirm focus moves into the picker when opened and returns to the originating Main or Secondary control when closed.
+- Repeat the picker, live regeneration, and shade selection checks for Secondary.
+- Confirm Secondary Material shades never alter Main and Main Material shades never alter Secondary.
+- Confirm each tonal row contains shades 50 through 900 with readable labels and keyboard focus.
+- Test black, white, and gray selections and confirm their Material shades remain neutral rather than gaining a color tint.
+- Reload the popup and confirm only the selected Main and Secondary hex values persist. Generated shades must be recalculated from those values.
+- Confirm no palette object or metadata is written to synced storage and no external request is made.
+
 ## SuiteQL Core Studio pass
 
 - Open the extension popup from an authenticated NetSuite tab and select Open SuiteQL Studio.
