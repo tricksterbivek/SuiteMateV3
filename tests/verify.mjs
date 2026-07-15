@@ -55,6 +55,8 @@ assert.match(popupHtml, /id="colorPickerModal"[\s\S]*?role="dialog"[\s\S]*?aria-
 assert.match(popupHtml, /id="pickerMaterialShades"/, "Material shades are not contained inside the unified picker");
 assert.doesNotMatch(popupHtml, /type="color"|mainMaterialShades|secondaryMaterialShades/, "The separate or native picker UI remains active");
 assert.doesNotMatch(popupHtml, /Generate|company logo|recommended pair/i, "A separate palette workflow remains in the popup");
+assert.match(popupHtml, />SuiteQL Console</, "The popup does not use the SuiteQL Console name");
+assert.doesNotMatch(popupHtml, /SuiteQL Studio/, "The old SuiteQL Studio name remains in the popup");
 for (const match of popupHtml.matchAll(/(?:src|href)="([^"]+)"/g)) {
   const reference = match[1];
   if (!reference.startsWith("#")) {
@@ -508,6 +510,12 @@ assert.equal(
 
 const backgroundSource = await readFile(resolve(root, "src/background/service-worker.js"), "utf8");
 const studioSource = await readFile(resolve(root, "src/suiteql/studio-entry.js"), "utf8");
+const studioStyles = await readFile(resolve(root, "src/suiteql/studio.css"), "utf8");
+assert.match(studioSource, /<h1>SuiteQL Console<\/h1>/, "The workspace does not use the SuiteQL Console name");
+assert.match(studioSource, /document\.title = "SuiteQL Console"/, "The browser title does not use the SuiteQL Console name");
+assert.doesNotMatch(studioSource, /SuiteQL Studio/, "The old SuiteQL Studio name remains in the workspace");
+assert.match(studioStyles, /--suiteql-radius-panel: var\(--suitemate-radius-dialog, 10px\)/, "The Console is not connected to the global radius system");
+assert.match(studioStyles, /#suitemate-suiteql-studio \[hidden\][\s\S]*?display: none !important/, "Hidden Console controls can be exposed by component display styles");
 assert.match(backgroundSource, /PlatformClientScriptHandler\.nl/, "SuiteQL does not use the V1 NetSuite bridge endpoint");
 assert.match(backgroundSource, /"queryApiBridge"/, "SuiteQL does not call NetSuite's queryApiBridge");
 assert.match(backgroundSource, /"runSuiteQL"/, "Unpaged SuiteQL bridge execution is missing");

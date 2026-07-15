@@ -599,12 +599,12 @@
     }
 
     openSuiteQLButton.disabled = true;
-    suiteqlToolContext.textContent = "Opening SuiteQL Studio...";
+    suiteqlToolContext.textContent = "Opening SuiteQL Console...";
     try {
       await chrome.tabs.update(activeNetSuiteTab.id, { url: studioUrl });
       window.close();
     } catch (error) {
-      console.error("SuiteMate V3 could not open SuiteQL Studio.", error);
+      console.error("SuiteMate V3 could not open SuiteQL Console.", error);
       openSuiteQLButton.disabled = false;
       suiteqlToolContext.textContent = "Could not open Studio in this tab.";
     }
