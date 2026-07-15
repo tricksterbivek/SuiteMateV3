@@ -5,10 +5,11 @@
   "description": "SuiteMate V3 NetSuite UI and developer tools",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "npm run build && node --check src/shared/settings.js && node --check src/runtime/theme-runtime.js && node --check src/suiteql/core.js && node --check src/background/service-worker.js && node --check src/popup/popup.js && node --check tests/fixtures/chrome-stub.js && node tests/verify.mjs"
+    "test": "npm run build && node --check src/shared/settings.js && node --check src/runtime/theme-runtime.js && node --check src/palette/material-palette.js && node --check src/suiteql/core.js && node --check src/background/service-worker.js && node --check src/popup/popup.js && node --check tests/fixtures/chrome-stub.js && node tests/verify.mjs"
   },
   "devDependencies": {
     "@codemirror/lang-sql": "^6.10.0",
+    "@material/material-color-utilities": "0.4.0",
     "codemirror": "^6.0.2",
     "esbuild": "^0.28.1"
   }

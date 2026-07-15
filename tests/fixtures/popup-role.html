@@ -24,9 +24,14 @@
             const coreScript = document.createElement("script");
             coreScript.src = "../../src/suiteql/core.js";
             coreScript.addEventListener("load", () => {
-              const popupScript = document.createElement("script");
-              popupScript.src = "../../src/popup/popup.js";
-              document.body.append(popupScript);
+              const paletteScript = document.createElement("script");
+              paletteScript.src = "../../dist/material-palette.js";
+              paletteScript.addEventListener("load", () => {
+                const popupScript = document.createElement("script");
+                popupScript.src = "../../src/popup/popup.js";
+                document.body.append(popupScript);
+              });
+              document.body.append(paletteScript);
             });
             document.body.append(coreScript);
           });
