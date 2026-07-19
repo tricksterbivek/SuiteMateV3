@@ -20,6 +20,7 @@ This is the canonical inventory for selecting the next SuiteMate V3 features. It
 - `SET-06` and `SET-07`: Sticky first sublist column and generated sublist line numbers. V3 activates the protected V1 CSS capabilities while styling is enabled.
 - `GEN-28` and `GEN-39`: Header scroll shadow and responsive textarea sizing supplied by the active V1 CSS layer.
 - `FND-01`: Immutable route capability registry with shared host, route, frame, environment and privileged sender policies.
+- `FND-02`: Shared observer lifecycle with deduplicated registration, one native observer, capability gating, bounded waits, deterministic cleanup and stale-generation protection.
 - `FND-03`: Versioned settings schema with legacy migration, typed compatibility errors, Chrome sync quota protection and safe failure handling.
 - `SQL-01`, `SQL-02`, `SQL-03`, `SQL-13` and `SQL-14`: SuiteQL Console shell, execution, progressive paging, abort handling, safe result rendering, sorting, client pagination, hidden table inspection support, selection execution and persistent resizing.
 - Core portions of `SQL-05` and `SQL-06`: loaded-row CSV export, Clear Results, Execute, Abort, Paged toggle and their current keyboard shortcuts.
@@ -83,7 +84,6 @@ Priority:
 
 | ID | Feature | Description | Complexity | Dependencies | Migration | Priority |
 |---|---|---|---:|---|---|---:|
-| FND-02 | Observer lifecycle | Shared MutationObserver registration, deduplication and cleanup. | M | Route registry | Adapt | P0 |
 | FND-04 | General typed NetSuite bridge | Expands the narrow SuiteQL message bridge into reusable allowlisted commands for other NetSuite APIs. | L | Chrome scripting, message schemas | Adapt | P0 |
 | FND-05 | General query and fetch adapter | Extends the existing SuiteQL adapter to Saved Search, record metadata and authenticated requests. | L | NetSuite private APIs, cancellation | Rebuild | P0 |
 | FND-06 | Shared command framework | Commands, menus and keyboard shortcuts defined in one registry. | M | Settings, platform detection | Adapt | P0 |
@@ -358,4 +358,4 @@ Priority:
 
 ## Current selected feature
 
-`FND-02`: Observer lifecycle. It is the next foundation checkpoint and must reuse the completed `FND-01` route capability registry.
+`FND-04`: General typed NetSuite bridge. It is the next recommended foundation checkpoint and must remain isolated from feature-specific NetSuite API adapters.

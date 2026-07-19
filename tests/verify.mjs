@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8
 
 assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.name, "SuiteMate V3");
-assert.equal(manifest.version, "3.4.0");
+assert.equal(manifest.version, "3.5.0");
 assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
 assert.deepEqual(manifest.host_permissions, ["https://*.netsuite.com/*"]);
 assert.equal(manifest.background.service_worker, "src/background/service-worker.js");
@@ -32,6 +32,7 @@ assert.deepEqual(globalThemeContentScript.css, [
 ]);
 assert.deepEqual(globalThemeContentScript.js, [
   "src/shared/routes.js",
+  "src/shared/lifecycle.js",
   "src/shared/settings.js",
   "src/runtime/theme-runtime.js",
   "src/runtime/notification-runtime.js",
@@ -121,6 +122,7 @@ for (const fixture of [
 
 const extensionSources = [
   "src/shared/routes.js",
+  "src/shared/lifecycle.js",
   "src/shared/settings.js",
   "src/runtime/theme-runtime.js",
   "src/runtime/notification-runtime.js",
@@ -162,6 +164,8 @@ const routeApi = routeSandbox.SuiteMateV3Routes;
 
 const themeRuntimeSource = await readFile(resolve(root, "src/runtime/theme-runtime.js"), "utf8");
 assert.match(themeRuntimeSource, /routeApi\.createPageContext\(location/, "The theme runtime does not use the route registry");
+assert.match(themeRuntimeSource, /lifecycleApi\.register/, "The theme runtime bypasses the shared observer lifecycle");
+assert.doesNotMatch(themeRuntimeSource, /new MutationObserver/, "The theme runtime retains direct observer ownership");
 assert.match(themeRuntimeSource, /routeApi\.serializeParams\(context, \["suiteql"\]\)/, "Route metadata is not centralized");
 assert.doesNotMatch(themeRuntimeSource, /function normalizePath|function hasPath|function pathStartsWith/, "Duplicated route helpers remain in the theme runtime");
 assert.match(themeRuntimeSource, /setClass\("sfc", enabled\)/, "V1 frozen-column styling is not enabled");
@@ -344,7 +348,9 @@ assert.match(csvImportSource, /textContent = "CSV Import"/, "The CSV Import acti
 assert.match(csvImportSource, /\.uir-buttons-top\.uir-header-buttons/, "The top record toolbar target is missing");
 assert.match(csvImportSource, /actionsCell\.after\(createToolbarAction\(href\)\)/, "CSV Import is not inserted immediately after Actions");
 assert.match(csvImportSource, /data-suitemate-v3-action/, "CSV Import injection is not idempotent");
-assert.match(csvImportSource, /MutationObserver/, "Late-rendered NetSuite toolbars are not handled");
+assert.match(csvImportSource, /lifecycleApi\.register/, "CSV Import bypasses the shared observer lifecycle");
+assert.match(csvImportSource, /signal\.aborted \|\| !isCurrent\(\)/, "CSV Import does not reject stale asynchronous installation");
+assert.doesNotMatch(csvImportSource, /new MutationObserver/, "CSV Import retains direct observer ownership");
 assert.doesNotMatch(csvImportSource, /Scripted Record|getRecordTypes|PlatformClientScriptHandler/, "CSV Import copied unrelated V1 dependencies");
 
 const csvImportStyles = await readFile(resolve(root, "src/record-actions/csv-import.css"), "utf8");
@@ -404,7 +410,10 @@ assert.equal(
 );
 const importContextSource = await readFile(resolve(root, "src/import-assistant/context-runtime.js"), "utf8");
 assert.match(importContextSource, /charencoding: "UTF-8"/, "CSV Import does not default to UTF-8");
-assert.match(importContextSource, /waitForSubtypeOption/, "Dependent CSV Import subtype sourcing is not handled");
+assert.match(importContextSource, /waitForSubtypeSource/, "Dependent CSV Import subtype sourcing is not handled");
+assert.match(importContextSource, /lifecycleApi\.waitFor/, "Import Assistant waits bypass the shared observer lifecycle");
+assert.match(importContextSource, /suitemateV3ImportContext = "pending"/, "Import Assistant lacks a pending execution sentinel");
+assert.doesNotMatch(importContextSource, /new MutationObserver/, "Import Assistant retains direct observer ownership");
 assert.match(importContextSource, /data-name=|\[data-name=/, "CSV Import option metadata is not used");
 assert.match(importContextSource, /importmethod", "filegroups"/, "Unknown CSV record types cannot resolve their category");
 assert.doesNotMatch(importContextSource, /mapper_grp|Start Over|recid.*new/, "Unrelated Import Assistant features were migrated");
@@ -1101,5 +1110,5 @@ for (const [file, expectedHash] of Object.entries(expectedStyleHashes)) {
 }
 
 console.log(
-  `Verified ${referencedFiles.size} manifest resources, the route registry, ${Object.keys(expectedStyleHashes).length} V1 style hashes, role themes, CSV Import, and SuiteQL Core behavior.`
+  `Verified ${referencedFiles.size} manifest resources, the route registry, the observer lifecycle, ${Object.keys(expectedStyleHashes).length} V1 style hashes, role themes, CSV Import, and SuiteQL Core behavior.`
 );

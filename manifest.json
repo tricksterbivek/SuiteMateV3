@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "SuiteMate V3",
   "short_name": "SuiteMate V3",
-  "version": "3.4.0",
+  "version": "3.5.0",
   "description": "Restores the SuiteMate V1 NetSuite UI and adds focused developer tools.",
   "icons": {
     "16": "icons/16.png",
@@ -48,6 +48,7 @@
       ],
       "js": [
         "src/shared/routes.js",
+        "src/shared/lifecycle.js",
         "src/shared/settings.js",
         "src/runtime/theme-runtime.js",
         "src/runtime/notification-runtime.js",

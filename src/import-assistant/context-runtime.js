@@ -2,9 +2,18 @@
   "use strict";
 
   const core = global.SuiteMateV3ImportAssistantCore;
+  const lifecycleApi = global.SuiteMateV3Lifecycle;
   const routeApi = global.SuiteMateV3Routes;
   const settingsApi = global.SuiteMateV3Settings;
-  if (!core || !routeApi || !global.document || !global.location || !global.chrome?.runtime) {
+  if (
+    !core
+    || !lifecycleApi
+    || !routeApi
+    || !settingsApi
+    || !global.document
+    || !global.location
+    || !global.chrome?.runtime
+  ) {
     return;
   }
 
@@ -23,14 +32,8 @@
     return;
   }
 
-  const params = new URLSearchParams(location.search);
-  const requestedSubtype = core.normalizeImportValue(params.get("recordsubtype"));
-  const requestedCategory = core.normalizeImportValue(params.get("recordtype"));
-  if (params.get("recid") || (!requestedSubtype && !requestedCategory)) {
-    return;
-  }
-
   const root = document.documentElement;
+  let settingsRevision = 0;
 
   function readFieldValue(fieldId) {
     return core.normalizeImportValue(document.querySelector(`[name="${fieldId}"]`)?.value);
@@ -50,23 +53,17 @@
       && Boolean(document.querySelector('[name="recordsubtype"]'));
   }
 
-  function waitForStepOne(timeoutMs = 30000) {
-    if (isStepOneReady()) {
-      return Promise.resolve(true);
-    }
-    return new Promise((resolve) => {
-      const observer = new MutationObserver(() => {
-        if (isStepOneReady()) {
-          observer.disconnect();
-          clearTimeout(timeoutId);
-          resolve(true);
-        }
-      });
-      const timeoutId = setTimeout(() => {
-        observer.disconnect();
-        resolve(false);
-      }, timeoutMs);
-      observer.observe(document.documentElement, { childList: true, subtree: true });
+  function waitForStepOne(signal, timeoutMs = 30000) {
+    return lifecycleApi.waitFor({
+      id: "import-assistant.step-one",
+      capability: routeApi.CAPABILITIES.IMPORT_ASSISTANT_CONTEXT,
+      signal,
+      timeoutMs,
+      observe: {
+        childList: true,
+        subtree: true
+      },
+      test: isStepOneReady
     });
   }
 
@@ -74,39 +71,34 @@
     return readFieldOptions("recordsubtype").some(({ value }) => value === recordSubtype);
   }
 
-  function waitForSubtypeOption(recordSubtype, timeoutMs = 2500) {
-    if (hasSubtypeOption(recordSubtype)) {
-      return Promise.resolve(true);
-    }
-    return new Promise((resolve) => {
-      const observer = new MutationObserver(() => {
-        if (hasSubtypeOption(recordSubtype)) {
-          observer.disconnect();
-          clearTimeout(timeoutId);
-          resolve(true);
-        }
-      });
-      const timeoutId = setTimeout(() => {
-        observer.disconnect();
-        resolve(false);
-      }, timeoutMs);
-      observer.observe(document.documentElement, {
+  function waitForSubtypeSource(recordSubtype, previousSubtype, signal, timeoutMs = 2500) {
+    return lifecycleApi.waitFor({
+      id: "import-assistant.subtype-source",
+      capability: routeApi.CAPABILITIES.IMPORT_ASSISTANT_CONTEXT,
+      signal,
+      timeoutMs,
+      observe: {
         attributes: true,
-        attributeFilter: ["data-options"],
+        attributeFilter: ["data-options", "value"],
         childList: true,
         subtree: true
-      });
+      },
+      test: () => {
+        const sourcedSubtype = readFieldValue("recordsubtype");
+        return hasSubtypeOption(recordSubtype)
+          || Boolean(sourcedSubtype && sourcedSubtype !== previousSubtype);
+      }
     });
   }
 
-  async function findCategoryFromNetSuite(recordSubtype) {
+  async function findCategoryFromNetSuite(recordSubtype, signal) {
     const categories = readFieldOptions("recordtype").map(({ value }) => value);
     const matches = await Promise.all(categories.map(async (category) => {
       try {
         const url = new URL(location.pathname, location.origin);
         url.searchParams.set("importmethod", "filegroups");
         url.searchParams.set("rectype", category);
-        const response = await fetch(url, { credentials: "include" });
+        const response = await fetch(url, { credentials: "include", signal });
         return core.responseContainsSubtype(await response.text(), recordSubtype)
           ? category
           : null;
@@ -125,23 +117,53 @@
     return response?.ok === true;
   }
 
-  async function applyImportContext() {
-    try {
-      if (settingsApi?.get && (await settingsApi.get()).enabled === false) {
-        return;
-      }
-    } catch {
+  function readRequestedContext() {
+    const params = new URLSearchParams(location.search);
+    const requestedSubtype = core.normalizeImportValue(params.get("recordsubtype"));
+    const requestedCategory = core.normalizeImportValue(params.get("recordtype"));
+    if (params.get("recid") || (!requestedSubtype && !requestedCategory)) {
+      return null;
+    }
+    return {
+      requestedSubtype,
+      requestedCategory,
+      key: `${requestedCategory ?? ""}:${requestedSubtype ?? ""}`
+    };
+  }
+
+  async function applyImportContext({ signal, isCurrent }) {
+    const request = readRequestedContext();
+    if (!request) {
       return;
     }
 
-    if (!await waitForStepOne()) {
-      root.dataset.suitemateV3ImportContext = "unavailable";
+    const { requestedCategory, requestedSubtype } = request;
+    if (
+      root.dataset.suitemateV3ImportContext === "applied"
+      && root.dataset.suitemateV3ImportContextKey === request.key
+    ) {
+      return;
+    }
+
+    root.dataset.suitemateV3ImportContext = "pending";
+    root.dataset.suitemateV3ImportContextKey = request.key;
+
+    if (!await waitForStepOne(signal)) {
+      if (!signal.aborted && isCurrent()) {
+        root.dataset.suitemateV3ImportContext = "unavailable";
+      }
+      return;
+    }
+    if (signal.aborted || !isCurrent()) {
       return;
     }
 
     const category = requestedCategory
       ?? core.resolveStaticCategory(requestedSubtype)
-      ?? await findCategoryFromNetSuite(requestedSubtype);
+      ?? await findCategoryFromNetSuite(requestedSubtype, signal);
+    if (signal.aborted || !isCurrent()) {
+      return;
+    }
     if (!category && requestedSubtype) {
       root.dataset.suitemateV3ImportContext = "unsupported";
       console.warn(`SuiteMate V3 could not determine the CSV Import category for ${requestedSubtype}.`);
@@ -149,6 +171,7 @@
     }
 
     const currentCategory = readFieldValue("recordtype");
+    const currentSubtype = readFieldValue("recordsubtype");
     const firstValues = { charencoding: "UTF-8" };
     const categoryChanged = Boolean(category && category !== currentCategory);
     if (categoryChanged) {
@@ -157,15 +180,30 @@
       firstValues.recordsubtype = requestedSubtype;
     }
 
-    if (!await setImportValues(firstValues)) {
-      root.dataset.suitemateV3ImportContext = "failed";
+    if (!await setImportValues(firstValues) || signal.aborted || !isCurrent()) {
+      if (!signal.aborted && isCurrent()) {
+        root.dataset.suitemateV3ImportContext = "failed";
+      }
       return;
     }
 
     if (categoryChanged && requestedSubtype) {
-      await waitForSubtypeOption(requestedSubtype);
-      if (!await setImportValues({ recordsubtype: requestedSubtype })) {
-        root.dataset.suitemateV3ImportContext = "failed";
+      const subtypeReady = await waitForSubtypeSource(
+        requestedSubtype,
+        currentSubtype,
+        signal
+      );
+      if (signal.aborted || !isCurrent()) {
+        return;
+      }
+      if (!subtypeReady) {
+        root.dataset.suitemateV3ImportContext = "unavailable";
+        return;
+      }
+      if (!await setImportValues({ recordsubtype: requestedSubtype }) || signal.aborted || !isCurrent()) {
+        if (!signal.aborted && isCurrent()) {
+          root.dataset.suitemateV3ImportContext = "failed";
+        }
         return;
       }
     }
@@ -174,8 +212,61 @@
     root.dataset.suitemateV3ImportContext = "applied";
   }
 
-  applyImportContext().catch((error) => {
-    root.dataset.suitemateV3ImportContext = "failed";
-    console.error("SuiteMate V3 could not apply the CSV Import record context.", error);
+  const lifecycleHandle = lifecycleApi.register({
+    id: "import-assistant.context",
+    replace: true,
+    capability: routeApi.CAPABILITIES.IMPORT_ASSISTANT_CONTEXT,
+    startPaused: true,
+    async evaluate(context) {
+      try {
+        await applyImportContext(context);
+      } catch (error) {
+        if (!context.signal.aborted && context.isCurrent()) {
+          root.dataset.suitemateV3ImportContext = "failed";
+          console.error("SuiteMate V3 could not apply the CSV Import record context.", error);
+        }
+      }
+    },
+    cleanup() {
+      if (root.dataset.suitemateV3ImportContext === "pending") {
+        root.dataset.suitemateV3ImportContext = "canceled";
+      }
+    }
   });
+
+  async function start() {
+    const revision = settingsRevision;
+    try {
+      const settings = await settingsApi.get();
+      if (revision !== settingsRevision) {
+        return;
+      }
+      if (settings.enabled) {
+        lifecycleHandle.resume("settings-enabled");
+      } else {
+        lifecycleHandle.pause("settings-disabled");
+      }
+    } catch {
+      lifecycleHandle.pause("settings-failed");
+    }
+  }
+
+  chrome.storage?.onChanged?.addListener((changes, areaName) => {
+    const settingsChange = changes[settingsApi.STORAGE_KEY];
+    if (areaName !== "sync" || !settingsChange) {
+      return;
+    }
+    settingsRevision += 1;
+    try {
+      if (settingsApi.normalize(settingsChange.newValue).enabled) {
+        lifecycleHandle.resume("settings-enabled");
+      } else {
+        lifecycleHandle.pause("settings-disabled");
+      }
+    } catch {
+      lifecycleHandle.pause("settings-failed");
+    }
+  });
+
+  start();
 })(globalThis);

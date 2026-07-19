@@ -2,11 +2,17 @@
   "use strict";
 
   const routeApi = globalThis.SuiteMateV3Routes;
+  const lifecycleApi = globalThis.SuiteMateV3Lifecycle;
   const settingsApi = globalThis.SuiteMateV3Settings;
+  if (!routeApi || !lifecycleApi || !settingsApi) {
+    return;
+  }
+
   const root = document.documentElement;
   const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
   let currentSettings = settingsApi.DEFAULTS;
   let roleContext = null;
+  let settingsRevision = 0;
 
   function setClass(name, enabled) {
     root.classList.toggle(name, Boolean(enabled));
@@ -64,19 +70,25 @@
   }
 
   function detectRedwoodWhenRendered() {
-    if (root.classList.contains("isRedwood")) {
-      return;
-    }
-
-    const observer = new MutationObserver(() => {
-      if (hasRedwoodMarker()) {
-        setClass("isRedwood", true);
-        observer.disconnect();
+    return lifecycleApi.register({
+      id: "theme.redwood-marker",
+      replace: true,
+      capability: routeApi.CAPABILITIES.GLOBAL_THEME,
+      mode: "once",
+      timeoutMs: 60000,
+      observe: {
+        childList: true,
+        subtree: true
+      },
+      evaluate() {
+        const detected = hasRedwoodMarker();
+        if (root.classList.contains("isRedwood") || detected) {
+          setClass("isRedwood", detected || root.classList.contains("isRedwood"));
+          return true;
+        }
+        return false;
       }
     });
-
-    observer.observe(root, { childList: true, subtree: true });
-    window.setTimeout(() => observer.disconnect(), 15000);
   }
 
   function resolveDarkMode(mode) {
@@ -179,18 +191,20 @@
   }
 
   function detectRoleContextWhenRendered() {
-    if (updateRoleContext()) {
-      return;
-    }
-
-    const observer = new MutationObserver(() => {
-      if (updateRoleContext()) {
-        observer.disconnect();
+    return lifecycleApi.register({
+      id: "theme.role-context",
+      replace: true,
+      capability: routeApi.CAPABILITIES.GLOBAL_THEME,
+      mode: "once",
+      timeoutMs: 60000,
+      observe: {
+        childList: true,
+        subtree: true
+      },
+      evaluate() {
+        return updateRoleContext();
       }
     });
-
-    observer.observe(root, { childList: true, subtree: true });
-    window.setTimeout(() => observer.disconnect(), 15000);
   }
 
   function applySettings(settings) {
@@ -216,10 +230,18 @@
   }
 
   async function loadSettings() {
+    const revision = settingsRevision;
     try {
-      applySettings(await settingsApi.get());
+      const settings = await settingsApi.get();
+      if (revision !== settingsRevision) {
+        return;
+      }
+      applySettings(settings);
       delete root.dataset.suitemateV3Settings;
     } catch (error) {
+      if (revision !== settingsRevision) {
+        return;
+      }
       console.error("SuiteMate V3 could not load styling settings.", error);
       applySettingsFailure(error);
     }
@@ -232,6 +254,17 @@
 
   updateLocationMetadata(initialPageContext);
   classifyPage(initialPageContext);
+  lifecycleApi.register({
+    id: "theme.route-metadata",
+    replace: true,
+    capability: routeApi.CAPABILITIES.GLOBAL_THEME,
+    evaluate() {
+      const context = createCurrentPageContext();
+      updateLocationMetadata(context);
+      classifyPage(context);
+      updateRoleContext();
+    }
+  });
   detectRedwoodWhenRendered();
   detectRoleContextWhenRendered();
   loadSettings();
@@ -257,11 +290,6 @@
     window.addEventListener("load", () => setClass("window-loaded", true), { once: true });
   }
 
-  window.addEventListener("popstate", () => {
-    updateLocationMetadata();
-    classifyPage();
-  });
-  window.addEventListener("hashchange", updateLocationMetadata);
   darkModeQuery.addEventListener("change", loadSettings);
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -279,6 +307,7 @@
   chrome.storage.onChanged.addListener((changes, areaName) => {
     const change = changes[settingsApi.STORAGE_KEY];
     if (areaName === "sync" && change) {
+      settingsRevision += 1;
       try {
         applySettings(change.newValue);
         delete root.dataset.suitemateV3Settings;
