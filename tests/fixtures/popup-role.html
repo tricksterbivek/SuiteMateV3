@@ -12,7 +12,7 @@
       window.close = () => {
         document.documentElement.dataset.popupCloseRequested = "true";
       };
-      fetch("../../src/popup/popup.html?fixture=3.1.0")
+      fetch("../../src/popup/popup.html?fixture=3.3.0")
         .then((response) => response.text())
         .then((source) => {
           const popupDocument = new DOMParser().parseFromString(source, "text/html");

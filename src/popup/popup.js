@@ -45,6 +45,7 @@
   let lastLiveColorSaveAt = 0;
   let pickerAnimationFrame = 0;
   let pickerFinishPromise = null;
+  let settingsLocked = false;
   let statusTimer;
 
   function clamp(value, minimum = 0, maximum = 1) {
@@ -334,7 +335,7 @@
   function renderRoleTheme() {
     const available = Boolean(currentRoleContext?.id);
     const theme = api.getRoleTheme(currentSettings, currentRoleContext?.id);
-    const disabled = !available || !currentSettings.enabled;
+    const disabled = settingsLocked || !available || !currentSettings.enabled;
 
     roleTheme.dataset.unavailable = String(!available);
     roleContextLabel.textContent = available
@@ -353,10 +354,13 @@
     enabledInput.checked = currentSettings.enabled;
     squareCornersInput.checked = currentSettings.squareCorners;
     document.querySelector(`input[name="mode"][value="${currentSettings.mode}"]`).checked = true;
-    form.setAttribute("aria-disabled", String(!currentSettings.enabled));
+    form.dataset.settingsLocked = String(settingsLocked);
+    form.setAttribute("aria-disabled", String(settingsLocked || !currentSettings.enabled));
+    enabledInput.disabled = settingsLocked;
+    resetButton.disabled = settingsLocked;
 
     for (const input of form.querySelectorAll('fieldset input, #squareCorners')) {
-      input.disabled = !currentSettings.enabled;
+      input.disabled = settingsLocked || !currentSettings.enabled;
     }
 
     renderRoleTheme();
@@ -391,6 +395,9 @@
   }
 
   function writeSettings(value) {
+    if (settingsLocked) {
+      return Promise.reject(new Error("Settings are read-only in this SuiteMate release."));
+    }
     const snapshot = api.normalize(value);
     settingsWriteQueue = settingsWriteQueue
       .catch(() => undefined)
@@ -612,24 +619,24 @@
 
   window.addEventListener("pagehide", () => {
     flushPickerColor();
-    if (!liveColorSaveTimer) {
+    if (settingsLocked || !liveColorSaveTimer) {
       return;
     }
 
     clearLiveColorSaveTimer();
-    void chrome.storage.sync.set({
-      [api.STORAGE_KEY]: api.normalize(currentSettings)
-    }).catch(() => undefined);
+    void api.set(currentSettings).catch(() => undefined);
   });
 
-  Promise.all([api.get(), getActiveRoleContext()])
+  Promise.all([api.ensureCurrentSchema(), getActiveRoleContext()])
     .then(([settings, roleContext]) => {
       currentRoleContext = roleContext;
       render(settings);
     })
     .catch((error) => {
       console.error("SuiteMate V3 popup could not load settings.", error);
+      const versionError = api.isSettingsVersionError(error);
+      settingsLocked = true;
       render(api.DEFAULTS);
-      showStatus("Using defaults");
+      showStatus(versionError ? "Settings require a newer SuiteMate release" : "Settings unavailable. Reopen SuiteMate.");
     });
 })();

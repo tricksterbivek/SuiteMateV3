@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8
 
 assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.name, "SuiteMate V3");
-assert.equal(manifest.version, "3.2.0");
+assert.equal(manifest.version, "3.3.0");
 assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
 assert.deepEqual(manifest.host_permissions, ["https://*.netsuite.com/*"]);
 assert.equal(manifest.background.service_worker, "src/background/service-worker.js");
@@ -186,6 +186,10 @@ assert.match(popupSource, /setModalBackgroundInert\(true\)/, "Background control
 assert.match(popupSource, /event\.key === "Escape" && activePicker/, "Escape does not close the unified picker");
 assert.doesNotMatch(popupSource, /companyLogo|logoPixel|generateLogo|recommendedPalette/i, "Logo-specific palette code remains in the popup");
 assert.doesNotMatch(themeRuntimeSource, /companyLogo|logoPixel|LOGO_MAX/i, "Logo-specific palette code remains in the NetSuite runtime");
+assert.match(popupSource, /api\.ensureCurrentSchema\(\)/, "The popup does not intentionally persist legacy settings migration");
+assert.match(popupSource, /settingsLocked = true/, "Settings failures do not lock the popup");
+assert.doesNotMatch(popupSource, /chrome\.storage\.sync\.set/, "The popup bypasses the versioned settings API");
+assert.match(themeRuntimeSource, /isSettingsVersionError\(error\)/, "The theme runtime does not safely handle future settings");
 
 const notificationRuntimeSource = await readFile(resolve(root, "src/runtime/notification-runtime.js"), "utf8");
 let notificationClickHandler;
@@ -565,6 +569,8 @@ settingsSandbox.globalThis = settingsSandbox;
 runInNewContext(settingsSource, settingsSandbox);
 const settingsApi = settingsSandbox.SuiteMateV3Settings;
 assert.equal(settingsApi.THEME_PREVIEW_MESSAGE, "SUITEMATE_V3_PREVIEW_ROLE_THEME");
+assert.equal(settingsApi.SCHEMA_VERSION, 1);
+assert.equal(settingsApi.DEFAULTS.schemaVersion, settingsApi.SCHEMA_VERSION);
 assert.equal(settingsApi.DEFAULTS.squareCorners, false);
 assert.equal(settingsApi.normalize({ squareCorners: true }).squareCorners, true);
 const roleContext = { id: "9845683_SB2~11596~3~N", name: "DBG Health (SB2) - Administrator" };
