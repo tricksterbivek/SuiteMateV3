@@ -7,6 +7,7 @@ import { keymap } from "@codemirror/view";
   "use strict";
 
   const core = globalThis.SuiteMateV3SuiteQLCore;
+  const bridgeApi = globalThis.SuiteMateV3Bridge;
   const routeApi = globalThis.SuiteMateV3Routes;
   let topFrame = false;
   try {
@@ -18,11 +19,17 @@ import { keymap } from "@codemirror/view";
     isTopFrame: topFrame,
     trustedContentScript: true
   });
-  if (!core || !routeApi || !routeApi.supports(routeApi.CAPABILITIES.SUITEQL_CONSOLE, pageContext)) {
+  if (
+    !core
+    || !bridgeApi
+    || !routeApi
+    || !routeApi.supports(routeApi.CAPABILITIES.SUITEQL_CONSOLE, pageContext)
+  ) {
     return;
   }
 
-  const { MESSAGE_TYPES, SESSION_KEYS } = core;
+  const { COMMANDS } = bridgeApi;
+  const { SESSION_KEYS } = core;
   const state = {
     columns: [],
     rows: [],
@@ -213,7 +220,11 @@ import { keymap } from "@codemirror/view";
       return;
     }
     try {
-      await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.DISPOSE, requestId });
+      await bridgeApi.request(
+        COMMANDS.SUITEQL_DISPOSE,
+        {},
+        { requestId }
+      );
     } catch {}
   }
 
@@ -249,12 +260,15 @@ import { keymap } from "@codemirror/view";
     setBusy(true, "Running SuiteQL...");
 
     try {
-      const rawResponse = await chrome.runtime.sendMessage({
-        type: MESSAGE_TYPES.START,
-        requestId,
-        query: validation.query,
-        paged: state.paged
-      });
+      const bridgeResponse = await bridgeApi.request(
+        COMMANDS.SUITEQL_START,
+        {
+          query: validation.query,
+          paged: state.paged
+        },
+        { requestId }
+      );
+      const rawResponse = bridgeApi.toCommandResult(bridgeResponse);
       const response = core.normalizeResponse(rawResponse, requestId);
       if (epoch !== state.responseEpoch || requestId !== state.requestId) {
         return;
@@ -309,11 +323,12 @@ import { keymap } from "@codemirror/view";
     const epoch = ++state.responseEpoch;
     setBusy(true, `Loading SuiteQL page ${(pageIndex + 1).toLocaleString()}...`);
     try {
-      const rawResponse = await chrome.runtime.sendMessage({
-        type: MESSAGE_TYPES.PAGE,
-        requestId,
-        pageIndex
-      });
+      const bridgeResponse = await bridgeApi.request(
+        COMMANDS.SUITEQL_PAGE,
+        { pageIndex },
+        { requestId }
+      );
+      const rawResponse = bridgeApi.toCommandResult(bridgeResponse);
       const response = core.normalizeResponse(rawResponse, requestId);
       if (epoch !== state.responseEpoch || requestId !== state.requestId) {
         return;
@@ -599,7 +614,8 @@ import { keymap } from "@codemirror/view";
     document.title = "SuiteQL Console";
     createMarkup();
 
-    const urlQuery = params.get("suiteql")?.trim() || "";
+    const urlParams = new URLSearchParams(location.search);
+    const urlQuery = urlParams.get("suiteql")?.trim() || "";
     const draft = urlQuery || sessionStorage.getItem(SESSION_KEYS.draft) || "";
     if (urlQuery) {
       const cleanUrl = new URL(location.href);

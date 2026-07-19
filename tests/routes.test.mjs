@@ -226,6 +226,23 @@ test("requires exact top-frame sender authority for privileged bridges", () => {
     routes.isAllowedSender({ frameId: 0, tab: { id: 7, url: studioUrl } }, CAPABILITIES.SUITEQL_BRIDGE),
     true
   );
+
+  const recordUrl = "https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl?id=1";
+  assert.equal(
+    routes.isAllowedSender({ frameId: 0, tab: { id: 8 }, url: recordUrl }, CAPABILITIES.RECORD_TYPE_BRIDGE),
+    true
+  );
+  assert.equal(
+    routes.isAllowedSender({ frameId: 0, tab: { id: 8 }, url: studioUrl }, CAPABILITIES.RECORD_TYPE_BRIDGE),
+    false
+  );
+  assert.equal(
+    routes.isAllowedSender(
+      { frameId: 0, tab: { id: 8 }, url: `https://123456.app.netsuite.com${PATHS.IMPORT_ASSISTANT}` },
+      CAPABILITIES.RECORD_TYPE_BRIDGE
+    ),
+    false
+  );
 });
 
 test("keeps popup SuiteQL launch account-scoped and rejects excluded hosts", () => {

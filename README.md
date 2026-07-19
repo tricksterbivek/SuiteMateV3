@@ -26,6 +26,8 @@ The 15 V1 CSS sources under `src/styles` are copied byte-for-byte from `../suite
 
 The popup uses `activeTab` to read the current NetSuite role identity and open SuiteQL Console on the same account domain. Theme colors are saved against that role identity in `chrome.storage.sync`, matching V1's role-specific behavior. Main and Secondary each open a SuiteMate-owned modal containing saturation, brightness, hue, hex, and locally generated Material shade controls. Adjustments retain the existing live NetSuite preview and throttled save behavior. Only the selected Main and Secondary hex values are stored.
 
+Privileged NetSuite operations use one versioned runtime protocol with allowlisted commands, exact route and top-frame sender checks, typed payload validation, bounded client timeouts, abort handling and response identity checks. SuiteQL execution, record type lookup and Import Assistant field updates share this protocol while keeping their feature-specific NetSuite adapters isolated in the service worker.
+
 SuiteQL execution is isolated behind the extension service worker and runs in the current NetSuite tab through NetSuite's internal `PlatformClientScriptHandler.nl` `queryApiBridge`, matching the SuiteMate V1 execution model. Requests use only the active authenticated NetSuite session. Query results are rendered only as text and are not sent to external services.
 
 The query bridge is an undocumented NetSuite interface. SuiteMate V3 detects bridge failures and keeps the execution adapter isolated so it can be updated when NetSuite changes the internal contract. Release Preview testing is required before each NetSuite release.

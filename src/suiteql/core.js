@@ -2,11 +2,6 @@
   "use strict";
 
   const routeApi = globalScope.SuiteMateV3Routes;
-  const MESSAGE_TYPES = Object.freeze({
-    START: "SUITEMATE_V3_SUITEQL_START",
-    PAGE: "SUITEMATE_V3_SUITEQL_PAGE",
-    DISPOSE: "SUITEMATE_V3_SUITEQL_DISPOSE"
-  });
   const STUDIO_PATH = routeApi.PATHS.SUITEQL_CONSOLE;
   const MAX_QUERY_LENGTH = 100000;
   const NETSUITE_PAGE_SIZE = 1000;
@@ -26,10 +21,6 @@
       routeApi.CAPABILITIES.SUITEQL_CONSOLE,
       routeApi.createPageContext(value, { isTopFrame: true })
     );
-  }
-
-  function isAllowedStudioSender(sender) {
-    return routeApi.isAllowedSender(sender, routeApi.CAPABILITIES.SUITEQL_BRIDGE);
   }
 
   function createStudioUrl(value) {
@@ -307,7 +298,6 @@
   }
 
   globalScope.SuiteMateV3SuiteQLCore = Object.freeze({
-    MESSAGE_TYPES,
     STUDIO_PATH,
     MAX_QUERY_LENGTH,
     NETSUITE_PAGE_SIZE,
@@ -315,7 +305,6 @@
     SESSION_KEYS,
     isAllowedNetSuiteUrl,
     isSuiteQLStudioUrl,
-    isAllowedStudioSender,
     createStudioUrl,
     stripSqlCommentsAndStrings,
     validateQuery,

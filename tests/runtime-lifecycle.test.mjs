@@ -9,6 +9,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const sources = Object.fromEntries(await Promise.all(
   [
     "src/shared/routes.js",
+    "src/shared/bridge.js",
     "src/shared/settings.js",
     "src/record-actions/core.js",
     "src/import-assistant/core.js",
@@ -270,6 +271,8 @@ test("CSV Import rejects a late record-type response after lifecycle pause", asy
     URL,
     URLSearchParams,
     AbortController,
+    setTimeout,
+    clearTimeout,
     Node: { ELEMENT_NODE: 1 },
     location,
     document,
@@ -285,8 +288,16 @@ test("CSV Import rejects a late record-type response after lifecycle pause", asy
     },
     chrome: {
       runtime: {
-        async sendMessage() {
-          return recordTypeResponse;
+        async sendMessage(message) {
+          const recordType = await recordTypeResponse;
+          return {
+            type: "SUITEMATE_V3_NETSUITE_BRIDGE_RESPONSE",
+            version: 1,
+            ok: true,
+            requestId: message.requestId,
+            command: message.command,
+            data: { recordType }
+          };
         }
       },
       storage: {
@@ -303,6 +314,7 @@ test("CSV Import rejects a late record-type response after lifecycle pause", asy
   sandbox.window = sandbox;
   sandbox.top = sandbox;
   runInNewContext(sources["src/shared/routes.js"], sandbox);
+  runInNewContext(sources["src/shared/bridge.js"], sandbox);
   runInNewContext(sources["src/record-actions/core.js"], sandbox);
   runInNewContext(sources["src/record-actions/csv-import.js"], sandbox);
   await flushTasks();
@@ -311,11 +323,11 @@ test("CSV Import rejects a late record-type response after lifecycle pause", asy
   toolbarReady = true;
   const pendingInstallation = lifecycle.run("mutation");
   lifecycle.handle.pause("settings-disabled");
-  resolveRecordType({ ok: true, recordType: "salesorder" });
+  resolveRecordType("salesorder");
   await pendingInstallation;
   assert.equal(injectedAction, null);
 
-  recordTypeResponse = Promise.resolve({ ok: true, recordType: "salesorder" });
+  recordTypeResponse = Promise.resolve("salesorder");
   lifecycle.handle.resume("settings-enabled");
   await lifecycle.lastRun;
   assert.equal(injectedAction?.dataset.suitemateV3Action, "csv-import-toolbar");
@@ -382,6 +394,8 @@ test("Import Assistant does not write a subtype after its sourced option wait fa
     URL,
     URLSearchParams,
     AbortController,
+    setTimeout,
+    clearTimeout,
     location,
     document,
     SuiteMateV3Lifecycle: lifecycle,
@@ -397,8 +411,15 @@ test("Import Assistant does not write a subtype after its sourced option wait fa
     chrome: {
       runtime: {
         async sendMessage(message) {
-          sentValues.push(message.values);
-          return { ok: true };
+          sentValues.push(message.payload.values);
+          return {
+            type: "SUITEMATE_V3_NETSUITE_BRIDGE_RESPONSE",
+            version: 1,
+            ok: true,
+            requestId: message.requestId,
+            command: message.command,
+            data: { applied: Object.keys(message.payload.values) }
+          };
         }
       },
       storage: {
@@ -417,6 +438,7 @@ test("Import Assistant does not write a subtype after its sourced option wait fa
   sandbox.globalThis = sandbox;
   sandbox.top = sandbox;
   runInNewContext(sources["src/shared/routes.js"], sandbox);
+  runInNewContext(sources["src/shared/bridge.js"], sandbox);
   runInNewContext(sources["src/import-assistant/core.js"], sandbox);
   runInNewContext(sources["src/import-assistant/context-runtime.js"], sandbox);
   await flushTasks();

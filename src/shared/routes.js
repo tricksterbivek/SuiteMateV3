@@ -257,7 +257,10 @@
           && Boolean(context.path)
           && !CSV_IMPORT_EXCLUDED_ROUTES.has(context.routeId);
       case CAPABILITIES.RECORD_TYPE_BRIDGE:
-        return context.isTopFrame && context.hasValidTab === true;
+        return context.isTopFrame
+          && context.hasValidTab === true
+          && Boolean(context.path)
+          && !CSV_IMPORT_EXCLUDED_ROUTES.has(context.routeId);
       case CAPABILITIES.IMPORT_ASSISTANT_CONTEXT:
         return context.isTopFrame && context.path === PATHS.IMPORT_ASSISTANT;
       case CAPABILITIES.IMPORT_ASSISTANT_BRIDGE:
@@ -300,6 +303,9 @@
   function createSenderContext(sender) {
     const frameId = Number.isInteger(sender?.frameId) ? sender.frameId : null;
     const tabId = Number.isInteger(sender?.tab?.id) ? sender.tab.id : null;
+    const documentId = typeof sender?.documentId === "string" && sender.documentId.trim()
+      ? sender.documentId
+      : null;
     const sourceUrl = sender?.url ?? sender?.tab?.url;
     const page = createPageContext(sourceUrl, { isTopFrame: frameId === 0 });
     const base = {
@@ -307,6 +313,8 @@
       kind: "sender",
       frameId,
       tabId,
+      documentId,
+      hasValidDocument: documentId !== null,
       hasValidTab: tabId !== null
     };
     const capabilities = Object.freeze(CAPABILITY_VALUES.filter((capability) => supports(capability, base)));

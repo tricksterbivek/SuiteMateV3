@@ -2,11 +2,13 @@
   "use strict";
 
   const core = global.SuiteMateV3ImportAssistantCore;
+  const bridgeApi = global.SuiteMateV3Bridge;
   const lifecycleApi = global.SuiteMateV3Lifecycle;
   const routeApi = global.SuiteMateV3Routes;
   const settingsApi = global.SuiteMateV3Settings;
   if (
     !core
+    || !bridgeApi
     || !lifecycleApi
     || !routeApi
     || !settingsApi
@@ -109,12 +111,18 @@
     return matches.find(Boolean) ?? null;
   }
 
-  async function setImportValues(values) {
-    const response = await chrome.runtime.sendMessage({
-      type: core.SET_VALUES_MESSAGE,
-      values
-    });
-    return response?.ok === true;
+  async function setImportValues(values, signal) {
+    const response = await bridgeApi.request(
+      bridgeApi.COMMANDS.IMPORT_ASSISTANT_SET_VALUES,
+      { values },
+      { signal, timeoutMs: 30000 }
+    );
+    const result = bridgeApi.toCommandResult(response);
+    const requestedFields = Object.keys(values);
+    return result.ok === true
+      && Array.isArray(result.applied)
+      && result.applied.length === requestedFields.length
+      && requestedFields.every((fieldId) => result.applied.includes(fieldId));
   }
 
   function readRequestedContext() {
@@ -180,7 +188,7 @@
       firstValues.recordsubtype = requestedSubtype;
     }
 
-    if (!await setImportValues(firstValues) || signal.aborted || !isCurrent()) {
+    if (!await setImportValues(firstValues, signal) || signal.aborted || !isCurrent()) {
       if (!signal.aborted && isCurrent()) {
         root.dataset.suitemateV3ImportContext = "failed";
       }
@@ -200,7 +208,11 @@
         root.dataset.suitemateV3ImportContext = "unavailable";
         return;
       }
-      if (!await setImportValues({ recordsubtype: requestedSubtype }) || signal.aborted || !isCurrent()) {
+      if (
+        !await setImportValues({ recordsubtype: requestedSubtype }, signal)
+        || signal.aborted
+        || !isCurrent()
+      ) {
         if (!signal.aborted && isCurrent()) {
           root.dataset.suitemateV3ImportContext = "failed";
         }
