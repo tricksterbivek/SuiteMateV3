@@ -36,6 +36,7 @@ function plain(value) {
 function sender(url, tabId = 7, frameId = 0) {
   return {
     frameId,
+    documentId: `document-${tabId}`,
     tab: { id: tabId, url },
     url
   };
@@ -55,11 +56,118 @@ test("exports one frozen versioned command registry", () => {
     SUITEQL_START: "suiteql.start",
     SUITEQL_PAGE: "suiteql.page",
     SUITEQL_DISPOSE: "suiteql.dispose",
+    SEARCH_RUN: "search.run",
+    RECORD_DESCRIBE: "record.describe",
     RECORD_GET_TYPE: "record.getType",
-    IMPORT_ASSISTANT_SET_VALUES: "importAssistant.setValues"
+    IMPORT_ASSISTANT_SET_VALUES: "importAssistant.setValues",
+    IMPORT_ASSISTANT_RESOLVE_CATEGORY: "importAssistant.resolveCategory"
   });
   assert.equal(Object.isFrozen(bridge.COMMANDS), true);
   assert.equal(Object.isFrozen(bridge.IMPORT_ASSISTANT_FIELDS), true);
+  assert.equal(Object.isFrozen(bridge.SEARCH_OPERATORS), true);
+});
+
+test("enforces closed query, record metadata, and authenticated lookup schemas", () => {
+  const searchPayload = {
+    recordType: "savedsearch",
+    filters: [{ field: "internalid", operator: "anyof", values: ["123"] }],
+    columns: [{ field: "internalid" }, { field: "title" }],
+    limit: 100
+  };
+  assert.deepEqual(
+    plain(bridge.createRequest(
+      bridge.COMMANDS.SEARCH_RUN,
+      searchPayload,
+      { requestId: "search-schema" }
+    ).payload),
+    searchPayload
+  );
+  assert.throws(
+    () => bridge.createRequest(
+      bridge.COMMANDS.SEARCH_RUN,
+      {
+        ...searchPayload,
+        filters: [{
+          field: "internalid",
+          operator: "anyof",
+          values: ["123"],
+          formula: "{today}"
+        }]
+      },
+      { requestId: "search-formula-blocked" }
+    ),
+    (error) => error.code === "UNEXPECTED_PAYLOAD_FIELD"
+  );
+  assert.throws(
+    () => bridge.createRequest(
+      bridge.COMMANDS.SEARCH_RUN,
+      {
+        ...searchPayload,
+        filters: [{ field: "internalid", operator: "within", values: ["123"] }]
+      },
+      { requestId: "search-operator-blocked" }
+    ),
+    (error) => error.code === "INVALID_SEARCH_OPERATOR"
+  );
+  assert.throws(
+    () => bridge.createRequest(
+      bridge.COMMANDS.SEARCH_RUN,
+      { ...searchPayload, limit: 201 },
+      { requestId: "search-limit-blocked" }
+    ),
+    (error) => error.code === "INVALID_SEARCH_LIMIT"
+  );
+
+  assert.deepEqual(
+    plain(bridge.createRequest(
+      bridge.COMMANDS.RECORD_DESCRIBE,
+      {
+        fields: [
+          { fieldId: "entity" },
+          { fieldId: "item", sublistId: "item" }
+        ]
+      },
+      { requestId: "record-describe-schema" }
+    ).payload),
+    {
+      fields: [
+        { fieldId: "entity" },
+        { fieldId: "item", sublistId: "item" }
+      ]
+    }
+  );
+  assert.throws(
+    () => bridge.createRequest(
+      bridge.COMMANDS.RECORD_DESCRIBE,
+      { fields: [{ fieldId: "entity", value: "blocked" }] },
+      { requestId: "record-value-blocked" }
+    ),
+    (error) => error.code === "UNEXPECTED_PAYLOAD_FIELD"
+  );
+
+  const categoryPayload = {
+    recordSubtype: "PURCHASEORDER",
+    candidateCategories: ["TRANSACTION", "ITEM"]
+  };
+  assert.deepEqual(
+    plain(bridge.createRequest(
+      bridge.COMMANDS.IMPORT_ASSISTANT_RESOLVE_CATEGORY,
+      categoryPayload,
+      { requestId: "import-category-schema" }
+    ).payload),
+    categoryPayload
+  );
+  assert.throws(
+    () => bridge.createRequest(
+      bridge.COMMANDS.IMPORT_ASSISTANT_RESOLVE_CATEGORY,
+      {
+        recordSubtype: "PURCHASEORDER",
+        candidateCategories: ["TRANSACTION", "TRANSACTION"]
+      },
+      { requestId: "import-category-duplicate" }
+    ),
+    (error) => error.code === "INVALID_IMPORT_CATEGORIES"
+  );
 });
 
 test("reuses the same bridge API and reports its live protocol version", () => {
@@ -134,6 +242,22 @@ test("creates canonical requests and rejects malformed command payloads", () => 
   );
   assert.throws(
     () => bridge.createRequest(
+      bridge.COMMANDS.IMPORT_ASSISTANT_SET_VALUES,
+      { values: { recordtype: "" } },
+      { requestId: "import-empty" }
+    ),
+    (error) => error.code === "INVALID_IMPORT_VALUE"
+  );
+  assert.throws(
+    () => bridge.createRequest(
+      bridge.COMMANDS.IMPORT_ASSISTANT_SET_VALUES,
+      { values: { recordsubtype: "salesorder" } },
+      { requestId: "import-noncanonical" }
+    ),
+    (error) => error.code === "INVALID_IMPORT_VALUE"
+  );
+  assert.throws(
+    () => bridge.createRequest(
       bridge.COMMANDS.RECORD_GET_TYPE,
       {},
       { requestId: "invalid request id" }
@@ -181,6 +305,33 @@ test("enforces command-specific route and frame authority", () => {
     "INVALID_SENDER"
   );
 
+  const describeRequest = bridge.createRequest(
+    bridge.COMMANDS.RECORD_DESCRIBE,
+    { fields: [{ fieldId: "entity" }] },
+    { requestId: "record-describe-auth" }
+  );
+  assert.equal(bridge.validateRequest(describeRequest, sender(recordUrl)).ok, true);
+  assert.equal(
+    bridge.validateRequest(describeRequest, sender(studioUrl)).response.error.code,
+    "INVALID_SENDER"
+  );
+
+  const searchRequest = bridge.createRequest(
+    bridge.COMMANDS.SEARCH_RUN,
+    {
+      recordType: "savedsearch",
+      filters: [],
+      columns: [{ field: "internalid" }],
+      limit: 20
+    },
+    { requestId: "search-auth" }
+  );
+  assert.equal(bridge.validateRequest(searchRequest, sender(studioUrl)).ok, true);
+  assert.equal(
+    bridge.validateRequest(searchRequest, sender(recordUrl)).response.error.code,
+    "INVALID_SENDER"
+  );
+
   const importRequest = bridge.createRequest(
     bridge.COMMANDS.IMPORT_ASSISTANT_SET_VALUES,
     { values: { recordtype: "TRANSACTION" } },
@@ -196,6 +347,19 @@ test("enforces command-specific route and frame authority", () => {
       importRequest,
       sender("https://example.com/app/setup/assistants/nsimport/importassistant.nl")
     ).response.error.code,
+    "INVALID_SENDER"
+  );
+  const categoryRequest = bridge.createRequest(
+    bridge.COMMANDS.IMPORT_ASSISTANT_RESOLVE_CATEGORY,
+    {
+      recordSubtype: "PURCHASEORDER",
+      candidateCategories: ["TRANSACTION", "ITEM"]
+    },
+    { requestId: "import-category-auth" }
+  );
+  assert.equal(bridge.validateRequest(categoryRequest, sender(importUrl)).ok, true);
+  assert.equal(
+    bridge.validateRequest(categoryRequest, sender(recordUrl)).response.error.code,
     "INVALID_SENDER"
   );
 });

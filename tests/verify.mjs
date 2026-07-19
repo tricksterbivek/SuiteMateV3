@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8
 
 assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.name, "SuiteMate V3");
-assert.equal(manifest.version, "3.6.0");
+assert.equal(manifest.version, "3.7.0");
 assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
 assert.deepEqual(manifest.host_permissions, ["https://*.netsuite.com/*"]);
 assert.equal(manifest.background.service_worker, "src/background/service-worker.js");
@@ -405,6 +405,7 @@ assert.deepEqual(
 );
 const importAssistantUrl = "https://123456.app.netsuite.com/app/setup/assistants/nsimport/importassistant.nl?recordsubtype=salesorder";
 const importContextSource = await readFile(resolve(root, "src/import-assistant/context-runtime.js"), "utf8");
+const dataAdapterSource = await readFile(resolve(root, "src/netsuite/data-adapter.js"), "utf8");
 assert.match(importContextSource, /charencoding: "UTF-8"/, "CSV Import does not default to UTF-8");
 assert.match(importContextSource, /waitForSubtypeSource/, "Dependent CSV Import subtype sourcing is not handled");
 assert.match(importContextSource, /lifecycleApi\.waitFor/, "Import Assistant waits bypass the shared observer lifecycle");
@@ -412,7 +413,9 @@ assert.match(importContextSource, /COMMANDS\.IMPORT_ASSISTANT_SET_VALUES/, "Impo
 assert.match(importContextSource, /suitemateV3ImportContext = "pending"/, "Import Assistant lacks a pending execution sentinel");
 assert.doesNotMatch(importContextSource, /new MutationObserver/, "Import Assistant retains direct observer ownership");
 assert.match(importContextSource, /data-name=|\[data-name=/, "CSV Import option metadata is not used");
-assert.match(importContextSource, /importmethod", "filegroups"/, "Unknown CSV record types cannot resolve their category");
+assert.match(importContextSource, /COMMANDS\.IMPORT_ASSISTANT_RESOLVE_CATEGORY/, "Unknown CSV record types bypass the typed adapter");
+assert.doesNotMatch(importContextSource, /\bfetch\(/, "Import Assistant still owns an authenticated fetch");
+assert.match(dataAdapterSource, /importmethod", "filegroups"/, "Unknown CSV record types cannot resolve their category");
 assert.doesNotMatch(importContextSource, /mapper_grp|Start Over|recid.*new/, "Unrelated Import Assistant features were migrated");
 
 const importFixtureSource = await readFile(resolve(root, "tests/fixtures/import-assistant.html"), "utf8");
@@ -780,21 +783,25 @@ assert.match(studioSource, /document\.title = "SuiteQL Console"/, "The browser t
 assert.doesNotMatch(studioSource, /SuiteQL Studio/, "The old SuiteQL Studio name remains in the workspace");
 assert.match(studioStyles, /--suiteql-radius-panel: var\(--suitemate-radius-dialog, 10px\)/, "The Console is not connected to the global radius system");
 assert.match(studioStyles, /#suitemate-suiteql-studio \[hidden\][\s\S]*?display: none !important/, "Hidden Console controls can be exposed by component display styles");
-assert.match(backgroundSource, /PlatformClientScriptHandler\.nl/, "SuiteQL does not use the V1 NetSuite bridge endpoint");
-assert.match(backgroundSource, /"queryApiBridge"/, "SuiteQL does not call NetSuite's queryApiBridge");
-assert.match(backgroundSource, /"runSuiteQL"/, "Unpaged SuiteQL bridge execution is missing");
-assert.match(backgroundSource, /"suiteQLPagedQuery"/, "Paged SuiteQL bridge execution is missing");
-assert.match(backgroundSource, /"getSuiteQLQueryPage"/, "Progressive SuiteQL bridge paging is missing");
-assert.match(backgroundSource, /"SUITE_QL"/, "SuiteQL permission errors can be hidden by a static metadata provider");
-assert.match(backgroundSource, /credentials: "include"/, "SuiteQL bridge requests do not use the authenticated NetSuite session");
-assert.match(backgroundSource, /world: "MAIN"/, "SuiteQL is not executed in NetSuite's main world");
-assert.match(backgroundSource, /\["N\/currentRecord"\]/, "CSV Import context does not use NetSuite's current record API");
-assert.match(backgroundSource, /forceSyncSourcing: true/, "CSV Import dependent fields are not sourced synchronously");
-assert.doesNotMatch(backgroundSource, /\["N\/query"\]/, "SuiteQL still depends on an unavailable page-level N/query loader");
+assert.match(backgroundSource, /src\/netsuite\/data-adapter\.js/, "The service worker does not load the NetSuite data adapter");
+assert.match(dataAdapterSource, /PlatformClientScriptHandler\.nl/, "SuiteQL does not use the V1 NetSuite bridge endpoint");
+assert.match(dataAdapterSource, /"queryApiBridge"/, "SuiteQL does not call NetSuite's queryApiBridge");
+assert.match(dataAdapterSource, /"runSuiteQL"/, "Unpaged SuiteQL bridge execution is missing");
+assert.match(dataAdapterSource, /"suiteQLPagedQuery"/, "Paged SuiteQL bridge execution is missing");
+assert.match(dataAdapterSource, /"getSuiteQLQueryPage"/, "Progressive SuiteQL bridge paging is missing");
+assert.match(dataAdapterSource, /"SUITE_QL"/, "SuiteQL permission errors can be hidden by a static metadata provider");
+assert.match(dataAdapterSource, /credentials: "include"/, "Adapter requests do not use the authenticated NetSuite session");
+assert.match(dataAdapterSource, /world: "MAIN"/, "NetSuite data is not executed in the authenticated main world");
+assert.match(dataAdapterSource, /\["N\/currentRecord"\]/, "CSV Import and record metadata do not use NetSuite's current record API");
+assert.match(dataAdapterSource, /forceSyncSourcing: true/, "CSV Import dependent fields are not sourced synchronously");
+assert.doesNotMatch(dataAdapterSource, /\["N\/query"\]/, "SuiteQL still depends on an unavailable page-level N/query loader");
 assert.match(backgroundSource, /bridgeApi\.createDispatcher/, "Background commands bypass the typed bridge dispatcher");
 assert.match(backgroundSource, /\[COMMANDS\.SUITEQL_START\]/, "SuiteQL start is not allowlisted");
+assert.match(backgroundSource, /\[COMMANDS\.SEARCH_RUN\]/, "Search query is not allowlisted");
+assert.match(backgroundSource, /\[COMMANDS\.RECORD_DESCRIBE\]/, "Record metadata is not allowlisted");
 assert.match(backgroundSource, /\[COMMANDS\.RECORD_GET_TYPE\]/, "Record type lookup is not allowlisted");
 assert.match(backgroundSource, /\[COMMANDS\.IMPORT_ASSISTANT_SET_VALUES\]/, "Import Assistant updates are not allowlisted");
+assert.match(backgroundSource, /\[COMMANDS\.IMPORT_ASSISTANT_RESOLVE_CATEGORY\]/, "Import Assistant category lookup is not allowlisted");
 assert.doesNotMatch(
   backgroundSource,
   /SUITEMATE_V3_SUITEQL_(?:START|PAGE|DISPOSE)|SUITEMATE_V3_RECORD_TYPE|SUITEMATE_V3_IMPORT_ASSISTANT_SET_VALUES/,
@@ -822,7 +829,9 @@ assert.match(
 assert.match(studioSource, />Generate with SuiteSense<\//, "SuiteSense action text is missing");
 assert.match(studioSource, /id="suiteql-inspect-table" type="button" hidden/, "Inspect Table is visible");
 assert.match(studioSource, /id="suiteql-records-catalog"[^>]+hidden/, "Records Catalog is visible");
-assert.doesNotMatch(backgroundSource, /nlapijsonhandler/i, "SuiteQL uses the unrelated legacy NLAPI JSON endpoint");
+assert.match(dataAdapterSource, /SEARCH_BRIDGE_PATH = "\/app\/common\/scripting\/nlapijsonhandler\.nl"/, "The constrained Saved Search adapter is missing");
+assert.match(dataAdapterSource, /method: "remoteObject\.searchRecord"/, "The Saved Search adapter does not use the exact read-only RPC");
+assert.doesNotMatch(dataAdapterSource, /fetch\(envelope\.payload|url: envelope\.payload|method: envelope\.payload/, "The data adapter exposes caller-controlled transport primitives");
 
 let backgroundMessageListener;
 let mockNow = 100;
@@ -840,11 +849,33 @@ let slowBridgeFetchStarted = new Promise((resolveStarted) => {
 const currentRecordModule = {
   get() {
     return {
+      id: "10",
+      type: "salesorder",
+      isReadOnly: false,
       getField({ fieldId }) {
-        return importAssistantCore.ALLOWED_FIELDS.includes(fieldId)
+        if (
+          importAssistantCore.ALLOWED_FIELDS.includes(fieldId)
           && fieldId !== missingImportField
-          ? { type: "select" }
+        ) {
+          return {
+            label: fieldId,
+            type: "select",
+            isDisabled: false,
+            isReadOnly: false
+          };
+        }
+        return fieldId === "entity"
+          ? {
+              label: "Vendor",
+              type: "select",
+              isDisabled: false,
+              isReadOnly: false,
+              value: "must-not-leak"
+            }
           : null;
+      },
+      getSublist() {
+        return null;
       },
       setValue(options, positionalValue) {
         const fieldId = typeof options === "object" ? options.fieldId : options;
@@ -872,7 +903,48 @@ const bridgeRows = (rows) => ({
   ...Object.fromEntries(rows.map((values, index) => [`v${index}`, values]))
 });
 const mockBridgeFetch = async (url, options) => {
+  const parsedUrl = new URL(url, mainWorldLocation.origin);
+  if (parsedUrl.pathname === routeApi.PATHS.IMPORT_ASSISTANT) {
+    const category = parsedUrl.searchParams.get("rectype");
+    return {
+      ok: true,
+      status: 200,
+      url: parsedUrl.href,
+      async text() {
+        return category === "TRANSACTION"
+          ? `Transactions\u0001CUSTOMCSVTYPE\u0005ignored`
+          : `Other\u0001UNRELATED\u0005ignored`;
+      }
+    };
+  }
+
   const request = JSON.parse(options.body);
+  if (parsedUrl.pathname === "/app/common/scripting/nlapijsonhandler.nl") {
+    bridgeCalls.push({
+      url,
+      options,
+      method: request.method,
+      searchParams: request.params
+    });
+    return {
+      ok: true,
+      status: 200,
+      async text() {
+        return JSON.stringify({
+          result: {
+            rows: [{
+              id: 99,
+              cells: [
+                { name: "internalid", value: "99", text: "99" },
+                { name: "title", value: "Adapter Search", text: "Adapter Search" }
+              ]
+            }]
+          }
+        });
+      }
+    };
+  }
+
   const [bridgeName, operation, serializedArguments] = request.params;
   const operationArguments = JSON.parse(serializedArguments);
   bridgeCalls.push({ url, options, method: request.method, bridgeName, operation, operationArguments });
@@ -923,7 +995,25 @@ const backgroundSetTimeout = (...args) => {
   timeout.unref?.();
   return timeout;
 };
+const mainWorldLocation = new URL(studioUrl);
+const mainWorldDocument = { documentElement: { dataset: {} } };
+const mainWorldWindow = {
+  location: mainWorldLocation,
+  document: mainWorldDocument,
+  nlapiGetRecordType() {
+    return "salesorder";
+  },
+  require(_modules, onSuccess) {
+    if (deferCurrentRecord) {
+      deferredCurrentRecordSuccess = onSuccess;
+    } else {
+      onSuccess(currentRecordModule);
+    }
+  }
+};
 const backgroundSandbox = {
+  URL,
+  URLSearchParams,
   SuiteMateV3Routes: routeApi,
   SuiteMateV3Bridge: bridgeApi,
   SuiteMateV3SuiteQLCore: suiteqlCore,
@@ -941,19 +1031,9 @@ const backgroundSandbox = {
   performance: { now: () => mockNow++ },
   setTimeout: backgroundSetTimeout,
   clearTimeout,
-  window: {
-    location: { href: studioUrl },
-    nlapiGetRecordType() {
-      return "salesorder";
-    },
-    require(_modules, onSuccess) {
-      if (deferCurrentRecord) {
-        deferredCurrentRecordSuccess = onSuccess;
-      } else {
-        onSuccess(currentRecordModule);
-      }
-    }
-  },
+  window: mainWorldWindow,
+  location: mainWorldLocation,
+  document: mainWorldDocument,
   navigator: { language: "en-US" },
   fetch: mockBridgeFetch,
   importScripts() {},
@@ -969,15 +1049,16 @@ const backgroundSandbox = {
     scripting: {
       async executeScript({ target, func, args = [] }) {
         lastScriptingTarget = target;
-        backgroundSandbox.window.location.href = forcedMainWorldUrl
+        mainWorldLocation.href = forcedMainWorldUrl
           || args[0]?.expectedUrl
-          || backgroundSandbox.window.location.href;
+          || mainWorldLocation.href;
         return [{ result: await func(...args) }];
       }
     }
   }
 };
 backgroundSandbox.globalThis = backgroundSandbox;
+runInNewContext(dataAdapterSource, backgroundSandbox);
 runInNewContext(backgroundSource, backgroundSandbox);
 assert.equal(
   backgroundMessageListener(
@@ -1032,9 +1113,79 @@ assert.deepEqual(JSON.parse(JSON.stringify(recordTypeBridge.result)), {
   ok: true,
   requestId: "record-type"
 });
+const recordMetadataBridge = await sendBridgeCommand(
+  bridgeApi.COMMANDS.RECORD_DESCRIBE,
+  { fields: [{ fieldId: "entity" }, { fieldId: "missing" }] },
+  validRecordSender,
+  "record-metadata"
+);
+assert.deepEqual(JSON.parse(JSON.stringify(recordMetadataBridge.result)), {
+  recordType: "salesorder",
+  recordId: "10",
+  isReadOnly: false,
+  fields: [
+    {
+      fieldId: "entity",
+      sublistId: null,
+      exists: true,
+      label: "Vendor",
+      type: "select",
+      disabled: false,
+      readOnly: false
+    },
+    {
+      fieldId: "missing",
+      sublistId: null,
+      exists: false,
+      label: null,
+      type: null,
+      disabled: false,
+      readOnly: false
+    }
+  ],
+  ok: true,
+  requestId: "record-metadata"
+});
+assert.equal(JSON.stringify(recordMetadataBridge.result).includes("must-not-leak"), false);
 assert.deepEqual(JSON.parse(JSON.stringify(lastScriptingTarget)), {
   tabId: 72,
   documentIds: ["document-record"]
+});
+
+const searchBridge = await sendBridgeCommand(
+  bridgeApi.COMMANDS.SEARCH_RUN,
+  {
+    recordType: "savedsearch",
+    filters: [{ field: "internalid", operator: "anyof", values: ["99"] }],
+    columns: [{ field: "internalid" }, { field: "title" }],
+    limit: 20
+  },
+  validBackgroundSender,
+  "search-run"
+);
+assert.deepEqual(JSON.parse(JSON.stringify(searchBridge.result)), {
+  columns: [
+    { key: "c0", field: "internalid" },
+    { key: "c1", field: "title" }
+  ],
+  rows: [{
+    id: "99",
+    cells: [
+      { value: "99", text: "99" },
+      { value: "Adapter Search", text: "Adapter Search" }
+    ]
+  }],
+  truncated: false,
+  ok: true,
+  requestId: "search-run"
+});
+const searchCall = bridgeCalls.find((call) => call.method === "remoteObject.searchRecord");
+assert.equal(searchCall.url, "/app/common/scripting/nlapijsonhandler.nl");
+assert.equal(searchCall.searchParams[2][0].formula, null);
+assert.equal(searchCall.searchParams[3][0].sortdir, null);
+assert.deepEqual(JSON.parse(JSON.stringify(lastScriptingTarget)), {
+  tabId: 71,
+  documentIds: ["document-suiteql"]
 });
 forcedMainWorldUrl = "https://123456.app.netsuite.com/app/center/card.nl";
 const staleDocumentRecordTypeBridge = await sendBridgeCommand(
@@ -1048,17 +1199,16 @@ assert.equal(
   "INVALID_MAIN_WORLD_DOCUMENT"
 );
 forcedMainWorldUrl = "";
-const fallbackRecordTypeBridge = await sendBridgeCommand(
+const missingDocumentRecordTypeBridge = await sendBridgeCommand(
   bridgeApi.COMMANDS.RECORD_GET_TYPE,
   {},
   { ...validRecordSender, documentId: undefined },
-  "record-type-frame-fallback"
+  "record-type-missing-document"
 );
-assert.equal(fallbackRecordTypeBridge.response.ok, true);
-assert.deepEqual(JSON.parse(JSON.stringify(lastScriptingTarget)), {
-  tabId: 72,
-  frameIds: [0]
-});
+assert.equal(
+  missingDocumentRecordTypeBridge.response.error.code,
+  "INVALID_SENDER"
+);
 const rejectedRecordTypeBridge = await sendBridgeCommand(
   bridgeApi.COMMANDS.RECORD_GET_TYPE,
   {},
@@ -1072,6 +1222,20 @@ const validImportAssistantSender = {
   tab: { id: 73, url: importAssistantUrl },
   url: importAssistantUrl
 };
+const importCategoryBridge = await sendBridgeCommand(
+  bridgeApi.COMMANDS.IMPORT_ASSISTANT_RESOLVE_CATEGORY,
+  {
+    recordSubtype: "CUSTOMCSVTYPE",
+    candidateCategories: ["ITEM", "TRANSACTION"]
+  },
+  validImportAssistantSender,
+  "import-category"
+);
+assert.deepEqual(JSON.parse(JSON.stringify(importCategoryBridge.result)), {
+  category: "TRANSACTION",
+  ok: true,
+  requestId: "import-category"
+});
 const rejectedImportField = await sendBackgroundMessage(
   {
     type: bridgeApi.MESSAGE_TYPE,
@@ -1271,7 +1435,7 @@ const expiredBackgroundPageBridge = await sendBridgeCommand(
 );
 assert.equal(
   expiredBackgroundPageBridge.response.error.code,
-  "SUITEQL_SESSION_EXPIRED"
+  "ABORTED"
 );
 
 const pendingSlowSuiteQLBridge = sendBridgeCommand(

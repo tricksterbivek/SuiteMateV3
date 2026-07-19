@@ -96,6 +96,15 @@
       });
     }
 
+    if (message.command === "importAssistant.resolveCategory") {
+      importAssistantMessages.push(JSON.parse(JSON.stringify(message)));
+      return bridgeResponse(message, {
+        category: message.payload?.candidateCategories?.includes("TRANSACTION")
+          ? "TRANSACTION"
+          : null
+      });
+    }
+
     if (message.command === "record.getType") {
       return bridgeResponse(message, { recordType: "salesorder" });
     }

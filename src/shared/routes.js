@@ -6,8 +6,11 @@
     NOTIFICATIONS: "notifications",
     CSV_IMPORT_TOOLBAR: "csv-import-toolbar",
     RECORD_TYPE_BRIDGE: "record-type-bridge",
+    RECORD_METADATA_BRIDGE: "record-metadata-bridge",
+    SEARCH_QUERY_BRIDGE: "search-query-bridge",
     IMPORT_ASSISTANT_CONTEXT: "import-assistant-context",
     IMPORT_ASSISTANT_BRIDGE: "import-assistant-bridge",
+    IMPORT_ASSISTANT_FETCH_BRIDGE: "import-assistant-fetch-bridge",
     SUITEQL_CONSOLE: "suiteql-console",
     SUITEQL_BRIDGE: "suiteql-bridge",
     SUITEQL_LAUNCH: "suiteql-launch"
@@ -72,6 +75,12 @@
     ROUTE_IDS.BUNDLE_BUILDER,
     ROUTE_IDS.PDF_TEMPLATE,
     ROUTE_IDS.WORKFLOW
+  ]);
+  const SEARCH_QUERY_ROUTES = new Set([
+    ROUTE_IDS.SAVED_SEARCH,
+    ROUTE_IDS.SAVED_SEARCH_EDIT,
+    ROUTE_IDS.SAVED_SEARCH_RESULTS,
+    ROUTE_IDS.SUITEQL_CONSOLE
   ]);
   const CAPABILITY_VALUES = Object.freeze(Object.values(CAPABILITIES));
   const SCRIPT_PATH_PATTERN = /^\/app\/common\/scripting\/(?:script|webapp|plugin|plugintype)\.nl$/;
@@ -257,20 +266,32 @@
           && Boolean(context.path)
           && !CSV_IMPORT_EXCLUDED_ROUTES.has(context.routeId);
       case CAPABILITIES.RECORD_TYPE_BRIDGE:
+      case CAPABILITIES.RECORD_METADATA_BRIDGE:
         return context.isTopFrame
           && context.hasValidTab === true
+          && context.hasValidDocument === true
           && Boolean(context.path)
           && !CSV_IMPORT_EXCLUDED_ROUTES.has(context.routeId);
+      case CAPABILITIES.SEARCH_QUERY_BRIDGE:
+        return context.isTopFrame
+          && context.hasValidTab === true
+          && context.hasValidDocument === true
+          && SEARCH_QUERY_ROUTES.has(context.routeId);
       case CAPABILITIES.IMPORT_ASSISTANT_CONTEXT:
         return context.isTopFrame && context.path === PATHS.IMPORT_ASSISTANT;
       case CAPABILITIES.IMPORT_ASSISTANT_BRIDGE:
+      case CAPABILITIES.IMPORT_ASSISTANT_FETCH_BRIDGE:
         return context.isTopFrame
           && context.hasValidTab === true
+          && context.hasValidDocument === true
           && context.path === PATHS.IMPORT_ASSISTANT;
       case CAPABILITIES.SUITEQL_CONSOLE:
         return context.isTopFrame && isSuiteQLRoute(context);
       case CAPABILITIES.SUITEQL_BRIDGE:
-        return context.isTopFrame && context.hasValidTab === true && isSuiteQLRoute(context);
+        return context.isTopFrame
+          && context.hasValidTab === true
+          && context.hasValidDocument === true
+          && isSuiteQLRoute(context);
       default:
         return false;
     }

@@ -24,8 +24,11 @@
     SUITEQL_START: "suiteql.start",
     SUITEQL_PAGE: "suiteql.page",
     SUITEQL_DISPOSE: "suiteql.dispose",
+    SEARCH_RUN: "search.run",
+    RECORD_DESCRIBE: "record.describe",
     RECORD_GET_TYPE: "record.getType",
-    IMPORT_ASSISTANT_SET_VALUES: "importAssistant.setValues"
+    IMPORT_ASSISTANT_SET_VALUES: "importAssistant.setValues",
+    IMPORT_ASSISTANT_RESOLVE_CATEGORY: "importAssistant.resolveCategory"
   });
 
   const IMPORT_ASSISTANT_FIELDS = Object.freeze([
@@ -33,6 +36,20 @@
     "recordtype",
     "recordsubtype"
   ]);
+  const SEARCH_OPERATORS = Object.freeze([
+    "anyof",
+    "noneof",
+    "is",
+    "isnot",
+    "equalto",
+    "notequalto",
+    "contains",
+    "startswith",
+    "isempty",
+    "isnotempty"
+  ]);
+  const NETSUITE_IDENTIFIER_PATTERN = /^[a-z][a-z0-9_]{0,79}$/;
+  const IMPORT_IDENTIFIER_PATTERN = /^[A-Z][A-Z0-9_-]{0,79}$/;
 
   function isObject(value) {
     return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -170,6 +187,152 @@
     return validationSuccess({ pageIndex: value.pageIndex });
   }
 
+  function validateSearchRun(value) {
+    const invalid = validateExactKeys(value, [
+      "recordType",
+      "filters",
+      "columns",
+      "limit"
+    ]);
+    if (invalid) {
+      return invalid;
+    }
+    if (!NETSUITE_IDENTIFIER_PATTERN.test(value.recordType)) {
+      return validationFailure(
+        "INVALID_SEARCH_RECORD_TYPE",
+        "Search record type must be a valid NetSuite identifier."
+      );
+    }
+    if (!Array.isArray(value.filters) || value.filters.length > 20) {
+      return validationFailure(
+        "INVALID_SEARCH_FILTERS",
+        "Search filters must be an array containing no more than 20 entries."
+      );
+    }
+    if (
+      !Array.isArray(value.columns)
+      || value.columns.length < 1
+      || value.columns.length > 20
+    ) {
+      return validationFailure(
+        "INVALID_SEARCH_COLUMNS",
+        "Search columns must contain between 1 and 20 entries."
+      );
+    }
+    if (!Number.isInteger(value.limit) || value.limit < 1 || value.limit > 200) {
+      return validationFailure(
+        "INVALID_SEARCH_LIMIT",
+        "Search limit must be an integer from 1 to 200."
+      );
+    }
+
+    const filters = [];
+    for (const filter of value.filters) {
+      const filterInvalid = validateExactKeys(filter, ["field", "operator", "values"]);
+      if (filterInvalid) {
+        return filterInvalid;
+      }
+      if (!NETSUITE_IDENTIFIER_PATTERN.test(filter.field)) {
+        return validationFailure(
+          "INVALID_SEARCH_FILTER",
+          "Search filter field must be a valid NetSuite identifier."
+        );
+      }
+      if (!SEARCH_OPERATORS.includes(filter.operator)) {
+        return validationFailure(
+          "INVALID_SEARCH_OPERATOR",
+          "Search filter operator is not allowlisted."
+        );
+      }
+      if (
+        !Array.isArray(filter.values)
+        || filter.values.length > 20
+        || filter.values.some((entry) => typeof entry !== "string" || entry.length > 1000)
+      ) {
+        return validationFailure(
+          "INVALID_SEARCH_VALUES",
+          "Search filter values must contain no more than 20 bounded text entries."
+        );
+      }
+      if (
+        ["isempty", "isnotempty"].includes(filter.operator)
+        ? filter.values.length !== 0
+        : filter.values.length < 1
+      ) {
+        return validationFailure(
+          "INVALID_SEARCH_VALUES",
+          "Search filter values do not match the selected operator."
+        );
+      }
+      filters.push({
+        field: filter.field,
+        operator: filter.operator,
+        values: [...filter.values]
+      });
+    }
+
+    const columns = [];
+    for (const column of value.columns) {
+      const columnInvalid = validateExactKeys(column, ["field"]);
+      if (columnInvalid) {
+        return columnInvalid;
+      }
+      if (!NETSUITE_IDENTIFIER_PATTERN.test(column.field)) {
+        return validationFailure(
+          "INVALID_SEARCH_COLUMN",
+          "Search column field must be a valid NetSuite identifier."
+        );
+      }
+      columns.push({ field: column.field });
+    }
+    return validationSuccess({
+      recordType: value.recordType,
+      filters,
+      columns,
+      limit: value.limit
+    });
+  }
+
+  function validateRecordDescribe(value) {
+    const invalid = validateExactKeys(value, ["fields"]);
+    if (invalid) {
+      return invalid;
+    }
+    if (!Array.isArray(value.fields) || value.fields.length > 50) {
+      return validationFailure(
+        "INVALID_RECORD_FIELDS",
+        "Record field selectors must be an array containing no more than 50 entries."
+      );
+    }
+    const fields = [];
+    for (const field of value.fields) {
+      const fieldInvalid = validateExactKeys(field, ["fieldId", "sublistId"]);
+      if (fieldInvalid) {
+        return fieldInvalid;
+      }
+      if (!NETSUITE_IDENTIFIER_PATTERN.test(field.fieldId)) {
+        return validationFailure(
+          "INVALID_RECORD_FIELD",
+          "Record field ID must be a valid NetSuite identifier."
+        );
+      }
+      if (
+        field.sublistId !== undefined
+        && !NETSUITE_IDENTIFIER_PATTERN.test(field.sublistId)
+      ) {
+        return validationFailure(
+          "INVALID_RECORD_SUBLIST",
+          "Record sublist ID must be a valid NetSuite identifier."
+        );
+      }
+      fields.push({
+        fieldId: field.fieldId,
+        ...(field.sublistId ? { sublistId: field.sublistId } : {})
+      });
+    }
+    return validationSuccess({ fields });
+  }
+
   function validateImportAssistantValues(value) {
     const invalid = validateExactKeys(value, ["values"]);
     if (invalid) {
@@ -198,14 +361,48 @@
       );
     }
     for (const [fieldId, fieldValue] of Object.entries(value.values)) {
-      if (typeof fieldValue !== "string") {
+      if (
+        typeof fieldValue !== "string"
+        || !IMPORT_IDENTIFIER_PATTERN.test(fieldValue)
+      ) {
         return validationFailure(
           "INVALID_IMPORT_VALUE",
-          `Import Assistant field ${fieldId} must be text.`
+          `Import Assistant field ${fieldId} must be a valid identifier.`
         );
       }
     }
     return validationSuccess({ values: { ...value.values } });
+  }
+
+  function validateImportAssistantCategory(value) {
+    const invalid = validateExactKeys(value, ["recordSubtype", "candidateCategories"]);
+    if (invalid) {
+      return invalid;
+    }
+    if (!IMPORT_IDENTIFIER_PATTERN.test(value.recordSubtype)) {
+      return validationFailure(
+        "INVALID_IMPORT_SUBTYPE",
+        "CSV Import record subtype is invalid."
+      );
+    }
+    if (
+      !Array.isArray(value.candidateCategories)
+      || value.candidateCategories.length < 1
+      || value.candidateCategories.length > 32
+      || value.candidateCategories.some(
+        (category) => !IMPORT_IDENTIFIER_PATTERN.test(category)
+      )
+      || new Set(value.candidateCategories).size !== value.candidateCategories.length
+    ) {
+      return validationFailure(
+        "INVALID_IMPORT_CATEGORIES",
+        "CSV Import categories must contain 1 to 32 unique identifiers."
+      );
+    }
+    return validationSuccess({
+      recordSubtype: value.recordSubtype,
+      candidateCategories: [...value.candidateCategories]
+    });
   }
 
   function validateSuiteQLResponse(value) {
@@ -295,6 +492,106 @@
         );
   }
 
+  function validateSearchRunResponse(value) {
+    const invalid = validateResponseKeys(value, ["columns", "rows", "truncated"]);
+    if (invalid) {
+      return invalid;
+    }
+    if (
+      !Array.isArray(value.columns)
+      || value.columns.length > 20
+      || value.columns.some((column, index) => (
+        validateExactKeys(column, ["key", "field"])
+        || column.key !== `c${index}`
+        || !NETSUITE_IDENTIFIER_PATTERN.test(column.field)
+      ))
+    ) {
+      return validationFailure(
+        "INVALID_SEARCH_RESPONSE",
+        "Search response columns are invalid."
+      );
+    }
+    if (
+      !Array.isArray(value.rows)
+      || value.rows.length > 200
+      || value.rows.some((row) => (
+        validateExactKeys(row, ["id", "cells"])
+        || typeof row.id !== "string"
+        || !Array.isArray(row.cells)
+        || row.cells.length !== value.columns.length
+        || row.cells.some((cell) => {
+          if (validateExactKeys(cell, ["value", "text"])) {
+            return true;
+          }
+          const validValue = cell.value === null
+            || ["string", "number", "boolean"].includes(typeof cell.value);
+          return !validValue || (cell.text !== null && typeof cell.text !== "string");
+        })
+      ))
+    ) {
+      return validationFailure(
+        "INVALID_SEARCH_RESPONSE",
+        "Search response rows are invalid."
+      );
+    }
+    if (typeof value.truncated !== "boolean") {
+      return validationFailure(
+        "INVALID_SEARCH_RESPONSE",
+        "Search response truncated state must be true or false."
+      );
+    }
+    return validationSuccess(value);
+  }
+
+  function validateRecordDescribeResponse(value) {
+    const invalid = validateResponseKeys(
+      value,
+      ["recordType", "recordId", "isReadOnly", "fields"]
+    );
+    if (invalid) {
+      return invalid;
+    }
+    if (
+      (value.recordType !== null && typeof value.recordType !== "string")
+      || (value.recordId !== null && typeof value.recordId !== "string")
+      || typeof value.isReadOnly !== "boolean"
+      || !Array.isArray(value.fields)
+      || value.fields.length > 50
+    ) {
+      return validationFailure(
+        "INVALID_RECORD_RESPONSE",
+        "Record metadata response is invalid."
+      );
+    }
+    for (const field of value.fields) {
+      const fieldInvalid = validateExactKeys(field, [
+        "fieldId",
+        "sublistId",
+        "exists",
+        "label",
+        "type",
+        "disabled",
+        "readOnly"
+      ]);
+      if (
+        fieldInvalid
+        || !NETSUITE_IDENTIFIER_PATTERN.test(field.fieldId)
+        || (field.sublistId !== null && !NETSUITE_IDENTIFIER_PATTERN.test(field.sublistId))
+        || typeof field.exists !== "boolean"
+        || (field.label !== null && typeof field.label !== "string")
+        || (field.type !== null && typeof field.type !== "string")
+        || typeof field.disabled !== "boolean"
+        || typeof field.readOnly !== "boolean"
+      ) {
+        return validationFailure(
+          "INVALID_RECORD_RESPONSE",
+          "Record field metadata response is invalid."
+        );
+      }
+    }
+    return validationSuccess(value);
+  }
+
   function validateRecordTypeResponse(value) {
     const invalid = validateResponseKeys(value, ["recordType"]);
     if (invalid) {
@@ -324,6 +621,19 @@
       );
     }
     return validationSuccess({ applied: [...value.applied] });
+  }
+
+  function validateImportAssistantCategoryResponse(value) {
+    const invalid = validateResponseKeys(value, ["category"]);
+    if (invalid) {
+      return invalid;
+    }
+    return value.category === null || IMPORT_IDENTIFIER_PATTERN.test(value.category)
+      ? validationSuccess({ category: value.category })
+      : validationFailure(
+          "INVALID_BRIDGE_RESPONSE",
+          "CSV Import category response must contain a valid category or null."
+        );
   }
 
   function validateCancelResponse(value) {
@@ -366,6 +676,18 @@
       validate: validateEmptyPayload,
       validateResponse: validateDisposeResponse
     }),
+    [COMMANDS.SEARCH_RUN]: Object.freeze({
+      capability: routeApi?.CAPABILITIES?.SEARCH_QUERY_BRIDGE,
+      handlerTimeoutMs: 35000,
+      validate: validateSearchRun,
+      validateResponse: validateSearchRunResponse
+    }),
+    [COMMANDS.RECORD_DESCRIBE]: Object.freeze({
+      capability: routeApi?.CAPABILITIES?.RECORD_METADATA_BRIDGE,
+      handlerTimeoutMs: 30000,
+      validate: validateRecordDescribe,
+      validateResponse: validateRecordDescribeResponse
+    }),
     [COMMANDS.RECORD_GET_TYPE]: Object.freeze({
       capability: routeApi?.CAPABILITIES?.RECORD_TYPE_BRIDGE,
       handlerTimeoutMs: 10000,
@@ -377,6 +699,12 @@
       handlerTimeoutMs: 30000,
       validate: validateImportAssistantValues,
       validateResponse: validateImportAssistantResponse
+    }),
+    [COMMANDS.IMPORT_ASSISTANT_RESOLVE_CATEGORY]: Object.freeze({
+      capability: routeApi?.CAPABILITIES?.IMPORT_ASSISTANT_FETCH_BRIDGE,
+      handlerTimeoutMs: 65000,
+      validate: validateImportAssistantCategory,
+      validateResponse: validateImportAssistantCategoryResponse
     })
   });
 
@@ -907,6 +1235,7 @@
     MAX_RESPONSE_BYTES,
     COMMANDS,
     IMPORT_ASSISTANT_FIELDS,
+    SEARCH_OPERATORS,
     isBridgeMessage,
     isValidRequestId,
     validateCommandPayload,
