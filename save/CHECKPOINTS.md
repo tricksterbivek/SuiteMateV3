@@ -2,6 +2,53 @@
 
 This file records verified development baselines. New feature work must not begin until the preceding checkpoint has passed automated tests, live NetSuite verification, pull request review and release publication.
 
+## v3.5.0: Observer Lifecycle
+
+Status: Verified
+
+Date: 2026-07-19
+
+Pull request: <https://github.com/tricksterbivek/SuiteMateV3/pull/8>
+
+Release: <https://github.com/tricksterbivek/SuiteMateV3/releases/tag/v3.5.0>
+
+### Included
+
+- Adds one per-document lifecycle registry backed by a shared native `MutationObserver`.
+- Supports stable registration IDs, explicit replacement, immediate evaluation, batched mutations, one-shot and continuous modes.
+- Gates consumers through the route capability registry and refreshes them across route, history and BFCache transitions.
+- Provides bounded DOM waits, abort signals, stale-generation guards, pause, resume, disposal and deterministic cleanup.
+- Migrates theme route metadata, Classic and Redwood detection, CSV Import toolbar placement and Import Assistant context sourcing.
+- Adds live diagnostics through `data-suitemate-v3-lifecycle` and `data-suitemate-v3-observer`.
+
+### Verification
+
+- Full `npm test` regression suite with 37 passing tests.
+- Focused lifecycle coverage for singleton behavior, shared observation, batching, replacement, cleanup, timeout, abort, route changes, stale asynchronous work and BFCache.
+- Existing route, versioned settings, protected V1 styling, role-theme, CSV Import and SuiteQL Console checks.
+- `git diff --check`.
+- Authenticated NetSuite checks after reloading the extension and allowing the Sandbox render cycle to settle.
+- Confirmed SuiteQL Console rendered once and did not leak onto Global Search.
+- Confirmed Purchase Order rendered one CSV Import action immediately after Actions.
+- Confirmed Import Assistant applied the requested `PURCHASEORDER` subtype after NetSuite completed native category sourcing.
+- Confirmed normal Global Search and Saved Search results remained native and themed.
+
+### Restore
+
+```bash
+git switch --detach v3.5.0
+```
+
+To resume normal development after inspecting the checkpoint:
+
+```bash
+git switch main
+```
+
+### Next feature
+
+`FND-04`: General Typed NetSuite Bridge
+
 ## v3.4.0: Route Capability Registry
 
 Status: Verified
