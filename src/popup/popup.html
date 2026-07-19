@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>SuiteMate V3 styling</title>
+    <title>SuiteMate V3</title>
     <link rel="stylesheet" href="popup.css">
   </head>
   <body>
@@ -12,9 +12,17 @@
         <img src="../../icons/48.png" alt="" width="40" height="40">
         <div>
           <h1>SuiteMate V3</h1>
-          <p>V1 styling foundation</p>
+          <p>NetSuite UI and developer tools</p>
         </div>
       </header>
+
+      <section class="tool-card" aria-labelledby="suiteqlToolTitle">
+        <div>
+          <strong id="suiteqlToolTitle">SuiteQL Console</strong>
+          <small id="suiteqlToolContext">Open a NetSuite tab to launch Studio.</small>
+        </div>
+        <button id="openSuiteQL" class="primary-action" type="button" disabled>Open SuiteQL Console</button>
+      </section>
 
       <form id="settings">
         <label class="toggle-row" for="enabled">
@@ -52,17 +60,29 @@
           <p id="roleContext" class="role-context">Finding the current NetSuite role...</p>
 
           <div class="color-grid">
-            <label class="color-control" for="mainColor">
-              <span>Main</span>
-              <input id="mainColor" class="role-color" type="color" value="#607799">
-              <code id="mainColorValue">#607799</code>
-            </label>
+            <div class="color-control">
+              <label class="color-control-label" for="mainColorTrigger">
+                <span>Main</span>
+                <code id="mainColorValue">#607799</code>
+              </label>
+              <input id="mainColor" class="role-color" type="hidden" value="#607799">
+              <button id="mainColorTrigger" class="color-picker-trigger" type="button" aria-haspopup="dialog">
+                <span class="color-trigger-swatch" aria-hidden="true"></span>
+                <span class="visually-hidden">Choose Main color</span>
+              </button>
+            </div>
 
-            <label class="color-control" for="secondaryColor">
-              <span>Secondary</span>
-              <input id="secondaryColor" class="role-color" type="color" value="#a2a4a8">
-              <code id="secondaryColorValue">#a2a4a8</code>
-            </label>
+            <div class="color-control">
+              <label class="color-control-label" for="secondaryColorTrigger">
+                <span>Secondary</span>
+                <code id="secondaryColorValue">#a2a4a8</code>
+              </label>
+              <input id="secondaryColor" class="role-color" type="hidden" value="#a2a4a8">
+              <button id="secondaryColorTrigger" class="color-picker-trigger" type="button" aria-haspopup="dialog">
+                <span class="color-trigger-swatch" aria-hidden="true"></span>
+                <span class="visually-hidden">Choose Secondary color</span>
+              </button>
+            </div>
           </div>
 
           <div class="theme-actions">
@@ -76,9 +96,74 @@
           <output id="status" aria-live="polite"></output>
         </div>
       </form>
+
+      <section
+        id="colorPickerModal"
+        class="color-picker-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="colorPickerTitle"
+        hidden
+      >
+        <div class="color-picker-panel">
+          <header class="color-picker-header">
+            <div>
+              <h2 id="colorPickerTitle">Main color</h2>
+              <small>Choose a color or refine it with a Material shade.</small>
+            </div>
+            <button id="closeColorPicker" class="icon-button" type="button" aria-label="Close color picker">×</button>
+          </header>
+
+          <div
+            id="colorPlane"
+            class="color-plane"
+            role="group"
+            tabindex="0"
+            aria-label="Saturation and brightness. Use arrow keys to adjust."
+          >
+            <span id="colorPlanePointer" class="color-plane-pointer" aria-hidden="true"></span>
+          </div>
+
+          <label class="hue-control" for="colorHue">
+            <span>Hue</span>
+            <input id="colorHue" type="range" min="0" max="359" step="1" value="0">
+          </label>
+
+          <div class="color-axis-controls">
+            <label for="colorSaturation">
+              <span>Saturation</span>
+              <input id="colorSaturation" type="range" min="0" max="100" step="1" value="0">
+            </label>
+            <label for="colorBrightness">
+              <span>Brightness</span>
+              <input id="colorBrightness" type="range" min="0" max="100" step="1" value="0">
+            </label>
+          </div>
+
+          <div class="color-value-row">
+            <span id="colorPreview" class="color-preview" aria-hidden="true"></span>
+            <label for="colorHex">
+              <span>Hex</span>
+              <input id="colorHex" type="text" inputmode="text" maxlength="7" spellcheck="false" autocomplete="off" value="#607799">
+            </label>
+          </div>
+
+          <section class="picker-material-section" aria-labelledby="pickerMaterialTitle">
+            <div class="picker-section-heading">
+              <strong id="pickerMaterialTitle">Material shades</strong>
+              <small>50 to 900</small>
+            </div>
+            <div id="pickerMaterialShades" class="picker-material-shades"></div>
+          </section>
+
+          <button id="doneColorPicker" class="picker-done" type="button">Done</button>
+        </div>
+      </section>
     </main>
 
     <script src="../shared/settings.js"></script>
+    <script src="../suiteql/core.js"></script>
+    <script src="../../dist/material-palette.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

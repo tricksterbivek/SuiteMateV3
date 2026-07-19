@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <base href="/tests/fixtures/">
+    <title>SuiteMate V3 Saved Search edit fixture</title>
+    <link rel="stylesheet" href="../../src/styles/font.css">
+    <link rel="stylesheet" href="../../src/styles/code.css">
+    <link rel="stylesheet" href="../../src/styles/netsuite.css">
+    <link rel="stylesheet" href="../../src/styles/radii.css">
+    <link rel="stylesheet" href="../../src/styles/v3-compat.css">
+    <link rel="stylesheet" href="netSuiteFixture.css">
+    <script src="chrome-stub.js"></script>
+    <script>
+      history.replaceState(null, "", "/app/common/search/search.nl?id=5471&e=T&cu=T");
+    </script>
+    <script type="application/json" src="/javascript/sessionstatus/session_status_init.jsp?id=FIXTURE~1~3~N&companyName=Fixture+Company&roleName=Administrator&companyId=FIXTURE&roleId=3"></script>
+    <script src="../../src/shared/settings.js"></script>
+    <script src="../../src/runtime/theme-runtime.js"></script>
+  </head>
+  <body>
+    <header data-widget="NetsuiteSystemHeader"><strong>NetSuite Redwood</strong></header>
+    <main id="div__body">
+      <h1 class="uir-page-title-firstline">Saved Transaction Search</h1>
+      <nav class="uir-tabs uir-tab-list-tabs" aria-label="Saved Search tabs">
+        <span id="criteria_tablnk" class="formtabon"><a class="formtabtext formtabtexton" href="#criteria">Criteria</a></span>
+        <span id="results_tablnk" class="formtaboff"><a class="formtabtext" href="#results">Results</a></span>
+        <span id="audiencelnk" class="formtaboff"><a class="formtabtext" href="#audience">Audience</a></span>
+      </nav>
+      <section id="criteria">
+        <div class="uir-subtab-panel-tabs-row">
+          <span id="filterslnk" class="formsubtabon"><a class="formsubtabtext" href="#standard">Standard</a></span>
+          <span id="summaryfilterslnk" class="formsubtaboff"><a class="formsubtabtext" href="#summary">Summary</a></span>
+        </div>
+        <div id="standard" class="uir-machine-table-container">
+          <table class="uir-machine-table">
+            <tbody>
+              <tr class="uir-machine-headerrow"><td><div class="listheader">Filter</div></td><td><div class="listheader">Description</div></td></tr>
+              <tr class="uir-machine-row"><td>Type</td><td>is Sales Order</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

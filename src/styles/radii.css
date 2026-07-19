@@ -1,0 +1,101 @@
+html:not(.ext-f) {
+    --suitemate-radius-control: 3px;
+    --suitemate-radius-compact: 4px;
+    --suitemate-radius-surface: 5px;
+    --suitemate-radius-overlay: 8px;
+    --suitemate-radius-dialog: 10px;
+    --suitemate-radius-pill: 20px;
+    --nsn-uif-redwood-border-rounded-corners: var(--suitemate-radius-surface);
+    --nsn-uif-refreshed-border-radius-rounded: var(--suitemate-radius-control);
+    --nsn-uif-refreshed-border-radius-rounded-large: var(--suitemate-radius-dialog);
+    --uif-refreshed-border-radius-rounded: var(--suitemate-radius-control);
+    --uif-refreshed-border-radius-rounded-large: var(--suitemate-radius-dialog)
+}
+
+html:not(.ext-f).disable_radii {
+    --suitemate-radius-control: 0px;
+    --suitemate-radius-compact: 0px;
+    --suitemate-radius-surface: 0px;
+    --suitemate-radius-overlay: 0px;
+    --suitemate-radius-dialog: 0px;
+    --suitemate-radius-pill: 0px
+}
+
+html:not(.ext-f) :is(.uir-tab-list, .n-w-tab-list.style-standalone, [data-widget=ScrollTabList]) {
+    border-radius: var(--suitemate-radius-surface);
+    overflow: clip
+}
+
+html:not(.ext-f) :is(div.bgsubtabbar, .uir-subtab-panel-tabs) {
+    border-radius: var(--suitemate-radius-surface) var(--suitemate-radius-surface) 0 0;
+    overflow-x: auto;
+    overflow-y: clip
+}
+
+html:not(.ext-f) :is(.uir-list-control-bar, .formsubtabtext.unrollformsubtabheaderexpand) {
+    border-radius: var(--suitemate-radius-surface) var(--suitemate-radius-surface) 0 0
+}
+
+html:not(.ext-f) :is(.uir-list-body, .uir-list-table-container, .uir-machine-table-container) {
+    border-radius: var(--suitemate-radius-surface)
+}
+
+html:not(.ext-f) :is(.uir-list-headerrow, .uir-machine-headerrow)>:first-child {
+    border-top-left-radius: var(--suitemate-radius-surface)
+}
+
+html:not(.ext-f) :is(.uir-list-headerrow, .uir-machine-headerrow)>:last-child {
+    border-top-right-radius: var(--suitemate-radius-surface)
+}
+
+html:not(.ext-f) :is(.uir-list-table, .uir-machine-table)>tbody>tr:last-child>td:first-child {
+    border-bottom-left-radius: var(--suitemate-radius-surface)
+}
+
+html:not(.ext-f) :is(.uir-list-table, .uir-machine-table)>tbody>tr:last-child>td:last-child {
+    border-bottom-right-radius: var(--suitemate-radius-surface)
+}
+
+html:not(.ext-f) :is(.n-f-fieldgroup-heading, .uir-field-arrangement--title-bar, [data-widget=FieldGroup]>[role=button]) {
+    border-radius: var(--suitemate-radius-surface)
+}
+
+html:not(.ext-f) :is(
+    input.input:not([type=button]):not([type=submit]):not([type=checkbox]):not([type=radio]):not([type=image]),
+    textarea.input,
+    select.input,
+    .uir-input-dropdown-native,
+    .uir-select-input-container,
+    .uir-select-input-container>input
+) {
+    border-radius: var(--suitemate-radius-surface) !important
+}
+
+html:not(.ext-f) :is(.uir-popup, .uir-menu, .page-title-menu .ns-menu, .n-w-window[data-role=contextmenu]) {
+    border-radius: var(--suitemate-radius-overlay)
+}
+
+html:not(.ext-f) [data-widget=Popover]:has([data-widget=Menu][role=menu]),
+html:not(.ext-f) [data-widget=Popover]:has([data-widget=Menu][role=menu])>div,
+html:not(.ext-f) [data-widget=Popover] [data-widget=Menu][role=menu],
+html:not(.ext-f) [data-widget=Popover]>div:has([data-widget=WindowBody]>[data-widget=ScrollPanel] [data-widget=Menu]) {
+    border-radius: var(--suitemate-radius-overlay) !important
+}
+
+html:not(.ext-f) [data-widget=Popover]:has([data-widget=Menu][role=menu])>div,
+html:not(.ext-f) [data-widget=Popover]>div:has([data-widget=WindowBody]>[data-widget=ScrollPanel] [data-widget=Menu]),
+html:not(.ext-f) :is(.ddmDivButtonY, .ddmDivButtonG) {
+    overflow: hidden !important
+}
+
+html:not(.ext-f) :is(.ddmDivButtonY, .ddmDivButtonG) {
+    border-radius: var(--suitemate-radius-overlay) !important
+}
+
+html:not(.ext-f) :is(.uir-alert-box, .n-w-window--modal) {
+    border-radius: var(--suitemate-radius-dialog)
+}
+
+html:not(.ext-f) :is(.uir-page-title .uir-record-status, .n-f-title-panel .n-f-title-recordstatus) {
+    border-radius: var(--suitemate-radius-pill)
+}

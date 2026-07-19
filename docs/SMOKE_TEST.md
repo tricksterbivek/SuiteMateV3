@@ -1,4 +1,4 @@
-# SuiteMate V3 styling smoke test
+# SuiteMate V3 smoke test
 
 The styling foundation is not complete because the extension loads. It is complete only when the visual comparison and functional regression checks pass.
 
@@ -45,6 +45,47 @@ The styling foundation is not complete because the extension loads. It is comple
 - Reset All restores appearance defaults and removes all saved role colors.
 - Switching roles applies that role's saved colors and does not leak colors from another role.
 
+## Material shade enhancement pass
+
+- Select Main and confirm one unified SuiteMate color picker opens with saturation, brightness, hue, hex, and Material shade controls.
+- Confirm the picker fits inside the extension popup without requiring the user to find controls below the Main or Secondary fields.
+- Change Main with the saturation and brightness plane, hue control, accessible range controls, and hex field.
+- Confirm the Material shades update in real time without closing the picker.
+- Confirm Main still previews immediately in NetSuite and uses the existing throttled save behavior.
+- Choose a Main Material shade and confirm it updates only Main through the same preview and persistence path.
+- Select Done, close, the backdrop, and Escape in separate passes and confirm each closes the picker while preserving the latest live color.
+- Confirm focus moves into the picker when opened and returns to the originating Main or Secondary control when closed.
+- Repeat the picker, live regeneration, and shade selection checks for Secondary.
+- Confirm Secondary Material shades never alter Main and Main Material shades never alter Secondary.
+- Confirm each tonal row contains shades 50 through 900 with readable labels and keyboard focus.
+- Test black, white, and gray selections and confirm their Material shades remain neutral rather than gaining a color tint.
+- Reload the popup and confirm only the selected Main and Secondary hex values persist. Generated shades must be recalculated from those values.
+- Confirm no palette object or metadata is written to synced storage and no external request is made.
+
+## SuiteQL Console pass
+
+- Open the extension popup from an authenticated NetSuite tab and select Open SuiteQL Console.
+- Confirm the active tab navigates to `/app/common/search/ubersearchresults.nl?suiteql` on the same account domain.
+- Confirm a normal Global Search page without the `suiteql` parameter remains native and unchanged.
+- Run `SELECT id, tranid FROM transaction WHERE ROWNUM <= 10 ORDER BY id`.
+- Confirm the request uses the authenticated same-account `PlatformClientScriptHandler.nl` `queryApiBridge` and makes no external request.
+- Confirm the editor has line numbers, SQL highlighting, selection execution, and visible keyboard focus.
+- Confirm row count, execution time, sorting, 250-row client pages, numeric values, text values, and null values render correctly.
+- Export loaded rows and confirm the account identifier and timestamp appear in the filename.
+- Open the CSV and confirm commas, quotes, line breaks, and formula-like string values are safe.
+- Run a deliberately invalid field and confirm the NetSuite error code and message are readable.
+- Run an unpaged query that reaches 5,000 rows and confirm the limit warning appears.
+- Enable Paged mode for a query with a unique `ORDER BY`, then load at least two 1,000-row NetSuite pages.
+- Confirm loaded count and total count remain distinct and accurate.
+- Try Paged mode without `ORDER BY` and confirm Console requires explicit confirmation.
+- Press Escape during an active request and confirm Console releases the UI, discards late results, and does not claim NetSuite processing was canceled.
+- Verify Ctrl or Cmd + E executes, Ctrl or Cmd + Shift + P toggles Paged, Ctrl or Cmd + Shift + E exports, and Ctrl or Cmd + Shift + L clears results.
+- Enter a query, resize the editor, refresh the tab, and confirm the query, Paged setting, and editor height are restored in the same tab.
+- Confirm Inspect Table and Records Catalog remain hidden in the Console header.
+- Select Generate with SuiteSense and confirm `https://suitesense.vercel.app/` opens in a new tab without replacing the Console draft.
+- Recheck Sales Order view and edit pages after the SuiteQL pass.
+- Repeat the SuiteQL execution pass in Release Preview before every NetSuite release and treat a changed bridge response as a release blocker.
+
 ## Exit gate
 
-Feature development may begin only when all required areas pass, all release blockers are resolved, and the final comparison evidence is retained.
+The SuiteQL milestone is complete only when the styling regressions remain clear, the SuiteQL checks pass, and final evidence is retained.

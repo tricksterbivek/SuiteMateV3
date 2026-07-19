@@ -1,0 +1,741 @@
+html.suiteql-v3 {
+    --suiteql-canvas: light-dark(#f3f5f8, #111214);
+    --suiteql-surface: light-dark(#fff, var(--dark-1));
+    --suiteql-surface-muted: light-dark(#f6f8fa, var(--dark-2));
+    --suiteql-surface-hover: light-dark(#f0f3f7, var(--dark-3));
+    --suiteql-border: light-dark(#dfe3e8, var(--dark-3));
+    --suiteql-border-strong: light-dark(#cbd1d8, #515256);
+    --suiteql-shadow-panel: 0 1px 2px light-dark(rgb(15 23 42 / 0.07), rgb(0 0 0 / 0.28)), 0 5px 16px light-dark(rgb(15 23 42 / 0.04), rgb(0 0 0 / 0.14));
+    --suiteql-shadow-raised: 0 10px 28px light-dark(rgb(15 23 42 / 0.11), rgb(0 0 0 / 0.28));
+    --suiteql-focus-ring: color-mix(in srgb, var(--theme-main) 24%, transparent);
+    --suiteql-radius-control: var(--suitemate-radius-overlay, 8px);
+    --suiteql-radius-panel: var(--suitemate-radius-dialog, 10px);
+    --suiteql-radius-status: var(--suitemate-radius-overlay, 8px);
+    --suiteql-code-keyword: light-dark(#174ea6, #8ab4f8);
+    --suiteql-code-string: light-dark(#188038, #81c995);
+    --suiteql-code-number: light-dark(#7c3aed, #c58af9)
+}
+
+html.suiteql-v3 body {
+    min-width: 760px;
+    background: var(--suiteql-canvas) !important;
+    color: var(--text-1)
+}
+
+html.suiteql-v3 :is(#div__body, #footer_actions_form, #div__footer) {
+    display: none !important
+}
+
+html.suiteql-v3 #body > .uir-page-title {
+    display: none !important
+}
+
+html.suiteql-v3 #body > #suitemate-suiteql-studio {
+    flex: 1 1 auto;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden
+}
+
+html.suiteql-v3 #suitemate-suiteql-studio,
+html.suiteql-v3 #suitemate-suiteql-studio * {
+    box-sizing: border-box
+}
+
+html.suiteql-v3 #suitemate-suiteql-studio [hidden] {
+    display: none !important
+}
+
+html.suiteql-v3 #suitemate-suiteql-studio {
+    display: grid;
+    grid-template-rows: auto auto auto 12px minmax(260px, 1fr);
+    width: 100%;
+    min-height: calc(100vh - 92px);
+    margin: 0;
+    padding: 24px 28px 28px;
+    color: var(--text-1);
+    font-family: var(--normal-font)
+}
+
+html.suiteql-v3 .suiteql-studio-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 0 2px 20px
+}
+
+html.suiteql-v3 .suiteql-studio-header h1 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+    color: var(--text-0);
+    font-size: 27px;
+    font-weight: 700;
+    letter-spacing: -.025em;
+    line-height: 1.15
+}
+
+html.suiteql-v3 .suiteql-studio-header h1::before {
+    content: ">_";
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    border-radius: var(--suiteql-radius-control);
+    background: var(--theme-main);
+    box-shadow: 0 6px 14px color-mix(in srgb, var(--theme-main) 20%, transparent);
+    color: #fff;
+    font-family: var(--monospace-font);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: -.08em
+}
+
+html.suiteql-v3 .suiteql-studio-header p {
+    margin: 6px 0 0 48px;
+    color: var(--text-2);
+    font-size: 12.5px;
+    line-height: 1.45
+}
+
+html.suiteql-v3 .suiteql-studio-header nav {
+    display: flex;
+    align-items: center;
+    gap: 8px
+}
+
+html.suiteql-v3 #suitemate-suiteql-studio :is(button, a) {
+    font-family: var(--normal-font)
+}
+
+html.suiteql-v3 #suitemate-suiteql-studio button,
+html.suiteql-v3 .suiteql-studio-header a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    gap: 7px;
+    border: 1px solid var(--suiteql-border-strong);
+    border-radius: var(--suiteql-radius-control);
+    padding: 7px 13px;
+    background: var(--suiteql-surface);
+    box-shadow: 0 1px 1px rgb(15 23 42 / 0.04);
+    color: var(--text-1);
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 20px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: border-color .14s ease, background-color .14s ease, box-shadow .14s ease, color .14s ease, transform .14s ease
+}
+
+html.suiteql-v3 #suitemate-suiteql-studio button:hover:not(:disabled),
+html.suiteql-v3 .suiteql-studio-header a:hover {
+    border-color: color-mix(in srgb, var(--theme-main) 58%, var(--suiteql-border));
+    background: var(--suiteql-surface-hover);
+    color: var(--text-0)
+}
+
+html.suiteql-v3 #suitemate-suiteql-studio button:active:not(:disabled),
+html.suiteql-v3 .suiteql-studio-header a:active {
+    transform: translateY(1px)
+}
+
+html.suiteql-v3 #suitemate-suiteql-studio button:focus-visible,
+html.suiteql-v3 .suiteql-studio-header a:focus-visible,
+html.suiteql-v3 .suiteql-toggle:focus-within,
+html.suiteql-v3 #suiteql-resize-handle:focus-visible {
+    outline: 0;
+    box-shadow: 0 0 0 3px var(--suiteql-focus-ring)
+}
+
+html.suiteql-v3 #suitemate-suiteql-studio button.primary {
+    border-color: var(--theme-main);
+    background: var(--theme-main);
+    box-shadow: 0 4px 10px color-mix(in srgb, var(--theme-main) 22%, transparent);
+    color: #fff
+}
+
+html.suiteql-v3 #suitemate-suiteql-studio button.primary:hover:not(:disabled) {
+    border-color: var(--theme-main-dark);
+    background: var(--theme-main-dark);
+    box-shadow: 0 6px 14px color-mix(in srgb, var(--theme-main) 28%, transparent);
+    color: #fff
+}
+
+html.suiteql-v3 .suiteql-studio-header #suiteql-suitesense {
+    border-color: var(--theme-main);
+    background: var(--theme-main);
+    box-shadow: 0 4px 10px color-mix(in srgb, var(--theme-main) 20%, transparent);
+    color: #fff
+}
+
+html.suiteql-v3 .suiteql-studio-header #suiteql-suitesense::before {
+    content: "✦";
+    font-size: 13px;
+    line-height: 1
+}
+
+html.suiteql-v3 .suiteql-studio-header #suiteql-suitesense::after {
+    content: "↗";
+    font-size: 12px;
+    opacity: .75
+}
+
+html.suiteql-v3 .suiteql-studio-header #suiteql-suitesense:hover {
+    border-color: var(--theme-main-dark);
+    background: var(--theme-main-dark);
+    color: #fff
+}
+
+html.suiteql-v3 #suitemate-suiteql-studio button:disabled {
+    box-shadow: none;
+    opacity: .45;
+    cursor: default
+}
+
+html.suiteql-v3 #suiteql-execute::before {
+    content: "";
+    width: 0;
+    height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 8px solid currentColor
+}
+
+html.suiteql-v3 #suiteql-abort::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: currentColor
+}
+
+html.suiteql-v3 #suiteql-abort:hover:not(:disabled) {
+    border-color: light-dark(#dc8b8b, #9e4c4c);
+    background: light-dark(#fff4f3, #382324);
+    color: light-dark(#b42318, #ffaaa4)
+}
+
+html.suiteql-v3 #suiteql-export::before {
+    content: "↓";
+    font-family: var(--monospace-font);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1
+}
+
+html.suiteql-v3 #suiteql-clear::before {
+    content: "×";
+    font-size: 17px;
+    font-weight: 500;
+    line-height: 1
+}
+
+html.suiteql-v3 #suiteql-control-bar {
+    display: flex;
+    align-items: center;
+    min-height: 56px;
+    margin-bottom: 12px;
+    border: 1px solid var(--suiteql-border);
+    border-radius: var(--suiteql-radius-panel);
+    padding: 9px 12px;
+    background: var(--suiteql-surface);
+    box-shadow: var(--suiteql-shadow-panel)
+}
+
+html.suiteql-v3 #suiteql-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px
+}
+
+html.suiteql-v3 .buttons-divider {
+    width: 1px;
+    height: 24px;
+    margin-inline: 2px;
+    background: var(--suiteql-border)
+}
+
+html.suiteql-v3 .suiteql-toggle {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    gap: 8px;
+    border: 1px solid transparent;
+    border-radius: var(--suiteql-radius-control);
+    padding: 6px 9px;
+    color: var(--text-1);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color .14s ease, border-color .14s ease
+}
+
+html.suiteql-v3 .suiteql-toggle:hover {
+    border-color: var(--suiteql-border);
+    background: var(--suiteql-surface-hover)
+}
+
+html.suiteql-v3 .suiteql-toggle input {
+    position: relative;
+    width: 30px;
+    height: 18px;
+    flex: 0 0 30px;
+    margin: 0;
+    border: 1px solid var(--suiteql-border-strong);
+    border-radius: var(--suitemate-radius-pill, 20px);
+    appearance: none;
+    background: light-dark(#dce1e7, var(--dark-3));
+    cursor: pointer;
+    transition: border-color .16s ease, background-color .16s ease
+}
+
+html.suiteql-v3 .suiteql-toggle input::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgb(15 23 42 / 0.28);
+    transition: transform .16s ease
+}
+
+html.suiteql-v3 .suiteql-toggle input:checked {
+    border-color: var(--theme-main);
+    background: var(--theme-main)
+}
+
+html.suiteql-v3 .suiteql-toggle input:checked::after {
+    transform: translateX(12px)
+}
+
+html.suiteql-v3 .suiteql-toggle input:disabled {
+    opacity: .48;
+    cursor: default
+}
+
+html.suiteql-v3 #suiteql-stats {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 30px;
+    margin-left: auto;
+    color: var(--text-2);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums
+}
+
+html.suiteql-v3 #suiteql-stats span:empty {
+    display: none
+}
+
+html.suiteql-v3 #suiteql-stats span:empty::before {
+    content: none !important
+}
+
+html.suiteql-v3 #suiteql-stats span:not(:empty) {
+    border: 1px solid var(--suiteql-border);
+    border-radius: var(--suitemate-radius-pill, 20px);
+    padding: 5px 9px;
+    background: var(--suiteql-surface-muted)
+}
+
+html.suiteql-v3 #suiteql-stats span:not(:empty)::before {
+    content: attr(data-label) " ";
+    color: var(--text-3);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .055em;
+    text-transform: uppercase
+}
+
+html.suiteql-v3 #suiteql-editor-panel {
+    height: 280px;
+    min-height: 120px;
+    overflow: hidden;
+    border: 1px solid var(--suiteql-border);
+    border-radius: var(--suiteql-radius-panel);
+    background: var(--suiteql-surface);
+    box-shadow: var(--suiteql-shadow-panel);
+    transition: border-color .14s ease, box-shadow .14s ease
+}
+
+html.suiteql-v3 #suiteql-editor-panel:focus-within {
+    border-color: color-mix(in srgb, var(--theme-main) 68%, var(--suiteql-border));
+    box-shadow: 0 0 0 3px var(--suiteql-focus-ring), var(--suiteql-shadow-raised)
+}
+
+html.suiteql-v3 #suiteql-container,
+html.suiteql-v3 #suiteql-container .cm-editor {
+    width: 100%;
+    height: 100%
+}
+
+html.suiteql-v3 #suiteql-container .cm-editor {
+    min-height: 0 !important;
+    color: var(--text-1);
+    background: var(--suiteql-surface);
+    font-family: var(--monospace-font);
+    font-size: 13px
+}
+
+html.suiteql-v3 #suiteql-container .cm-scroller {
+    overflow: auto;
+    font-family: inherit;
+    line-height: 1.6
+}
+
+html.suiteql-v3 #suiteql-container .cm-content {
+    padding-block: 10px 32px;
+    caret-color: var(--theme-main)
+}
+
+html.suiteql-v3 #suiteql-container .cm-line {
+    padding-inline: 12px 18px
+}
+
+html.suiteql-v3 #suiteql-container .cm-gutters {
+    border-right: 1px solid var(--suiteql-border);
+    padding-top: 10px;
+    background: var(--suiteql-surface-muted);
+    color: var(--text-3)
+}
+
+html.suiteql-v3 #suiteql-container .cm-gutterElement {
+    padding-inline: 11px 9px
+}
+
+html.suiteql-v3 #suiteql-container .cm-activeLine,
+html.suiteql-v3 #suiteql-container .cm-activeLineGutter {
+    background: var(--theme-secondary-light-light)
+}
+
+html.suiteql-v3 #suiteql-container .cm-selectionBackground,
+html.suiteql-v3 #suiteql-container .cm-content ::selection {
+    background: var(--theme-secondary-light) !important
+}
+
+html.suiteql-v3 #suiteql-container .cm-focused {
+    outline: 0
+}
+
+html.suiteql-v3 #suiteql-container .tok-keyword,
+html.suiteql-v3 #suiteql-container .tok-bool,
+html.suiteql-v3 #suiteql-container .tok-null {
+    color: var(--suiteql-code-keyword);
+    font-weight: 600
+}
+
+html.suiteql-v3 #suiteql-container .tok-string {
+    color: var(--suiteql-code-string)
+}
+
+html.suiteql-v3 #suiteql-container .tok-number {
+    color: var(--suiteql-code-number)
+}
+
+html.suiteql-v3 #suiteql-container .tok-comment {
+    color: var(--text-3);
+    font-style: italic
+}
+
+html.suiteql-v3 #suiteql-resize-handle {
+    position: relative;
+    z-index: 2;
+    height: 12px;
+    border-radius: var(--suiteql-radius-control);
+    background: transparent;
+    cursor: row-resize
+}
+
+html.suiteql-v3 #suiteql-resize-handle::after {
+    content: "";
+    position: absolute;
+    top: 4px;
+    left: calc(50% - 20px);
+    width: 40px;
+    height: 4px;
+    border-radius: var(--suitemate-radius-pill, 20px);
+    background: var(--suiteql-border-strong);
+    transition: width .14s ease, left .14s ease, background-color .14s ease
+}
+
+html.suiteql-v3 #suiteql-resize-handle:hover::after,
+html.suiteql-v3 #suiteql-resize-handle:focus-visible::after,
+html.suiteql-v3 #suitemate-suiteql-studio.is-resizing #suiteql-resize-handle::after {
+    left: calc(50% - 28px);
+    width: 56px;
+    background: var(--theme-main)
+}
+
+html.suiteql-v3 #suitemate-suiteql-studio.is-resizing {
+    user-select: none
+}
+
+html.suiteql-v3 #suitemate-suiteql-results {
+    display: grid;
+    grid-template-rows: auto minmax(200px, 1fr) auto;
+    min-height: 260px;
+    overflow: hidden;
+    border: 1px solid var(--suiteql-border);
+    border-radius: var(--suiteql-radius-panel);
+    background: var(--suiteql-surface);
+    box-shadow: var(--suiteql-shadow-panel)
+}
+
+html.suiteql-v3 #suiteql-notice {
+    grid-row: 1;
+    margin: 12px 12px 0;
+    border: 1px solid var(--suiteql-border);
+    border-left: 4px solid var(--theme-main);
+    border-radius: var(--suiteql-radius-status);
+    padding: 10px 12px;
+    background: var(--suiteql-surface-muted);
+    color: var(--text-1);
+    font-family: var(--monospace-font);
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap
+}
+
+html.suiteql-v3 #suiteql-notice[data-type="loading"] {
+    border-left-color: #3578c4
+}
+
+html.suiteql-v3 #suiteql-notice[data-type="success"] {
+    border-left-color: #188038
+}
+
+html.suiteql-v3 #suiteql-notice[data-type="warning"] {
+    border-left-color: #d97706;
+    background: light-dark(#fff8e8, #3b3020)
+}
+
+html.suiteql-v3 #suiteql-notice[data-type="error"] {
+    border-left-color: #c62828;
+    background: light-dark(#fff1f0, #3b2222)
+}
+
+html.suiteql-v3 .suiteql-table-scroller {
+    grid-row: 2;
+    min-height: 0;
+    overflow: auto;
+    background: var(--suiteql-surface)
+}
+
+html.suiteql-v3 #suiteql-result-table {
+    width: 100%;
+    border: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: auto;
+    color: var(--text-1);
+    font-size: 12.5px
+}
+
+html.suiteql-v3 #suiteql-result-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    box-shadow: 0 1px 0 var(--theme-secondary)
+}
+
+html.suiteql-v3 #suiteql-result-table th {
+    border-right: 1px solid color-mix(in srgb, var(--theme-secondary) 50%, transparent);
+    border-bottom: 1px solid var(--theme-secondary);
+    padding: 0;
+    background: var(--theme-secondary-light);
+    text-align: left;
+    white-space: nowrap
+}
+
+html.suiteql-v3 #suiteql-result-table th:last-child {
+    border-right: 0
+}
+
+html.suiteql-v3 #suiteql-result-table th button {
+    position: relative;
+    width: 100%;
+    min-height: 39px;
+    justify-content: flex-start;
+    border: 0;
+    border-radius: 0;
+    padding: 9px 30px 9px 12px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--text-0);
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: .025em;
+    text-align: left;
+    white-space: nowrap
+}
+
+html.suiteql-v3 #suiteql-result-table th button:hover:not(:disabled) {
+    border: 0;
+    background: var(--theme-secondary-light-light);
+    box-shadow: none;
+    transform: none
+}
+
+html.suiteql-v3 #suiteql-result-table th button[data-sort]::after {
+    content: "";
+    position: absolute;
+    top: 15px;
+    right: 12px;
+    border-inline: 4px solid transparent;
+    border-bottom: 6px solid var(--text-1)
+}
+
+html.suiteql-v3 #suiteql-result-table th button[data-sort="desc"]::after {
+    border-top: 6px solid var(--text-1);
+    border-bottom: 0
+}
+
+html.suiteql-v3 #suiteql-result-table td {
+    max-width: 420px;
+    border-right: 1px solid var(--table-border-color);
+    border-bottom: 1px solid var(--table-border-color);
+    padding: 9px 12px;
+    background: var(--row-even-bg-color);
+    line-height: 1.5;
+    vertical-align: top;
+    transition: background-color .1s ease
+}
+
+html.suiteql-v3 #suiteql-result-table td:last-child {
+    border-right: 0
+}
+
+html.suiteql-v3 #suiteql-result-table tbody tr:nth-child(odd) td {
+    background: var(--row-odd-bg-color)
+}
+
+html.suiteql-v3 #suiteql-result-table tbody tr:hover td {
+    background: var(--row-hover-bg-color)
+}
+
+html.suiteql-v3 #suiteql-result-table td > div {
+    min-width: 100%;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap
+}
+
+html.suiteql-v3 #suiteql-result-table td[data-type="number"] {
+    text-align: right
+}
+
+html.suiteql-v3 #suiteql-result-table td:is([data-type="number"], [data-type="null"]) > div {
+    font-family: var(--monospace-font)
+}
+
+html.suiteql-v3 #suiteql-result-table td[data-type="null"] > div {
+    color: var(--text-3);
+    font-style: italic
+}
+
+html.suiteql-v3 #suiteql-empty-state {
+    margin: 0;
+    padding: 64px 20px;
+    color: var(--text-3);
+    font-size: 12.5px;
+    line-height: 1.5;
+    text-align: center
+}
+
+html.suiteql-v3 #suiteql-empty-state::before {
+    content: "SQL";
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    margin: 0 auto 13px;
+    border: 1px solid var(--suiteql-border);
+    border-radius: var(--suiteql-radius-panel);
+    background: var(--suiteql-surface-muted);
+    color: var(--text-2);
+    font-family: var(--monospace-font);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em
+}
+
+html.suiteql-v3 #suiteql-pagination {
+    grid-row: 3;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 14px;
+    min-height: 54px;
+    border-top: 1px solid var(--suiteql-border);
+    padding: 8px 12px;
+    background: var(--suiteql-surface-muted)
+}
+
+html.suiteql-v3 #suiteql-pagination > div {
+    display: flex;
+    gap: 8px
+}
+
+html.suiteql-v3 #suiteql-pagination button {
+    min-height: 34px;
+    padding-block: 6px
+}
+
+html.suiteql-v3 #suiteql-page-status {
+    color: var(--text-2);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+    text-align: center
+}
+
+@media (max-width: 980px) {
+    html.suiteql-v3 #suitemate-suiteql-studio {
+        padding: 18px 16px 22px
+    }
+
+    html.suiteql-v3 .suiteql-studio-header {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 12px;
+        padding-bottom: 16px
+    }
+
+    html.suiteql-v3 .suiteql-studio-header nav {
+        justify-content: flex-start
+    }
+
+    html.suiteql-v3 #suiteql-control-bar {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 9px
+    }
+
+    html.suiteql-v3 #suiteql-buttons {
+        flex-wrap: wrap
+    }
+
+    html.suiteql-v3 #suiteql-stats {
+        margin-left: 0
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html.suiteql-v3 #suitemate-suiteql-studio :is(button, a, input),
+    html.suiteql-v3 #suiteql-editor-panel,
+    html.suiteql-v3 #suiteql-resize-handle::after,
+    html.suiteql-v3 #suiteql-result-table td {
+        transition: none
+    }
+}
