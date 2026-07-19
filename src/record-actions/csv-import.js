@@ -2,9 +2,17 @@
   "use strict";
 
   const core = globalThis.SuiteMateV3RecordActionsCore;
+  const lifecycleApi = globalThis.SuiteMateV3Lifecycle;
   const routeApi = globalThis.SuiteMateV3Routes;
   const settingsApi = globalThis.SuiteMateV3Settings;
-  if (!core || !routeApi || !globalThis.document || !globalThis.location || !globalThis.chrome?.runtime) {
+  if (
+    !core
+    || !lifecycleApi
+    || !routeApi
+    || !globalThis.document
+    || !globalThis.location
+    || !globalThis.chrome?.runtime
+  ) {
     return;
   }
 
@@ -19,7 +27,7 @@
     isTopFrame: topFrame,
     trustedContentScript: true
   });
-  if (!routeApi.supports(routeApi.CAPABILITIES.CSV_IMPORT_TOOLBAR, pageContext)) {
+  if (!pageContext.allowedNetSuite || !topFrame) {
     return;
   }
 
@@ -27,9 +35,7 @@
   const LEGACY_ACTION_SELECTOR = '[data-suitemate-v3-action="csv-import"]';
   const TOP_TOOLBAR_SELECTOR = ".uir-buttons-top.uir-header-buttons";
   const ACTIONS_CELL_SELECTOR = `${TOP_TOOLBAR_SELECTOR} td.uir-button-menu`;
-  let observer = null;
-  let installationPending = false;
-  let active = false;
+  let settingsRevision = 0;
 
   function findActionsCell() {
     return [...document.querySelectorAll(ACTIONS_CELL_SELECTOR)].find((cell) => {
@@ -66,9 +72,8 @@
     return cell;
   }
 
-  async function installCsvImportAction() {
-    installationPending = false;
-    if (!active || !document.querySelector("#main_form")) {
+  async function installCsvImportAction({ signal, isCurrent }) {
+    if (signal.aborted || !isCurrent() || !document.querySelector("#main_form")) {
       return false;
     }
 
@@ -80,12 +85,21 @@
     }
 
     const recordType = await resolveRecordType();
+    if (signal.aborted || !isCurrent()) {
+      return false;
+    }
     const recordSubtype = core.deriveImportSubtype(
       recordType,
       document.querySelector("#subtype")?.value
     );
     const href = core.createCsvImportUrl(recordSubtype, location.origin);
-    if (!href || !actionsCell.isConnected || document.querySelector(ACTION_SELECTOR)) {
+    if (
+      !href
+      || signal.aborted
+      || !isCurrent()
+      || !actionsCell.isConnected
+      || document.querySelector(ACTION_SELECTOR)
+    ) {
       return false;
     }
 
@@ -93,73 +107,58 @@
     return true;
   }
 
-  function scheduleInstallation() {
-    if (!active || installationPending) {
-      return;
-    }
-    installationPending = true;
-    queueMicrotask(() => installCsvImportAction().catch(() => {
-      installationPending = false;
-    }));
-  }
-
   function nodeContainsRelevantToolbar(node) {
     if (node?.nodeType !== Node.ELEMENT_NODE) {
       return false;
     }
-    return node.matches?.(TOP_TOOLBAR_SELECTOR)
+    return node.matches?.("#main_form")
+      || node.matches?.(TOP_TOOLBAR_SELECTOR)
       || node.matches?.(ACTIONS_CELL_SELECTOR)
       || node.matches?.(ACTION_SELECTOR)
-      || Boolean(node.querySelector?.(`${TOP_TOOLBAR_SELECTOR}, ${ACTION_SELECTOR}`));
+      || Boolean(
+        node.querySelector?.(
+          `#main_form, ${TOP_TOOLBAR_SELECTOR}, ${ACTIONS_CELL_SELECTOR}, ${ACTION_SELECTOR}`
+        )
+      );
   }
 
-  function observeToolbarLifecycle() {
-    if (observer) {
-      return;
-    }
-    observer = new MutationObserver((mutations) => {
-      if (mutations.some((mutation) =>
-        [...mutation.addedNodes, ...mutation.removedNodes].some(nodeContainsRelevantToolbar))) {
-        scheduleInstallation();
-      }
-    });
-    observer.observe(document.documentElement, { childList: true, subtree: true });
+  function containsRelevantMutation(mutations) {
+    return mutations.some((mutation) =>
+      [...mutation.addedNodes, ...mutation.removedNodes].some(nodeContainsRelevantToolbar));
   }
 
-  function activate() {
-    if (!document.querySelector("#main_form")) {
-      return;
-    }
-    if (active) {
-      scheduleInstallation();
-      return;
-    }
-    active = true;
-    observeToolbarLifecycle();
-    scheduleInstallation();
-  }
-
-  function deactivate() {
-    active = false;
-    observer?.disconnect();
-    observer = null;
+  function removeCsvImportAction() {
     document.querySelectorAll(`${ACTION_SELECTOR}, ${LEGACY_ACTION_SELECTOR}`).forEach((item) => item.remove());
   }
 
+  const lifecycleHandle = lifecycleApi.register({
+    id: "record.csv-import-toolbar",
+    replace: true,
+    capability: routeApi.CAPABILITIES.CSV_IMPORT_TOOLBAR,
+    startPaused: true,
+    observe: {
+      childList: true,
+      subtree: true
+    },
+    relevant: containsRelevantMutation,
+    evaluate: installCsvImportAction,
+    cleanup: removeCsvImportAction
+  });
+
   async function start() {
+    const revision = settingsRevision;
     try {
       const settings = settingsApi?.get ? await settingsApi.get() : { enabled: true };
-      if (settings?.enabled === false) {
+      if (revision !== settingsRevision) {
         return;
       }
+      if (settings?.enabled === false) {
+        lifecycleHandle.pause("settings-disabled");
+      } else {
+        lifecycleHandle.resume("settings-enabled");
+      }
     } catch {
-      return;
-    }
-
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", activate, { once: true });
-    } else {
-      activate();
+      lifecycleHandle.pause("settings-failed");
     }
   }
 
@@ -168,14 +167,15 @@
     if (areaName !== "sync" || !settingsChange) {
       return;
     }
+    settingsRevision += 1;
     try {
       if (settingsApi.normalize(settingsChange.newValue).enabled) {
-        activate();
+        lifecycleHandle.resume("settings-enabled");
       } else {
-        deactivate();
+        lifecycleHandle.pause("settings-disabled");
       }
     } catch {
-      deactivate();
+      lifecycleHandle.pause("settings-failed");
     }
   });
 
