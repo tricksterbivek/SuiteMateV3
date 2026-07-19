@@ -2,6 +2,51 @@
 
 This file records verified development baselines. New feature work must not begin until the preceding checkpoint has passed automated tests, live NetSuite verification, pull request review and release publication.
 
+## v3.4.0: Route Capability Registry
+
+Status: Verified
+
+Date: 2026-07-19
+
+Pull request: <https://github.com/tricksterbivek/SuiteMateV3/pull/7>
+
+Release: <https://github.com/tricksterbivek/SuiteMateV3/releases/tag/v3.4.0>
+
+### Included
+
+- Adds one immutable registry for NetSuite host, route, frame and capability decisions.
+- Migrates theme, notification, CSV Import, Import Assistant, SuiteQL Console, popup and service worker route checks to the shared policy.
+- Restricts privileged bridges to allowed account hosts, exact routes and top-frame senders.
+- Excludes known non-record tools and result routes from the CSV Import toolbar while preserving standard, custom and uncommon record-page support.
+- Adds document route metadata for live diagnostics.
+- Keeps observer registration and lifecycle behavior unchanged for the separate `FND-02` checkpoint.
+
+### Verification
+
+- Full `npm test` regression suite.
+- Twelve focused route, host, environment, frame, capability and sender tests.
+- Twenty-three focused route and settings tests passed in total.
+- Existing V1 styling hash, role-theme, CSV Import and SuiteQL Console checks.
+- Authenticated NetSuite checks after reloading the extension.
+- Confirmed correct isolation on Import Assistant, SuiteQL Console, Purchase Order, Global Search and Saved Search results.
+- Confirmed Import Assistant does not advertise or render the CSV Import toolbar capability.
+
+### Restore
+
+```bash
+git switch --detach v3.4.0
+```
+
+To resume normal development after inspecting the checkpoint:
+
+```bash
+git switch main
+```
+
+### Next feature
+
+`FND-02`: Observer Lifecycle
+
 ## v3.3.0: Versioned Settings Schema
 
 Status: Verified
