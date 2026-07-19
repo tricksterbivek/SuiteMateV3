@@ -1,0 +1,41 @@
+html:not(.ext-f) .suitemate-v3-csv-import-cell {
+    padding-left: 6px !important;
+    vertical-align: top
+}
+
+html:not(.ext-f) .suitemate-v3-csv-import-button {
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+    min-height: 30px;
+    padding: 0 11px;
+    border: 1px solid color-mix(in srgb, var(--theme-main) 38%, var(--field-border-color));
+    border-radius: var(--suitemate-radius-compact, 4px);
+    background: linear-gradient(to bottom, var(--theme-secondary-light-light), var(--theme-secondary-light));
+    box-shadow: 0 1px 2px rgb(0 0 0 / .12);
+    color: light-dark(var(--theme-main-dark), var(--dark-text-1)) !important;
+    font-family: var(--normal-font);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 28px;
+    text-decoration: none !important;
+    white-space: nowrap;
+    transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease
+}
+
+html:not(.ext-f) .suitemate-v3-csv-import-button:hover {
+    border-color: var(--theme-main);
+    background: var(--theme-secondary-light-light);
+    box-shadow: 0 1px 3px rgb(0 0 0 / .2);
+    color: light-dark(var(--theme-main-dark), var(--dark-text-0)) !important
+}
+
+html:not(.ext-f) .suitemate-v3-csv-import-button:focus-visible {
+    outline: 2px solid var(--theme-main);
+    outline-offset: 2px
+}
+
+html:not(.ext-f) .suitemate-v3-csv-import-button:active {
+    box-shadow: inset 0 1px 2px rgb(0 0 0 / .18);
+    translate: 0 1px
+}

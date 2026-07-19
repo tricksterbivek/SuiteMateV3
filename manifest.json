@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "SuiteMate V3",
   "short_name": "SuiteMate V3",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "Restores the SuiteMate V1 NetSuite UI and adds focused developer tools.",
   "icons": {
     "16": "icons/16.png",
@@ -43,14 +43,33 @@
         "src/styles/code.css",
         "src/styles/netsuite.css",
         "src/styles/radii.css",
-        "src/styles/v3-compat.css"
+        "src/styles/v3-compat.css",
+        "src/record-actions/csv-import.css"
       ],
       "js": [
         "src/shared/settings.js",
-        "src/runtime/theme-runtime.js"
+        "src/runtime/theme-runtime.js",
+        "src/runtime/notification-runtime.js",
+        "src/record-actions/core.js",
+        "src/record-actions/csv-import.js"
       ],
       "run_at": "document_start",
       "all_frames": true
+    },
+    {
+      "matches": [
+        "https://*.netsuite.com/app/setup/assistants/nsimport/importassistant.nl",
+        "https://*.netsuite.com/app/setup/assistants/nsimport/importassistant.nl?*"
+      ],
+      "exclude_matches": [
+        "https://www.netsuite.com/*",
+        "https://*.extforms.netsuite.com/*"
+      ],
+      "js": [
+        "src/import-assistant/core.js",
+        "src/import-assistant/context-runtime.js"
+      ],
+      "run_at": "document_idle"
     },
     {
       "matches": [

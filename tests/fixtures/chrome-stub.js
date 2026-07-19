@@ -5,6 +5,7 @@
   const messageListeners = new Set();
   const previewMessages = [];
   const suiteqlMessages = [];
+  const importAssistantMessages = [];
   const params = new URLSearchParams(location.search);
   let settings = {
     enabled: params.get("enabled") !== "false",
@@ -37,6 +38,36 @@
   }
 
   async function handleSuiteQLMessage(message) {
+    if (message.type === "SUITEMATE_V3_IMPORT_ASSISTANT_SET_VALUES") {
+      importAssistantMessages.push(JSON.parse(JSON.stringify(message)));
+      for (const [fieldId, value] of Object.entries(message.values ?? {})) {
+        const field = document.querySelector(`[name="${fieldId}"]`);
+        if (field) {
+          field.value = value;
+        }
+      }
+      if (message.values?.recordtype === "TRANSACTION") {
+        const options = document.querySelector('[data-name="recordsubtype"]');
+        if (options) {
+          options.dataset.options = JSON.stringify([
+            { value: "SALESORDER", text: "Sales Order" },
+            { value: "PURCHASEORDER", text: "Purchase Order" }
+          ]);
+        }
+        const visible = document.querySelector('[name="inpt_recordtype"]');
+        if (visible) {
+          visible.value = "Transactions";
+        }
+      }
+      if (message.values?.recordsubtype === "SALESORDER") {
+        const visible = document.querySelector('[name="inpt_recordsubtype"]');
+        if (visible) {
+          visible.value = "Sales Order";
+        }
+      }
+      return { ok: true, applied: Object.keys(message.values ?? {}) };
+    }
+
     suiteqlMessages.push(JSON.parse(JSON.stringify(message)));
     document.documentElement.dataset.suiteqlMessageCount = String(suiteqlMessages.length);
     document.documentElement.dataset.suiteqlLastType = message.type ?? "";
@@ -192,6 +223,7 @@
     },
     previewMessages,
     suiteqlMessages,
+    importAssistantMessages,
     dispatchRuntimeMessage(message) {
       let response;
       for (const listener of messageListeners) {
