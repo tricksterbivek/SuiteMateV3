@@ -1,4 +1,5 @@
 importScripts(chrome.runtime.getURL("src/shared/routes.js"));
+importScripts(chrome.runtime.getURL("src/shared/bridge.js"));
 importScripts(chrome.runtime.getURL("src/suiteql/core.js"));
 importScripts(chrome.runtime.getURL("src/record-actions/core.js"));
 importScripts(chrome.runtime.getURL("src/import-assistant/core.js"));
@@ -7,39 +8,23 @@ importScripts(chrome.runtime.getURL("src/import-assistant/core.js"));
   "use strict";
 
   const core = globalThis.SuiteMateV3SuiteQLCore;
+  const bridgeApi = globalThis.SuiteMateV3Bridge;
   const recordActionsCore = globalThis.SuiteMateV3RecordActionsCore;
   const importAssistantCore = globalThis.SuiteMateV3ImportAssistantCore;
-  const { MESSAGE_TYPES } = core;
-
-  function bridgeError(requestId, value) {
-    return {
-      ok: false,
-      requestId,
-      error: core.normalizeError(value)
-    };
-  }
-
-  function validateSender(sender) {
-    return core.isAllowedStudioSender(sender);
-  }
-
-  function validateRequest(message, sender) {
-    if (!validateSender(sender)) {
-      return bridgeError(message?.requestId, {
-        code: "INVALID_SENDER",
-        message: "SuiteQL requests are accepted only from SuiteQL Console in the active NetSuite page."
-      });
-    }
-    if (typeof message?.requestId !== "string" || !message.requestId.trim()) {
-      return bridgeError(message?.requestId, {
-        code: "INVALID_REQUEST_ID",
-        message: "SuiteQL request ID is missing."
-      });
-    }
-    return null;
-  }
+  const { COMMANDS } = bridgeApi;
 
   async function executeSuiteQLBridgeInMainWorld(payload) {
+    if (window.location?.href !== payload.expectedUrl) {
+      return {
+        ok: false,
+        requestId: payload.requestId,
+        error: {
+          code: "INVALID_MAIN_WORLD_DOCUMENT",
+          message: "NetSuite page changed before the SuiteQL command could run."
+        }
+      };
+    }
+
     const BRIDGE_PATH = "/app/common/scripting/PlatformClientScriptHandler.nl";
     const stateKey = Symbol.for("suitemate.v3.suiteql.bridge");
     const state = window[stateKey] ??= {
@@ -331,9 +316,15 @@ importScripts(chrome.runtime.getURL("src/import-assistant/core.js"));
     }
   }
 
-  async function executeInMainWorld(tabId, func, payload) {
+  async function executeInMainWorld(senderContext, func, payload) {
+    const target = { tabId: senderContext.tabId };
+    if (senderContext.documentId) {
+      target.documentIds = [senderContext.documentId];
+    } else {
+      target.frameIds = [0];
+    }
     const [{ result } = {}] = await chrome.scripting.executeScript({
-      target: { tabId, frameIds: [0] },
+      target,
       world: "MAIN",
       func,
       args: payload === undefined ? [] : [payload]
@@ -341,21 +332,77 @@ importScripts(chrome.runtime.getURL("src/import-assistant/core.js"));
     return result;
   }
 
-  function readMainWorldRecordType() {
+  function readMainWorldRecordType(payload) {
+    if (window.location?.href !== payload.expectedUrl) {
+      return {
+        ok: false,
+        error: {
+          code: "INVALID_MAIN_WORLD_DOCUMENT",
+          message: "NetSuite page changed before the record type command could run."
+        }
+      };
+    }
     try {
-      return typeof window.nlapiGetRecordType === "function"
-        ? window.nlapiGetRecordType()
-        : null;
-    } catch {
-      return null;
+      return {
+        ok: true,
+        recordType: typeof window.nlapiGetRecordType === "function"
+          ? window.nlapiGetRecordType()
+          : null
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error: {
+          code: "RECORD_TYPE_UNAVAILABLE",
+          message: String(error?.message || "NetSuite record type is unavailable.")
+        }
+      };
     }
   }
 
-  function setImportAssistantValuesInMainWorld(values) {
+  function cancelImportAssistantValuesInMainWorld(payload) {
+    if (window.location?.href !== payload.expectedUrl) {
+      return { canceled: false };
+    }
+    const stateKey = Symbol.for("suitemate.v3.import-assistant.bridge");
+    const state = window[stateKey] ??= { canceled: new Set() };
+    state.canceled.add(payload.requestId);
+    return { canceled: true };
+  }
+
+  function setImportAssistantValuesInMainWorld(payload) {
     return new Promise((resolve) => {
+      const stateKey = Symbol.for("suitemate.v3.import-assistant.bridge");
+      const state = window[stateKey] ??= { canceled: new Set() };
+      const finish = (result) => {
+        state.canceled.delete(payload.requestId);
+        resolve(result);
+      };
+      const canceledResult = () => ({
+        ok: false,
+        error: {
+          code: "ABORTED",
+          message: "Import Assistant update was stopped."
+        }
+      });
+      if (window.location?.href !== payload.expectedUrl) {
+        finish({
+          ok: false,
+          error: {
+            code: "INVALID_MAIN_WORLD_DOCUMENT",
+            message: "NetSuite page changed before the Import Assistant command could run."
+          }
+        });
+        return;
+      }
+      if (state.canceled.has(payload.requestId)) {
+        finish(canceledResult());
+        return;
+      }
+
       const amdRequire = window.require;
       if (typeof amdRequire !== "function") {
-        resolve({
+        finish({
           ok: false,
           error: { code: "NETSUITE_MODULE_LOADER_UNAVAILABLE", message: "NetSuite's module loader is unavailable." }
         });
@@ -364,9 +411,13 @@ importScripts(chrome.runtime.getURL("src/import-assistant/core.js"));
 
       amdRequire(["N/currentRecord"], (currentRecord) => {
         try {
+          if (state.canceled.has(payload.requestId)) {
+            finish(canceledResult());
+            return;
+          }
           const record = currentRecord.get();
-          const applied = [];
-          for (const [fieldId, value] of Object.entries(values)) {
+          const entries = Object.entries(payload.values);
+          for (const [fieldId] of entries) {
             let field;
             try {
               field = record.getField({ fieldId });
@@ -374,9 +425,23 @@ importScripts(chrome.runtime.getURL("src/import-assistant/core.js"));
               field = record.getField(fieldId);
             }
             if (!field) {
-              continue;
+              finish({
+                ok: false,
+                error: {
+                  code: "IMPORT_FIELD_UNAVAILABLE",
+                  message: `Import Assistant field is unavailable: ${fieldId}.`
+                }
+              });
+              return;
             }
+          }
 
+          if (state.canceled.has(payload.requestId)) {
+            finish(canceledResult());
+            return;
+          }
+          const applied = [];
+          for (const [fieldId, value] of entries) {
             try {
               record.setValue({
                 fieldId,
@@ -389,9 +454,9 @@ importScripts(chrome.runtime.getURL("src/import-assistant/core.js"));
             }
             applied.push(fieldId);
           }
-          resolve({ ok: true, applied });
+          finish({ ok: true, applied });
         } catch (error) {
-          resolve({
+          finish({
             ok: false,
             error: {
               code: String(error?.name || error?.code || "IMPORT_CONTEXT_ERROR"),
@@ -400,7 +465,7 @@ importScripts(chrome.runtime.getURL("src/import-assistant/core.js"));
           });
         }
       }, (error) => {
-        resolve({
+        finish({
           ok: false,
           error: {
             code: "CURRENT_RECORD_UNAVAILABLE",
@@ -411,142 +476,207 @@ importScripts(chrome.runtime.getURL("src/import-assistant/core.js"));
     });
   }
 
-  async function handleRecordTypeRequest(_message, sender) {
-    if (!recordActionsCore.isAllowedRecordSender(sender)) {
-      return { ok: false, recordType: null, error: "INVALID_SENDER" };
-    }
-
+  async function handleRecordTypeRequest(request) {
     try {
-      const recordType = await executeInMainWorld(sender.tab.id, readMainWorldRecordType);
+      const result = await executeInMainWorld(
+        request.senderContext,
+        readMainWorldRecordType,
+        { expectedUrl: request.senderContext.href }
+      );
+      if (result?.ok !== true) {
+        throw result?.error || {
+          code: "RECORD_TYPE_UNAVAILABLE",
+          message: "NetSuite record type is unavailable."
+        };
+      }
       return {
-        ok: true,
-        recordType: recordActionsCore.normalizeRecordType(recordType)
+        recordType: recordActionsCore.normalizeRecordType(result.recordType)
       };
-    } catch {
-      return { ok: false, recordType: null, error: "RECORD_TYPE_UNAVAILABLE" };
-    }
-  }
-
-  async function handleImportAssistantSetValues(message, sender) {
-    if (!importAssistantCore.isAllowedImportAssistantSender(sender)) {
-      return {
-        ok: false,
-        error: { code: "INVALID_SENDER", message: "CSV Import context can only be set from Import Assistant." }
-      };
-    }
-
-    const values = importAssistantCore.normalizeFieldValues(message?.values);
-    if (!Object.keys(values).length) {
-      return {
-        ok: false,
-        error: { code: "INVALID_IMPORT_VALUES", message: "No supported CSV Import values were provided." }
-      };
-    }
-
-    try {
-      return await executeInMainWorld(sender.tab.id, setImportAssistantValuesInMainWorld, values);
     } catch (error) {
-      return {
-        ok: false,
-        error: {
-          code: String(error?.name || "IMPORT_CONTEXT_ERROR"),
-          message: String(error?.message || error || "CSV Import context could not be applied.")
-        }
+      throw {
+        code: String(error?.code || "RECORD_TYPE_UNAVAILABLE"),
+        message: String(error?.message || "NetSuite record type is unavailable.")
       };
     }
   }
 
-  async function handleStart(message, sender) {
-    const invalid = validateRequest(message, sender);
-    if (invalid) {
-      return invalid;
+  async function handleImportAssistantSetValues(request) {
+    const values = importAssistantCore.normalizeFieldValues(request.payload.values);
+    if (!Object.keys(values).length) {
+      throw {
+        code: "INVALID_IMPORT_VALUES",
+        message: "No supported CSV Import values were provided."
+      };
     }
 
-    const validation = core.validateQuery(message.query);
+    try {
+      const cancellationPayload = {
+        requestId: request.requestId,
+        expectedUrl: request.senderContext.href
+      };
+      const cancelMainWorld = () => {
+        void executeInMainWorld(
+          request.senderContext,
+          cancelImportAssistantValuesInMainWorld,
+          cancellationPayload
+        ).catch(() => {});
+      };
+      request.signal.addEventListener("abort", cancelMainWorld, { once: true });
+      let result;
+      try {
+        if (request.signal.aborted) {
+          throw { code: "ABORTED", message: "Import Assistant update was stopped." };
+        }
+        result = await executeInMainWorld(
+          request.senderContext,
+          setImportAssistantValuesInMainWorld,
+          {
+            ...cancellationPayload,
+            values
+          }
+        );
+      } finally {
+        request.signal.removeEventListener("abort", cancelMainWorld);
+      }
+      if (result?.ok !== true) {
+        throw result?.error || {
+          code: "IMPORT_CONTEXT_ERROR",
+          message: "CSV Import context could not be applied."
+        };
+      }
+      const applied = Array.isArray(result.applied) ? result.applied.map(String) : [];
+      const requestedFields = Object.keys(values);
+      if (
+        applied.length !== requestedFields.length
+        || requestedFields.some((fieldId) => !applied.includes(fieldId))
+      ) {
+        throw {
+          code: "IMPORT_CONTEXT_PARTIAL_APPLY",
+          message: "NetSuite did not apply every requested Import Assistant field."
+        };
+      }
+      return {
+        applied
+      };
+    } catch (error) {
+      throw {
+        code: String(error?.code || error?.name || "IMPORT_CONTEXT_ERROR"),
+        message: String(error?.message || error || "CSV Import context could not be applied."),
+        details: String(error?.details || "")
+      };
+    }
+  }
+
+  function readSuiteQLMainWorldResult(result, requestId) {
+    if (result?.requestId !== requestId) {
+      throw {
+        code: "SUITEQL_RESPONSE_MISMATCH",
+        message: "NetSuite returned SuiteQL data for another request."
+      };
+    }
+    if (result?.ok !== true) {
+      throw result?.error || {
+        code: "SUITEQL_ERROR",
+        message: "SuiteQL execution failed."
+      };
+    }
+    const { ok: _ok, requestId: _requestId, ...data } = result;
+    return data;
+  }
+
+  async function executeSuiteQLCommand(request, payload) {
+    const disposePayload = {
+      action: "dispose",
+      requestId: request.requestId,
+      expectedUrl: request.senderContext.href
+    };
+    const cancelMainWorld = () => {
+      void executeInMainWorld(
+        request.senderContext,
+        executeSuiteQLBridgeInMainWorld,
+        disposePayload
+      ).catch(() => {});
+    };
+    request.signal.addEventListener("abort", cancelMainWorld, { once: true });
+    try {
+      if (request.signal.aborted) {
+        throw { code: "ABORTED", message: "SuiteQL execution was stopped." };
+      }
+      const result = await executeInMainWorld(
+        request.senderContext,
+        executeSuiteQLBridgeInMainWorld,
+        {
+          ...payload,
+          expectedUrl: request.senderContext.href
+        }
+      );
+      return readSuiteQLMainWorldResult(result, request.requestId);
+    } finally {
+      request.signal.removeEventListener("abort", cancelMainWorld);
+    }
+  }
+
+  async function handleStart(request) {
+    const validation = core.validateQuery(request.payload.query);
     if (!validation.valid) {
-      return bridgeError(message.requestId, { code: validation.code, message: validation.message });
+      throw { code: validation.code, message: validation.message };
     }
 
     const payload = {
-      requestId: message.requestId,
+      requestId: request.requestId,
       query: validation.query,
-      paged: message.paged === true,
+      paged: request.payload.paged === true,
       pageSize: core.NETSUITE_PAGE_SIZE
     };
 
-    try {
-      return await executeInMainWorld(sender.tab.id, executeSuiteQLBridgeInMainWorld, {
-        ...payload,
-        action: "start"
-      });
-    } catch (error) {
-      return bridgeError(message.requestId, error);
-    }
+    return executeSuiteQLCommand(request, {
+      ...payload,
+      action: "start"
+    });
   }
 
-  async function handlePage(message, sender) {
-    const invalid = validateRequest(message, sender);
-    if (invalid) {
-      return invalid;
-    }
-    if (!Number.isInteger(message.pageIndex) || message.pageIndex < 0) {
-      return bridgeError(message.requestId, {
-        code: "INVALID_PAGE",
-        message: "SuiteQL page index is invalid."
-      });
-    }
-
-    try {
-      return await executeInMainWorld(sender.tab.id, executeSuiteQLBridgeInMainWorld, {
-        action: "page",
-        requestId: message.requestId,
-        pageIndex: message.pageIndex,
-        pageSize: core.NETSUITE_PAGE_SIZE
-      });
-    } catch (error) {
-      return bridgeError(message.requestId, error);
-    }
+  async function handlePage(request) {
+    return executeSuiteQLCommand(request, {
+      action: "page",
+      requestId: request.requestId,
+      pageIndex: request.payload.pageIndex,
+      pageSize: core.NETSUITE_PAGE_SIZE
+    });
   }
 
-  async function handleDispose(message, sender) {
-    const invalid = validateRequest(message, sender);
-    if (invalid) {
-      return invalid;
-    }
-
-    try {
-      return await executeInMainWorld(sender.tab.id, executeSuiteQLBridgeInMainWorld, {
+  async function handleDispose(request) {
+    const result = await executeInMainWorld(
+      request.senderContext,
+      executeSuiteQLBridgeInMainWorld,
+      {
         action: "dispose",
-        requestId: message.requestId
-      });
-    } catch (error) {
-      return bridgeError(message.requestId, error);
-    }
+        requestId: request.requestId,
+        expectedUrl: request.senderContext.href
+      }
+    );
+    return readSuiteQLMainWorldResult(result, request.requestId);
   }
+
+  const dispatcher = bridgeApi.createDispatcher({
+    [COMMANDS.SUITEQL_START]: handleStart,
+    [COMMANDS.SUITEQL_PAGE]: handlePage,
+    [COMMANDS.SUITEQL_DISPOSE]: handleDispose,
+    [COMMANDS.RECORD_GET_TYPE]: handleRecordTypeRequest,
+    [COMMANDS.IMPORT_ASSISTANT_SET_VALUES]: handleImportAssistantSetValues
+  });
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    let responsePromise;
-    switch (message?.type) {
-      case MESSAGE_TYPES.START:
-        responsePromise = handleStart(message, sender);
-        break;
-      case MESSAGE_TYPES.PAGE:
-        responsePromise = handlePage(message, sender);
-        break;
-      case MESSAGE_TYPES.DISPOSE:
-        responsePromise = handleDispose(message, sender);
-        break;
-      case recordActionsCore.RECORD_TYPE_MESSAGE:
-        responsePromise = handleRecordTypeRequest(message, sender);
-        break;
-      case importAssistantCore.SET_VALUES_MESSAGE:
-        responsePromise = handleImportAssistantSetValues(message, sender);
-        break;
-      default:
-        return undefined;
+    if (!bridgeApi.isBridgeMessage(message)) {
+      return undefined;
     }
 
-    responsePromise.then(sendResponse).catch((error) => sendResponse(bridgeError(message?.requestId, error)));
+    dispatcher.dispatch(message, sender).then(sendResponse).catch((error) => {
+      sendResponse(bridgeApi.createErrorResponse(
+        message?.requestId,
+        message?.command,
+        error
+      ));
+    });
     return true;
   });
 })();

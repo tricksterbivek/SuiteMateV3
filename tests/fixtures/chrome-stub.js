@@ -37,16 +37,42 @@
     });
   }
 
+  function bridgeResponse(message, data) {
+    return {
+      type: "SUITEMATE_V3_NETSUITE_BRIDGE_RESPONSE",
+      version: 1,
+      ok: true,
+      requestId: message.requestId,
+      command: message.command,
+      data
+    };
+  }
+
+  function bridgeError(message, error) {
+    return {
+      type: "SUITEMATE_V3_NETSUITE_BRIDGE_RESPONSE",
+      version: 1,
+      ok: false,
+      requestId: message.requestId,
+      command: message.command,
+      error
+    };
+  }
+
   async function handleSuiteQLMessage(message) {
-    if (message.type === "SUITEMATE_V3_IMPORT_ASSISTANT_SET_VALUES") {
+    if (message.type !== "SUITEMATE_V3_NETSUITE_BRIDGE") {
+      return undefined;
+    }
+
+    if (message.command === "importAssistant.setValues") {
       importAssistantMessages.push(JSON.parse(JSON.stringify(message)));
-      for (const [fieldId, value] of Object.entries(message.values ?? {})) {
+      for (const [fieldId, value] of Object.entries(message.payload?.values ?? {})) {
         const field = document.querySelector(`[name="${fieldId}"]`);
         if (field) {
           field.value = value;
         }
       }
-      if (message.values?.recordtype === "TRANSACTION") {
+      if (message.payload?.values?.recordtype === "TRANSACTION") {
         const options = document.querySelector('[data-name="recordsubtype"]');
         if (options) {
           options.dataset.options = JSON.stringify([
@@ -59,55 +85,64 @@
           visible.value = "Transactions";
         }
       }
-      if (message.values?.recordsubtype === "SALESORDER") {
+      if (message.payload?.values?.recordsubtype === "SALESORDER") {
         const visible = document.querySelector('[name="inpt_recordsubtype"]');
         if (visible) {
           visible.value = "Sales Order";
         }
       }
-      return { ok: true, applied: Object.keys(message.values ?? {}) };
+      return bridgeResponse(message, {
+        applied: Object.keys(message.payload?.values ?? {})
+      });
+    }
+
+    if (message.command === "record.getType") {
+      return bridgeResponse(message, { recordType: "salesorder" });
+    }
+
+    if (message.command === "bridge.cancel") {
+      return bridgeResponse(message, { canceled: true });
     }
 
     suiteqlMessages.push(JSON.parse(JSON.stringify(message)));
     document.documentElement.dataset.suiteqlMessageCount = String(suiteqlMessages.length);
-    document.documentElement.dataset.suiteqlLastType = message.type ?? "";
-    document.documentElement.dataset.suiteqlLastQuery = message.query ?? "";
+    document.documentElement.dataset.suiteqlLastType = message.command ?? "";
+    document.documentElement.dataset.suiteqlLastQuery = message.payload?.query ?? "";
 
-    if (message.type === "SUITEMATE_V3_SUITEQL_DISPOSE") {
-      return { ok: true, requestId: message.requestId, disposed: true };
+    if (message.command === "suiteql.dispose") {
+      return bridgeResponse(message, { disposed: true });
     }
-    if (message.type === "SUITEMATE_V3_SUITEQL_START") {
-      if (/slow_query/i.test(message.query ?? "")) {
+    if (message.command === "suiteql.start") {
+      if (/slow_query/i.test(message.payload?.query ?? "")) {
         await new Promise((resolve) => setTimeout(resolve, 2500));
       }
-      if (/invalid_field/i.test(message.query ?? "")) {
-        return {
-          ok: false,
-          requestId: message.requestId,
-          error: { code: "SSS_SEARCH_ERROR_OCCURRED", message: "Field 'invalid_field' was not found.", details: "" }
-        };
+      if (/invalid_field/i.test(message.payload?.query ?? "")) {
+        return bridgeError(message, {
+          code: "SSS_SEARCH_ERROR_OCCURRED",
+          message: "Field 'invalid_field' was not found.",
+          details: ""
+        });
       }
-      if (/empty_result/i.test(message.query ?? "")) {
-        return {
-          ok: true,
-          requestId: message.requestId,
+      if (/empty_result/i.test(message.payload?.query ?? "")) {
+        return bridgeResponse(message, {
           columns: [],
           rows: [],
           elapsedMs: 8,
-          paged: message.paged === true,
+          paged: message.payload?.paged === true,
           pageIndex: 0,
-          pageSize: message.paged ? 1000 : 0,
+          pageSize: message.payload?.paged ? 1000 : 0,
           loadedCount: 0,
           totalCount: 0,
           totalPages: 0
-        };
+        });
       }
 
-      const paged = message.paged === true;
-      const rows = suiteqlRows(0, paged ? 1000 : /five_thousand/i.test(message.query ?? "") ? 5000 : 12);
-      return {
-        ok: true,
-        requestId: message.requestId,
+      const paged = message.payload?.paged === true;
+      const rows = suiteqlRows(
+        0,
+        paged ? 1000 : /five_thousand/i.test(message.payload?.query ?? "") ? 5000 : 12
+      );
+      return bridgeResponse(message, {
         columns: ["id", "scriptid", "description"],
         rows,
         elapsedMs: paged ? 42 : 16,
@@ -117,24 +152,22 @@
         loadedCount: rows.length,
         totalCount: paged ? 2250 : rows.length,
         totalPages: paged ? 3 : 1
-      };
+      });
     }
-    if (message.type === "SUITEMATE_V3_SUITEQL_PAGE") {
-      const start = message.pageIndex * 1000;
-      const count = message.pageIndex === 2 ? 250 : 1000;
-      return {
-        ok: true,
-        requestId: message.requestId,
+    if (message.command === "suiteql.page") {
+      const start = message.payload.pageIndex * 1000;
+      const count = message.payload.pageIndex === 2 ? 250 : 1000;
+      return bridgeResponse(message, {
         columns: ["id", "scriptid", "description"],
         rows: suiteqlRows(start, count),
         elapsedMs: 21,
         paged: true,
-        pageIndex: message.pageIndex,
+        pageIndex: message.payload.pageIndex,
         pageSize: 1000,
-        loadedCount: Math.min((message.pageIndex + 1) * 1000, 2250),
+        loadedCount: Math.min((message.payload.pageIndex + 1) * 1000, 2250),
         totalCount: 2250,
         totalPages: 3
-      };
+      });
     }
     return undefined;
   }

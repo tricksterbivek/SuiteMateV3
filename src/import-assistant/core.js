@@ -3,7 +3,6 @@
 
   const routeApi = global.SuiteMateV3Routes;
   const IMPORT_ASSISTANT_PATH = routeApi.PATHS.IMPORT_ASSISTANT;
-  const SET_VALUES_MESSAGE = "SUITEMATE_V3_IMPORT_ASSISTANT_SET_VALUES";
   const ALLOWED_FIELDS = Object.freeze(["charencoding", "recordtype", "recordsubtype"]);
   const CATEGORY_RECORD_TYPES = Object.freeze({
     ACCOUNTING: Object.freeze([
@@ -144,13 +143,8 @@
     return routeApi.isAllowedNetSuiteUrl(value);
   }
 
-  function isAllowedImportAssistantSender(sender) {
-    return routeApi.isAllowedSender(sender, routeApi.CAPABILITIES.IMPORT_ASSISTANT_BRIDGE);
-  }
-
   global.SuiteMateV3ImportAssistantCore = Object.freeze({
     IMPORT_ASSISTANT_PATH,
-    SET_VALUES_MESSAGE,
     ALLOWED_FIELDS,
     CATEGORY_RECORD_TYPES,
     normalizeImportValue,
@@ -158,6 +152,5 @@
     parseOptionsData,
     responseContainsSubtype,
     normalizeFieldValues,
-    isAllowedImportAssistantSender
   });
 })(globalThis);

@@ -3,7 +3,7 @@
 Status: Master backlog for SuiteMate V3 feature planning
 Source boundary: `/Users/Bivek.Shah/Documents/suitemate/suitematev1` only
 Audit date: 2026-07-13
-Backlog refresh: 2026-07-14
+Backlog refresh: 2026-07-20
 Coverage: 44 recovered files, 28,232 source lines and 87 route cases
 
 ## Purpose
@@ -22,6 +22,7 @@ This is the canonical inventory for selecting the next SuiteMate V3 features. It
 - `FND-01`: Immutable route capability registry with shared host, route, frame, environment and privileged sender policies.
 - `FND-02`: Shared observer lifecycle with deduplicated registration, one native observer, capability gating, bounded waits, deterministic cleanup and stale-generation protection.
 - `FND-03`: Versioned settings schema with legacy migration, typed compatibility errors, Chrome sync quota protection and safe failure handling.
+- `FND-04`: General typed NetSuite bridge with one versioned command registry, command-specific schemas, route and document authority, response identity checks, timeouts, cancellation and duplicate-request protection.
 - `SQL-01`, `SQL-02`, `SQL-03`, `SQL-13` and `SQL-14`: SuiteQL Console shell, execution, progressive paging, abort handling, safe result rendering, sorting, client pagination, hidden table inspection support, selection execution and persistent resizing.
 - Core portions of `SQL-05` and `SQL-06`: loaded-row CSV export, Clear Results, Execute, Abort, Paged toggle and their current keyboard shortcuts.
 - Per-tab SuiteQL draft and Paged-mode persistence, 5,000-row warnings, SuiteSense promotion and popup launch into the active NetSuite account.
@@ -62,29 +63,27 @@ Priority:
 
 ## Recommended implementation order
 
-1. Typed runtime foundation and versioned settings schema.
-2. Settings backup, import, reset and migration.
-3. IDs toolkit.
-4. Automatic script ID generation.
-5. Enhanced Field Help.
-6. General sublist productivity controls.
-7. JSON and XML formatting.
-8. View XML, Copy Generic URL and Copy Menu Path.
-9. Global Shortcuts.
-10. Small Saved Search editing helpers.
-11. Record Inspector.
-12. Context menu actions.
-13. Dashboard and execution-log monitoring.
-14. Saved Search Split View.
-15. File Cabinet tools.
-16. Script execution and runtime tooling.
-17. Role permission administration.
+1. Settings backup, import, reset and migration.
+2. IDs toolkit.
+3. Automatic script ID generation.
+4. Enhanced Field Help.
+5. General sublist productivity controls.
+6. JSON and XML formatting.
+7. View XML, Copy Generic URL and Copy Menu Path.
+8. Global Shortcuts.
+9. Small Saved Search editing helpers.
+10. Record Inspector.
+11. Context menu actions.
+12. Dashboard and execution-log monitoring.
+13. Saved Search Split View.
+14. File Cabinet tools.
+15. Script execution and runtime tooling.
+16. Role permission administration.
 
 ## 1. Required V3 foundation
 
 | ID | Feature | Description | Complexity | Dependencies | Migration | Priority |
 |---|---|---|---:|---|---|---:|
-| FND-04 | General typed NetSuite bridge | Expands the narrow SuiteQL message bridge into reusable allowlisted commands for other NetSuite APIs. | L | Chrome scripting, message schemas | Adapt | P0 |
 | FND-05 | General query and fetch adapter | Extends the existing SuiteQL adapter to Saved Search, record metadata and authenticated requests. | L | NetSuite private APIs, cancellation | Rebuild | P0 |
 | FND-06 | Shared command framework | Commands, menus and keyboard shortcuts defined in one registry. | M | Settings, platform detection | Adapt | P0 |
 | FND-07 | Optional permission broker | Explicit handling for bookmarks, context menus, history and Side Panel. | M | Chrome permissions | Adapt | P0 |
@@ -358,4 +357,4 @@ Priority:
 
 ## Current selected feature
 
-`FND-04`: General typed NetSuite bridge. It is the next recommended foundation checkpoint and must remain isolated from feature-specific NetSuite API adapters.
+`FND-05`: General query and fetch adapter. It is the next recommended foundation checkpoint and must reuse the typed bridge without expanding FND-04 into feature-specific NetSuite API logic.

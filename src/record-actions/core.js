@@ -2,7 +2,6 @@
   "use strict";
 
   const routeApi = global.SuiteMateV3Routes;
-  const RECORD_TYPE_MESSAGE = "SUITEMATE_V3_RECORD_TYPE";
   const CSV_IMPORT_PATH = routeApi.PATHS.IMPORT_ASSISTANT;
   const ITEM_BASE_TYPE_PATTERN = /^(noninventory|othercharge|service)item$/;
   const RECORD_TYPE_PATTERN = /^[a-z][a-z0-9_]*$/;
@@ -121,19 +120,13 @@
     return routeApi.isAllowedNetSuiteUrl(value);
   }
 
-  function isAllowedRecordSender(sender) {
-    return routeApi.isAllowedSender(sender, routeApi.CAPABILITIES.RECORD_TYPE_BRIDGE);
-  }
-
   global.SuiteMateV3RecordActionsCore = Object.freeze({
-    RECORD_TYPE_MESSAGE,
     CSV_IMPORT_PATH,
     deriveImportSubtype,
     resolveRecordTypeFromDocument,
     createCsvImportUrl,
     isSupportedRecordPage,
     isAllowedNetSuiteUrl,
-    isAllowedRecordSender,
     normalizeRecordType
   });
 })(globalThis);

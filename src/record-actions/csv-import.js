@@ -2,11 +2,13 @@
   "use strict";
 
   const core = globalThis.SuiteMateV3RecordActionsCore;
+  const bridgeApi = globalThis.SuiteMateV3Bridge;
   const lifecycleApi = globalThis.SuiteMateV3Lifecycle;
   const routeApi = globalThis.SuiteMateV3Routes;
   const settingsApi = globalThis.SuiteMateV3Settings;
   if (
     !core
+    || !bridgeApi
     || !lifecycleApi
     || !routeApi
     || !globalThis.document
@@ -44,18 +46,23 @@
     }) ?? null;
   }
 
-  async function requestMainWorldRecordType() {
+  async function requestMainWorldRecordType(signal) {
     try {
-      const response = await chrome.runtime.sendMessage({ type: core.RECORD_TYPE_MESSAGE });
-      return response?.ok ? core.normalizeRecordType(response.recordType) : null;
+      const response = await bridgeApi.request(
+        bridgeApi.COMMANDS.RECORD_GET_TYPE,
+        {},
+        { signal, timeoutMs: 10000 }
+      );
+      const result = bridgeApi.toCommandResult(response);
+      return result.ok ? core.normalizeRecordType(result.recordType) : null;
     } catch {
       return null;
     }
   }
 
-  async function resolveRecordType() {
+  async function resolveRecordType(signal) {
     return core.resolveRecordTypeFromDocument(document, location.pathname)
-      ?? await requestMainWorldRecordType();
+      ?? await requestMainWorldRecordType(signal);
   }
 
   function createToolbarAction(href) {
@@ -84,7 +91,7 @@
       return Boolean(actionsCell);
     }
 
-    const recordType = await resolveRecordType();
+    const recordType = await resolveRecordType(signal);
     if (signal.aborted || !isCurrent()) {
       return false;
     }
