@@ -126,7 +126,9 @@
       if (settingsApi?.get && (await settingsApi.get()).enabled === false) {
         return;
       }
-    } catch {}
+    } catch {
+      return;
+    }
 
     if (!await waitForStepOne()) {
       root.dataset.suitemateV3ImportContext = "unavailable";

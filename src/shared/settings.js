@@ -2,6 +2,12 @@
   "use strict";
 
   const STORAGE_KEY = "suiteMateV3Style";
+  const SCHEMA_VERSION = 1;
+  const LEGACY_SCHEMA_VERSION = 0;
+  const MAX_SYNC_ITEM_BYTES = 7800;
+  const INVALID_VERSION_CODE = "INVALID_SETTINGS_VERSION";
+  const UNSUPPORTED_VERSION_CODE = "UNSUPPORTED_SETTINGS_VERSION";
+  const QUOTA_CODE = "SETTINGS_QUOTA_EXCEEDED";
   const ROLE_CONTEXT_MESSAGE = "SUITEMATE_V3_GET_ROLE_CONTEXT";
   const THEME_PREVIEW_MESSAGE = "SUITEMATE_V3_PREVIEW_ROLE_THEME";
   const MODES = Object.freeze(["light", "dark", "system"]);
@@ -17,11 +23,67 @@
     "--custom-theme-secondary-light-light"
   ]);
   const DEFAULTS = Object.freeze({
+    schemaVersion: SCHEMA_VERSION,
     enabled: true,
     mode: "light",
     squareCorners: false,
     roleThemes: Object.freeze({})
   });
+
+  function isPlainObject(value) {
+    return Boolean(
+      value
+      && typeof value === "object"
+      && !Array.isArray(value)
+      && Object.prototype.toString.call(value) === "[object Object]"
+    );
+  }
+
+  function settingsVersionError(code, message, storedVersion) {
+    const error = new Error(message);
+    error.name = "SuiteMateSettingsVersionError";
+    error.code = code;
+    error.storedVersion = storedVersion;
+    error.supportedVersion = SCHEMA_VERSION;
+    return error;
+  }
+
+  function readSchemaVersion(value) {
+    if (!isPlainObject(value) || !Object.prototype.hasOwnProperty.call(value, "schemaVersion")) {
+      return LEGACY_SCHEMA_VERSION;
+    }
+
+    const version = value.schemaVersion;
+    if (!Number.isSafeInteger(version) || version < LEGACY_SCHEMA_VERSION) {
+      throw settingsVersionError(
+        INVALID_VERSION_CODE,
+        "SuiteMate settings contain an invalid schema version.",
+        version
+      );
+    }
+    if (version > SCHEMA_VERSION) {
+      throw settingsVersionError(
+        UNSUPPORTED_VERSION_CODE,
+        `SuiteMate settings require schema version ${version}, but this release supports version ${SCHEMA_VERSION}.`,
+        version
+      );
+    }
+    return version;
+  }
+
+  function assertStoredVersionIsWritable(value) {
+    if (!isPlainObject(value) || !Object.prototype.hasOwnProperty.call(value, "schemaVersion")) {
+      return;
+    }
+    const version = value.schemaVersion;
+    if (Number.isSafeInteger(version) && version > SCHEMA_VERSION) {
+      throw settingsVersionError(
+        UNSUPPORTED_VERSION_CODE,
+        `SuiteMate settings require schema version ${version}, so this older release cannot overwrite them.`,
+        version
+      );
+    }
+  }
 
   function normalizeHexColor(value) {
     if (typeof value !== "string") {
@@ -37,7 +99,7 @@
   }
 
   function normalizeRoleThemes(value) {
-    const candidate = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    const candidate = isPlainObject(value) ? value : {};
     const roleThemes = {};
 
     for (const [roleId, theme] of Object.entries(candidate)) {
@@ -61,15 +123,72 @@
     return roleThemes;
   }
 
-  function normalize(value) {
-    const candidate = value && typeof value === "object" ? value : {};
-
+  function normalizeCurrent(value) {
+    const candidate = isPlainObject(value) ? value : {};
     return {
+      schemaVersion: SCHEMA_VERSION,
       enabled: candidate.enabled !== false,
       mode: MODES.includes(candidate.mode) ? candidate.mode : DEFAULTS.mode,
       squareCorners: candidate.squareCorners === true,
       roleThemes: normalizeRoleThemes(candidate.roleThemes)
     };
+  }
+
+  const MIGRATIONS = Object.freeze({
+    [LEGACY_SCHEMA_VERSION](value) {
+      const candidate = isPlainObject(value) ? value : {};
+      return {
+        ...candidate,
+        schemaVersion: 1
+      };
+    }
+  });
+
+  function migrate(value) {
+    let candidate = isPlainObject(value) ? value : {};
+    let version = readSchemaVersion(value);
+
+    while (version < SCHEMA_VERSION) {
+      const migration = MIGRATIONS[version];
+      if (typeof migration !== "function") {
+        throw settingsVersionError(
+          INVALID_VERSION_CODE,
+          `SuiteMate settings cannot be migrated from schema version ${version}.`,
+          version
+        );
+      }
+      candidate = migration(candidate);
+      version += 1;
+    }
+
+    return normalizeCurrent(candidate);
+  }
+
+  function normalize(value) {
+    return migrate(value);
+  }
+
+  function utf8ByteLength(value) {
+    let bytes = 0;
+    for (const character of value) {
+      const codePoint = character.codePointAt(0);
+      bytes += codePoint <= 0x7f ? 1 : codePoint <= 0x7ff ? 2 : codePoint <= 0xffff ? 3 : 4;
+    }
+    return bytes;
+  }
+
+  function assertWithinStorageLimit(settings) {
+    const bytes = utf8ByteLength(`${STORAGE_KEY}${JSON.stringify(settings)}`);
+    if (bytes > MAX_SYNC_ITEM_BYTES) {
+      const error = new Error(
+        `SuiteMate settings use ${bytes} bytes and exceed the safe Chrome sync limit of ${MAX_SYNC_ITEM_BYTES} bytes.`
+      );
+      error.name = "SuiteMateSettingsQuotaError";
+      error.code = QUOTA_CODE;
+      error.bytes = bytes;
+      error.maximumBytes = MAX_SYNC_ITEM_BYTES;
+      throw error;
+    }
   }
 
   function getRoleTheme(value, roleId) {
@@ -203,12 +322,36 @@
 
   async function set(value) {
     const normalized = normalize(value);
+    const stored = await chrome.storage.sync.get(STORAGE_KEY);
+    assertStoredVersionIsWritable(stored[STORAGE_KEY]);
+    assertWithinStorageLimit(normalized);
     await chrome.storage.sync.set({ [STORAGE_KEY]: normalized });
     return normalized;
   }
 
+  async function ensureCurrentSchema() {
+    const result = await chrome.storage.sync.get(STORAGE_KEY);
+    const raw = result[STORAGE_KEY];
+    const normalized = normalize(raw);
+    if (JSON.stringify(raw) !== JSON.stringify(normalized)) {
+      assertWithinStorageLimit(normalized);
+      await chrome.storage.sync.set({ [STORAGE_KEY]: normalized });
+    }
+    return normalized;
+  }
+
+  function isSettingsVersionError(error) {
+    return error?.code === INVALID_VERSION_CODE || error?.code === UNSUPPORTED_VERSION_CODE;
+  }
+
   globalScope.SuiteMateV3Settings = Object.freeze({
     STORAGE_KEY,
+    SCHEMA_VERSION,
+    LEGACY_SCHEMA_VERSION,
+    MAX_SYNC_ITEM_BYTES,
+    INVALID_VERSION_CODE,
+    UNSUPPORTED_VERSION_CODE,
+    QUOTA_CODE,
     ROLE_CONTEXT_MESSAGE,
     THEME_PREVIEW_MESSAGE,
     DEFAULTS,
@@ -216,13 +359,17 @@
     THEME_VARIABLE_NAMES,
     MODES,
     normalizeHexColor,
+    readSchemaVersion,
+    migrate,
     normalize,
+    isSettingsVersionError,
     getRoleTheme,
     withRoleTheme,
     withoutRoleTheme,
     swapRoleTheme,
     deriveThemeVariables,
     get,
-    set
+    set,
+    ensureCurrentSchema
   });
 })(globalThis);

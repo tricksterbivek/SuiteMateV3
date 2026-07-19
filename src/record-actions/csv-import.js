@@ -148,7 +148,9 @@
       if (settings?.enabled === false) {
         return;
       }
-    } catch {}
+    } catch {
+      return;
+    }
 
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", activate, { once: true });
@@ -162,9 +164,13 @@
     if (areaName !== "sync" || !settingsChange) {
       return;
     }
-    if (settingsApi.normalize(settingsChange.newValue).enabled) {
-      activate();
-    } else {
+    try {
+      if (settingsApi.normalize(settingsChange.newValue).enabled) {
+        activate();
+      } else {
+        deactivate();
+      }
+    } catch {
       deactivate();
     }
   });

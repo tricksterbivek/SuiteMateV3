@@ -229,12 +229,19 @@
     root.dataset.suitemateV3Mode = value.mode;
   }
 
+  function applySettingsFailure(error) {
+    const versionError = settingsApi.isSettingsVersionError(error);
+    applySettings(versionError ? { ...settingsApi.DEFAULTS, enabled: false } : settingsApi.DEFAULTS);
+    root.dataset.suitemateV3Settings = versionError ? "unsupported" : "fallback";
+  }
+
   async function loadSettings() {
     try {
       applySettings(await settingsApi.get());
+      delete root.dataset.suitemateV3Settings;
     } catch (error) {
       console.error("SuiteMate V3 could not load styling settings.", error);
-      applySettings(settingsApi.DEFAULTS);
+      applySettingsFailure(error);
     }
   }
 
@@ -287,7 +294,12 @@
   chrome.storage.onChanged.addListener((changes, areaName) => {
     const change = changes[settingsApi.STORAGE_KEY];
     if (areaName === "sync" && change) {
-      applySettings(change.newValue);
+      try {
+        applySettings(change.newValue);
+        delete root.dataset.suitemateV3Settings;
+      } catch (error) {
+        applySettingsFailure(error);
+      }
     }
   });
 })();
