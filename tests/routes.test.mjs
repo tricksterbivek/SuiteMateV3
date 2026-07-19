@@ -27,11 +27,26 @@ function page(path, options = {}) {
   return routes.createPageContext(`${protocol}//${host}${path}`, { isTopFrame });
 }
 
+function sender(url, tabId, frameId = 0, documentId = `document-${tabId}`) {
+  return {
+    frameId,
+    documentId,
+    tab: { id: tabId, url },
+    url
+  };
+}
+
 test("exports stable route and capability constants", () => {
   assert.equal(PATHS.SUITEQL_CONSOLE, "/app/common/search/ubersearchresults.nl");
   assert.equal(PATHS.IMPORT_ASSISTANT, "/app/setup/assistants/nsimport/importassistant.nl");
   assert.equal(CAPABILITIES.GLOBAL_THEME, "global-theme");
   assert.equal(CAPABILITIES.SUITEQL_BRIDGE, "suiteql-bridge");
+  assert.equal(CAPABILITIES.SEARCH_QUERY_BRIDGE, "search-query-bridge");
+  assert.equal(CAPABILITIES.RECORD_METADATA_BRIDGE, "record-metadata-bridge");
+  assert.equal(
+    CAPABILITIES.IMPORT_ASSISTANT_FETCH_BRIDGE,
+    "import-assistant-fetch-bridge"
+  );
   assert.equal(Object.isFrozen(CAPABILITIES), true);
   assert.equal(Object.isFrozen(PATHS), true);
   assert.equal(Object.isFrozen(ROUTE_IDS), true);
@@ -194,12 +209,62 @@ test("isolates Import Assistant context and bridge capabilities", () => {
   assert.equal(routes.supports(CAPABILITIES.IMPORT_ASSISTANT_CONTEXT, page("/app/center/card.nl")), false);
 
   const url = `https://123456.app.netsuite.com${PATHS.IMPORT_ASSISTANT}?recordsubtype=salesorder`;
-  assert.equal(routes.isAllowedSender({ frameId: 0, tab: { id: 9 }, url }, CAPABILITIES.IMPORT_ASSISTANT_BRIDGE), true);
-  assert.equal(routes.isAllowedSender({ frameId: 1, tab: { id: 9 }, url }, CAPABILITIES.IMPORT_ASSISTANT_BRIDGE), false);
+  assert.equal(routes.isAllowedSender(sender(url, 9), CAPABILITIES.IMPORT_ASSISTANT_BRIDGE), true);
+  assert.equal(routes.isAllowedSender(sender(url, 9, 1), CAPABILITIES.IMPORT_ASSISTANT_BRIDGE), false);
   assert.equal(
     routes.isAllowedSender(
-      { frameId: 0, tab: { id: 9 }, url: "https://123456.app.netsuite.com/app/center/card.nl" },
+      sender(url, 9),
+      CAPABILITIES.IMPORT_ASSISTANT_FETCH_BRIDGE
+    ),
+    true
+  );
+  assert.equal(
+    routes.isAllowedSender(
+      sender("https://123456.app.netsuite.com/app/center/card.nl", 9),
       CAPABILITIES.IMPORT_ASSISTANT_BRIDGE
+    ),
+    false
+  );
+});
+
+test("keeps read-only data capabilities on their exact page families", () => {
+  const suiteql = `https://123456.app.netsuite.com${PATHS.SUITEQL_CONSOLE}?suiteql`;
+  const savedSearch = "https://123456.app.netsuite.com/app/common/search/search.nl?e=T&id=1";
+  const record = "https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl?id=1";
+  const dashboard = "https://123456.app.netsuite.com/app/center/card.nl";
+
+  for (const url of [suiteql, savedSearch]) {
+    assert.equal(
+      routes.isAllowedSender(sender(url, 10), CAPABILITIES.SEARCH_QUERY_BRIDGE),
+      true,
+      url
+    );
+  }
+  assert.equal(
+    routes.isAllowedSender(
+      sender(record, 10),
+      CAPABILITIES.SEARCH_QUERY_BRIDGE
+    ),
+    false
+  );
+  assert.equal(
+    routes.isAllowedSender(
+      sender(record, 10),
+      CAPABILITIES.RECORD_METADATA_BRIDGE
+    ),
+    true
+  );
+  assert.equal(
+    routes.isAllowedSender(
+      sender(dashboard, 10),
+      CAPABILITIES.RECORD_METADATA_BRIDGE
+    ),
+    false
+  );
+  assert.equal(
+    routes.isAllowedSender(
+      sender(savedSearch, 10, 1),
+      CAPABILITIES.SEARCH_QUERY_BRIDGE
     ),
     false
   );
@@ -207,14 +272,15 @@ test("isolates Import Assistant context and bridge capabilities", () => {
 
 test("requires exact top-frame sender authority for privileged bridges", () => {
   const studioUrl = `https://123456.app.netsuite.com${PATHS.SUITEQL_CONSOLE}?suiteql`;
-  assert.equal(routes.isAllowedSender({ frameId: 0, tab: { id: 7 }, url: studioUrl }, CAPABILITIES.SUITEQL_BRIDGE), true);
-  assert.equal(routes.isAllowedSender({ frameId: 1, tab: { id: 7 }, url: studioUrl }, CAPABILITIES.SUITEQL_BRIDGE), false);
-  assert.equal(routes.isAllowedSender({ frameId: 0, tab: {}, url: studioUrl }, CAPABILITIES.SUITEQL_BRIDGE), false);
-  assert.equal(routes.isAllowedSender({ frameId: 0, tab: { id: "7" }, url: studioUrl }, CAPABILITIES.SUITEQL_BRIDGE), false);
+  assert.equal(routes.isAllowedSender(sender(studioUrl, 7), CAPABILITIES.SUITEQL_BRIDGE), true);
+  assert.equal(routes.isAllowedSender(sender(studioUrl, 7, 1), CAPABILITIES.SUITEQL_BRIDGE), false);
+  assert.equal(routes.isAllowedSender({ ...sender(studioUrl, 7), tab: {} }, CAPABILITIES.SUITEQL_BRIDGE), false);
+  assert.equal(routes.isAllowedSender({ ...sender(studioUrl, 7), tab: { id: "7" } }, CAPABILITIES.SUITEQL_BRIDGE), false);
   assert.equal(
     routes.isAllowedSender(
       {
         frameId: 0,
+        documentId: "document-7",
         tab: { id: 7, url: studioUrl },
         url: "https://example.com/app/common/search/ubersearchresults.nl?suiteql"
       },
@@ -223,22 +289,33 @@ test("requires exact top-frame sender authority for privileged bridges", () => {
     false
   );
   assert.equal(
-    routes.isAllowedSender({ frameId: 0, tab: { id: 7, url: studioUrl } }, CAPABILITIES.SUITEQL_BRIDGE),
+    routes.isAllowedSender({
+      frameId: 0,
+      documentId: "document-7",
+      tab: { id: 7, url: studioUrl }
+    }, CAPABILITIES.SUITEQL_BRIDGE),
     true
+  );
+  assert.equal(
+    routes.isAllowedSender(
+      { frameId: 0, tab: { id: 7, url: studioUrl }, url: studioUrl },
+      CAPABILITIES.SUITEQL_BRIDGE
+    ),
+    false
   );
 
   const recordUrl = "https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl?id=1";
   assert.equal(
-    routes.isAllowedSender({ frameId: 0, tab: { id: 8 }, url: recordUrl }, CAPABILITIES.RECORD_TYPE_BRIDGE),
+    routes.isAllowedSender(sender(recordUrl, 8), CAPABILITIES.RECORD_TYPE_BRIDGE),
     true
   );
   assert.equal(
-    routes.isAllowedSender({ frameId: 0, tab: { id: 8 }, url: studioUrl }, CAPABILITIES.RECORD_TYPE_BRIDGE),
+    routes.isAllowedSender(sender(studioUrl, 8), CAPABILITIES.RECORD_TYPE_BRIDGE),
     false
   );
   assert.equal(
     routes.isAllowedSender(
-      { frameId: 0, tab: { id: 8 }, url: `https://123456.app.netsuite.com${PATHS.IMPORT_ASSISTANT}` },
+      sender(`https://123456.app.netsuite.com${PATHS.IMPORT_ASSISTANT}`, 8),
       CAPABILITIES.RECORD_TYPE_BRIDGE
     ),
     false

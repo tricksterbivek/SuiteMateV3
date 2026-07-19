@@ -2,6 +2,58 @@
 
 This file records verified development baselines. New feature work must not begin until the preceding checkpoint has passed automated tests, live NetSuite verification, pull request review and release publication.
 
+## v3.7.0: General Query and Fetch Adapter
+
+Status: Verified
+
+Date: 2026-07-20
+
+Pull request: <https://github.com/tricksterbivek/SuiteMateV3/pull/10>
+
+Release: <https://github.com/tricksterbivek/SuiteMateV3/releases/tag/v3.7.0>
+
+### Included
+
+- Adds one closed NetSuite data adapter behind the FND-04 typed bridge.
+- Registers fixed operations for SuiteQL, constrained Saved Search execution, bounded record metadata, record type lookup and Import Assistant category detection.
+- Prevents content scripts from supplying arbitrary URLs, HTTP methods, headers, RPC methods, AMD modules or request bodies.
+- Enforces exact document, top-frame, account, route, redirect, response-size, operation-time and cancellation boundaries.
+- Blocks cross-account and login responses and reports transport, redirect and NetSuite failures through typed errors.
+- Preserves cancellation tombstones so cancel-before-start requests cannot be resurrected.
+- Migrates Import Assistant category detection to the adapter while preserving the existing atomic context writes.
+- Reduces the background service worker to a typed command router.
+
+### Verification
+
+- Full `npm test` regression suite with 63 passing tests.
+- Focused adapter coverage for every operation, malformed successes, response bounds, stale documents, cross-account responses, login redirects, browser-blocked redirects, cancellation races and transport failures.
+- Full service-worker integration coverage for SuiteQL paging and errors, constrained search, record metadata, Import Assistant category lookup and exact document targeting.
+- Protected 15-file V1 styling hash suite.
+- `git diff --check`.
+- `npm audit --omit=dev` with zero vulnerabilities.
+- Independent final regression review with no release blockers.
+- Authenticated NetSuite Sandbox checks after allowing each page to load completely plus ten seconds.
+- Confirmed Purchase Order opened Import Assistant with `TRANSACTION`, `PURCHASEORDER` and `UTF-8` through the adapter.
+- Confirmed SuiteQL Console returned unpaged and paged results, surfaced a readable NetSuite error and discarded results after Abort.
+- Confirmed normal Global Search and Saved Search remained native and did not mount SuiteQL Console.
+- Confirmed browser logs contained no extension errors.
+
+### Restore
+
+```bash
+git switch --detach v3.7.0
+```
+
+To resume normal development after inspecting the checkpoint:
+
+```bash
+git switch main
+```
+
+### Next feature
+
+`FND-06`: Shared Command Framework
+
 ## v3.6.0: General Typed NetSuite Bridge
 
 Status: Verified

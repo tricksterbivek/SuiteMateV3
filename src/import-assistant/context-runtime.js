@@ -95,20 +95,22 @@
 
   async function findCategoryFromNetSuite(recordSubtype, signal) {
     const categories = readFieldOptions("recordtype").map(({ value }) => value);
-    const matches = await Promise.all(categories.map(async (category) => {
-      try {
-        const url = new URL(location.pathname, location.origin);
-        url.searchParams.set("importmethod", "filegroups");
-        url.searchParams.set("rectype", category);
-        const response = await fetch(url, { credentials: "include", signal });
-        return core.responseContainsSubtype(await response.text(), recordSubtype)
-          ? category
-          : null;
-      } catch {
-        return null;
-      }
-    }));
-    return matches.find(Boolean) ?? null;
+    if (!categories.length) {
+      return null;
+    }
+    const response = await bridgeApi.request(
+      bridgeApi.COMMANDS.IMPORT_ASSISTANT_RESOLVE_CATEGORY,
+      {
+        recordSubtype,
+        candidateCategories: [...new Set(categories)]
+      },
+      { signal, timeoutMs: 65000 }
+    );
+    const result = bridgeApi.toCommandResult(response);
+    if (!result.ok) {
+      throw result.error;
+    }
+    return core.normalizeImportValue(result.category);
   }
 
   async function setImportValues(values, signal) {
