@@ -2,6 +2,58 @@
 
 This file records verified development baselines. New feature work must not begin until the preceding checkpoint has passed automated tests, live NetSuite verification, pull request review and release publication.
 
+## v3.6.0: General Typed NetSuite Bridge
+
+Status: Verified
+
+Date: 2026-07-20
+
+Pull request: <https://github.com/tricksterbivek/SuiteMateV3/pull/9>
+
+Release: <https://github.com/tricksterbivek/SuiteMateV3/releases/tag/v3.6.0>
+
+### Included
+
+- Adds one versioned and allowlisted runtime protocol for privileged NetSuite operations.
+- Defines exact request and response schemas, bounded payloads, response identity checks and typed errors for every command.
+- Enforces command-specific route, account host and top-frame authority through the shared route registry.
+- Targets the originating Chrome document for main-world execution when available and verifies the exact source URL as a fallback.
+- Provides client and server timeouts, AbortSignal propagation, generic cancellation and duplicate in-flight request protection.
+- Migrates SuiteQL execution, record type lookup and Import Assistant context updates from separate message contracts.
+- Prevents partial Import Assistant writes by validating every requested field before applying any value.
+- Fixes SuiteQL Console initialization so URL query parsing has no dependency on an undeclared page global.
+- Exposes protocol diagnostics through `data-suitemate-v3-bridge`.
+
+### Verification
+
+- Full `npm test` regression suite with 51 passing tests.
+- Focused bridge coverage for schema validation, route authority, response identity, runtime failures, client and server timeouts, cancellation, duplicate requests, stale-document blocking and malformed handler output.
+- Service-worker integration coverage for SuiteQL paging, disposal, cancellation, readable NetSuite errors, document-targeted execution and Import Assistant partial-write prevention.
+- Existing route, lifecycle, versioned settings, protected V1 styling, role-theme, CSV Import and SuiteQL Console checks.
+- `git diff --check`.
+- `npm audit --omit=dev` with zero vulnerabilities.
+- Authenticated NetSuite Sandbox checks after reloading the extension and allowing each page to complete its render cycle plus ten seconds.
+- Confirmed Purchase Order retained one CSV Import action immediately after Actions.
+- Confirmed SuiteQL Console rendered one editor, returned results through unpaged and paged execution, surfaced a readable NetSuite schema error and released the UI after Abort.
+- Confirmed Import Assistant applied `TRANSACTION`, `PURCHASEORDER` and `UTF-8`.
+- Confirmed normal Global Search and Saved Search results did not mount SuiteQL Console.
+
+### Restore
+
+```bash
+git switch --detach v3.6.0
+```
+
+To resume normal development after inspecting the checkpoint:
+
+```bash
+git switch main
+```
+
+### Next feature
+
+`FND-05`: General Query and Fetch Adapter
+
 ## v3.5.0: Observer Lifecycle
 
 Status: Verified
