@@ -2,6 +2,7 @@
   "use strict";
 
   const api = globalThis.SuiteMateV3Settings;
+  const routeApi = globalThis.SuiteMateV3Routes;
   const suiteql = globalThis.SuiteMateV3SuiteQLCore;
   const paletteApi = globalThis.SuiteMateV3MaterialPalette;
   const form = document.querySelector("#settings");
@@ -376,7 +377,8 @@
 
   async function getActiveRoleContext() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !suiteql.isAllowedNetSuiteUrl(tab.url)) {
+    const tabContext = routeApi.createPageContext(tab?.url, { isTopFrame: true });
+    if (!tab?.id || !routeApi.supports(routeApi.CAPABILITIES.SUITEQL_LAUNCH, tabContext)) {
       activeNetSuiteTab = null;
       openSuiteQLButton.disabled = true;
       suiteqlToolContext.textContent = "Open a NetSuite tab to launch Studio.";

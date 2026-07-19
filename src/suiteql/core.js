@@ -1,12 +1,13 @@
 (function registerSuiteMateV3SuiteQLCore(globalScope) {
   "use strict";
 
+  const routeApi = globalScope.SuiteMateV3Routes;
   const MESSAGE_TYPES = Object.freeze({
     START: "SUITEMATE_V3_SUITEQL_START",
     PAGE: "SUITEMATE_V3_SUITEQL_PAGE",
     DISPOSE: "SUITEMATE_V3_SUITEQL_DISPOSE"
   });
-  const STUDIO_PATH = "/app/common/search/ubersearchresults.nl";
+  const STUDIO_PATH = routeApi.PATHS.SUITEQL_CONSOLE;
   const MAX_QUERY_LENGTH = 100000;
   const NETSUITE_PAGE_SIZE = 1000;
   const CLIENT_PAGE_SIZE = 250;
@@ -16,48 +17,23 @@
     editorHeight: "suiteMateV3.suiteql.editorHeight"
   });
 
-  function parseUrl(value) {
-    try {
-      return new URL(value);
-    } catch {
-      return null;
-    }
-  }
-
   function isAllowedNetSuiteUrl(value) {
-    const url = parseUrl(value);
-    if (!url || url.protocol !== "https:") {
-      return false;
-    }
-
-    const host = url.hostname.toLowerCase();
-    return (
-      host.endsWith(".netsuite.com") &&
-      host !== "www.netsuite.com" &&
-      !host.includes(".extforms.netsuite.com")
-    );
+    return routeApi.isAllowedNetSuiteUrl(value);
   }
 
   function isSuiteQLStudioUrl(value) {
-    const url = parseUrl(value);
-    return Boolean(
-      url &&
-      isAllowedNetSuiteUrl(url.href) &&
-      url.pathname.replace(/\/{2,}/g, "/") === STUDIO_PATH &&
-      url.searchParams.has("suiteql")
+    return routeApi.supports(
+      routeApi.CAPABILITIES.SUITEQL_CONSOLE,
+      routeApi.createPageContext(value, { isTopFrame: true })
     );
   }
 
   function isAllowedStudioSender(sender) {
-    return Boolean(
-      sender?.frameId === 0 &&
-      Number.isInteger(sender?.tab?.id) &&
-      isSuiteQLStudioUrl(sender.url || sender.tab.url)
-    );
+    return routeApi.isAllowedSender(sender, routeApi.CAPABILITIES.SUITEQL_BRIDGE);
   }
 
   function createStudioUrl(value) {
-    const url = parseUrl(value);
+    const url = routeApi.parseUrl(value);
     if (!url || !isAllowedNetSuiteUrl(url.href)) {
       return null;
     }

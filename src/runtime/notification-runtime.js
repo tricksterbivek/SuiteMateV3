@@ -1,10 +1,23 @@
 (function initializeSuiteMateV3Notifications(global) {
   "use strict";
 
+  const routeApi = global.SuiteMateV3Routes;
   const ALERT_SELECTOR = ".uir-alert-box";
   const CLOSE_EDGE_SIZE = 13.5;
   const CLOSE_TOP_SIZE = 15;
   const DISMISS_DELAY_MS = 300;
+
+  let topFrame = false;
+  try {
+    topFrame = global === global.top;
+  } catch {}
+  const pageContext = routeApi?.createPageContext(global.location, {
+    isTopFrame: topFrame,
+    trustedContentScript: true
+  });
+  if (!routeApi?.supports(routeApi.CAPABILITIES.NOTIFICATIONS, pageContext)) {
+    return;
+  }
 
   function isCloseHit(offsetX, offsetY, alertWidth, isMac) {
     const x = Number(offsetX);

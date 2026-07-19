@@ -1,6 +1,7 @@
 (function initializeSuiteMateV3() {
   "use strict";
 
+  const routeApi = globalThis.SuiteMateV3Routes;
   const settingsApi = globalThis.SuiteMateV3Settings;
   const root = document.documentElement;
   const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -11,30 +12,28 @@
     root.classList.toggle(name, Boolean(enabled));
   }
 
-  function normalizePath(pathname) {
-    return pathname.replace(/\/{2,}/g, "/");
+  function isTopFrame() {
+    try {
+      return window === window.top;
+    } catch {
+      return false;
+    }
   }
 
-  function hasPath(...paths) {
-    return paths.includes(normalizePath(location.pathname));
+  function createCurrentPageContext() {
+    return routeApi.createPageContext(location, {
+      isTopFrame: isTopFrame(),
+      trustedContentScript: true
+    });
   }
 
-  function pathStartsWith(prefix) {
-    return normalizePath(location.pathname).startsWith(prefix);
-  }
-
-  function updateLocationMetadata() {
-    const path = normalizePath(location.pathname);
-    const params = new URLSearchParams(location.search);
-    const flattenedParams = [...params]
-      .filter(([name]) => name !== "suiteql")
-      .map(([name, value]) => `${name}=${value}`)
-      .join("|");
-
-    root.dataset.path = path;
-    root.dataset.url = `${path}${location.search}${location.hash}`;
-    root.dataset.params = `|${flattenedParams}|`;
+  function updateLocationMetadata(context = createCurrentPageContext()) {
+    root.dataset.path = context.path;
+    root.dataset.url = `${context.path}${context.search}${context.hash}`;
+    root.dataset.params = routeApi.serializeParams(context, ["suiteql"]);
     root.dataset.history = history.length > 1 ? "T" : "F";
+    root.dataset.suitemateV3Route = context.routeId;
+    root.dataset.suitemateV3Capabilities = context.capabilities.join(" ");
 
     if (document.referrer.startsWith(location.origin)) {
       root.dataset.referrerUrl = document.referrer.slice(location.origin.length).replace(/\/{2,}/g, "/");
@@ -43,36 +42,17 @@
     }
   }
 
-  function classifyPage() {
-    const path = normalizePath(location.pathname);
-    const host = location.hostname.toLowerCase();
-    const params = new URLSearchParams(location.search);
-    const isLogin = hasPath(
-      "/app/login/secure/enterpriselogin.nl",
-      "/pages/customerlogin.jsp"
-    );
-    const isSearch = hasPath("/app/common/search/search.nl");
+  function classifyPage(context = createCurrentPageContext()) {
+    const flags = context.flags;
 
     setClass("isChrome", true);
     setClass("mac", navigator.platform.toLowerCase().includes("mac"));
-    setClass("isSandbox", host.includes(".sandbox.netsuite.com") || /-sb\d*(?:\.|$)/i.test(host));
-    setClass("isReleasePreview", host.includes(".beta.netsuite.com") || /-rp\d*(?:\.|$)/i.test(host));
-    setClass("isDebugger", host.startsWith("debugger.") || host.includes(".debugger."));
-    setClass("isInIframe", window !== window.top);
-    setClass("isIfrmcntnr", params.get("ifrmcntnr") === "T");
-    setClass("isLoginURL", isLogin);
-    setClass("isFileCabinetURL", hasPath("/app/common/media/mediaitemfolders.nl") && params.get("frame") !== "bf");
-    setClass("isScriptEditor", hasPath("/app/common/record/edittextmediaitem.nl") && params.has("id"));
-    setClass("isScriptURL", /^\/app\/common\/scripting\/(?:script|webapp|plugin|plugintype)\.nl$/.test(path));
-    setClass("isDeploymentURL", hasPath("/app/common/scripting/scriptrecord.nl"));
-    setClass("isScriptStatusURL", /^\/app\/common\/scripting\/(?:scriptstatus|mapreducescriptstatus)\.nl$/.test(path));
-    setClass("isSearchURL", isSearch);
-    setClass("isSearchEditURL", isSearch && params.get("e") === "T");
-    setClass("isSearchResultsURL", hasPath("/app/common/search/searchresults.nl"));
-    setClass("isHelpCenterURL", hasPath("/app/help/helpcenter.nl"));
-    setClass("isSRBrowserURL", hasPath("/app/recordscatalog/rcbrowser.nl"));
-    setClass("isRedwood", isLogin || hasRedwoodMarker());
-    setClass("isWorkflowURL", pathStartsWith("/app/common/workflow/setup/"));
+    for (const [name, enabled] of Object.entries(flags)) {
+      setClass(name, enabled);
+    }
+    setClass("isRedwood", flags.isLoginURL || hasRedwoodMarker());
+    root.dataset.suitemateV3Route = context.routeId;
+    root.dataset.suitemateV3Capabilities = context.capabilities.join(" ");
   }
 
   function hasRedwoodMarker() {
@@ -245,8 +225,13 @@
     }
   }
 
-  updateLocationMetadata();
-  classifyPage();
+  const initialPageContext = createCurrentPageContext();
+  if (!routeApi.supports(routeApi.CAPABILITIES.GLOBAL_THEME, initialPageContext)) {
+    return;
+  }
+
+  updateLocationMetadata(initialPageContext);
+  classifyPage(initialPageContext);
   detectRedwoodWhenRendered();
   detectRoleContextWhenRendered();
   loadSettings();
