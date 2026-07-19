@@ -1,13 +1,30 @@
-# SuiteMate V1 Master Feature Inventory
+# SuiteMate V1 Remaining Feature Inventory
 
-Status: Master reference for SuiteMate V3 feature planning
+Status: Master backlog for SuiteMate V3 feature planning
 Source boundary: `/Users/Bivek.Shah/Documents/suitemate/suitematev1` only
 Audit date: 2026-07-13
+Backlog refresh: 2026-07-14
 Coverage: 44 recovered files, 28,232 source lines and 87 route cases
 
 ## Purpose
 
-This is the canonical inventory for selecting SuiteMate V3 features. Future planning should reference the stable IDs in this document and update implementation status here only when deliberately requested.
+This is the canonical inventory for selecting the next SuiteMate V3 features. It contains only work that is not yet implemented. Stable ID gaps are intentional because completed features have been removed from the active backlog.
+
+## Implemented V3 baseline excluded from this backlog
+
+- Complete SuiteMate V1 styling foundation, including global NetSuite surfaces, page styles and Redwood compatibility corrections.
+- `THM-01`: Per-role Main and Secondary colors with immediate preview.
+- `THM-04`: Swap colors, restore default colors and remove the current role configuration.
+- `THM-05`: Light, Dark and System appearance modes.
+- `SET-02`: Rounded and Boxy UI modes.
+- `SET-06` and `SET-07`: Sticky first sublist column and generated sublist line numbers. V3 activates the protected V1 CSS capabilities while styling is enabled.
+- `GEN-28` and `GEN-39`: Header scroll shadow and responsive textarea sizing supplied by the active V1 CSS layer.
+- `FND-03`: Versioned settings schema with legacy migration, typed compatibility errors, Chrome sync quota protection and safe failure handling.
+- `SQL-01`, `SQL-02`, `SQL-03`, `SQL-13` and `SQL-14`: SuiteQL Console shell, execution, progressive paging, abort handling, safe result rendering, sorting, client pagination, hidden table inspection support, selection execution and persistent resizing.
+- Core portions of `SQL-05` and `SQL-06`: loaded-row CSV export, Clear Results, Execute, Abort, Paged toggle and their current keyboard shortcuts.
+- Per-tab SuiteQL draft and Paged-mode persistence, 5,000-row warnings, SuiteSense promotion and popup launch into the active NetSuite account.
+
+`SET-15`, `SQL-05` and `SQL-06` remain below only for their unfinished portions.
 
 ## Source integrity warning
 
@@ -58,9 +75,8 @@ Priority:
 13. Dashboard and execution-log monitoring.
 14. Saved Search Split View.
 15. File Cabinet tools.
-16. SuiteQL Studio.
-17. Script execution and runtime tooling.
-18. Role permission administration.
+16. Script execution and runtime tooling.
+17. Role permission administration.
 
 ## 1. Required V3 foundation
 
@@ -68,9 +84,8 @@ Priority:
 |---|---|---|---:|---|---|---:|
 | FND-01 | Route capability registry | Maps each NetSuite route to isolated capabilities instead of one global script. | M | URL classifier, lifecycle manager | Adapt | P0 |
 | FND-02 | Observer lifecycle | Shared MutationObserver registration, deduplication and cleanup. | M | Route registry | Adapt | P0 |
-| FND-03 | Versioned settings schema | Validated settings with migrations, defaults and role/account scoping. | M | Chrome storage | Adapt | P0 |
-| FND-04 | Typed NetSuite bridge | Allowlisted main-world commands for NetSuite APIs. | L | Chrome scripting, message schemas | Adapt | P0 |
-| FND-05 | Query and fetch adapter | Safe wrapper for SuiteQL, Saved Search, record metadata and authenticated requests. | L | NetSuite private APIs, cancellation | Rebuild | P0 |
+| FND-04 | General typed NetSuite bridge | Expands the narrow SuiteQL message bridge into reusable allowlisted commands for other NetSuite APIs. | L | Chrome scripting, message schemas | Adapt | P0 |
+| FND-05 | General query and fetch adapter | Extends the existing SuiteQL adapter to Saved Search, record metadata and authenticated requests. | L | NetSuite private APIs, cancellation | Rebuild | P0 |
 | FND-06 | Shared command framework | Commands, menus and keyboard shortcuts defined in one registry. | M | Settings, platform detection | Adapt | P0 |
 | FND-07 | Optional permission broker | Explicit handling for bookmarks, context menus, history and Side Panel. | M | Chrome permissions | Adapt | P0 |
 | FND-08 | Shared utilities | Clipboard, CSV, downloads, modal, toast, syntax formatting and errors. | M | Sanitization, browser APIs | Adapt | P0 |
@@ -80,19 +95,13 @@ Priority:
 
 | ID | Feature | Description | Complexity | Dependencies | Migration | Priority |
 |---|---|---|---:|---|---|---:|
-| THM-01 | Main and Secondary role colors | Per-role theme colors with immediate preview. Present in the V3 styling baseline. | S | Settings schema | Direct | Existing |
 | THM-02 | Rainbow theme | Continuously cycles theme colors when enabled. | M | Theme runtime, reduced-motion support | Adapt | P2 |
 | THM-03 | Logo-derived palette | Generates color suggestions from the company logo. | M | Logo access, palette extraction | Adapt | P3 |
-| THM-04 | Color management | Swap colors, remove colors and remove role configuration. | S | Role theme storage | Direct | P1 |
-| THM-05 | Light, Dark and Auto modes | Manual or operating-system theme with keyboard toggle. | M | Theme runtime, media query | Adapt | P1 |
 | THM-06 | Code syntax themes | Seventeen JSON, XML and CodeMirror themes with line numbers. | M | Formatter, editor adapter | Direct | P1 |
 | SET-01 | Privacy and header controls | Hide company information, Feedback, Redwood strip and environment roles. | S | CSS classes, header adapter | Direct | P1 |
-| SET-02 | Boxy UI | Removes rounded corners across NetSuite. | S | Existing CSS | Direct | P1 |
 | SET-03 | Disable sublist tooltips | Prevents native sublist hover tooltips. | S | CSS and DOM verification | Direct | P1 |
 | SET-04 | Disable Guided Learning | Hides the Guided Learning launcher. | S | CSS selector | Direct | P1 |
 | SET-05 | Indicate submenus | Adds visual submenu indicators to center navigation. | S | Header selectors | Direct | P1 |
-| SET-06 | Sticky first column | Keeps the first editable sublist column visible. | M | Sublist CSS, Redwood tests | Direct | P1 |
-| SET-07 | Sublist line numbers | Adds generated line numbers to editable sublists. | M | Sublist CSS | Direct | P1 |
 | SET-08 | List View Shift control | Enables or disables native vertical list shifting. | S | CSS selector | Direct | P1 |
 | SET-09 | Collapse unrolled records | Automatically collapses subtabs in unrolled view. | M | Record DOM adapter | Adapt | P2 |
 | SET-10 | Scoped enable and disable | Disable SuiteMate by account, role, tab or page. | M | Settings and route identity | Adapt | P2 |
@@ -100,7 +109,7 @@ Priority:
 | SET-12 | Auto-dismiss timing | Configurable alert dismissal with hover pause. | S | Banner observer | Direct | P1 |
 | SET-13 | Global Shortcuts editor | Create, reorder, edit, delete and capture shortcuts. | M | Header menu, URL validation | Adapt | P1 |
 | SET-14 | Settings export and import | Validated settings backup and overwrite. | M | Versioned settings schema | Adapt | P1 |
-| SET-15 | Reset and clear cache | Reset defaults or clear cached NetSuite context. | S | Storage framework | Direct | P1 |
+| SET-15 | Clear cached NetSuite context | Clears cached account, role and route data without resetting appearance settings. Reset All is already implemented. | S | Storage framework | Direct | P1 |
 | SET-16 | View XML preference | Open XML in a new tab or window. | S | View XML command | Direct | P2 |
 | SET-17 | Open popups as tabs | Converts NetSuite popup windows into browser tabs. | M | Chrome tabs and windows | Adapt | P3 |
 | SET-18 | Changelog viewer | Local changelog parser with versions and issue links. | M | Missing changelog source | Adapt | P5 |
@@ -137,7 +146,6 @@ Priority:
 | GEN-25 | Forced ascending sort | Middle-click or Ctrl-click to sort ascending. | S | List DOM adapter | Direct | P2 |
 | GEN-26 | Copy CSV Results | Copies list results to the clipboard as CSV. | M | Pagination, CSV utility | Adapt | P1 |
 | GEN-27 | Scroll controls | Scroll to active sublists or code and back to top. | S | DOM adapter | Direct | P2 |
-| GEN-28 | Header scroll shadow | Adds header depth while scrolling. | S | Styling | Direct | P3 |
 | GEN-29 | Character counters | Live character counts for limited fields. | S | Input metadata | Direct | P1 |
 | GEN-30 | Date and time hints | Account-format placeholders and tooltips. | S | NetSuite preferences | Direct | P1 |
 | GEN-31 | Persistent field groups | Remembers expanded and collapsed groups. | M | Local storage, DOM adapter | Adapt | P2 |
@@ -148,7 +156,6 @@ Priority:
 | GEN-36 | Save and Edit | Saves and stays in edit mode. | M | Form submission | Adapt | P2 |
 | GEN-37 | View Without Save | Switches to view mode without saving. | M | Unsaved-state handling | Adapt | P2 |
 | GEN-38 | Persistent selected tab | Stores selected tab in the URL and scrolls tab bars. | M | Tab lifecycle | Adapt | P2 |
-| GEN-39 | Textarea sizing | Useful minimum rows and columns. | S | Form DOM | Direct | P2 |
 | GEN-40 | Description-to-Help mirror | Copies Description into Help on request. | S | Field pairing | Direct | P2 |
 | GEN-41 | Dropdown option metadata | Shows option text, value, ID and custom-record icons. | M | Private dropdown adapter | Adapt | P2 |
 | GEN-42 | Subsidiary hierarchy | Indents hierarchical subsidiary options. | M | Private dropdown adapter | Adapt | P2 |
@@ -265,24 +272,19 @@ Priority:
 | INS-06 | Inspector UI controls | Search, refresh, copy, expand and collapse. | L | Side Panel UI | Adapt | P2 |
 | INS-07 | Navigation tracking | Refreshes when the active record changes. | M | Tab and route lifecycle | Adapt | P2 |
 
-## 10. SuiteQL Studio
+## 10. Remaining SuiteQL Console enhancements
 
 | ID | Feature | Description | Complexity | Dependencies | Migration | Priority |
 |---|---|---|---:|---|---|---:|
-| SQL-01 | Studio shell | Full query editor and results application. | XL | Editor, query adapter, routing | Rebuild | P3 |
-| SQL-02 | Execute and abort | Unpaged or paged queries with cancellation and timing. | XL | SuiteQL adapter, request IDs | Rebuild | P3 |
-| SQL-03 | Result renderer | Sorting, totals, errors and no-results state. | L | Safe table renderer | Rebuild | P3 |
 | SQL-04 | Special result formats | Colors, Markdown, record links, object links and HTML. | L | Sanitizer, record mapping | Adapt | P3 |
-| SQL-05 | Query actions | New, Clone, Save, Load, Export, Clear and Variables. | L | Studio shell | Adapt | P3 |
-| SQL-06 | Keyboard shortcuts | Execute, abort, page, variables, new, clone, save, load, export and clear. | M | Command registry | Direct | P3 |
+| SQL-05 | Advanced query actions | New, Clone, Save, Load, Variables and Export All across unloaded pages. Loaded-row Export and Clear Results are already implemented. | L | Existing Console shell | Adapt | P3 |
+| SQL-06 | Remaining keyboard shortcuts | Adds shortcuts for Variables, New, Clone, Save and Load after those actions exist. Core execution shortcuts are already implemented. | M | SQL-05, command registry | Direct | P3 |
 | SQL-07 | Saved query bookmarks | Save, load and delete bookmark queries. | L | Bookmarks permission | Adapt | P3 |
 | SQL-08 | Query history | Recovers executed queries from browser history. | L | History permission | Adapt | P4 |
 | SQL-09 | Dataset loader | Loads NetSuite datasets. | L | Dataset API | Adapt | P3 |
 | SQL-10 | External query library | Loads queries from external S3. | M | External service, privacy | Drop | P5 |
 | SQL-11 | Variable Manager | Global/account variables and interpolation. | L | Settings schema, parser | Rebuild | P3 |
 | SQL-12 | Built-in constants | Account, user, role, environment, date and time. | M | Session context | Adapt | P3 |
-| SQL-13 | Inspect Table | Table inspection and Records Catalog links. | M | Catalog mapping | Adapt | P3 |
-| SQL-14 | Resizable editor | Persistent split and selection-only execution. | M | Editor layout | Direct | P3 |
 | SQL-15 | Large-query URL handling | Temporary storage for oversized query URLs. | M | Session storage | Adapt | P3 |
 | SQL-16 | Dataset Builder integration | Get SuiteQL and Run SuiteQL. | L | Dataset conversion API | Adapt | P3 |
 
@@ -323,7 +325,7 @@ Priority:
 | ADM-31 | CSV mapping IDs | Displays source and target field IDs. | M | Mapping DOM | Adapt | P2 |
 | ADM-32 | CSV completion helpers | Start Another and embed today status. | M | Import routes | Adapt | P2 |
 | ADM-33 | Translation dropdown sync | Synchronizes paired collection dropdowns. | M | Private Redwood components | Adapt | P4 |
-| ADM-34 | Records Catalog sample query | Runs a top-30 SuiteQL sample. | M | SuiteQL Studio | Adapt | P2 |
+| ADM-34 | Records Catalog sample query | Runs a top-30 SuiteQL sample. | M | SuiteQL Console | Adapt | P2 |
 | ADM-35 | Records Catalog export | Exports fields, subrecords, joins and help. | L | Catalog endpoint, CSV | Adapt | P2 |
 
 ## 12. PDF, workflow, Help and login
@@ -356,4 +358,4 @@ Priority:
 
 ## Current selected feature
 
-SuiteQL Studio is the next selected SuiteMate V3 capability. Its scope is `SQL-01` through `SQL-16`, excluding `SQL-10` unless the external library is explicitly approved later.
+`FND-01`: Route capability registry. It is the next foundation checkpoint and must be completed before `FND-02`.
