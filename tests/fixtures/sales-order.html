@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="../../src/styles/netsuite.css">
     <link rel="stylesheet" href="../../src/styles/radii.css">
     <link rel="stylesheet" href="../../src/styles/v3-compat.css">
+    <link rel="stylesheet" href="../../src/record-actions/csv-import.css">
     <link rel="stylesheet" href="netSuiteFixture.css">
     <script src="chrome-stub.js"></script>
     <script>
@@ -18,6 +19,9 @@
     <script type="application/json" src="/javascript/sessionstatus/session_status_init.jsp?id=FIXTURE~1~3~N&companyName=Fixture+Company&roleName=Administrator&companyId=FIXTURE&roleId=3"></script>
     <script src="../../src/shared/settings.js"></script>
     <script src="../../src/runtime/theme-runtime.js"></script>
+    <script src="../../src/runtime/notification-runtime.js"></script>
+    <script src="../../src/record-actions/core.js"></script>
+    <script src="../../src/record-actions/csv-import.js"></script>
     <style>
       .fixture-form {
         width: 100%;
@@ -52,6 +56,9 @@
     </style>
   </head>
   <body>
+    <form id="main_form">
+      <input id="baserecordtype" type="hidden" value="salesorder">
+    </form>
     <header data-widget="NetsuiteSystemHeader">
       <strong>NetSuite Redwood</strong>
       <nav aria-label="Main navigation"><span>Transactions</span><span>Lists</span><span>Reports</span></nav>
@@ -64,9 +71,21 @@
           <h1 class="uir-page-title-firstline">Sales Order #SO10428</h1>
           <span class="uir-record-status">Pending Fulfillment</span>
         </div>
-        <div class="fixture-actions uir-header-buttons">
-          <button class="uir-button">Edit</button>
-          <button class="uir-button">Fulfill</button>
+        <div class="fixture-actions uir-buttons-top uir-header-buttons">
+          <table>
+            <tbody>
+              <tr class="uir-buttons">
+                <td><button class="uir-button">Edit</button></td>
+                <td><button class="uir-button">Fulfill</button></td>
+                <td class="uir-button-menu">
+                  <ul class="ns-menu">
+                    <li class="ns-menuitem"><a href="#actions">Actions</a></li>
+                    <li class="ns-submenu"><a href="#more">More</a></li>
+                  </ul>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 

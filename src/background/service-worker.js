@@ -1,9 +1,13 @@
 importScripts(chrome.runtime.getURL("src/suiteql/core.js"));
+importScripts(chrome.runtime.getURL("src/record-actions/core.js"));
+importScripts(chrome.runtime.getURL("src/import-assistant/core.js"));
 
 (function initializeSuiteMateV3Background() {
   "use strict";
 
   const core = globalThis.SuiteMateV3SuiteQLCore;
+  const recordActionsCore = globalThis.SuiteMateV3RecordActionsCore;
+  const importAssistantCore = globalThis.SuiteMateV3ImportAssistantCore;
   const { MESSAGE_TYPES } = core;
 
   function bridgeError(requestId, value) {
@@ -331,9 +335,124 @@ importScripts(chrome.runtime.getURL("src/suiteql/core.js"));
       target: { tabId, frameIds: [0] },
       world: "MAIN",
       func,
-      args: [payload]
+      args: payload === undefined ? [] : [payload]
     });
     return result;
+  }
+
+  function readMainWorldRecordType() {
+    try {
+      return typeof window.nlapiGetRecordType === "function"
+        ? window.nlapiGetRecordType()
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function setImportAssistantValuesInMainWorld(values) {
+    return new Promise((resolve) => {
+      const amdRequire = window.require;
+      if (typeof amdRequire !== "function") {
+        resolve({
+          ok: false,
+          error: { code: "NETSUITE_MODULE_LOADER_UNAVAILABLE", message: "NetSuite's module loader is unavailable." }
+        });
+        return;
+      }
+
+      amdRequire(["N/currentRecord"], (currentRecord) => {
+        try {
+          const record = currentRecord.get();
+          const applied = [];
+          for (const [fieldId, value] of Object.entries(values)) {
+            let field;
+            try {
+              field = record.getField({ fieldId });
+            } catch {
+              field = record.getField(fieldId);
+            }
+            if (!field) {
+              continue;
+            }
+
+            try {
+              record.setValue({
+                fieldId,
+                value,
+                ignoreFieldChange: false,
+                forceSyncSourcing: true
+              });
+            } catch {
+              record.setValue(fieldId, value);
+            }
+            applied.push(fieldId);
+          }
+          resolve({ ok: true, applied });
+        } catch (error) {
+          resolve({
+            ok: false,
+            error: {
+              code: String(error?.name || error?.code || "IMPORT_CONTEXT_ERROR"),
+              message: String(error?.message || error || "NetSuite rejected the CSV Import context.")
+            }
+          });
+        }
+      }, (error) => {
+        resolve({
+          ok: false,
+          error: {
+            code: "CURRENT_RECORD_UNAVAILABLE",
+            message: String(error?.message || error || "N/currentRecord could not be loaded.")
+          }
+        });
+      });
+    });
+  }
+
+  async function handleRecordTypeRequest(_message, sender) {
+    if (!recordActionsCore.isAllowedRecordSender(sender)) {
+      return { ok: false, recordType: null, error: "INVALID_SENDER" };
+    }
+
+    try {
+      const recordType = await executeInMainWorld(sender.tab.id, readMainWorldRecordType);
+      return {
+        ok: true,
+        recordType: recordActionsCore.normalizeRecordType(recordType)
+      };
+    } catch {
+      return { ok: false, recordType: null, error: "RECORD_TYPE_UNAVAILABLE" };
+    }
+  }
+
+  async function handleImportAssistantSetValues(message, sender) {
+    if (!importAssistantCore.isAllowedImportAssistantSender(sender)) {
+      return {
+        ok: false,
+        error: { code: "INVALID_SENDER", message: "CSV Import context can only be set from Import Assistant." }
+      };
+    }
+
+    const values = importAssistantCore.normalizeFieldValues(message?.values);
+    if (!Object.keys(values).length) {
+      return {
+        ok: false,
+        error: { code: "INVALID_IMPORT_VALUES", message: "No supported CSV Import values were provided." }
+      };
+    }
+
+    try {
+      return await executeInMainWorld(sender.tab.id, setImportAssistantValuesInMainWorld, values);
+    } catch (error) {
+      return {
+        ok: false,
+        error: {
+          code: String(error?.name || "IMPORT_CONTEXT_ERROR"),
+          message: String(error?.message || error || "CSV Import context could not be applied.")
+        }
+      };
+    }
   }
 
   async function handleStart(message, sender) {
@@ -415,6 +534,12 @@ importScripts(chrome.runtime.getURL("src/suiteql/core.js"));
         break;
       case MESSAGE_TYPES.DISPOSE:
         responsePromise = handleDispose(message, sender);
+        break;
+      case recordActionsCore.RECORD_TYPE_MESSAGE:
+        responsePromise = handleRecordTypeRequest(message, sender);
+        break;
+      case importAssistantCore.SET_VALUES_MESSAGE:
+        responsePromise = handleImportAssistantSetValues(message, sender);
         break;
       default:
         return undefined;

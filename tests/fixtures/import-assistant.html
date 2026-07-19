@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SuiteMate V3 Import Assistant fixture</title>
+    <script>history.replaceState(null, "", "/app/setup/assistants/nsimport/importassistant.nl?recordsubtype=salesorder");</script>
+    <script src="chrome-stub.js"></script>
+    <script src="../../src/import-assistant/core.js"></script>
+    <script src="../../src/import-assistant/context-runtime.js"></script>
+  </head>
+  <body>
+    <div class="uir_assistant_current_step">
+      <span class="uir_assistant_step_number">1</span>
+    </div>
+    <label>
+      Import Type
+      <input id="inpt_recordtype_1" name="inpt_recordtype" value="Accounting">
+      <input id="hddn_recordtype_1" name="recordtype" type="hidden" value="ACCOUNTING">
+    </label>
+    <div data-name="recordtype" data-options='[{"value":"ACCOUNTING","text":"Accounting"},{"value":"ITEM","text":"Items"},{"value":"TRANSACTION","text":"Transactions"}]'></div>
+    <label>
+      Record Type
+      <input id="inpt_recordsubtype_2" name="inpt_recordsubtype" value="Chart of Accounts">
+      <input id="hddn_recordsubtype_2" name="recordsubtype" type="hidden" value="ACCOUNT">
+    </label>
+    <div data-name="recordsubtype" data-options='[{"value":"ACCOUNT","text":"Chart of Accounts"}]'></div>
+    <input name="charencoding" type="hidden" value="windows-1252">
+  </body>
+</html>

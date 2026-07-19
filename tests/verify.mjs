@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8
 
 assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.name, "SuiteMate V3");
-assert.equal(manifest.version, "3.1.0");
+assert.equal(manifest.version, "3.2.0");
 assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
 assert.deepEqual(manifest.host_permissions, ["https://*.netsuite.com/*"]);
 assert.equal(manifest.background.service_worker, "src/background/service-worker.js");
@@ -27,8 +27,33 @@ assert.deepEqual(globalThemeContentScript.css, [
   "src/styles/code.css",
   "src/styles/netsuite.css",
   "src/styles/radii.css",
-  "src/styles/v3-compat.css"
+  "src/styles/v3-compat.css",
+  "src/record-actions/csv-import.css"
 ]);
+assert.deepEqual(globalThemeContentScript.js, [
+  "src/shared/settings.js",
+  "src/runtime/theme-runtime.js",
+  "src/runtime/notification-runtime.js",
+  "src/record-actions/core.js",
+  "src/record-actions/csv-import.js"
+]);
+const importAssistantContentScript = manifest.content_scripts.find((entry) =>
+  entry.js?.includes("src/import-assistant/context-runtime.js")
+);
+assert.ok(importAssistantContentScript, "The CSV Import context content script is missing");
+assert.deepEqual(importAssistantContentScript.matches, [
+  "https://*.netsuite.com/app/setup/assistants/nsimport/importassistant.nl",
+  "https://*.netsuite.com/app/setup/assistants/nsimport/importassistant.nl?*"
+]);
+assert.deepEqual(importAssistantContentScript.exclude_matches, [
+  "https://www.netsuite.com/*",
+  "https://*.extforms.netsuite.com/*"
+]);
+assert.deepEqual(importAssistantContentScript.js, [
+  "src/import-assistant/core.js",
+  "src/import-assistant/context-runtime.js"
+]);
+assert.equal(importAssistantContentScript.run_at, "document_idle");
 
 const referencedFiles = new Set([
   ...Object.values(manifest.icons),
@@ -68,6 +93,7 @@ for (const fixture of [
   "tests/fixtures/classic.html",
   "tests/fixtures/redwood.html",
   "tests/fixtures/sales-order.html",
+  "tests/fixtures/import-assistant.html",
   "tests/fixtures/saved-search-results.html",
   "tests/fixtures/saved-search-edit.html",
   "tests/fixtures/popup-role.html",
@@ -95,6 +121,12 @@ for (const fixture of [
 const extensionSources = [
   "src/shared/settings.js",
   "src/runtime/theme-runtime.js",
+  "src/runtime/notification-runtime.js",
+  "src/record-actions/core.js",
+  "src/record-actions/csv-import.js",
+  "src/record-actions/csv-import.css",
+  "src/import-assistant/core.js",
+  "src/import-assistant/context-runtime.js",
   "src/popup/popup.html",
   "src/popup/popup.css",
   "src/popup/popup.js",
@@ -108,8 +140,16 @@ const extensionSources = [
 for (const file of extensionSources) {
   const source = await readFile(resolve(root, file), "utf8");
   const sourceWithoutApprovedLinks = source.replaceAll("https://suitesense.vercel.app/", "");
+  const sourceWithoutNetSuitePaymentRecords = sourceWithoutApprovedLinks.replace(
+    /PAYMENTINSTRUMENTS|PAYMENTCARDTOKEN|PAYMENTCARD|PAYMENTITEM|CUSTOMERPAYMENT|VENDORPAYMENT/g,
+    ""
+  );
   assert.equal(/https?:\/\//.test(sourceWithoutApprovedLinks), false, `${file} contains an unapproved remote dependency`);
-  assert.equal(/SuiteAdvanced|ExtPay|payment|license/i.test(source), false, `${file} contains an excluded V1 integration`);
+  assert.equal(
+    /SuiteAdvanced|ExtPay|payment|license/i.test(sourceWithoutNetSuitePaymentRecords),
+    false,
+    `${file} contains an excluded V1 integration`
+  );
 }
 
 const themeRuntimeSource = await readFile(resolve(root, "src/runtime/theme-runtime.js"), "utf8");
@@ -146,6 +186,205 @@ assert.match(popupSource, /setModalBackgroundInert\(true\)/, "Background control
 assert.match(popupSource, /event\.key === "Escape" && activePicker/, "Escape does not close the unified picker");
 assert.doesNotMatch(popupSource, /companyLogo|logoPixel|generateLogo|recommendedPalette/i, "Logo-specific palette code remains in the popup");
 assert.doesNotMatch(themeRuntimeSource, /companyLogo|logoPixel|LOGO_MAX/i, "Logo-specific palette code remains in the NetSuite runtime");
+
+const notificationRuntimeSource = await readFile(resolve(root, "src/runtime/notification-runtime.js"), "utf8");
+let notificationClickHandler;
+let notificationRemoved = false;
+const notificationClasses = new Set();
+const notificationRootClasses = new Set();
+const notificationSandbox = {
+  document: {
+    documentElement: {
+      classList: {
+        contains: (name) => notificationRootClasses.has(name)
+      }
+    },
+    addEventListener(type, handler) {
+      if (type === "click") {
+        notificationClickHandler = handler;
+      }
+    }
+  },
+  setTimeout(callback) {
+    callback();
+    return 1;
+  }
+};
+notificationSandbox.globalThis = notificationSandbox;
+runInNewContext(notificationRuntimeSource, notificationSandbox);
+const notificationApi = notificationSandbox.SuiteMateV3Notifications;
+
+assert.equal(notificationApi.isCloseHit(390, 10, 400, false), true);
+assert.equal(notificationApi.isCloseHit(10, 10, 400, true), true);
+assert.equal(notificationApi.isCloseHit(200, 10, 400, false), false);
+assert.equal(notificationApi.isCloseHit(390, 40, 400, false), false);
+const notificationAlert = {
+  offsetWidth: 400,
+  matches: (selector) => selector === ".uir-alert-box",
+  classList: {
+    contains: (name) => notificationClasses.has(name),
+    add: (name) => notificationClasses.add(name)
+  },
+  remove() {
+    notificationRemoved = true;
+  }
+};
+notificationClickHandler({ target: notificationAlert, offsetX: 390, offsetY: 10 });
+assert.equal(notificationClasses.has("dismiss"), true, "Alert dismissal animation is not applied");
+assert.equal(notificationRemoved, true, "Alert is not removed after clicking the V1 close target");
+assert.match(notificationRuntimeSource, /\.uir-alert-box/, "The global NetSuite alert selector is missing");
+assert.match(notificationRuntimeSource, /classList\.contains\("mac"\)/, "The macOS left-side close target is not supported");
+assert.doesNotMatch(notificationRuntimeSource, /salesord|searchresults|data-path/, "Notification dismissal contains page-specific behavior");
+
+const recordActionsCoreSource = await readFile(resolve(root, "src/record-actions/core.js"), "utf8");
+const recordActionsSandbox = { URL, URLSearchParams };
+recordActionsSandbox.globalThis = recordActionsSandbox;
+runInNewContext(recordActionsCoreSource, recordActionsSandbox);
+const recordActionsCore = recordActionsSandbox.SuiteMateV3RecordActionsCore;
+
+assert.equal(recordActionsCore.normalizeRecordType(" SalesOrder "), "salesorder");
+assert.equal(recordActionsCore.normalizeRecordType("clientScript"), "script");
+assert.equal(recordActionsCore.normalizeRecordType("-1"), null);
+assert.equal(recordActionsCore.deriveImportSubtype("salesorder", "sale"), "salesorder");
+assert.equal(recordActionsCore.deriveImportSubtype("noninventoryitem", "Sale"), "noninventorysaleitem");
+assert.equal(recordActionsCore.deriveImportSubtype("otherchargeitem", "purchase"), "otherchargepurchaseitem");
+assert.equal(recordActionsCore.deriveImportSubtype("serviceitem", "resale"), "serviceresaleitem");
+assert.equal(
+  recordActionsCore.createCsvImportUrl("salesorder", "https://123456.app.netsuite.com"),
+  "/app/setup/assistants/nsimport/importassistant.nl?recordsubtype=salesorder"
+);
+
+function createRecordDocument(values, fieldHelpOnclick = "") {
+  return {
+    querySelector(selector) {
+      if (selector.includes("nlFieldHelp")) {
+        return fieldHelpOnclick
+          ? { getAttribute: () => fieldHelpOnclick }
+          : null;
+      }
+      return Object.hasOwn(values, selector) ? { value: values[selector] } : null;
+    }
+  };
+}
+
+assert.equal(
+  recordActionsCore.resolveRecordTypeFromDocument(
+    createRecordDocument({ "#baserecordtype": "salesorder" }),
+    "/app/accounting/transactions/salesord.nl"
+  ),
+  "salesorder"
+);
+assert.equal(
+  recordActionsCore.resolveRecordTypeFromDocument(
+    createRecordDocument({ "#searchtype": "Opprtnty" }),
+    "/app/common/search/search.nl"
+  ),
+  "opportunity"
+);
+assert.equal(
+  recordActionsCore.resolveRecordTypeFromDocument(
+    createRecordDocument({}, "return nlFieldHelp('field', 'label', 'customrecord_fixture');")
+  ),
+  "customrecord_fixture"
+);
+assert.equal(
+  recordActionsCore.isSupportedRecordPage({ pathname: "/app/common/search/searchresults.nl", search: "" }),
+  false
+);
+assert.equal(
+  recordActionsCore.isSupportedRecordPage({ pathname: "/app/common/search/ubersearchresults.nl", search: "?suiteql" }),
+  false
+);
+assert.equal(
+  recordActionsCore.isAllowedRecordSender({
+    frameId: 0,
+    tab: { id: 7 },
+    url: "https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl?id=1"
+  }),
+  true
+);
+assert.equal(
+  recordActionsCore.isAllowedRecordSender({
+    frameId: 1,
+    tab: { id: 7 },
+    url: "https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl?id=1"
+  }),
+  false
+);
+
+const csvImportSource = await readFile(resolve(root, "src/record-actions/csv-import.js"), "utf8");
+assert.match(csvImportSource, /className = "suitemate-v3-csv-import-cell"/, "CSV Import is not emitted as a standalone toolbar action");
+assert.match(csvImportSource, /textContent = "CSV Import"/, "The CSV Import action label is missing");
+assert.match(csvImportSource, /\.uir-buttons-top\.uir-header-buttons/, "The top record toolbar target is missing");
+assert.match(csvImportSource, /actionsCell\.after\(createToolbarAction\(href\)\)/, "CSV Import is not inserted immediately after Actions");
+assert.match(csvImportSource, /data-suitemate-v3-action/, "CSV Import injection is not idempotent");
+assert.match(csvImportSource, /MutationObserver/, "Late-rendered NetSuite toolbars are not handled");
+assert.doesNotMatch(csvImportSource, /Scripted Record|getRecordTypes|PlatformClientScriptHandler/, "CSV Import copied unrelated V1 dependencies");
+
+const csvImportStyles = await readFile(resolve(root, "src/record-actions/csv-import.css"), "utf8");
+assert.match(csvImportStyles, /--theme-secondary-light/, "CSV Import does not use the active SuiteMate theme");
+assert.match(csvImportStyles, /--suitemate-radius-compact/, "CSV Import does not use the global radius system");
+assert.match(csvImportStyles, /:focus-visible/, "CSV Import lacks a keyboard focus state");
+
+const salesOrderFixtureSource = await readFile(resolve(root, "tests/fixtures/sales-order.html"), "utf8");
+assert.match(salesOrderFixtureSource, /id="main_form"[\s\S]*?id="baserecordtype"[^>]+value="salesorder"/, "The CSV Import fixture lacks record context");
+assert.match(salesOrderFixtureSource, /class="fixture-actions uir-buttons-top uir-header-buttons"[\s\S]*?class="uir-button-menu"[\s\S]*?>Actions</, "The CSV Import fixture lacks the top Actions toolbar control");
+
+const importAssistantCoreSource = await readFile(resolve(root, "src/import-assistant/core.js"), "utf8");
+const importAssistantSandbox = { URL };
+importAssistantSandbox.globalThis = importAssistantSandbox;
+runInNewContext(importAssistantCoreSource, importAssistantSandbox);
+const importAssistantCore = importAssistantSandbox.SuiteMateV3ImportAssistantCore;
+assert.equal(importAssistantCore.resolveStaticCategory("salesorder"), "TRANSACTION");
+assert.equal(importAssistantCore.resolveStaticCategory("noninventorysaleitem"), "ITEM");
+assert.equal(importAssistantCore.resolveStaticCategory("customrecord_example"), "CUSTOMRECORD");
+assert.equal(importAssistantCore.resolveStaticCategory("customtransaction_example"), "TRANSACTION");
+assert.equal(importAssistantCore.resolveStaticCategory("currencyrate"), null);
+assert.deepEqual(
+  JSON.parse(JSON.stringify(importAssistantCore.parseOptionsData('[{"value":"TRANSACTION","text":"Transactions"}]'))),
+  [{ value: "TRANSACTION", text: "Transactions" }]
+);
+assert.equal(
+  importAssistantCore.responseContainsSubtype(`label\u0001SALESORDER\u0001Sales Order\u0005ignored`, "salesorder"),
+  true
+);
+assert.deepEqual(
+  JSON.parse(JSON.stringify(importAssistantCore.normalizeFieldValues({
+    charencoding: "UTF-8",
+    recordtype: "transaction",
+    recordsubtype: "salesorder",
+    arbitrary: "blocked"
+  }))),
+  { charencoding: "UTF-8", recordtype: "TRANSACTION", recordsubtype: "SALESORDER" }
+);
+const importAssistantUrl = "https://123456.app.netsuite.com/app/setup/assistants/nsimport/importassistant.nl?recordsubtype=salesorder";
+assert.equal(
+  importAssistantCore.isAllowedImportAssistantSender({
+    frameId: 0,
+    tab: { id: 8 },
+    url: importAssistantUrl
+  }),
+  true
+);
+assert.equal(
+  importAssistantCore.isAllowedImportAssistantSender({
+    frameId: 0,
+    tab: { id: 8 },
+    url: "https://123456.app.netsuite.com/app/center/card.nl"
+  }),
+  false
+);
+const importContextSource = await readFile(resolve(root, "src/import-assistant/context-runtime.js"), "utf8");
+assert.match(importContextSource, /charencoding: "UTF-8"/, "CSV Import does not default to UTF-8");
+assert.match(importContextSource, /waitForSubtypeOption/, "Dependent CSV Import subtype sourcing is not handled");
+assert.match(importContextSource, /data-name=|\[data-name=/, "CSV Import option metadata is not used");
+assert.match(importContextSource, /importmethod", "filegroups"/, "Unknown CSV record types cannot resolve their category");
+assert.doesNotMatch(importContextSource, /mapper_grp|Start Over|recid.*new/, "Unrelated Import Assistant features were migrated");
+
+const importFixtureSource = await readFile(resolve(root, "tests/fixtures/import-assistant.html"), "utf8");
+assert.match(importFixtureSource, /recordsubtype=salesorder/, "The Import Assistant fixture does not carry record context");
+assert.match(importFixtureSource, /name="recordtype"[^>]+value="ACCOUNTING"/, "The Import Assistant fixture lacks the native category field");
+assert.match(importFixtureSource, /name="recordsubtype"[^>]+value="ACCOUNT"/, "The Import Assistant fixture lacks the native subtype field");
 
 const compatibilityStyles = await readFile(resolve(root, "src/styles/v3-compat.css"), "utf8");
 const radiusStyles = await readFile(resolve(root, "src/styles/radii.css"), "utf8");
@@ -524,6 +763,8 @@ assert.match(backgroundSource, /"getSuiteQLQueryPage"/, "Progressive SuiteQL bri
 assert.match(backgroundSource, /"SUITE_QL"/, "SuiteQL permission errors can be hidden by a static metadata provider");
 assert.match(backgroundSource, /credentials: "include"/, "SuiteQL bridge requests do not use the authenticated NetSuite session");
 assert.match(backgroundSource, /world: "MAIN"/, "SuiteQL is not executed in NetSuite's main world");
+assert.match(backgroundSource, /\["N\/currentRecord"\]/, "CSV Import context does not use NetSuite's current record API");
+assert.match(backgroundSource, /forceSyncSourcing: true/, "CSV Import dependent fields are not sourced synchronously");
 assert.doesNotMatch(backgroundSource, /\["N\/query"\]/, "SuiteQL still depends on an unavailable page-level N/query loader");
 assert.match(studioSource, /state\.selection\.main/, "Selected editor text is not executed");
 assert.match(studioSource, /document\.querySelector\("#body"\)/, "Studio is not mounted in NetSuite's visible workspace host");
@@ -544,6 +785,7 @@ assert.doesNotMatch(backgroundSource, /nlapijsonhandler/i, "SuiteQL uses the unr
 
 let backgroundMessageListener;
 let mockNow = 100;
+const importAssistantAppliedValues = {};
 const pagedRows = [
   Array.from({ length: 1000 }, (_, index) => [index + 1, `row_${index + 1}`]),
   [[1001, "last"]]
@@ -606,6 +848,8 @@ const backgroundSetTimeout = (...args) => {
 };
 const backgroundSandbox = {
   SuiteMateV3SuiteQLCore: suiteqlCore,
+  SuiteMateV3RecordActionsCore: recordActionsCore,
+  SuiteMateV3ImportAssistantCore: importAssistantCore,
   Symbol,
   Map,
   Set,
@@ -618,7 +862,24 @@ const backgroundSandbox = {
   performance: { now: () => mockNow++ },
   setTimeout: backgroundSetTimeout,
   clearTimeout,
-  window: {},
+  window: {
+    require(_modules, onSuccess) {
+      onSuccess({
+        get() {
+          return {
+            getField({ fieldId }) {
+              return importAssistantCore.ALLOWED_FIELDS.includes(fieldId) ? { type: "select" } : null;
+            },
+            setValue(options, positionalValue) {
+              const fieldId = typeof options === "object" ? options.fieldId : options;
+              const value = typeof options === "object" ? options.value : positionalValue;
+              importAssistantAppliedValues[fieldId] = value;
+            }
+          };
+        }
+      });
+    }
+  },
   navigator: { language: "en-US" },
   fetch: mockBridgeFetch,
   importScripts() {},
@@ -632,7 +893,10 @@ const backgroundSandbox = {
       }
     },
     scripting: {
-      async executeScript({ func, args }) {
+      async executeScript({ func, args = [] }) {
+        if (args.length === 0) {
+          return [{ result: "salesorder" }];
+        }
         return [{ result: await func(...args) }];
       }
     }
@@ -651,6 +915,54 @@ function sendBackgroundMessage(message, sender) {
 }
 
 const validBackgroundSender = { frameId: 0, tab: { id: 71, url: studioUrl }, url: studioUrl };
+const recordPageUrl = "https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl?id=10";
+const validRecordSender = { frameId: 0, tab: { id: 72, url: recordPageUrl }, url: recordPageUrl };
+const recordTypeResponse = await sendBackgroundMessage(
+  { type: recordActionsCore.RECORD_TYPE_MESSAGE },
+  validRecordSender
+);
+assert.deepEqual(JSON.parse(JSON.stringify(recordTypeResponse)), { ok: true, recordType: "salesorder" });
+const rejectedRecordTypeResponse = await sendBackgroundMessage(
+  { type: recordActionsCore.RECORD_TYPE_MESSAGE },
+  { ...validRecordSender, frameId: 1 }
+);
+assert.equal(rejectedRecordTypeResponse.error, "INVALID_SENDER");
+const validImportAssistantSender = {
+  frameId: 0,
+  tab: { id: 73, url: importAssistantUrl },
+  url: importAssistantUrl
+};
+const importAssistantResponse = await sendBackgroundMessage(
+  {
+    type: importAssistantCore.SET_VALUES_MESSAGE,
+    values: {
+      charencoding: "UTF-8",
+      recordtype: "TRANSACTION",
+      recordsubtype: "SALESORDER",
+      arbitrary: "BLOCKED"
+    }
+  },
+  validImportAssistantSender
+);
+assert.equal(importAssistantResponse.ok, true);
+assert.deepEqual(JSON.parse(JSON.stringify(importAssistantResponse.applied)), [
+  "charencoding",
+  "recordtype",
+  "recordsubtype"
+]);
+assert.deepEqual(importAssistantAppliedValues, {
+  charencoding: "UTF-8",
+  recordtype: "TRANSACTION",
+  recordsubtype: "SALESORDER"
+});
+const rejectedImportAssistantResponse = await sendBackgroundMessage(
+  {
+    type: importAssistantCore.SET_VALUES_MESSAGE,
+    values: { recordtype: "TRANSACTION" }
+  },
+  { ...validImportAssistantSender, url: recordPageUrl, tab: { id: 73, url: recordPageUrl } }
+);
+assert.equal(rejectedImportAssistantResponse.error.code, "INVALID_SENDER");
 const rejectedBackgroundResponse = await sendBackgroundMessage(
   { type: suiteqlCore.MESSAGE_TYPES.START, requestId: "rejected", query: "SELECT 1", paged: false },
   { frameId: 1, tab: { id: 71, url: studioUrl }, url: studioUrl }
@@ -756,5 +1068,5 @@ for (const [file, expectedHash] of Object.entries(expectedStyleHashes)) {
 }
 
 console.log(
-  `Verified ${referencedFiles.size} manifest resources, ${Object.keys(expectedStyleHashes).length} V1 style hashes, role themes, and SuiteQL Core behavior.`
+  `Verified ${referencedFiles.size} manifest resources, ${Object.keys(expectedStyleHashes).length} V1 style hashes, role themes, CSV Import, and SuiteQL Core behavior.`
 );
