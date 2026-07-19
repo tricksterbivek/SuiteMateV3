@@ -7,9 +7,18 @@ import { keymap } from "@codemirror/view";
   "use strict";
 
   const core = globalThis.SuiteMateV3SuiteQLCore;
-  const path = location.pathname.replace(/\/{2,}/g, "/");
-  const params = new URLSearchParams(location.search);
-  if (window !== window.top || path !== core?.STUDIO_PATH || !params.has("suiteql")) {
+  const routeApi = globalThis.SuiteMateV3Routes;
+  let topFrame = false;
+  try {
+    topFrame = window === window.top;
+  } catch {
+    return;
+  }
+  const pageContext = routeApi?.createPageContext(location, {
+    isTopFrame: topFrame,
+    trustedContentScript: true
+  });
+  if (!core || !routeApi || !routeApi.supports(routeApi.CAPABILITIES.SUITEQL_CONSOLE, pageContext)) {
     return;
   }
 

@@ -2,20 +2,24 @@
   "use strict";
 
   const core = globalThis.SuiteMateV3RecordActionsCore;
+  const routeApi = globalThis.SuiteMateV3Routes;
   const settingsApi = globalThis.SuiteMateV3Settings;
-  if (!core || !globalThis.document || !globalThis.location || !globalThis.chrome?.runtime) {
+  if (!core || !routeApi || !globalThis.document || !globalThis.location || !globalThis.chrome?.runtime) {
     return;
   }
 
+  let topFrame = false;
   try {
-    if (window !== window.top) {
-      return;
-    }
+    topFrame = window === window.top;
   } catch {
     return;
   }
 
-  if (!core.isSupportedRecordPage(location)) {
+  const pageContext = routeApi.createPageContext(location, {
+    isTopFrame: topFrame,
+    trustedContentScript: true
+  });
+  if (!routeApi.supports(routeApi.CAPABILITIES.CSV_IMPORT_TOOLBAR, pageContext)) {
     return;
   }
 

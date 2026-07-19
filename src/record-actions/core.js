@@ -1,10 +1,9 @@
 (function defineSuiteMateV3RecordActionsCore(global) {
   "use strict";
 
+  const routeApi = global.SuiteMateV3Routes;
   const RECORD_TYPE_MESSAGE = "SUITEMATE_V3_RECORD_TYPE";
-  const CSV_IMPORT_PATH = "/app/setup/assistants/nsimport/importassistant.nl";
-  const SEARCH_RESULTS_PATH = "/app/common/search/searchresults.nl";
-  const SUITEQL_PATH = "/app/common/search/ubersearchresults.nl";
+  const CSV_IMPORT_PATH = routeApi.PATHS.IMPORT_ASSISTANT;
   const ITEM_BASE_TYPE_PATTERN = /^(noninventory|othercharge|service)item$/;
   const RECORD_TYPE_PATTERN = /^[a-z][a-z0-9_]*$/;
   const SEARCH_TYPE_MAP = Object.freeze({
@@ -111,33 +110,19 @@
   }
 
   function isSupportedRecordPage(locationRef) {
-    const pathname = String(locationRef?.pathname ?? "").replace(/\/{2,}/g, "/");
-    if (!pathname || pathname === SEARCH_RESULTS_PATH) {
-      return false;
-    }
-    if (pathname === SUITEQL_PATH && new URLSearchParams(locationRef?.search ?? "").has("suiteql")) {
-      return false;
-    }
-    return true;
+    const context = routeApi.createPageContext(locationRef, {
+      isTopFrame: true,
+      trustedContentScript: true
+    });
+    return routeApi.supports(routeApi.CAPABILITIES.CSV_IMPORT_TOOLBAR, context);
   }
 
   function isAllowedNetSuiteUrl(value) {
-    try {
-      const url = new URL(value);
-      const hostname = url.hostname.toLowerCase();
-      return url.protocol === "https:"
-        && hostname.endsWith(".netsuite.com")
-        && hostname !== "www.netsuite.com"
-        && !hostname.endsWith(".extforms.netsuite.com");
-    } catch {
-      return false;
-    }
+    return routeApi.isAllowedNetSuiteUrl(value);
   }
 
   function isAllowedRecordSender(sender) {
-    return sender?.frameId === 0
-      && Number.isInteger(sender?.tab?.id)
-      && isAllowedNetSuiteUrl(sender?.url ?? sender?.tab?.url);
+    return routeApi.isAllowedSender(sender, routeApi.CAPABILITIES.RECORD_TYPE_BRIDGE);
   }
 
   global.SuiteMateV3RecordActionsCore = Object.freeze({

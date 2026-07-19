@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8
 
 assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.name, "SuiteMate V3");
-assert.equal(manifest.version, "3.3.0");
+assert.equal(manifest.version, "3.4.0");
 assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
 assert.deepEqual(manifest.host_permissions, ["https://*.netsuite.com/*"]);
 assert.equal(manifest.background.service_worker, "src/background/service-worker.js");
@@ -31,6 +31,7 @@ assert.deepEqual(globalThemeContentScript.css, [
   "src/record-actions/csv-import.css"
 ]);
 assert.deepEqual(globalThemeContentScript.js, [
+  "src/shared/routes.js",
   "src/shared/settings.js",
   "src/runtime/theme-runtime.js",
   "src/runtime/notification-runtime.js",
@@ -119,6 +120,7 @@ for (const fixture of [
 }
 
 const extensionSources = [
+  "src/shared/routes.js",
   "src/shared/settings.js",
   "src/runtime/theme-runtime.js",
   "src/runtime/notification-runtime.js",
@@ -152,7 +154,16 @@ for (const file of extensionSources) {
   );
 }
 
+const routeSource = await readFile(resolve(root, "src/shared/routes.js"), "utf8");
+const routeSandbox = { URL, URLSearchParams };
+routeSandbox.globalThis = routeSandbox;
+runInNewContext(routeSource, routeSandbox);
+const routeApi = routeSandbox.SuiteMateV3Routes;
+
 const themeRuntimeSource = await readFile(resolve(root, "src/runtime/theme-runtime.js"), "utf8");
+assert.match(themeRuntimeSource, /routeApi\.createPageContext\(location/, "The theme runtime does not use the route registry");
+assert.match(themeRuntimeSource, /routeApi\.serializeParams\(context, \["suiteql"\]\)/, "Route metadata is not centralized");
+assert.doesNotMatch(themeRuntimeSource, /function normalizePath|function hasPath|function pathStartsWith/, "Duplicated route helpers remain in the theme runtime");
 assert.match(themeRuntimeSource, /setClass\("sfc", enabled\)/, "V1 frozen-column styling is not enabled");
 assert.match(themeRuntimeSource, /setClass\("sln", enabled\)/, "V1 sublist line-number styling is not enabled");
 assert.match(
@@ -197,6 +208,14 @@ let notificationRemoved = false;
 const notificationClasses = new Set();
 const notificationRootClasses = new Set();
 const notificationSandbox = {
+  SuiteMateV3Routes: routeApi,
+  location: {
+    pathname: "/app/center/card.nl",
+    search: "",
+    hash: "",
+    hostname: "fixture.app.netsuite.com",
+    origin: "https://fixture.app.netsuite.com"
+  },
   document: {
     documentElement: {
       classList: {
@@ -214,6 +233,7 @@ const notificationSandbox = {
     return 1;
   }
 };
+notificationSandbox.top = notificationSandbox;
 notificationSandbox.globalThis = notificationSandbox;
 runInNewContext(notificationRuntimeSource, notificationSandbox);
 const notificationApi = notificationSandbox.SuiteMateV3Notifications;
@@ -241,7 +261,9 @@ assert.match(notificationRuntimeSource, /classList\.contains\("mac"\)/, "The mac
 assert.doesNotMatch(notificationRuntimeSource, /salesord|searchresults|data-path/, "Notification dismissal contains page-specific behavior");
 
 const recordActionsCoreSource = await readFile(resolve(root, "src/record-actions/core.js"), "utf8");
-const recordActionsSandbox = { URL, URLSearchParams };
+assert.match(recordActionsCoreSource, /routeApi\.isAllowedSender/, "Record sender validation bypasses the route registry");
+assert.doesNotMatch(recordActionsCoreSource, /hostname\.endsWith|extforms\.netsuite/, "Record actions retain a duplicate host policy");
+const recordActionsSandbox = { URL, URLSearchParams, SuiteMateV3Routes: routeApi };
 recordActionsSandbox.globalThis = recordActionsSandbox;
 runInNewContext(recordActionsCoreSource, recordActionsSandbox);
 const recordActionsCore = recordActionsSandbox.SuiteMateV3RecordActionsCore;
@@ -335,7 +357,9 @@ assert.match(salesOrderFixtureSource, /id="main_form"[\s\S]*?id="baserecordtype"
 assert.match(salesOrderFixtureSource, /class="fixture-actions uir-buttons-top uir-header-buttons"[\s\S]*?class="uir-button-menu"[\s\S]*?>Actions</, "The CSV Import fixture lacks the top Actions toolbar control");
 
 const importAssistantCoreSource = await readFile(resolve(root, "src/import-assistant/core.js"), "utf8");
-const importAssistantSandbox = { URL };
+assert.match(importAssistantCoreSource, /routeApi\.isAllowedSender/, "Import Assistant sender validation bypasses the route registry");
+assert.doesNotMatch(importAssistantCoreSource, /hostname\.endsWith|extforms\.netsuite/, "Import Assistant retains a duplicate host policy");
+const importAssistantSandbox = { URL, SuiteMateV3Routes: routeApi };
 importAssistantSandbox.globalThis = importAssistantSandbox;
 runInNewContext(importAssistantCoreSource, importAssistantSandbox);
 const importAssistantCore = importAssistantSandbox.SuiteMateV3ImportAssistantCore;
@@ -651,7 +675,9 @@ for (const hex of Object.values(neutralShades.shades)) {
 assert.notEqual(generateMaterialShades("#ffffff").source, generateMaterialShades("#ffffff").shades[500]);
 
 const coreSource = await readFile(resolve(root, "src/suiteql/core.js"), "utf8");
-const coreSandbox = { URL, Date };
+assert.match(coreSource, /routeApi\.isAllowedSender/, "SuiteQL sender validation bypasses the route registry");
+assert.doesNotMatch(coreSource, /host\.endsWith|extforms\.netsuite/, "SuiteQL retains a duplicate host policy");
+const coreSandbox = { URL, Date, SuiteMateV3Routes: routeApi };
 coreSandbox.globalThis = coreSandbox;
 runInNewContext(coreSource, coreSandbox);
 const suiteqlCore = coreSandbox.SuiteMateV3SuiteQLCore;
@@ -853,6 +879,7 @@ const backgroundSetTimeout = (...args) => {
   return timeout;
 };
 const backgroundSandbox = {
+  SuiteMateV3Routes: routeApi,
   SuiteMateV3SuiteQLCore: suiteqlCore,
   SuiteMateV3RecordActionsCore: recordActionsCore,
   SuiteMateV3ImportAssistantCore: importAssistantCore,
@@ -1074,5 +1101,5 @@ for (const [file, expectedHash] of Object.entries(expectedStyleHashes)) {
 }
 
 console.log(
-  `Verified ${referencedFiles.size} manifest resources, ${Object.keys(expectedStyleHashes).length} V1 style hashes, role themes, CSV Import, and SuiteQL Core behavior.`
+  `Verified ${referencedFiles.size} manifest resources, the route registry, ${Object.keys(expectedStyleHashes).length} V1 style hashes, role themes, CSV Import, and SuiteQL Core behavior.`
 );

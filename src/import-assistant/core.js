@@ -1,7 +1,8 @@
 (function defineSuiteMateV3ImportAssistantCore(global) {
   "use strict";
 
-  const IMPORT_ASSISTANT_PATH = "/app/setup/assistants/nsimport/importassistant.nl";
+  const routeApi = global.SuiteMateV3Routes;
+  const IMPORT_ASSISTANT_PATH = routeApi.PATHS.IMPORT_ASSISTANT;
   const SET_VALUES_MESSAGE = "SUITEMATE_V3_IMPORT_ASSISTANT_SET_VALUES";
   const ALLOWED_FIELDS = Object.freeze(["charencoding", "recordtype", "recordsubtype"]);
   const CATEGORY_RECORD_TYPES = Object.freeze({
@@ -140,27 +141,11 @@
   }
 
   function isAllowedNetSuiteUrl(value) {
-    try {
-      const url = new URL(value);
-      const hostname = url.hostname.toLowerCase();
-      return url.protocol === "https:"
-        && hostname.endsWith(".netsuite.com")
-        && hostname !== "www.netsuite.com"
-        && !hostname.endsWith(".extforms.netsuite.com");
-    } catch {
-      return false;
-    }
+    return routeApi.isAllowedNetSuiteUrl(value);
   }
 
   function isAllowedImportAssistantSender(sender) {
-    if (sender?.frameId !== 0 || !Number.isInteger(sender?.tab?.id)) {
-      return false;
-    }
-    const sourceUrl = sender?.url ?? sender?.tab?.url;
-    if (!isAllowedNetSuiteUrl(sourceUrl)) {
-      return false;
-    }
-    return new URL(sourceUrl).pathname === IMPORT_ASSISTANT_PATH;
+    return routeApi.isAllowedSender(sender, routeApi.CAPABILITIES.IMPORT_ASSISTANT_BRIDGE);
   }
 
   global.SuiteMateV3ImportAssistantCore = Object.freeze({
