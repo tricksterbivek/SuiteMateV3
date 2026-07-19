@@ -86,6 +86,16 @@ The styling foundation is not complete because the extension loads. It is comple
 - Recheck Sales Order view and edit pages after the SuiteQL pass.
 - Repeat the SuiteQL execution pass in Release Preview before every NetSuite release and treat a changed bridge response as a release blocker.
 
+## NetSuite data adapter pass
+
+- Confirm SuiteQL Console sets `data-suitemate-v3-data-adapter="1"` only after an authorized adapter operation succeeds.
+- Open CSV Import from a supported record and confirm Import Assistant applies the expected category, subtype and `UTF-8` through the typed adapter.
+- Confirm normal Global Search and Saved Search pages never mount SuiteQL Console.
+- Confirm a stale document, cross-account response, login redirect or unexpected NetSuite redirect produces a typed failure instead of returning data.
+- Confirm adapter requests remain limited to the registered SuiteQL, Saved Search, record metadata and Import Assistant operations.
+- Confirm content scripts cannot provide arbitrary URLs, HTTP methods, headers, RPC methods, AMD modules or request bodies.
+- Confirm browser logs contain no SuiteMate runtime errors after the SuiteQL, Import Assistant, Global Search and Saved Search checks.
+
 ## Exit gate
 
 The SuiteQL milestone is complete only when the styling regressions remain clear, the SuiteQL checks pass, and final evidence is retained.
