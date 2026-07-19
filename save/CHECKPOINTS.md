@@ -8,6 +8,8 @@ Status: Verified
 
 Date: 2026-07-19
 
+Pull request: <https://github.com/tricksterbivek/SuiteMateV3/pull/5>
+
 Release: <https://github.com/tricksterbivek/SuiteMateV3/releases/tag/v3.2.0>
 
 ### Included
