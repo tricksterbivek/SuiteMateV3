@@ -21,7 +21,7 @@
           <strong id="suiteqlToolTitle">SuiteQL Console</strong>
           <small id="suiteqlToolContext">Open a NetSuite tab to launch Studio.</small>
         </div>
-        <button id="openSuiteQL" class="primary-action" type="button" disabled>Open SuiteQL Console</button>
+        <button id="openSuiteQL" class="primary-action" type="button" data-suitemate-v3-command="popup.open-suiteql" disabled>Open SuiteQL Console</button>
       </section>
 
       <form id="settings">
@@ -86,13 +86,13 @@
           </div>
 
           <div class="theme-actions">
-            <button id="swapColors" type="button">Swap colors</button>
-            <button id="resetColors" type="button">Default colors</button>
+            <button id="swapColors" type="button" data-suitemate-v3-command="theme.swap-colors">Swap colors</button>
+            <button id="resetColors" type="button" data-suitemate-v3-command="theme.reset-role-colors">Default colors</button>
           </div>
         </section>
 
         <div class="actions">
-          <button id="reset" type="button">Reset all</button>
+          <button id="reset" type="button" data-suitemate-v3-command="settings.reset-all">Reset all</button>
           <output id="status" aria-live="polite"></output>
         </div>
       </form>
@@ -162,6 +162,7 @@
     </main>
 
     <script src="../shared/routes.js"></script>
+    <script src="../shared/commands.js"></script>
     <script src="../shared/settings.js"></script>
     <script src="../suiteql/core.js"></script>
     <script src="../../dist/material-palette.js"></script>

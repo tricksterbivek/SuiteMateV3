@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8
 
 assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.name, "SuiteMate V3");
-assert.equal(manifest.version, "3.7.0");
+assert.equal(manifest.version, "3.8.0");
 assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
 assert.deepEqual(manifest.host_permissions, ["https://*.netsuite.com/*"]);
 assert.equal(manifest.background.service_worker, "src/background/service-worker.js");
@@ -32,6 +32,7 @@ assert.deepEqual(globalThemeContentScript.css, [
 ]);
 assert.deepEqual(globalThemeContentScript.js, [
   "src/shared/routes.js",
+  "src/shared/commands.js",
   "src/shared/bridge.js",
   "src/shared/lifecycle.js",
   "src/shared/settings.js",
@@ -123,6 +124,7 @@ for (const fixture of [
 
 const extensionSources = [
   "src/shared/routes.js",
+  "src/shared/commands.js",
   "src/shared/bridge.js",
   "src/shared/lifecycle.js",
   "src/shared/settings.js",
@@ -163,6 +165,31 @@ const routeSandbox = { URL, URLSearchParams };
 routeSandbox.globalThis = routeSandbox;
 runInNewContext(routeSource, routeSandbox);
 const routeApi = routeSandbox.SuiteMateV3Routes;
+
+const commandSource = await readFile(resolve(root, "src/shared/commands.js"), "utf8");
+const commandSandbox = {
+  URL,
+  URLSearchParams,
+  SuiteMateV3Routes: routeApi,
+  navigator: { platform: "MacIntel" },
+  console
+};
+commandSandbox.globalThis = commandSandbox;
+runInNewContext(commandSource, commandSandbox);
+const commandApi = commandSandbox.SuiteMateV3Commands;
+assert.equal(commandApi.VERSION, 1);
+assert.equal(commandApi.IDS.SUITEQL_EXECUTE, "suiteql.execute");
+assert.equal(commandApi.IDS.POPUP_OPEN_SUITEQL, "popup.open-suiteql");
+assert.equal(commandApi.IDS.RECORD_CSV_IMPORT, "record.csv-import");
+assert.equal(Object.isFrozen(commandApi.DEFINITIONS), true);
+assert.equal(
+  commandApi.getShortcut(commandApi.IDS.SUITEQL_EXECUTE).editor,
+  "Mod-e"
+);
+assert.equal(
+  commandApi.getShortcut(commandApi.IDS.SUITEQL_ABORT).editor,
+  "Escape"
+);
 
 const bridgeSource = await readFile(resolve(root, "src/shared/bridge.js"), "utf8");
 assert.match(bridgeSource, /routeApi\?\.isAllowedSender/, "The typed bridge bypasses the route registry");
@@ -211,6 +238,7 @@ assert.match(
 const popupSource = await readFile(resolve(root, "src/popup/popup.js"), "utf8");
 assert.match(popupSource, /addEventListener\("input"/, "Color input does not trigger live preview");
 assert.match(popupSource, /addEventListener\("pagehide"/, "Pending live colors are not flushed when the popup closes");
+assert.match(popupSource, /commandApi\.createScope\(commandApi\.SURFACES\.POPUP/, "The popup does not use the shared command scope");
 assert.match(popupSource, /createStudioUrl\(activeNetSuiteTab\?\.url\)/, "The popup does not build the account-scoped Studio URL");
 assert.match(popupSource, /chrome\.tabs\.update/, "The popup does not open Studio in the active tab");
 assert.match(
@@ -226,13 +254,55 @@ assert.match(
 assert.match(popupSource, /requestAnimationFrame/, "Pointer movement is not coalesced before live preview");
 assert.match(popupSource, /saveRoleColors\(\{ \[picker\.colorName\]: picker\.input\.value \}\)/, "Closing the unified picker does not flush its final value");
 assert.match(popupSource, /setModalBackgroundInert\(true\)/, "Background controls remain interactive while the picker is open");
-assert.match(popupSource, /event\.key === "Escape" && activePicker/, "Escape does not close the unified picker");
+assert.match(
+  popupSource,
+  /commandScope\.bindShortcuts\(\s*document,\s*\[COMMANDS\.THEME_APPLY_AND_CLOSE_PICKER\]/,
+  "The unified picker Escape shortcut bypasses the shared command dispatcher"
+);
 assert.doesNotMatch(popupSource, /companyLogo|logoPixel|generateLogo|recommendedPalette/i, "Logo-specific palette code remains in the popup");
 assert.doesNotMatch(themeRuntimeSource, /companyLogo|logoPixel|LOGO_MAX/i, "Logo-specific palette code remains in the NetSuite runtime");
 assert.match(popupSource, /api\.ensureCurrentSchema\(\)/, "The popup does not intentionally persist legacy settings migration");
 assert.match(popupSource, /settingsLocked = true/, "Settings failures do not lock the popup");
 assert.doesNotMatch(popupSource, /chrome\.storage\.sync\.set/, "The popup bypasses the versioned settings API");
 assert.match(themeRuntimeSource, /isSettingsVersionError\(error\)/, "The theme runtime does not safely handle future settings");
+
+const suiteqlStudioSource = await readFile(resolve(root, "src/suiteql/studio-entry.js"), "utf8");
+assert.match(
+  suiteqlStudioSource,
+  /commandApi\.createScope\(commandApi\.SURFACES\.SUITEQL/,
+  "SuiteQL Console does not use the shared command scope"
+);
+assert.match(
+  suiteqlStudioSource,
+  /commandApi\.createEditorKeyBindings/,
+  "SuiteQL Console shortcuts are not derived from the command registry"
+);
+assert.match(
+  suiteqlStudioSource,
+  /UI_COMMANDS\.SUITEQL_EXECUTE,\s*\{\s*allowReentry:\s*true/,
+  "SuiteQL Execute cannot restart immediately after Abort"
+);
+assert.match(
+  suiteqlStudioSource,
+  /UI_COMMANDS\.SUITEQL_LOAD_NEXT_PAGE,\s*\{\s*allowReentry:\s*true/,
+  "Progressive paging can remain locked after Abort"
+);
+assert.match(
+  suiteqlStudioSource,
+  /addEventListener\("pagehide", \(event\)[\s\S]*?if \(!event\.persisted\) \{\s*void disposeRequest\(state\.requestId\);\s*commandScope\.dispose\(\)/,
+  "SuiteQL Console disposes request state during a bfcache navigation"
+);
+assert.doesNotMatch(
+  suiteqlStudioSource,
+  /addEventListener\("keydown"/,
+  "SuiteQL Console installs a second global keyboard dispatcher"
+);
+
+assert.doesNotMatch(
+  commandSource,
+  /PlatformClientScriptHandler|N\/query|chrome\.runtime|chrome\.scripting|\bfetch\s*\(/,
+  "The UI command registry is coupled to privileged NetSuite transport"
+);
 
 const notificationRuntimeSource = await readFile(resolve(root, "src/runtime/notification-runtime.js"), "utf8");
 let notificationClickHandler;
@@ -355,7 +425,9 @@ assert.equal(
 );
 const csvImportSource = await readFile(resolve(root, "src/record-actions/csv-import.js"), "utf8");
 assert.match(csvImportSource, /className = "suitemate-v3-csv-import-cell"/, "CSV Import is not emitted as a standalone toolbar action");
-assert.match(csvImportSource, /textContent = "CSV Import"/, "The CSV Import action label is missing");
+assert.match(csvImportSource, /applyMetadata\(link, csvImportCommand/, "CSV Import does not use shared command metadata");
+assert.match(csvImportSource, /createScope\(commandApi\.SURFACES\.RECORD/, "CSV Import does not use a record command scope");
+assert.match(csvImportSource, /commandScope\.invoke\(/, "CSV Import bypasses click-time command authority");
 assert.match(csvImportSource, /\.uir-buttons-top\.uir-header-buttons/, "The top record toolbar target is missing");
 assert.match(csvImportSource, /actionsCell\.after\(createToolbarAction\(href\)\)/, "CSV Import is not inserted immediately after Actions");
 assert.match(csvImportSource, /data-suitemate-v3-action/, "CSV Import injection is not idempotent");
@@ -818,9 +890,22 @@ assert.match(
 assert.match(studioSource, /document\.querySelector\("#body"\)/, "Studio is not mounted in NetSuite's visible workspace host");
 assert.match(studioSource, /sessionStorage\.setItem\(SESSION_KEYS\.draft/, "Per-tab draft persistence is missing");
 assert.match(studioSource, /content\.textContent = core\.displayValue\(value\)/, "Query values are not rendered as text");
-assert.match(studioSource, /Mod-Shift-p/, "Paged keyboard shortcut is missing");
-assert.match(studioSource, /Mod-Shift-e/, "Export keyboard shortcut is missing");
-assert.match(studioSource, /Mod-Shift-l/, "Clear keyboard shortcut is missing");
+assert.match(studioSource, /createEditorKeyBindings/, "SuiteQL shortcuts bypass the shared command framework");
+assert.equal(
+  commandApi.getShortcut(commandApi.IDS.SUITEQL_TOGGLE_PAGED).editor,
+  "Mod-Shift-p",
+  "Paged keyboard shortcut is missing"
+);
+assert.equal(
+  commandApi.getShortcut(commandApi.IDS.SUITEQL_EXPORT_LOADED).editor,
+  "Mod-Shift-e",
+  "Export keyboard shortcut is missing"
+);
+assert.equal(
+  commandApi.getShortcut(commandApi.IDS.SUITEQL_CLEAR_RESULTS).editor,
+  "Mod-Shift-l",
+  "Clear keyboard shortcut is missing"
+);
 assert.match(
   studioSource,
   /id="suiteql-suitesense" href="https:\/\/suitesense\.vercel\.app\/" target="_blank" rel="noopener noreferrer"/,

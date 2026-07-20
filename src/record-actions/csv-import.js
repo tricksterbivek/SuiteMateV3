@@ -3,14 +3,17 @@
 
   const core = globalThis.SuiteMateV3RecordActionsCore;
   const bridgeApi = globalThis.SuiteMateV3Bridge;
+  const commandApi = globalThis.SuiteMateV3Commands;
   const lifecycleApi = globalThis.SuiteMateV3Lifecycle;
   const routeApi = globalThis.SuiteMateV3Routes;
   const settingsApi = globalThis.SuiteMateV3Settings;
   if (
     !core
     || !bridgeApi
+    || !commandApi
     || !lifecycleApi
     || !routeApi
+    || !settingsApi
     || !globalThis.document
     || !globalThis.location
     || !globalThis.chrome?.runtime
@@ -38,6 +41,23 @@
   const TOP_TOOLBAR_SELECTOR = ".uir-buttons-top.uir-header-buttons";
   const ACTIONS_CELL_SELECTOR = `${TOP_TOOLBAR_SELECTOR} td.uir-button-menu`;
   let settingsRevision = 0;
+  let currentSettings = null;
+  const csvImportCommand = commandApi.IDS.RECORD_CSV_IMPORT;
+  const commandScope = commandApi.createScope(commandApi.SURFACES.RECORD, {
+    getContext: () => ({
+      pageContext: routeApi.createPageContext(location, {
+        isTopFrame: true,
+        trustedContentScript: true
+      }),
+      settings: currentSettings
+    }),
+    onError: ({ commandId, error }) => {
+      console.error(`SuiteMate V3 command ${commandId || "(context)"} failed.`, error);
+    }
+  });
+  commandScope.register(csvImportCommand, {
+    run: ({ payload }) => payload?.href ?? ""
+  });
 
   function findActionsCell() {
     return [...document.querySelectorAll(ACTIONS_CELL_SELECTOR)].find((cell) => {
@@ -73,14 +93,28 @@
     const link = document.createElement("a");
     link.href = href;
     link.className = "suitemate-v3-csv-import-button";
-    link.title = "Import this type of record into NetSuite";
-    link.textContent = "CSV Import";
+    commandApi.applyMetadata(link, csvImportCommand, { setLabel: true });
+    link.addEventListener("click", (event) => {
+      const result = commandScope.invoke(
+        csvImportCommand,
+        { href: link.href },
+        { source: commandApi.SOURCES.LINK }
+      );
+      if (!result.ok) {
+        event.preventDefault();
+      }
+    });
     cell.append(link);
     return cell;
   }
 
   async function installCsvImportAction({ signal, isCurrent }) {
-    if (signal.aborted || !isCurrent() || !document.querySelector("#main_form")) {
+    if (
+      signal.aborted
+      || !isCurrent()
+      || !document.querySelector("#main_form")
+      || !commandScope.isAvailable(csvImportCommand)
+    ) {
       return false;
     }
 
@@ -159,12 +193,14 @@
       if (revision !== settingsRevision) {
         return;
       }
+      currentSettings = settings;
       if (settings?.enabled === false) {
         lifecycleHandle.pause("settings-disabled");
       } else {
         lifecycleHandle.resume("settings-enabled");
       }
     } catch {
+      currentSettings = null;
       lifecycleHandle.pause("settings-failed");
     }
   }
@@ -176,13 +212,21 @@
     }
     settingsRevision += 1;
     try {
-      if (settingsApi.normalize(settingsChange.newValue).enabled) {
+      currentSettings = settingsApi.normalize(settingsChange.newValue);
+      if (currentSettings.enabled) {
         lifecycleHandle.resume("settings-enabled");
       } else {
         lifecycleHandle.pause("settings-disabled");
       }
     } catch {
+      currentSettings = null;
       lifecycleHandle.pause("settings-failed");
+    }
+  });
+
+  window.addEventListener("pagehide", (event) => {
+    if (!event.persisted) {
+      commandScope.dispose();
     }
   });
 

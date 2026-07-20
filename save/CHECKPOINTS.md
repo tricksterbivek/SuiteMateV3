@@ -2,6 +2,61 @@
 
 This file records verified development baselines. New feature work must not begin until the preceding checkpoint has passed automated tests, live NetSuite verification, pull request review and release publication.
 
+## v3.8.0: Shared Command Framework
+
+Status: Verified
+
+Date: 2026-07-20
+
+Pull request: <https://github.com/tricksterbivek/SuiteMateV3/pull/11>
+
+Release: <https://github.com/tricksterbivek/SuiteMateV3/releases/tag/v3.8.0>
+
+### Included
+
+- Adds one immutable and versioned UI command registry for popup, record and SuiteQL Console surfaces.
+- Defines stable command IDs, labels, descriptions, route capabilities, settings requirements, link metadata and platform-aware keyboard shortcuts in one source of truth.
+- Adds per-surface command scopes with registration, availability, invocation, re-entry, running state, normalized results, failure isolation, subscriptions, shortcut ownership and deterministic disposal.
+- Keeps the UI command registry separate from the privileged FND-04 NetSuite bridge registry.
+- Migrates popup appearance actions, contextual CSV Import activation and SuiteQL Console controls to shared command scopes.
+- Preserves native CSV Import links, SuiteSense and Records Catalog links, CodeMirror editing, progressive paging, loaded-row export and per-tab drafts.
+- Fixes stale popup settings writes so rapid color and appearance actions compose without restoring old values.
+- Fixes Abort and immediate restart, aborted progressive page loading, BFCache request disposal, stale handler replacement, disposed-scope shortcut binding, async availability and handler-owned return-value races.
+
+### Verification
+
+- Full `npm test` regression suite with 87 passing tests.
+- Focused registry coverage for command identity, shortcut parsing, platform mapping, collision detection, route and settings authority, re-entry, disposal, stale completion, handler replacement, subscriber re-entry, async availability and hostile return values.
+- Real-module harnesses proving one SuiteQL shortcut produces one request, Abort permits immediate restart, late results are discarded, aborted page requests do not lock later paging and rapid popup settings actions preserve every update.
+- Existing typed bridge, data adapter, lifecycle, versioned settings, protected V1 styling, role-theme, CSV Import and SuiteQL Console checks.
+- `git diff --check`.
+- `npm audit --omit=dev` with zero vulnerabilities.
+- Independent security and regression reviews with no checkpoint blockers.
+- Authenticated NetSuite Sandbox checks after allowing every page to load completely plus ten seconds.
+- Confirmed one contextual CSV Import action immediately after Actions with command metadata and a native Sales Order Import Assistant URL.
+- Confirmed Import Assistant applied `TRANSACTION`, `SALESORDER` and `UTF-8`.
+- Confirmed readable SuiteQL errors, button and Command+E execution, sorting, execution timing, export confirmation, Paged toggle, progressive 1,000-row loading and distinct loaded and total counts.
+- Confirmed Abort released the UI during a page request and allowed an immediate five-row query while the abandoned request could still finish.
+- Confirmed refresh and browser history navigation restored the SuiteQL draft and Paged setting without duplicating the Console.
+- Confirmed normal Global Search remained native and did not mount SuiteQL Console.
+- Confirmed browser logs contained no extension errors.
+
+### Restore
+
+```bash
+git switch --detach v3.8.0
+```
+
+To resume normal development after inspecting the checkpoint:
+
+```bash
+git switch main
+```
+
+### Next feature
+
+`FND-07`: Optional Permission Broker
+
 ## v3.7.0: General Query and Fetch Adapter
 
 Status: Verified

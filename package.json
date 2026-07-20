@@ -1,11 +1,11 @@
 {
   "name": "suitemate-v3",
-  "version": "3.7.0",
+  "version": "3.8.0",
   "private": true,
   "description": "SuiteMate V3 NetSuite UI and developer tools",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "npm run build && node --check src/shared/routes.js && node --check src/shared/bridge.js && node --check src/shared/lifecycle.js && node --check src/shared/settings.js && node --check src/runtime/theme-runtime.js && node --check src/runtime/notification-runtime.js && node --check src/record-actions/core.js && node --check src/record-actions/csv-import.js && node --check src/import-assistant/core.js && node --check src/import-assistant/context-runtime.js && node --check src/netsuite/data-adapter.js && node --check src/palette/material-palette.js && node --check src/suiteql/core.js && node --check src/background/service-worker.js && node --check src/popup/popup.js && node --check tests/fixtures/chrome-stub.js && node --test tests/routes.test.mjs tests/bridge.test.mjs tests/data-adapter.test.mjs tests/lifecycle.test.mjs tests/runtime-lifecycle.test.mjs tests/settings.test.mjs && node tests/verify.mjs"
+    "test": "npm run build && node --check src/shared/routes.js && node --check src/shared/commands.js && node --check src/shared/bridge.js && node --check src/shared/lifecycle.js && node --check src/shared/settings.js && node --check src/runtime/theme-runtime.js && node --check src/runtime/notification-runtime.js && node --check src/record-actions/core.js && node --check src/record-actions/csv-import.js && node --check src/import-assistant/core.js && node --check src/import-assistant/context-runtime.js && node --check src/netsuite/data-adapter.js && node --check src/palette/material-palette.js && node --check src/suiteql/core.js && node --check src/background/service-worker.js && node --check src/popup/popup.js && node --check tests/fixtures/chrome-stub.js && node --test tests/routes.test.mjs tests/commands.test.mjs tests/bridge.test.mjs tests/data-adapter.test.mjs tests/lifecycle.test.mjs tests/runtime-lifecycle.test.mjs tests/settings.test.mjs && node tests/verify.mjs"
   },
   "devDependencies": {
     "@codemirror/lang-sql": "^6.10.0",
