@@ -9,6 +9,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const sources = Object.fromEntries(await Promise.all(
   [
     "src/shared/routes.js",
+    "src/shared/commands.js",
     "src/shared/bridge.js",
     "src/shared/settings.js",
     "src/record-actions/core.js",
@@ -216,6 +217,7 @@ test("CSV Import rejects a late record-type response after lifecycle pause", asy
   let mainFormReady = false;
   let toolbarReady = false;
   let injectedAction = null;
+  let createdLink = null;
   let resolveRecordType;
   let recordTypeResponse = new Promise((resolve) => {
     resolveRecordType = resolve;
@@ -252,9 +254,13 @@ test("CSV Import rejects a late record-type response after lifecycle pause", asy
       return [];
     },
     createElement(tagName) {
-      return {
+      const element = {
         tagName,
         dataset: {},
+        listeners: {},
+        addEventListener(type, listener) {
+          this.listeners[type] = listener;
+        },
         append(child) {
           this.child = child;
         },
@@ -264,6 +270,10 @@ test("CSV Import rejects a late record-type response after lifecycle pause", asy
           }
         }
       };
+      if (tagName === "a") {
+        createdLink = element;
+      }
+      return element;
     }
   };
   const storageListeners = [];
@@ -276,6 +286,7 @@ test("CSV Import rejects a late record-type response after lifecycle pause", asy
     Node: { ELEMENT_NODE: 1 },
     location,
     document,
+    addEventListener() {},
     SuiteMateV3Lifecycle: lifecycle,
     SuiteMateV3Settings: {
       STORAGE_KEY: "suiteMateV3Style",
@@ -314,6 +325,7 @@ test("CSV Import rejects a late record-type response after lifecycle pause", asy
   sandbox.window = sandbox;
   sandbox.top = sandbox;
   runInNewContext(sources["src/shared/routes.js"], sandbox);
+  runInNewContext(sources["src/shared/commands.js"], sandbox);
   runInNewContext(sources["src/shared/bridge.js"], sandbox);
   runInNewContext(sources["src/record-actions/core.js"], sandbox);
   runInNewContext(sources["src/record-actions/csv-import.js"], sandbox);
@@ -331,6 +343,27 @@ test("CSV Import rejects a late record-type response after lifecycle pause", asy
   lifecycle.handle.resume("settings-enabled");
   await lifecycle.lastRun;
   assert.equal(injectedAction?.dataset.suitemateV3Action, "csv-import-toolbar");
+  assert.equal(createdLink?.dataset.suitemateV3Command, "record.csv-import");
+
+  let prevented = false;
+  createdLink.listeners.click({
+    preventDefault() {
+      prevented = true;
+    }
+  });
+  assert.equal(prevented, false, "An authorized CSV Import click must retain native navigation");
+
+  const installedLink = createdLink;
+  storageListeners[0](
+    { suiteMateV3Style: { newValue: { enabled: false } } },
+    "sync"
+  );
+  installedLink.listeners.click({
+    preventDefault() {
+      prevented = true;
+    }
+  });
+  assert.equal(prevented, true, "A stale CSV Import link must fail closed at click time");
 
   const nestedToolbar = {
     nodeType: 1,

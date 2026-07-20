@@ -2,9 +2,14 @@
   "use strict";
 
   const api = globalThis.SuiteMateV3Settings;
+  const commandApi = globalThis.SuiteMateV3Commands;
   const routeApi = globalThis.SuiteMateV3Routes;
   const suiteql = globalThis.SuiteMateV3SuiteQLCore;
   const paletteApi = globalThis.SuiteMateV3MaterialPalette;
+  if (!api || !commandApi || !routeApi || !suiteql || !paletteApi) {
+    return;
+  }
+  const { IDS: COMMANDS, SOURCES: COMMAND_SOURCES } = commandApi;
   const form = document.querySelector("#settings");
   const enabledInput = document.querySelector("#enabled");
   const squareCornersInput = document.querySelector("#squareCorners");
@@ -42,12 +47,43 @@
   let activePicker = null;
   let pickerHsv = { h: 0, s: 0, v: 0 };
   let settingsWriteQueue = Promise.resolve();
+  let settingsStateRevision = 0;
   let liveColorSaveTimer = 0;
   let lastLiveColorSaveAt = 0;
   let pickerAnimationFrame = 0;
   let pickerFinishPromise = null;
   let settingsLocked = false;
+  let settingsReady = false;
   let statusTimer;
+  const commandScope = commandApi.createScope(commandApi.SURFACES.POPUP, {
+    getContext: () => ({
+      pageContext: routeApi.createPageContext(activeNetSuiteTab?.url, { isTopFrame: true }),
+      settings: settingsReady ? currentSettings : null,
+      roleContext: currentRoleContext,
+      activePicker: Boolean(activePicker)
+    }),
+    onError: ({ commandId, error }) => {
+      console.error(`SuiteMate V3 command ${commandId || "(context)"} failed.`, error);
+    }
+  });
+
+  form.setAttribute("aria-disabled", "true");
+  for (const control of form.querySelectorAll("input, button")) {
+    control.disabled = true;
+  }
+
+  for (const [element, commandId, setLabel] of [
+    [openSuiteQLButton, COMMANDS.POPUP_OPEN_SUITEQL, true],
+    [mainColorTrigger, COMMANDS.THEME_OPEN_MAIN_PICKER, false],
+    [secondaryColorTrigger, COMMANDS.THEME_OPEN_SECONDARY_PICKER, false],
+    [swapColorsButton, COMMANDS.THEME_SWAP_COLORS, true],
+    [resetColorsButton, COMMANDS.THEME_RESET_ROLE_COLORS, true],
+    [resetButton, COMMANDS.SETTINGS_RESET_ALL, true],
+    [closeColorPickerButton, COMMANDS.THEME_APPLY_AND_CLOSE_PICKER, false],
+    [doneColorPickerButton, COMMANDS.THEME_APPLY_AND_CLOSE_PICKER, false]
+  ]) {
+    commandApi.applyMetadata(element, commandId, { setLabel });
+  }
 
   function clamp(value, minimum = 0, maximum = 1) {
     return Math.min(maximum, Math.max(minimum, value));
@@ -171,6 +207,7 @@
     button.type = "button";
     button.className = "material-swatch";
     button.dataset.hex = hex;
+    button.dataset.suitemateV3Command = COMMANDS.THEME_SELECT_MATERIAL_SHADE;
     button.title = `${colorName} Material shade ${shade}: ${hex.toUpperCase()}`;
     button.setAttribute("aria-label", button.title);
     button.style.setProperty("--palette-color", hex);
@@ -352,6 +389,8 @@
 
   function render(value) {
     currentSettings = api.normalize(value);
+    settingsStateRevision += 1;
+    settingsReady = !settingsLocked;
     enabledInput.checked = currentSettings.enabled;
     squareCornersInput.checked = currentSettings.squareCorners;
     document.querySelector(`input[name="mode"][value="${currentSettings.mode}"]`).checked = true;
@@ -396,15 +435,35 @@
     }
   }
 
-  function writeSettings(value) {
+  function writeSettings(update, options = {}) {
     if (settingsLocked) {
       return Promise.reject(new Error("Settings are read-only in this SuiteMate release."));
     }
-    const snapshot = api.normalize(value);
+    let snapshot;
+    try {
+      const value = typeof update === "function"
+        ? update(currentSettings)
+        : update;
+      snapshot = api.normalize(value);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    currentSettings = snapshot;
+    const revision = ++settingsStateRevision;
     settingsWriteQueue = settingsWriteQueue
       .catch(() => undefined)
       .then(() => api.set(snapshot));
-    return settingsWriteQueue;
+    return settingsWriteQueue.then((value) => {
+      const saved = api.normalize(value);
+      const isLatest = revision === settingsStateRevision;
+      if (isLatest) {
+        currentSettings = saved;
+        if (options.renderResult !== false) {
+          render(saved);
+        }
+      }
+      return { settings: saved, isLatest };
+    });
   }
 
   function clearLiveColorSaveTimer() {
@@ -415,7 +474,8 @@
   function persistLiveColors() {
     clearLiveColorSaveTimer();
     lastLiveColorSaveAt = Date.now();
-    void writeSettings(currentSettings).catch(() => showStatus("Could not save colors"));
+    void writeSettings((settings) => settings, { renderResult: false })
+      .catch(() => showStatus("Could not save colors"));
   }
 
   function scheduleLiveColorSave() {
@@ -452,6 +512,7 @@
     currentSettings = api.withRoleTheme(currentSettings, currentRoleContext, {
       [colorName]: input.value
     });
+    settingsStateRevision += 1;
     updateThemeState(api.getRoleTheme(currentSettings, currentRoleContext.id), false);
     previewRoleColors();
     scheduleLiveColorSave();
@@ -463,33 +524,130 @@
     }
 
     clearLiveColorSaveTimer();
-    currentSettings = api.withRoleTheme(currentSettings, currentRoleContext, colors);
-    render(await writeSettings(currentSettings));
-    showStatus("Colors applied");
+    const roleContext = currentRoleContext;
+    const result = await writeSettings((settings) =>
+      api.withRoleTheme(settings, roleContext, colors));
+    if (result.isLatest) {
+      showStatus("Colors applied");
+    }
   }
 
-  form.addEventListener("change", async ({ target }) => {
-    if (target.classList.contains("role-color")) {
-      const colorName = target === mainColorInput ? "main" : "secondary";
-      await saveRoleColors({ [colorName]: target.value });
-      return;
-    }
+  function invokePopupCommand(commandId, payload, source = COMMAND_SOURCES.BUTTON) {
+    return commandScope.invoke(commandId, payload, { source });
+  }
 
-    const saved = await writeSettings({ ...currentSettings, ...readAppearance() });
-    render(saved);
-    showStatus("Applied");
+  function installCommands() {
+    commandScope.register(COMMANDS.SETTINGS_APPLY_APPEARANCE, {
+      allowReentry: true,
+      isAvailable: () => settingsReady && !settingsLocked,
+      async run({ payload }) {
+        const target = payload?.target;
+        if (target?.classList?.contains("role-color")) {
+          const colorName = target === mainColorInput ? "main" : "secondary";
+          await saveRoleColors({ [colorName]: target.value });
+          return;
+        }
+
+        const appearance = readAppearance();
+        const result = await writeSettings((settings) => ({ ...settings, ...appearance }));
+        if (result.isLatest) {
+          showStatus("Applied");
+        }
+      }
+    });
+    commandScope.register(COMMANDS.THEME_OPEN_MAIN_PICKER, {
+      isAvailable: () => !mainColorTrigger.disabled,
+      run: () => openColorPicker(mainColorInput, mainColorTrigger, "main")
+    });
+    commandScope.register(COMMANDS.THEME_OPEN_SECONDARY_PICKER, {
+      isAvailable: () => !secondaryColorTrigger.disabled,
+      run: () => openColorPicker(secondaryColorInput, secondaryColorTrigger, "secondary")
+    });
+    commandScope.register(COMMANDS.THEME_SELECT_MATERIAL_SHADE, {
+      isAvailable: ({ payload }) => Boolean(activePicker && api.normalizeHexColor(payload?.hex)),
+      run: ({ payload }) => setPickerHex(payload.hex, { regenerateMaterial: false })
+    });
+    commandScope.register(COMMANDS.THEME_APPLY_AND_CLOSE_PICKER, {
+      isAvailable: () => Boolean(activePicker),
+      run: finishColorPicker
+    });
+    commandScope.register(COMMANDS.THEME_SWAP_COLORS, {
+      isAvailable: () => !swapColorsButton.disabled,
+      async run() {
+        clearLiveColorSaveTimer();
+        const roleContext = currentRoleContext;
+        const result = await writeSettings((settings) =>
+          api.swapRoleTheme(settings, roleContext));
+        if (result.isLatest) {
+          showStatus("Colors swapped");
+        }
+      }
+    });
+    commandScope.register(COMMANDS.THEME_RESET_ROLE_COLORS, {
+      isAvailable: () => !resetColorsButton.disabled && Boolean(currentRoleContext),
+      async run() {
+        clearLiveColorSaveTimer();
+        const roleId = currentRoleContext.id;
+        const result = await writeSettings((settings) =>
+          api.withoutRoleTheme(settings, roleId));
+        if (result.isLatest) {
+          showStatus("Default colors restored");
+        }
+      }
+    });
+    commandScope.register(COMMANDS.SETTINGS_RESET_ALL, {
+      isAvailable: () => settingsReady && !resetButton.disabled,
+      async run() {
+        clearLiveColorSaveTimer();
+        const result = await writeSettings(() => api.DEFAULTS);
+        if (result.isLatest) {
+          showStatus("All styling reset");
+        }
+      }
+    });
+    commandScope.register(COMMANDS.POPUP_OPEN_SUITEQL, {
+      isAvailable: () => Boolean(
+        activeNetSuiteTab?.id
+        && suiteql.createStudioUrl(activeNetSuiteTab.url)
+      ),
+      async run() {
+        const studioUrl = suiteql.createStudioUrl(activeNetSuiteTab?.url);
+        if (!activeNetSuiteTab?.id || !studioUrl) {
+          openSuiteQLButton.disabled = true;
+          suiteqlToolContext.textContent = "Open a NetSuite tab to launch Studio.";
+          return;
+        }
+
+        openSuiteQLButton.disabled = true;
+        suiteqlToolContext.textContent = "Opening SuiteQL Console...";
+        try {
+          await chrome.tabs.update(activeNetSuiteTab.id, { url: studioUrl });
+          window.close();
+        } catch (error) {
+          console.error("SuiteMate V3 could not open SuiteQL Console.", error);
+          openSuiteQLButton.disabled = false;
+          suiteqlToolContext.textContent = "Could not open Studio in this tab.";
+        }
+      }
+    });
+  }
+
+  installCommands();
+  commandScope.bindShortcuts(
+    document,
+    [COMMANDS.THEME_APPLY_AND_CLOSE_PICKER]
+  );
+
+  form.addEventListener("change", ({ target }) => {
+    void invokePopupCommand(COMMANDS.SETTINGS_APPLY_APPEARANCE, { target });
   });
 
-  mainColorTrigger.addEventListener("click", () => openColorPicker(
-    mainColorInput,
-    mainColorTrigger,
-    "main"
-  ));
-  secondaryColorTrigger.addEventListener("click", () => openColorPicker(
-    secondaryColorInput,
-    secondaryColorTrigger,
-    "secondary"
-  ));
+  mainColorTrigger.addEventListener("click", () => {
+    void invokePopupCommand(COMMANDS.THEME_OPEN_MAIN_PICKER);
+  });
+  secondaryColorTrigger.addEventListener("click", () => {
+    void invokePopupCommand(COMMANDS.THEME_OPEN_SECONDARY_PICKER);
+  });
 
   colorPlane.addEventListener("pointerdown", (event) => {
     colorPlane.setPointerCapture(event.pointerId);
@@ -550,7 +708,7 @@
   colorHex.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && colorHex.getAttribute("aria-invalid") !== "true") {
       event.preventDefault();
-      void finishColorPicker();
+      void invokePopupCommand(COMMANDS.THEME_APPLY_AND_CLOSE_PICKER, undefined, COMMAND_SOURCES.SHORTCUT);
     }
   });
 
@@ -560,73 +718,48 @@
       return;
     }
 
-    setPickerHex(swatch.dataset.hex, { regenerateMaterial: false });
+    void invokePopupCommand(COMMANDS.THEME_SELECT_MATERIAL_SHADE, {
+      hex: swatch.dataset.hex
+    });
   });
 
-  closeColorPickerButton.addEventListener("click", () => void finishColorPicker());
-  doneColorPickerButton.addEventListener("click", () => void finishColorPicker());
+  closeColorPickerButton.addEventListener(
+    "click",
+    () => void invokePopupCommand(COMMANDS.THEME_APPLY_AND_CLOSE_PICKER)
+  );
+  doneColorPickerButton.addEventListener(
+    "click",
+    () => void invokePopupCommand(COMMANDS.THEME_APPLY_AND_CLOSE_PICKER)
+  );
   colorPickerModal.addEventListener("click", ({ target }) => {
     if (target === colorPickerModal) {
-      void finishColorPicker();
+      void invokePopupCommand(COMMANDS.THEME_APPLY_AND_CLOSE_PICKER);
     }
   });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && activePicker) {
-      event.preventDefault();
-      void finishColorPicker();
-    }
+  swapColorsButton.addEventListener("click", () => {
+    void invokePopupCommand(COMMANDS.THEME_SWAP_COLORS);
   });
 
-  swapColorsButton.addEventListener("click", async () => {
-    clearLiveColorSaveTimer();
-    render(await writeSettings(api.swapRoleTheme(currentSettings, currentRoleContext)));
-    showStatus("Colors swapped");
+  resetColorsButton.addEventListener("click", () => {
+    void invokePopupCommand(COMMANDS.THEME_RESET_ROLE_COLORS);
   });
 
-  resetColorsButton.addEventListener("click", async () => {
-    if (!currentRoleContext) {
-      return;
-    }
-
-    clearLiveColorSaveTimer();
-    render(await writeSettings(api.withoutRoleTheme(currentSettings, currentRoleContext.id)));
-    showStatus("Default colors restored");
+  resetButton.addEventListener("click", () => {
+    void invokePopupCommand(COMMANDS.SETTINGS_RESET_ALL);
   });
 
-  resetButton.addEventListener("click", async () => {
-    clearLiveColorSaveTimer();
-    render(await writeSettings(api.DEFAULTS));
-    showStatus("All styling reset");
-  });
-
-  openSuiteQLButton.addEventListener("click", async () => {
-    const studioUrl = suiteql.createStudioUrl(activeNetSuiteTab?.url);
-    if (!activeNetSuiteTab?.id || !studioUrl) {
-      openSuiteQLButton.disabled = true;
-      suiteqlToolContext.textContent = "Open a NetSuite tab to launch Studio.";
-      return;
-    }
-
-    openSuiteQLButton.disabled = true;
-    suiteqlToolContext.textContent = "Opening SuiteQL Console...";
-    try {
-      await chrome.tabs.update(activeNetSuiteTab.id, { url: studioUrl });
-      window.close();
-    } catch (error) {
-      console.error("SuiteMate V3 could not open SuiteQL Console.", error);
-      openSuiteQLButton.disabled = false;
-      suiteqlToolContext.textContent = "Could not open Studio in this tab.";
-    }
+  openSuiteQLButton.addEventListener("click", () => {
+    void invokePopupCommand(COMMANDS.POPUP_OPEN_SUITEQL);
   });
 
   window.addEventListener("pagehide", () => {
     flushPickerColor();
-    if (settingsLocked || !liveColorSaveTimer) {
-      return;
+    if (!settingsLocked && liveColorSaveTimer) {
+      clearLiveColorSaveTimer();
+      void writeSettings((settings) => settings, { renderResult: false })
+        .catch(() => undefined);
     }
-
-    clearLiveColorSaveTimer();
-    void api.set(currentSettings).catch(() => undefined);
+    commandScope.dispose();
   });
 
   Promise.all([api.ensureCurrentSchema(), getActiveRoleContext()])

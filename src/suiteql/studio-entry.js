@@ -8,6 +8,7 @@ import { keymap } from "@codemirror/view";
 
   const core = globalThis.SuiteMateV3SuiteQLCore;
   const bridgeApi = globalThis.SuiteMateV3Bridge;
+  const commandApi = globalThis.SuiteMateV3Commands;
   const routeApi = globalThis.SuiteMateV3Routes;
   let topFrame = false;
   try {
@@ -22,6 +23,7 @@ import { keymap } from "@codemirror/view";
   if (
     !core
     || !bridgeApi
+    || !commandApi
     || !routeApi
     || !routeApi.supports(routeApi.CAPABILITIES.SUITEQL_CONSOLE, pageContext)
   ) {
@@ -29,7 +31,11 @@ import { keymap } from "@codemirror/view";
   }
 
   const { COMMANDS } = bridgeApi;
+  const { IDS: UI_COMMANDS, SOURCES: COMMAND_SOURCES } = commandApi;
   const { SESSION_KEYS } = core;
+  const commandScope = commandApi.createScope(commandApi.SURFACES.SUITEQL, {
+    getContext: () => ({ pageContext })
+  });
   const state = {
     columns: [],
     rows: [],
@@ -173,6 +179,7 @@ import { keymap } from "@codemirror/view";
         button.type = "button";
         button.dataset.column = column;
         button.textContent = column;
+        commandApi.applyMetadata(button, UI_COMMANDS.SUITEQL_SORT_RESULTS);
         if (state.sortColumn === column) {
           button.dataset.sort = state.sortDirection;
           header.setAttribute("aria-sort", state.sortDirection === "asc" ? "ascending" : "descending");
@@ -426,6 +433,80 @@ import { keymap } from "@codemirror/view";
     open(`/app/recordscatalog/rcbrowser.nl#/record_ss/${encodeURIComponent(normalized)}`, "_blank", "noopener");
   }
 
+  function invokeCommand(commandId, payload, source = COMMAND_SOURCES.BUTTON) {
+    return commandScope.invoke(commandId, payload, { source });
+  }
+
+  function togglePaged() {
+    pagedInput.checked = !pagedInput.checked;
+    pagedInput.dispatchEvent(new Event("change"));
+  }
+
+  function showPreviousPage() {
+    state.clientPageIndex--;
+    renderTable();
+  }
+
+  function showNextPage() {
+    state.clientPageIndex++;
+    renderTable();
+  }
+
+  function sortResults({ payload }) {
+    const column = payload?.column;
+    if (!state.columns.includes(column)) {
+      return;
+    }
+    state.sortDirection = state.sortColumn === column && state.sortDirection === "asc" ? "desc" : "asc";
+    state.sortColumn = column;
+    state.clientPageIndex = 0;
+    renderTable();
+  }
+
+  function installCommands() {
+    commandScope.register(UI_COMMANDS.SUITEQL_EXECUTE, {
+      allowReentry: true,
+      run: executeQuery,
+      isAvailable: () => !state.busy
+    });
+    commandScope.register(UI_COMMANDS.SUITEQL_ABORT, {
+      run: abortExecution,
+      isAvailable: () => state.busy && Boolean(state.requestId)
+    });
+    commandScope.register(UI_COMMANDS.SUITEQL_TOGGLE_PAGED, {
+      run: togglePaged,
+      isAvailable: () => !state.busy
+    });
+    commandScope.register(UI_COMMANDS.SUITEQL_EXPORT_LOADED, {
+      run: exportLoadedRows,
+      isAvailable: () => !state.busy && state.rows.length > 0
+    });
+    commandScope.register(UI_COMMANDS.SUITEQL_CLEAR_RESULTS, {
+      run: clearResults,
+      isAvailable: () => !state.busy && state.hasExecuted
+    });
+    commandScope.register(UI_COMMANDS.SUITEQL_LOAD_NEXT_PAGE, {
+      allowReentry: true,
+      run: loadNextNetSuitePage,
+      isAvailable: () => !state.busy && !loadNextButton.hidden
+    });
+    commandScope.register(UI_COMMANDS.SUITEQL_PREVIOUS_PAGE, {
+      run: showPreviousPage,
+      isAvailable: () => !previousButton.disabled
+    });
+    commandScope.register(UI_COMMANDS.SUITEQL_NEXT_PAGE, {
+      run: showNextPage,
+      isAvailable: () => !nextButton.disabled
+    });
+    commandScope.register(UI_COMMANDS.SUITEQL_SORT_RESULTS, {
+      run: sortResults,
+      isAvailable: ({ payload }) => !state.busy && state.columns.includes(payload?.column)
+    });
+    commandScope.register(UI_COMMANDS.SUITEQL_INSPECT_TABLE, {
+      run: inspectTable
+    });
+  }
+
   function persistDraft() {
     clearTimeout(draftSaveTimer);
     draftSaveTimer = setTimeout(() => {
@@ -470,60 +551,48 @@ import { keymap } from "@codemirror/view";
   }
 
   function installEvents() {
-    executeButton.addEventListener("click", executeQuery);
-    abortButton.addEventListener("click", abortExecution);
-    exportButton.addEventListener("click", exportLoadedRows);
-    clearButton.addEventListener("click", clearResults);
-    loadNextButton.addEventListener("click", loadNextNetSuitePage);
+    executeButton.addEventListener("click", () => void invokeCommand(UI_COMMANDS.SUITEQL_EXECUTE));
+    abortButton.addEventListener("click", () => void invokeCommand(UI_COMMANDS.SUITEQL_ABORT));
+    exportButton.addEventListener("click", () => void invokeCommand(UI_COMMANDS.SUITEQL_EXPORT_LOADED));
+    clearButton.addEventListener("click", () => void invokeCommand(UI_COMMANDS.SUITEQL_CLEAR_RESULTS));
+    loadNextButton.addEventListener("click", () => void invokeCommand(UI_COMMANDS.SUITEQL_LOAD_NEXT_PAGE));
     pagedInput.addEventListener("change", () => {
       sessionStorage.setItem(SESSION_KEYS.paged, String(pagedInput.checked));
     });
-    previousButton.addEventListener("click", () => {
-      state.clientPageIndex--;
-      renderTable();
-    });
-    nextButton.addEventListener("click", () => {
-      state.clientPageIndex++;
-      renderTable();
-    });
+    previousButton.addEventListener("click", () => void invokeCommand(UI_COMMANDS.SUITEQL_PREVIOUS_PAGE));
+    nextButton.addEventListener("click", () => void invokeCommand(UI_COMMANDS.SUITEQL_NEXT_PAGE));
     tableHead.addEventListener("click", ({ target }) => {
       const button = target.closest("button[data-column]");
       if (!button) {
         return;
       }
-      const column = button.dataset.column;
-      state.sortDirection = state.sortColumn === column && state.sortDirection === "asc" ? "desc" : "asc";
-      state.sortColumn = column;
-      state.clientPageIndex = 0;
-      renderTable();
+      void invokeCommand(UI_COMMANDS.SUITEQL_SORT_RESULTS, {
+        column: button.dataset.column
+      });
     });
-    root.querySelector("#suiteql-inspect-table").addEventListener("click", inspectTable);
-    window.addEventListener("pagehide", () => {
+    root.querySelector("#suiteql-inspect-table").addEventListener(
+      "click",
+      () => void invokeCommand(UI_COMMANDS.SUITEQL_INSPECT_TABLE)
+    );
+    window.addEventListener("pagehide", (event) => {
       clearTimeout(draftSaveTimer);
       sessionStorage.setItem(SESSION_KEYS.draft, editor.state.doc.toString());
-      void disposeRequest(state.requestId);
+      if (!event.persisted) {
+        void disposeRequest(state.requestId);
+        commandScope.dispose();
+      }
     });
   }
 
   function shortcutExtensions() {
-    const run = (callback) => () => {
-      callback();
-      return true;
-    };
     return Prec.high(
-      keymap.of([
-        { key: "Mod-e", run: run(executeQuery) },
-        { key: "Escape", run: () => state.busy && (abortExecution(), true) },
-        {
-          key: "Mod-Shift-p",
-          run: run(() => {
-            pagedInput.checked = !pagedInput.checked;
-            pagedInput.dispatchEvent(new Event("change"));
-          })
-        },
-        { key: "Mod-Shift-e", run: run(exportLoadedRows) },
-        { key: "Mod-Shift-l", run: run(clearResults) }
-      ])
+      keymap.of(commandApi.createEditorKeyBindings([
+        UI_COMMANDS.SUITEQL_EXECUTE,
+        UI_COMMANDS.SUITEQL_ABORT,
+        UI_COMMANDS.SUITEQL_TOGGLE_PAGED,
+        UI_COMMANDS.SUITEQL_EXPORT_LOADED,
+        UI_COMMANDS.SUITEQL_CLEAR_RESULTS
+      ], commandScope))
     );
   }
 
@@ -607,6 +676,22 @@ import { keymap } from "@codemirror/view";
     pageStatus = root.querySelector("#suiteql-page-status");
     editorPanel = root.querySelector("#suiteql-editor-panel");
     resizeHandle = root.querySelector("#suiteql-resize-handle");
+
+    for (const [selector, commandId, setLabel] of [
+      ["#suiteql-suitesense", UI_COMMANDS.SUITEQL_OPEN_SUITESENSE, true],
+      ["#suiteql-inspect-table", UI_COMMANDS.SUITEQL_INSPECT_TABLE, true],
+      ["#suiteql-records-catalog", UI_COMMANDS.SUITEQL_OPEN_RECORDS_CATALOG, true],
+      ["#suiteql-execute", UI_COMMANDS.SUITEQL_EXECUTE, true],
+      ["#suiteql-abort", UI_COMMANDS.SUITEQL_ABORT, true],
+      ["#suiteql-paged", UI_COMMANDS.SUITEQL_TOGGLE_PAGED, false],
+      ["#suiteql-export", UI_COMMANDS.SUITEQL_EXPORT_LOADED, true],
+      ["#suiteql-clear", UI_COMMANDS.SUITEQL_CLEAR_RESULTS, true],
+      ["#suiteql-previous", UI_COMMANDS.SUITEQL_PREVIOUS_PAGE, true],
+      ["#suiteql-next", UI_COMMANDS.SUITEQL_NEXT_PAGE, true],
+      ["#suiteql-load-next", UI_COMMANDS.SUITEQL_LOAD_NEXT_PAGE, true]
+    ]) {
+      commandApi.applyMetadata(root.querySelector(selector), commandId, { setLabel });
+    }
   }
 
   function initialize() {
@@ -623,6 +708,7 @@ import { keymap } from "@codemirror/view";
       history.replaceState(history.state, "", cleanUrl);
     }
     pagedInput.checked = sessionStorage.getItem(SESSION_KEYS.paged) === "true";
+    installCommands();
 
     editor = new EditorView({
       parent: root.querySelector("#suiteql-container"),
