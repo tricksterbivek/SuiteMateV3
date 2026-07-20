@@ -24,6 +24,7 @@ This is the canonical inventory for selecting the next SuiteMate V3 features. It
 - `FND-03`: Versioned settings schema with legacy migration, typed compatibility errors, Chrome sync quota protection and safe failure handling.
 - `FND-04`: General typed NetSuite bridge with one versioned command registry, command-specific schemas, route and document authority, response identity checks, timeouts, cancellation and duplicate-request protection.
 - `FND-05`: Closed NetSuite data adapter for SuiteQL, constrained Saved Search execution, bounded record metadata and authenticated Import Assistant category lookup.
+- `FND-06`: Immutable shared UI command framework with stable command identity, metadata, availability, platform-aware shortcuts, invocation, re-entry, failure isolation and per-surface lifecycle ownership.
 - `SQL-01`, `SQL-02`, `SQL-03`, `SQL-13` and `SQL-14`: SuiteQL Console shell, execution, progressive paging, abort handling, safe result rendering, sorting, client pagination, hidden table inspection support, selection execution and persistent resizing.
 - Core portions of `SQL-05` and `SQL-06`: loaded-row CSV export, Clear Results, Execute, Abort, Paged toggle and their current keyboard shortcuts.
 - Per-tab SuiteQL draft and Paged-mode persistence, 5,000-row warnings, SuiteSense promotion and popup launch into the active NetSuite account.
@@ -85,7 +86,6 @@ Priority:
 
 | ID | Feature | Description | Complexity | Dependencies | Migration | Priority |
 |---|---|---|---:|---|---|---:|
-| FND-06 | Shared command framework | Commands, menus and keyboard shortcuts defined in one registry. | M | Settings, platform detection | Adapt | P0 |
 | FND-07 | Optional permission broker | Explicit handling for bookmarks, context menus, history and Side Panel. | M | Chrome permissions | Adapt | P0 |
 | FND-08 | Shared utilities | Clipboard, CSV, downloads, modal, toast, syntax formatting and errors. | M | Sanitization, browser APIs | Adapt | P0 |
 | FND-09 | Regression fixtures | Classic and Redwood fixtures for every supported route. | L | Test harness, screenshots | Rebuild | P0 |
@@ -357,4 +357,4 @@ Priority:
 
 ## Current selected feature
 
-`FND-06`: Shared command framework. It is the next recommended foundation checkpoint and should define command identity, availability, invocation and shortcuts without implementing new user-facing features.
+`FND-07`: Optional Permission Broker. It is the next recommended foundation checkpoint and should centralize optional Chrome permission discovery, explanation, request and revocation without adding dependent user-facing features.

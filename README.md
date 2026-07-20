@@ -13,6 +13,7 @@ SuiteMate V3 restores the SuiteMate V1 NetSuite visual system and adds focused d
 - Main controls the primary sublist bar and active tab accents; Secondary controls field-group and table surfaces
 - Immediate Main and Secondary color preview with throttled `chrome.storage.sync` persistence
 - Unified Main and Secondary color picker with live HSV controls, hex editing, and dynamic Material shades
+- Versioned shared UI command registry for popup, record, and SuiteQL Console actions and shortcuts
 - SuiteQL Console on `/app/common/search/ubersearchresults.nl?suiteql`
 - Locally bundled CodeMirror SQL editor with per-tab drafts and resize persistence
 - Authenticated V1-style SuiteQL execution, optional progressive paging, sorting, loaded-row CSV export, and table inspection
@@ -27,6 +28,8 @@ The 15 V1 CSS sources under `src/styles` are copied byte-for-byte from `../suite
 The popup uses `activeTab` to read the current NetSuite role identity and open SuiteQL Console on the same account domain. Theme colors are saved against that role identity in `chrome.storage.sync`, matching V1's role-specific behavior. Main and Secondary each open a SuiteMate-owned modal containing saturation, brightness, hue, hex, and locally generated Material shade controls. Adjustments retain the existing live NetSuite preview and throttled save behavior. Only the selected Main and Secondary hex values are stored.
 
 Privileged NetSuite operations use one versioned runtime protocol with allowlisted commands, exact route and top-frame sender checks, typed payload validation, bounded client timeouts, abort handling and response identity checks. One closed data adapter constructs the fixed NetSuite requests for SuiteQL, constrained Saved Search execution, bounded record metadata, record type lookup and Import Assistant context. Content scripts cannot supply arbitrary URLs, request methods, headers, RPC methods, AMD modules or request bodies.
+
+User-facing actions use a separate immutable command registry. Stable command IDs define labels, descriptions, surfaces, route capabilities, settings requirements and platform-aware shortcuts. Per-surface scopes own availability, invocation, re-entry, failure isolation and cleanup. Popup appearance actions, contextual CSV Import and SuiteQL Console controls use this registry without coupling UI commands to the privileged NetSuite transport protocol.
 
 The adapter executes only in the authorized top-frame document, verifies the exact account origin and route again in NetSuite's main world, blocks redirects and cross-account responses, enforces response-size and operation limits, and normalizes failures into typed errors. Import Assistant writes remain separately validated and atomic.
 

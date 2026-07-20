@@ -96,6 +96,24 @@ The styling foundation is not complete because the extension loads. It is comple
 - Confirm content scripts cannot provide arbitrary URLs, HTTP methods, headers, RPC methods, AMD modules or request bodies.
 - Confirm browser logs contain no SuiteMate runtime errors after the SuiteQL, Import Assistant, Global Search and Saved Search checks.
 
+## Shared command framework pass
+
+- Confirm every migrated action exposes one stable `data-suitemate-v3-command` ID.
+- Confirm popup labels, SuiteQL labels, descriptions and keyboard hints match the shared command registry.
+- Confirm popup settings controls remain disabled until persisted settings and the active role context finish loading.
+- Rapidly select Swap Colors and then change appearance. Confirm the final saved state contains both operations and the earlier write does not restore stale values.
+- Open Main and Secondary pickers and confirm Escape, X, Done and the backdrop use the same save-and-close behavior.
+- Confirm one Escape press closes the active picker once and idle Escape does not change popup state.
+- Confirm CSV Import remains a native link immediately after Actions and revalidates the current route and enabled setting when clicked.
+- Confirm Command+E sends one SuiteQL execution, not duplicate requests.
+- During an active SuiteQL request, confirm Execute, Paged, Export and Clear follow the same availability rules from buttons and shortcuts.
+- Confirm idle Escape remains available to CodeMirror while active Escape invokes Abort once.
+- Abort a SuiteQL request and immediately execute another query. Confirm the new query is accepted before the abandoned NetSuite request settles.
+- Abort a `Load next 1,000` request, start a new Paged query and load another page. Confirm the abandoned page cannot contaminate or lock the new query.
+- Navigate away from an active Paged result and return with browser history. If the page is restored from BFCache, confirm Load Next still works. If NetSuite reloads the page, confirm the draft and Paged setting restore without duplicate command handlers.
+- Confirm a normal Global Search page has no SuiteQL command workspace or keyboard dispatcher.
+- Confirm browser logs contain no SuiteMate command errors after popup, CSV Import, SuiteQL and Global Search checks.
+
 ## Exit gate
 
 The SuiteQL milestone is complete only when the styling regressions remain clear, the SuiteQL checks pass, and final evidence is retained.
