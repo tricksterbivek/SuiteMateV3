@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8
 
 assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.name, "SuiteMate V3");
-assert.equal(manifest.version, "3.10.0");
+assert.equal(manifest.version, "3.11.0");
 assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
 assert.equal(
   Object.hasOwn(manifest, "optional_permissions"),
@@ -131,7 +131,8 @@ for (const fixture of [
   "tests/fixtures/theme-runtime.html",
   "tests/fixtures/suiteql-classic.html",
   "tests/fixtures/suiteql-redwood.html",
-  "tests/fixtures/suiteql-normal-search.html"
+  "tests/fixtures/suiteql-normal-search.html",
+  "tests/fixtures/route-classic.html"
 ]) {
   const html = await readFile(resolve(root, fixture), "utf8");
   for (const match of html.matchAll(/(?:src|href)="([^"]+)"/g)) {

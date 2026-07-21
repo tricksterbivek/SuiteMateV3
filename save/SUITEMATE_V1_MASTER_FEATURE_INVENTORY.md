@@ -27,6 +27,7 @@ This is the canonical inventory for selecting the next SuiteMate V3 features. It
 - `FND-06`: Immutable shared UI command framework with stable command identity, metadata, availability, platform-aware shortcuts, invocation, re-entry, failure isolation and per-surface lifecycle ownership.
 - `FND-07`: Optional permission broker with a closed Chrome capability allowlist, direct user-gesture requests, live state, mutation serialization and deterministic disposal.
 - `FND-08`: Versioned shared utility core and capability-injected browser adapters for errors, colors, UTF-8 limits, CSV, filenames, clipboard, downloads, notices, modal lifecycle and safe JSON/XML text formatting.
+- `FND-09`: Route-complete Classic regression catalog, deterministic DOM contracts, 26 screenshot baselines and retained Redwood record and SuiteQL visual checks.
 - `SQL-01`, `SQL-02`, `SQL-03`, `SQL-13` and `SQL-14`: SuiteQL Console shell, execution, progressive paging, abort handling, safe result rendering, sorting, client pagination, hidden table inspection support, selection execution and persistent resizing.
 - Core portions of `SQL-05` and `SQL-06`: loaded-row CSV export, Clear Results, Execute, Abort, Paged toggle and their current keyboard shortcuts.
 - Per-tab SuiteQL draft and Paged-mode persistence, 5,000-row warnings, SuiteSense promotion and popup launch into the active NetSuite account.
@@ -86,9 +87,7 @@ Priority:
 
 ## 1. Required V3 foundation
 
-| ID | Feature | Description | Complexity | Dependencies | Migration | Priority |
-|---|---|---|---:|---|---|---:|
-| FND-09 | Regression fixtures | Classic and Redwood fixtures for every supported route. | L | Test harness, screenshots | Rebuild | P0 |
+No foundation features remain. All `FND-01` through `FND-09` checkpoints are implemented.
 
 ## 2. Theme and settings
 
@@ -357,4 +356,4 @@ Priority:
 
 ## Current selected feature
 
-`FND-09`: Regression Fixtures. It is the final recommended foundation checkpoint and should add route-complete Classic fixtures first, with Redwood coverage retained only where the current V3 styling contract already supports it.
+None. The foundation sequence is complete. The next recommended backlog candidate is `SET-14`: Settings export and import, but it must not begin until the FND-09 checkpoint is verified and released.
