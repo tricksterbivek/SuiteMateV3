@@ -4,11 +4,11 @@ This file records verified development baselines. New feature work must not begi
 
 ## v3.12.0: Settings Backup and Restore
 
-Status: Awaiting authenticated smoke test
+Status: Verified
 
 Date: 2026-07-22
 
-Pull request: Pending
+Pull request: <https://github.com/tricksterbivek/SuiteMateV3/pull/15>
 
 Planned release: <https://github.com/tricksterbivek/SuiteMateV3/releases/tag/v3.12.0>
 
@@ -34,7 +34,10 @@ Planned release: <https://github.com/tricksterbivek/SuiteMateV3/releases/tag/v3.
 - Local 400 by 900 popup render confirmed the collapsed Backup and restore control fits the existing popup layout.
 - `git diff --check`.
 - `npm audit --omit=dev` with zero vulnerabilities.
-- Authenticated popup export, cancelled import, successful overwrite and live theme restoration remain pending after extension reload.
+- Authenticated NetSuite SB1 dashboard check after full load plus ten seconds confirmed the `dashboard` route, Light mode, the active custom Main theme token and no unexpected SuiteQL Console mount.
+- Authenticated dashboard browser logs contained no warnings or errors after the extension reload.
+- User-confirmed installed popup verification passed: Backup and restore expanded, Export settings produced and copied the encoded backup, a setting was changed, Import settings was approved and the original setting and active NetSuite theme were restored without a page reload.
+- Cancelled overwrite, malformed backup, future version, oversized backup and rejected Chrome storage write paths remain covered by focused automated tests.
 
 ### Restore
 
@@ -50,7 +53,7 @@ git switch main
 
 ### Next feature
 
-None until SET-14 is verified, merged and released.
+`GEN-17`: Internal IDs toolkit is the next recommendation, but it must not begin until this pull request is merged and `v3.12.0` is published.
 
 ## v3.11.0: Regression Fixtures
 

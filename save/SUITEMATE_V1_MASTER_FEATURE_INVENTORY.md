@@ -28,6 +28,7 @@ This is the canonical inventory for selecting the next SuiteMate V3 features. It
 - `FND-07`: Optional permission broker with a closed Chrome capability allowlist, direct user-gesture requests, live state, mutation serialization and deterministic disposal.
 - `FND-08`: Versioned shared utility core and capability-injected browser adapters for errors, colors, UTF-8 limits, CSV, filenames, clipboard, downloads, notices, modal lifecycle and safe JSON/XML text formatting.
 - `FND-09`: Route-complete Classic regression catalog, deterministic DOM contracts, 26 screenshot baselines and retained Redwood record and SuiteQL visual checks.
+- `SET-14`: Versioned UTF-8 settings export and import with strict validation, overwrite confirmation, atomic Chrome sync persistence and rollback-safe popup state.
 - `SQL-01`, `SQL-02`, `SQL-03`, `SQL-13` and `SQL-14`: SuiteQL Console shell, execution, progressive paging, abort handling, safe result rendering, sorting, client pagination, hidden table inspection support, selection execution and persistent resizing.
 - Core portions of `SQL-05` and `SQL-06`: loaded-row CSV export, Clear Results, Execute, Abort, Paged toggle and their current keyboard shortcuts.
 - Per-tab SuiteQL draft and Paged-mode persistence, 5,000-row warnings, SuiteSense promotion and popup launch into the active NetSuite account.
@@ -68,22 +69,21 @@ Priority:
 
 ## Recommended implementation order
 
-1. Settings backup, import, reset and migration.
-2. IDs toolkit.
-3. Automatic script ID generation.
-4. Enhanced Field Help.
-5. General sublist productivity controls.
-6. JSON and XML formatting.
-7. View XML, Copy Generic URL and Copy Menu Path.
-8. Global Shortcuts.
-9. Small Saved Search editing helpers.
-10. Record Inspector.
-11. Context menu actions.
-12. Dashboard and execution-log monitoring.
-13. Saved Search Split View.
-14. File Cabinet tools.
-15. Script execution and runtime tooling.
-16. Role permission administration.
+1. IDs toolkit.
+2. Automatic script ID generation.
+3. Enhanced Field Help.
+4. General sublist productivity controls.
+5. JSON and XML formatting.
+6. View XML, Copy Generic URL and Copy Menu Path.
+7. Global Shortcuts.
+8. Small Saved Search editing helpers.
+9. Record Inspector.
+10. Context menu actions.
+11. Dashboard and execution-log monitoring.
+12. Saved Search Split View.
+13. File Cabinet tools.
+14. Script execution and runtime tooling.
+15. Role permission administration.
 
 ## 1. Required V3 foundation
 
@@ -106,7 +106,6 @@ No foundation features remain. All `FND-01` through `FND-09` checkpoints are imp
 | SET-11 | Timing controls | Refresh intervals for lists, logs and dashboard portlets. | S | Live View engine | Direct | P2 |
 | SET-12 | Auto-dismiss timing | Configurable alert dismissal with hover pause. | S | Banner observer | Direct | P1 |
 | SET-13 | Global Shortcuts editor | Create, reorder, edit, delete and capture shortcuts. | M | Header menu, URL validation | Adapt | P1 |
-| SET-14 | Settings export and import | Validated settings backup and overwrite. | M | Versioned settings schema | Adapt | P1 |
 | SET-15 | Clear cached NetSuite context | Clears cached account, role and route data without resetting appearance settings. Reset All is already implemented. | S | Storage framework | Direct | P1 |
 | SET-16 | View XML preference | Open XML in a new tab or window. | S | View XML command | Direct | P2 |
 | SET-17 | Open popups as tabs | Converts NetSuite popup windows into browser tabs. | M | Chrome tabs and windows | Adapt | P3 |
@@ -356,4 +355,4 @@ No foundation features remain. All `FND-01` through `FND-09` checkpoints are imp
 
 ## Current selected feature
 
-`SET-14`: Settings export and import. Implementation and automated verification are complete on the feature branch. Authenticated popup smoke testing, pull request merge and the `v3.12.0` release checkpoint remain before another feature can begin.
+None. `SET-14` is complete and excluded from the active backlog. The next recommended candidate is `GEN-17`: Internal IDs toolkit.
