@@ -141,6 +141,21 @@ The styling foundation is not complete because the extension loads. It is comple
 - Confirm CSV Import remains a single native toolbar action with its originating record context.
 - Confirm browser logs contain no SuiteMate utility, popup, SuiteQL, theme or CSV Import errors.
 
+## Settings backup and restore pass
+
+- Reload the unpacked extension and open the popup from an authenticated NetSuite tab.
+- Expand Backup and restore. Confirm the panel contains one Backup data field plus Export settings and Import settings actions.
+- Select Export settings. Confirm the encoded backup appears in the field, is selected and is copied to the clipboard without a new Chrome permission.
+- Paste the exported backup into a plain-text editor, then paste it back into Backup data. Confirm Import settings becomes available.
+- Change Main, Secondary, mode or Boxy UI so the current state differs from the backup.
+- Select Import settings, cancel the overwrite confirmation and confirm no setting changes.
+- Select Import settings again and approve the overwrite. Confirm all appearance settings and every saved role theme return to the exported state.
+- Confirm the imported theme applies to the active NetSuite page without reloading it and the backup field clears only after a successful write.
+- Try blank text, arbitrary text, damaged Base64 and a backup with edited JSON. Confirm each is rejected before Chrome storage changes.
+- Confirm a V1 backup or backup from another application is rejected instead of being silently normalized into V3 defaults.
+- Confirm a backup that requires a newer settings or backup format reports a readable compatibility error and leaves existing settings untouched.
+- Confirm browser logs contain no SuiteMate errors after a successful export, cancelled import, invalid import and successful import.
+
 ## Regression fixture pass
 
 - Run `npm run fixtures:verify` and require all 26 screenshot comparisons to remain within the one-percent visual threshold.
@@ -153,4 +168,4 @@ The styling foundation is not complete because the extension loads. It is comple
 
 ## Exit gate
 
-The SuiteQL milestone is complete only when the styling regressions remain clear, the SuiteQL checks pass, and final evidence is retained.
+The current milestone is complete only when its focused checks pass, all prior regressions remain clear and final evidence is retained.

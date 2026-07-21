@@ -356,4 +356,4 @@ No foundation features remain. All `FND-01` through `FND-09` checkpoints are imp
 
 ## Current selected feature
 
-None. The foundation sequence is complete. The next recommended backlog candidate is `SET-14`: Settings export and import, but it must not begin until the FND-09 checkpoint is verified and released.
+`SET-14`: Settings export and import. Implementation and automated verification are complete on the feature branch. Authenticated popup smoke testing, pull request merge and the `v3.12.0` release checkpoint remain before another feature can begin.
