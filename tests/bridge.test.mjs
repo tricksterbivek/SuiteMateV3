@@ -6,7 +6,8 @@ import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const [routesSource, bridgeSource] = await Promise.all([
+const [utilitySource, routesSource, bridgeSource] = await Promise.all([
+  readFile(resolve(root, "src/shared/utilities.js"), "utf8"),
   readFile(resolve(root, "src/shared/routes.js"), "utf8"),
   readFile(resolve(root, "src/shared/bridge.js"), "utf8")
 ]);
@@ -21,6 +22,7 @@ function createApi() {
     console
   };
   sandbox.globalThis = sandbox;
+  runInNewContext(utilitySource, sandbox);
   runInNewContext(routesSource, sandbox);
   runInNewContext(bridgeSource, sandbox);
   return {
@@ -181,6 +183,7 @@ test("reuses the same bridge API and reports its live protocol version", () => {
     document: { documentElement }
   };
   sandbox.globalThis = sandbox;
+  runInNewContext(utilitySource, sandbox);
   runInNewContext(routesSource, sandbox);
   runInNewContext(bridgeSource, sandbox);
   const first = sandbox.SuiteMateV3Bridge;
@@ -720,6 +723,7 @@ test("dispatcher deadline aborts a silent handler and releases its request", asy
     clearTimeout() {}
   };
   timeoutSandbox.globalThis = timeoutSandbox;
+  runInNewContext(utilitySource, timeoutSandbox);
   runInNewContext(routesSource, timeoutSandbox);
   runInNewContext(bridgeSource, timeoutSandbox);
   const timeoutBridge = timeoutSandbox.SuiteMateV3Bridge;

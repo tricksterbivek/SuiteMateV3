@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8
 
 assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.name, "SuiteMate V3");
-assert.equal(manifest.version, "3.9.0");
+assert.equal(manifest.version, "3.10.0");
 assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
 assert.equal(
   Object.hasOwn(manifest, "optional_permissions"),
@@ -36,6 +36,7 @@ assert.deepEqual(globalThemeContentScript.css, [
   "src/record-actions/csv-import.css"
 ]);
 assert.deepEqual(globalThemeContentScript.js, [
+  "src/shared/utilities.js",
   "src/shared/routes.js",
   "src/shared/commands.js",
   "src/shared/bridge.js",
@@ -51,6 +52,15 @@ assert.equal(
   false,
   "The optional permission broker is unnecessarily injected into NetSuite pages"
 );
+const suiteqlContentScript = manifest.content_scripts.find((entry) =>
+  entry.js?.includes("dist/suiteql-studio.js")
+);
+assert.deepEqual(suiteqlContentScript?.js, [
+  "src/shared/utilities.js",
+  "src/shared/browser-utilities.js",
+  "src/suiteql/core.js",
+  "dist/suiteql-studio.js"
+]);
 const importAssistantContentScript = manifest.content_scripts.find((entry) =>
   entry.js?.includes("src/import-assistant/context-runtime.js")
 );
@@ -86,10 +96,12 @@ for (const file of referencedFiles) {
   await access(resolve(root, file));
 }
 
+const utilitySource = await readFile(resolve(root, "src/shared/utilities.js"), "utf8");
+const browserUtilitySource = await readFile(resolve(root, "src/shared/browser-utilities.js"), "utf8");
 const popupHtml = await readFile(resolve(root, manifest.action.default_popup), "utf8");
 assert.match(
   popupHtml,
-  /<script src="\.\.\/shared\/permissions\.js"><\/script>[\s\S]*?<script src="popup\.js"><\/script>/,
+  /<script src="\.\.\/shared\/utilities\.js"><\/script>[\s\S]*?<script src="\.\.\/shared\/browser-utilities\.js"><\/script>[\s\S]*?<script src="\.\.\/shared\/permissions\.js"><\/script>[\s\S]*?<script src="popup\.js"><\/script>/,
   "The popup cannot use the optional permission broker from direct user actions"
 );
 assert.equal((popupHtml.match(/class="role-color" type="hidden"/g) ?? []).length, 2, "The canonical Main and Secondary values changed");
@@ -138,6 +150,8 @@ for (const fixture of [
 }
 
 const extensionSources = [
+  "src/shared/utilities.js",
+  "src/shared/browser-utilities.js",
   "src/shared/routes.js",
   "src/shared/commands.js",
   "src/shared/bridge.js",
@@ -177,8 +191,10 @@ for (const file of extensionSources) {
 }
 
 const permissionSource = await readFile(resolve(root, "src/shared/permissions.js"), "utf8");
+assert.doesNotMatch(permissionSource, /function deepFreeze/, "Permissions retain a private deep-freeze implementation");
 const permissionSandbox = {};
 permissionSandbox.globalThis = permissionSandbox;
+runInNewContext(utilitySource, permissionSandbox);
 runInNewContext(permissionSource, permissionSandbox);
 assert.deepEqual(
   JSON.parse(JSON.stringify(permissionSandbox.SuiteMateV3Permissions.DEFINITIONS.map(({ id }) => id))),
@@ -192,6 +208,11 @@ assert.match(permissionSource, /permissionsApi\.onRemoved/, "Permission revocati
 assert.doesNotMatch(permissionSource, /URLSearchParams|location|chrome\.tabs|chrome\.runtime\.sendMessage/, "The permission broker accepts route-controlled input or broadcasts permission state");
 
 const permissionBackgroundSource = await readFile(resolve(root, "src/background/service-worker.js"), "utf8");
+assert.equal(
+  permissionBackgroundSource.startsWith('importScripts(chrome.runtime.getURL("src/shared/utilities.js"));'),
+  true,
+  "The service worker does not initialize the pure utility foundation first"
+);
 assert.match(
   permissionBackgroundSource,
   /importScripts\(chrome\.runtime\.getURL\("src\/shared\/permissions\.js"\)\)/,
@@ -207,6 +228,19 @@ for (const file of extensionSources.filter((file) => file !== "src/shared/permis
   );
 }
 
+assert.doesNotMatch(
+  utilitySource,
+  /\b(?:document|window|navigator|chrome)\b|innerHTML|createObjectURL|\bfetch\s*\(/,
+  "The pure utility core has a browser or DOM initialization dependency"
+);
+assert.doesNotMatch(
+  browserUtilitySource,
+  /innerHTML|execCommand|chrome\.downloads|\bfetch\s*\(/,
+  "Browser utilities contain unsafe HTML, deprecated copy fallback, broad downloads access, or network transport"
+);
+assert.match(browserUtilitySource, /clipboard\.writeText\(text\)/, "Clipboard writes are not started directly by the browser adapter");
+assert.match(browserUtilitySource, /urlApi\?\.revokeObjectURL/, "Blob download URLs are not revoked");
+
 const routeSource = await readFile(resolve(root, "src/shared/routes.js"), "utf8");
 const routeSandbox = { URL, URLSearchParams };
 routeSandbox.globalThis = routeSandbox;
@@ -214,6 +248,7 @@ runInNewContext(routeSource, routeSandbox);
 const routeApi = routeSandbox.SuiteMateV3Routes;
 
 const commandSource = await readFile(resolve(root, "src/shared/commands.js"), "utf8");
+assert.doesNotMatch(commandSource, /function deepFreeze/, "Commands retain a private deep-freeze implementation");
 const commandSandbox = {
   URL,
   URLSearchParams,
@@ -222,6 +257,7 @@ const commandSandbox = {
   console
 };
 commandSandbox.globalThis = commandSandbox;
+runInNewContext(utilitySource, commandSandbox);
 runInNewContext(commandSource, commandSandbox);
 const commandApi = commandSandbox.SuiteMateV3Commands;
 assert.equal(commandApi.VERSION, 1);
@@ -239,6 +275,7 @@ assert.equal(
 );
 
 const bridgeSource = await readFile(resolve(root, "src/shared/bridge.js"), "utf8");
+assert.match(bridgeSource, /utilityApi\.utf8ByteLength\(serialized\)/, "The bridge bypasses the shared UTF-8 byte counter");
 assert.match(bridgeSource, /routeApi\?\.isAllowedSender/, "The typed bridge bypasses the route registry");
 assert.match(bridgeSource, /UNKNOWN_BRIDGE_COMMAND/, "Unknown bridge commands are not rejected");
 assert.match(bridgeSource, /UNSUPPORTED_BRIDGE_VERSION/, "Bridge protocol versions are not enforced");
@@ -254,6 +291,7 @@ const bridgeSandbox = {
   SuiteMateV3Routes: routeApi
 };
 bridgeSandbox.globalThis = bridgeSandbox;
+runInNewContext(utilitySource, bridgeSandbox);
 runInNewContext(bridgeSource, bridgeSandbox);
 const bridgeApi = bridgeSandbox.SuiteMateV3Bridge;
 assert.equal(bridgeApi.VERSION, 1);
@@ -283,6 +321,8 @@ assert.match(
   "Live theme preview messages are not handled"
 );
 const popupSource = await readFile(resolve(root, "src/popup/popup.js"), "utf8");
+assert.match(popupSource, /browserUtilityApi\.notices\.create/, "Popup status bypasses the shared notice controller");
+assert.match(popupSource, /browserUtilityApi\.modals\.create/, "The unified picker bypasses the shared modal controller");
 assert.match(popupSource, /addEventListener\("input"/, "Color input does not trigger live preview");
 assert.match(popupSource, /addEventListener\("pagehide"/, "Pending live colors are not flushed when the popup closes");
 assert.match(popupSource, /commandApi\.createScope\(commandApi\.SURFACES\.POPUP/, "The popup does not use the shared command scope");
@@ -300,7 +340,11 @@ assert.match(
 );
 assert.match(popupSource, /requestAnimationFrame/, "Pointer movement is not coalesced before live preview");
 assert.match(popupSource, /saveRoleColors\(\{ \[picker\.colorName\]: picker\.input\.value \}\)/, "Closing the unified picker does not flush its final value");
-assert.match(popupSource, /setModalBackgroundInert\(true\)/, "Background controls remain interactive while the picker is open");
+assert.match(
+  popupSource,
+  /colorPickerModalController\.show\(\{ trigger, initialFocus: colorPlane \}\)/,
+  "The unified picker does not use the shared modal focus and inert controller"
+);
 assert.match(
   popupSource,
   /commandScope\.bindShortcuts\(\s*document,\s*\[COMMANDS\.THEME_APPLY_AND_CLOSE_PICKER\]/,
@@ -716,8 +760,10 @@ assert.doesNotMatch(
 );
 
 const settingsSource = await readFile(resolve(root, "src/shared/settings.js"), "utf8");
+assert.doesNotMatch(settingsSource, /function normalizeHexColor|function utf8ByteLength/, "Settings retain duplicated shared primitives");
 const settingsSandbox = {};
 settingsSandbox.globalThis = settingsSandbox;
+runInNewContext(utilitySource, settingsSandbox);
 runInNewContext(settingsSource, settingsSandbox);
 const settingsApi = settingsSandbox.SuiteMateV3Settings;
 assert.equal(settingsApi.THEME_PREVIEW_MESSAGE, "SUITEMATE_V3_PREVIEW_ROLE_THEME");
@@ -763,8 +809,15 @@ assert.equal(
 );
 
 const materialPaletteSource = await readFile(resolve(root, "dist/material-palette.js"), "utf8");
+const materialPaletteEntrySource = await readFile(resolve(root, "src/palette/material-palette.js"), "utf8");
+assert.doesNotMatch(
+  materialPaletteEntrySource,
+  /function normalizeHexColor/,
+  "The Material palette retains a private hex normalizer"
+);
 const materialPaletteSandbox = {};
 materialPaletteSandbox.globalThis = materialPaletteSandbox;
+runInNewContext(utilitySource, materialPaletteSandbox);
 runInNewContext(materialPaletteSource, materialPaletteSandbox);
 const { generateMaterialShades } = materialPaletteSandbox.SuiteMateV3MaterialPalette;
 const materialShades = generateMaterialShades("#607799");
@@ -807,6 +860,7 @@ assert.doesNotMatch(coreSource, /isAllowedSender/, "SuiteQL Core retains a dupli
 assert.doesNotMatch(coreSource, /host\.endsWith|extforms\.netsuite/, "SuiteQL retains a duplicate host policy");
 const coreSandbox = { URL, Date, SuiteMateV3Routes: routeApi };
 coreSandbox.globalThis = coreSandbox;
+runInNewContext(utilitySource, coreSandbox);
 runInNewContext(coreSource, coreSandbox);
 const suiteqlCore = coreSandbox.SuiteMateV3SuiteQLCore;
 const studioUrl = "https://123456.app.netsuite.com/app/common/search/ubersearchresults.nl?suiteql";
@@ -897,6 +951,9 @@ assert.equal(
 const backgroundSource = await readFile(resolve(root, "src/background/service-worker.js"), "utf8");
 const studioSource = await readFile(resolve(root, "src/suiteql/studio-entry.js"), "utf8");
 const studioStyles = await readFile(resolve(root, "src/suiteql/studio.css"), "utf8");
+assert.match(studioSource, /browserUtilityApi\.downloads\.create/, "SuiteQL export bypasses the shared download adapter");
+assert.match(studioSource, /browserUtilityApi\.notices\.create/, "SuiteQL notices bypass the shared notice controller");
+assert.doesNotMatch(studioSource, /new Blob|createObjectURL|revokeObjectURL/, "SuiteQL retains a private Blob download implementation");
 assert.match(studioSource, /<h1>SuiteQL Console<\/h1>/, "The workspace does not use the SuiteQL Console name");
 assert.match(studioSource, /document\.title = "SuiteQL Console"/, "The browser title does not use the SuiteQL Console name");
 assert.doesNotMatch(studioSource, /SuiteQL Studio/, "The old SuiteQL Studio name remains in the workspace");

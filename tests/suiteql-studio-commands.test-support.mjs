@@ -7,11 +7,15 @@ import { runInNewContext } from "node:vm";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const [
+  utilitySource,
+  browserUtilitySource,
   routeSource,
   commandSource,
   suiteqlCoreSource,
   studioModuleSource
 ] = await Promise.all([
+  readFile(resolve(root, "src/shared/utilities.js"), "utf8"),
+  readFile(resolve(root, "src/shared/browser-utilities.js"), "utf8"),
   readFile(resolve(root, "src/shared/routes.js"), "utf8"),
   readFile(resolve(root, "src/shared/commands.js"), "utf8"),
   readFile(resolve(root, "src/suiteql/core.js"), "utf8"),
@@ -271,6 +275,7 @@ function createStudioHarness(onRequest) {
     URL,
     URLSearchParams,
     Blob,
+    Blob,
     console,
     navigator: { platform: "MacIntel" },
     document,
@@ -315,6 +320,8 @@ function createStudioHarness(onRequest) {
   };
   sandbox.globalThis = sandbox;
 
+  runInNewContext(utilitySource, sandbox);
+  runInNewContext(browserUtilitySource, sandbox);
   runInNewContext(routeSource, sandbox);
   runInNewContext(commandSource, sandbox);
   runInNewContext(suiteqlCoreSource, sandbox);

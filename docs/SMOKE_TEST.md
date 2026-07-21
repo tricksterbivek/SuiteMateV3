@@ -128,6 +128,19 @@ The styling foundation is not complete because the extension loads. It is comple
 - Recheck the dashboard theme, SuiteQL Console execution and one contextual CSV Import toolbar action.
 - Confirm browser logs contain no SuiteMate errors after the permission-broker regression pass.
 
+## Shared utilities pass
+
+- Reload the unpacked extension and confirm startup does not request a new permission.
+- Open the popup and confirm Main and Secondary color pickers still open, preview live, save the final value and return focus to the originating trigger.
+- Close the picker separately through X, Done, the backdrop and Escape. Confirm the background is inert only while the modal is open.
+- Trigger a popup status message and confirm it displays as plain text, clears once and does not clear a newer message through a stale timer.
+- Open SuiteQL Console, run a query and confirm persistent loading, success, warning and error notices retain their existing visibility and severity.
+- Export loaded SuiteQL rows and confirm the CSV has exactly one UTF-8 BOM, CRLF row endings, doubled quotes and spreadsheet-formula protection.
+- Confirm the export filename remains `SuiteQL-<account>-<timestamp>.csv` and the temporary Blob URL is revoked.
+- Confirm normal Global Search, Saved Search, dashboard and record pages do not gain a utility UI or additional listener.
+- Confirm CSV Import remains a single native toolbar action with its originating record context.
+- Confirm browser logs contain no SuiteMate utility, popup, SuiteQL, theme or CSV Import errors.
+
 ## Exit gate
 
 The SuiteQL milestone is complete only when the styling regressions remain clear, the SuiteQL checks pass, and final evidence is retained.

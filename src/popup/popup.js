@@ -6,7 +6,8 @@
   const routeApi = globalThis.SuiteMateV3Routes;
   const suiteql = globalThis.SuiteMateV3SuiteQLCore;
   const paletteApi = globalThis.SuiteMateV3MaterialPalette;
-  if (!api || !commandApi || !routeApi || !suiteql || !paletteApi) {
+  const browserUtilityApi = globalThis.SuiteMateV3BrowserUtilities;
+  if (!api || !commandApi || !routeApi || !suiteql || !paletteApi || !browserUtilityApi) {
     return;
   }
   const { IDS: COMMANDS, SOURCES: COMMAND_SOURCES } = commandApi;
@@ -40,6 +41,19 @@
   const pickerMaterialShades = document.querySelector("#pickerMaterialShades");
   const modalSiblings = [...document.querySelector("main").children]
     .filter((element) => element !== colorPickerModal);
+  const statusNotice = browserUtilityApi.notices.create({
+    element: status,
+    defaultDuration: 1600,
+    toggleHidden: false,
+    setTimeoutFn: window.setTimeout.bind(window),
+    clearTimeoutFn: window.clearTimeout.bind(window)
+  });
+  const colorPickerModalController = browserUtilityApi.modals.create({
+    dialog: colorPickerModal,
+    backgroundElements: modalSiblings,
+    body: document.body,
+    bodyClass: "picker-open"
+  });
   const LIVE_COLOR_SAVE_INTERVAL_MS = 500;
   let currentSettings = api.DEFAULTS;
   let currentRoleContext = null;
@@ -54,7 +68,6 @@
   let pickerFinishPromise = null;
   let settingsLocked = false;
   let settingsReady = false;
-  let statusTimer;
   const commandScope = commandApi.createScope(commandApi.SURFACES.POPUP, {
     getContext: () => ({
       pageContext: routeApi.createPageContext(activeNetSuiteTab?.url, { isTopFrame: true }),
@@ -173,11 +186,7 @@
   }
 
   function showStatus(message) {
-    window.clearTimeout(statusTimer);
-    status.textContent = message;
-    statusTimer = window.setTimeout(() => {
-      status.textContent = "";
-    }, 1600);
+    statusNotice.show(message, { type: "success" });
   }
 
   function updateColorTrigger(input, trigger, colorName) {
@@ -315,14 +324,6 @@
     schedulePickerColor();
   }
 
-  function setModalBackgroundInert(inert) {
-    for (const element of modalSiblings) {
-      element.inert = inert;
-      element.toggleAttribute("inert", inert);
-      element.toggleAttribute("aria-hidden", inert);
-    }
-  }
-
   function openColorPicker(input, trigger, colorName) {
     if (trigger.disabled) {
       return;
@@ -332,23 +333,14 @@
     const rgb = hexToRgb(input.value);
     pickerHsv = rgbToHsv(rgb, pickerHsv.h);
     colorPickerTitle.textContent = `${activePicker.label} color`;
-    colorPickerModal.hidden = false;
-    document.body.classList.add("picker-open");
-    trigger.setAttribute("aria-expanded", "true");
-    setModalBackgroundInert(true);
     renderPickerControls();
     renderPickerMaterialShades(input.value);
-    colorPlane.focus();
+    colorPickerModalController.show({ trigger, initialFocus: colorPlane });
   }
 
   function hideColorPicker() {
-    const trigger = activePicker?.trigger;
-    colorPickerModal.hidden = true;
-    document.body.classList.remove("picker-open");
-    setModalBackgroundInert(false);
-    trigger?.setAttribute("aria-expanded", "false");
+    colorPickerModalController.hide();
     activePicker = null;
-    trigger?.focus();
   }
 
   async function finishColorPicker() {
@@ -759,6 +751,8 @@
       void writeSettings((settings) => settings, { renderResult: false })
         .catch(() => undefined);
     }
+    statusNotice.dispose();
+    colorPickerModalController.dispose();
     commandScope.dispose();
   });
 

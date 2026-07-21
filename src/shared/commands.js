@@ -2,7 +2,12 @@
   "use strict";
 
   const VERSION = 1;
+  const utilityApi = globalScope.SuiteMateV3Utilities;
   const routeApi = globalScope.SuiteMateV3Routes;
+  if (!utilityApi) {
+    return;
+  }
+  const { deepFreeze } = utilityApi;
 
   const SURFACES = Object.freeze({
     POPUP: "popup",
@@ -96,17 +101,6 @@
     "requiresSettingsEnabled",
     "link"
   ]);
-
-  function deepFreeze(value, seen = new Set()) {
-    if (!value || typeof value !== "object" || seen.has(value)) {
-      return value;
-    }
-    seen.add(value);
-    for (const child of Object.values(value)) {
-      deepFreeze(child, seen);
-    }
-    return Object.freeze(value);
-  }
 
   function commandError(code, message, commandId = "") {
     const error = new Error(message);

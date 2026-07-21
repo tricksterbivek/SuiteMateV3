@@ -9,6 +9,10 @@
     }
     return;
   }
+  const utilityApi = globalScope.SuiteMateV3Utilities;
+  if (!utilityApi) {
+    return;
+  }
 
   const MESSAGE_TYPE = "SUITEMATE_V3_NETSUITE_BRIDGE";
   const RESPONSE_TYPE = "SUITEMATE_V3_NETSUITE_BRIDGE_RESPONSE";
@@ -56,17 +60,11 @@
   }
 
   function normalizeError(value, fallbackCode = "BRIDGE_ERROR") {
-    const error = isObject(value) ? value : {};
-    const message = [error.message, error.description, error.details, error.detail]
-      .find((candidate) => typeof candidate === "string" && candidate.trim());
-    const details = [error.details, error.detail, error.stack]
-      .find((candidate) => typeof candidate === "string" && candidate.trim() && candidate !== message);
-    const namedCode = error.name && error.name !== "Error" ? error.name : "";
-    return {
-      code: String(error.code || namedCode || fallbackCode),
-      message: message?.trim() || String(value || "NetSuite bridge request failed."),
-      details: details?.trim() || ""
-    };
+    return utilityApi.normalizeError(value, {
+      fallbackCode,
+      fallbackMessage: "NetSuite bridge request failed.",
+      includeStack: true
+    });
   }
 
   function createErrorResponse(requestId, command, value, fallbackCode) {
@@ -718,12 +716,7 @@
     if (typeof serialized !== "string") {
       return Number.POSITIVE_INFINITY;
     }
-    let bytes = 0;
-    for (const character of serialized) {
-      const codePoint = character.codePointAt(0);
-      bytes += codePoint <= 0x7f ? 1 : codePoint <= 0x7ff ? 2 : codePoint <= 0xffff ? 3 : 4;
-    }
-    return bytes;
+    return utilityApi.utf8ByteLength(serialized);
   }
 
   function isValidRequestId(value) {

@@ -1,3 +1,4 @@
+importScripts(chrome.runtime.getURL("src/shared/utilities.js"));
 importScripts(chrome.runtime.getURL("src/shared/routes.js"));
 importScripts(chrome.runtime.getURL("src/shared/bridge.js"));
 importScripts(chrome.runtime.getURL("src/shared/permissions.js"));

@@ -15,6 +15,7 @@ SuiteMate V3 restores the SuiteMate V1 NetSuite visual system and adds focused d
 - Unified Main and Secondary color picker with live HSV controls, hex editing, and dynamic Material shades
 - Versioned shared UI command registry for popup, record, and SuiteQL Console actions and shortcuts
 - Versioned optional permission broker with a closed Chrome capability allowlist
+- Versioned shared utility core for errors, colors, byte limits, CSV, filenames, JSON and browser-safe adapters
 - SuiteQL Console on `/app/common/search/ubersearchresults.nl?suiteql`
 - Locally bundled CodeMirror SQL editor with per-tab drafts and resize persistence
 - Authenticated V1-style SuiteQL execution, optional progressive paging, sorting, loaded-row CSV export, and table inspection
@@ -35,6 +36,10 @@ User-facing actions use a separate immutable command registry. Stable command ID
 Optional Chrome access is centralized in one immutable broker for bookmarks, context menus, history and Side Panel capabilities. The broker accepts only registered permission IDs, reads live state from Chrome, starts requests inside the originating extension-UI user gesture, serializes mutations, handles addition and revocation events, and invalidates stale work after disposal. It is loaded only in extension-owned popup and service-worker contexts and is not injected into NetSuite pages.
 
 No dormant optional permission is declared in the manifest. Chrome Web Store policy applies the minimum-permission rule to optional permissions, so each permission must be added only with its first user-facing consumer. Permission mutations belong to the extension UI that receives the direct user gesture. The service worker may inspect state or subscribe to changes, but it must not independently request or remove access. The Promise-based broker requires Chrome 96 or later. A future Side Panel consumer must enforce Chrome 114 or later when that capability ships.
+
+Shared utilities are split by execution context. The pure core has no DOM, Chrome or network dependency and owns bounded error normalization, deep freezing of SuiteMate-owned data, hex normalization, UTF-8 sizing, formula-safe CSV, filename safety and bounded JSON formatting. Browser adapters receive their capabilities explicitly and own clipboard writes, Blob downloads, extension notices, modal focus and inert state, and text-only XML formatting. They do not request permissions, make network requests, render arbitrary HTML or use the broad Chrome downloads API.
+
+SuiteQL Console uses the shared CSV, download and notice paths without changing its public behavior or export format. The popup color picker uses the shared modal and notice lifecycle while retaining the same live preview, final-value flush, backdrop, X, Done and Escape behavior. Native NetSuite alert dismissal remains separate because it operates on NetSuite-owned UI rather than SuiteMate notices.
 
 The adapter executes only in the authorized top-frame document, verifies the exact account origin and route again in NetSuite's main world, blocks redirects and cross-account responses, enforces response-size and operation limits, and normalizes failures into typed errors. Import Assistant writes remain separately validated and atomic.
 

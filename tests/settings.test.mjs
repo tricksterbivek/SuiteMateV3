@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const utilitySource = await readFile(resolve(root, "src/shared/utilities.js"), "utf8");
 const settingsSource = await readFile(resolve(root, "src/shared/settings.js"), "utf8");
 
 function clone(value) {
@@ -44,6 +45,7 @@ function createHarness(initialValue, options = {}) {
     }
   };
   sandbox.globalThis = sandbox;
+  runInNewContext(utilitySource, sandbox);
   runInNewContext(settingsSource, sandbox);
 
   return {
