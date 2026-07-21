@@ -86,7 +86,6 @@ Priority:
 
 | ID | Feature | Description | Complexity | Dependencies | Migration | Priority |
 |---|---|---|---:|---|---|---:|
-| FND-07 | Optional permission broker | Explicit handling for bookmarks, context menus, history and Side Panel. | M | Chrome permissions | Adapt | P0 |
 | FND-08 | Shared utilities | Clipboard, CSV, downloads, modal, toast, syntax formatting and errors. | M | Sanitization, browser APIs | Adapt | P0 |
 | FND-09 | Regression fixtures | Classic and Redwood fixtures for every supported route. | L | Test harness, screenshots | Rebuild | P0 |
 
@@ -357,4 +356,4 @@ Priority:
 
 ## Current selected feature
 
-`FND-07`: Optional Permission Broker. It is the next recommended foundation checkpoint and should centralize optional Chrome permission discovery, explanation, request and revocation without adding dependent user-facing features.
+`FND-08`: Shared Utilities. It is the next recommended foundation checkpoint and should centralize clipboard, CSV, downloads, modal, toast, syntax formatting and error helpers without adding dependent user-facing features.
