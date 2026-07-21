@@ -27,7 +27,7 @@ Release: <https://github.com/tricksterbivek/SuiteMateV3/releases/tag/v3.9.0>
 
 ### Verification
 
-- Full `npm test` regression suite with 103 passing tests.
+- Full `npm test` regression suite with 104 passing tests.
 - Focused broker coverage for immutable definitions, unknown IDs, user-gesture timing, grant and denial outcomes, removal, Chrome failures, unavailable APIs, snapshots, events, listener cleanup, mutation races and stale disposal results.
 - Manifest checks proving dormant optional permissions are absent and the broker is not injected into NetSuite content scripts.
 - Existing typed bridge, data adapter, lifecycle, versioned settings, protected V1 styling, role-theme, CSV Import and SuiteQL Console checks.

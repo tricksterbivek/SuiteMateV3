@@ -271,6 +271,9 @@
       try {
         const descriptor = { permissions: [...definition.permissions] };
         const before = await permissionsApi.contains(descriptor);
+        if (disposed || mutation !== token) {
+          return disposedResult(id, "removal");
+        }
         const removed = await permissionsApi.remove(descriptor);
         if (disposed || mutation !== token) {
           return disposedResult(id, "removal");

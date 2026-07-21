@@ -451,3 +451,15 @@ test("disposal takes precedence over late Chrome promise rejections", async () =
   removeHarness.rejectRemove("late remove failure");
   assert.equal((await pendingRemove).error.code, "PERMISSION_BROKER_DISPOSED");
 });
+
+test("disposal during removal preflight prevents Chrome revocation", async () => {
+  const harness = createHarness({ granted: ["history"], deferContains: true });
+  const pending = harness.broker.remove(harness.api.IDS.HISTORY);
+  assert.equal(harness.broker.dispose(), true);
+  harness.resolveContains(true);
+
+  const result = await pending;
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "PERMISSION_BROKER_DISPOSED");
+  assert.deepEqual(harness.calls, [["contains", { permissions: ["history"] }]]);
+});
