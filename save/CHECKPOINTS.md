@@ -2,6 +2,59 @@
 
 This file records verified development baselines. New feature work must not begin until the preceding checkpoint has passed automated tests, live NetSuite verification, pull request review and release publication.
 
+## v3.12.0: Settings Backup and Restore
+
+Status: Verified
+
+Date: 2026-07-22
+
+Pull request: <https://github.com/tricksterbivek/SuiteMateV3/pull/15>
+
+Planned release: <https://github.com/tricksterbivek/SuiteMateV3/releases/tag/v3.12.0>
+
+### Included
+
+- Recreates V1's encoded text export and paste-to-import workflow in the existing SuiteMate V3 popup.
+- Adds a versioned `suitemate-v3-settings` backup envelope with an explicit backup format version, settings schema version and export timestamp.
+- Uses UTF-8-safe Base64 so Unicode role names survive export and import. The encoded text is transport data, not encryption.
+- Copies exports through the shared direct-user-gesture clipboard adapter without adding a clipboard permission.
+- Validates the prefix, Base64, UTF-8, JSON, envelope, timestamp, settings version, canonical settings structure and Chrome sync quota before showing the overwrite confirmation.
+- Rejects malformed, foreign, non-canonical, oversized and future-version backups without modifying stored settings.
+- Requires explicit confirmation before replacing all settings and reports the number of role themes included.
+- Serializes imports through the existing settings write queue, blocks concurrent popup edits during the overwrite and restores the prior in-memory state if Chrome rejects the write.
+- Keeps the backup text available after a failed import for correction or retry, and clears it only after a successful import.
+- Adds no browser permission, host access, network request, remote dependency or permanent query/history storage.
+
+### Verification
+
+- Full `npm test` regression suite with 133 passing tests.
+- All 26 screenshot baselines reproduced at 0.000 percent difference.
+- Protected 15-file SuiteMate V1 styling hash suite unchanged.
+- Focused export, Unicode round-trip, validation, cancellation, atomic overwrite, storage rollback and hostile-input tests.
+- Local 400 by 900 popup render confirmed the collapsed Backup and restore control fits the existing popup layout.
+- `git diff --check`.
+- `npm audit --omit=dev` with zero vulnerabilities.
+- Authenticated NetSuite SB1 dashboard check after full load plus ten seconds confirmed the `dashboard` route, Light mode, the active custom Main theme token and no unexpected SuiteQL Console mount.
+- Authenticated dashboard browser logs contained no warnings or errors after the extension reload.
+- User-confirmed installed popup verification passed: Backup and restore expanded, Export settings produced and copied the encoded backup, a setting was changed, Import settings was approved and the original setting and active NetSuite theme were restored without a page reload.
+- Cancelled overwrite, malformed backup, future version, oversized backup and rejected Chrome storage write paths remain covered by focused automated tests.
+
+### Restore
+
+```bash
+git switch --detach v3.12.0
+```
+
+To resume normal development after inspecting the checkpoint:
+
+```bash
+git switch main
+```
+
+### Next feature
+
+`GEN-17`: Internal IDs toolkit is the next recommendation, but it must not begin until this pull request is merged and `v3.12.0` is published.
+
 ## v3.11.0: Regression Fixtures
 
 Status: Verified

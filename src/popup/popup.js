@@ -2,12 +2,13 @@
   "use strict";
 
   const api = globalThis.SuiteMateV3Settings;
+  const transferApi = globalThis.SuiteMateV3SettingsTransfer;
   const commandApi = globalThis.SuiteMateV3Commands;
   const routeApi = globalThis.SuiteMateV3Routes;
   const suiteql = globalThis.SuiteMateV3SuiteQLCore;
   const paletteApi = globalThis.SuiteMateV3MaterialPalette;
   const browserUtilityApi = globalThis.SuiteMateV3BrowserUtilities;
-  if (!api || !commandApi || !routeApi || !suiteql || !paletteApi || !browserUtilityApi) {
+  if (!api || !transferApi || !commandApi || !routeApi || !suiteql || !paletteApi || !browserUtilityApi) {
     return;
   }
   const { IDS: COMMANDS, SOURCES: COMMAND_SOURCES } = commandApi;
@@ -26,6 +27,10 @@
   const swapColorsButton = document.querySelector("#swapColors");
   const resetColorsButton = document.querySelector("#resetColors");
   const resetButton = document.querySelector("#reset");
+  const settingsTransfer = document.querySelector("#settingsTransfer");
+  const settingsBackupData = document.querySelector("#settingsBackupData");
+  const exportSettingsButton = document.querySelector("#exportSettings");
+  const importSettingsButton = document.querySelector("#importSettings");
   const openSuiteQLButton = document.querySelector("#openSuiteQL");
   const suiteqlToolContext = document.querySelector("#suiteqlToolContext");
   const status = document.querySelector("#status");
@@ -48,6 +53,7 @@
     setTimeoutFn: window.setTimeout.bind(window),
     clearTimeoutFn: window.clearTimeout.bind(window)
   });
+  const settingsClipboard = browserUtilityApi.clipboard.create();
   const colorPickerModalController = browserUtilityApi.modals.create({
     dialog: colorPickerModal,
     backgroundElements: modalSiblings,
@@ -68,6 +74,7 @@
   let pickerFinishPromise = null;
   let settingsLocked = false;
   let settingsReady = false;
+  let settingsTransferBusy = false;
   const commandScope = commandApi.createScope(commandApi.SURFACES.POPUP, {
     getContext: () => ({
       pageContext: routeApi.createPageContext(activeNetSuiteTab?.url, { isTopFrame: true }),
@@ -81,7 +88,7 @@
   });
 
   form.setAttribute("aria-disabled", "true");
-  for (const control of form.querySelectorAll("input, button")) {
+  for (const control of form.querySelectorAll("input, button, textarea")) {
     control.disabled = true;
   }
 
@@ -91,6 +98,8 @@
     [secondaryColorTrigger, COMMANDS.THEME_OPEN_SECONDARY_PICKER, false],
     [swapColorsButton, COMMANDS.THEME_SWAP_COLORS, true],
     [resetColorsButton, COMMANDS.THEME_RESET_ROLE_COLORS, true],
+    [exportSettingsButton, COMMANDS.SETTINGS_EXPORT_BACKUP, true],
+    [importSettingsButton, COMMANDS.SETTINGS_IMPORT_BACKUP, true],
     [resetButton, COMMANDS.SETTINGS_RESET_ALL, true],
     [closeColorPickerButton, COMMANDS.THEME_APPLY_AND_CLOSE_PICKER, false],
     [doneColorPickerButton, COMMANDS.THEME_APPLY_AND_CLOSE_PICKER, false]
@@ -185,8 +194,20 @@
     return rgbToHex(hsvToRgb(pickerHsv));
   }
 
-  function showStatus(message) {
-    statusNotice.show(message, { type: "success" });
+  function showStatus(message, type = "success", duration) {
+    statusNotice.show(message, { type, ...(duration === undefined ? {} : { duration }) });
+  }
+
+  function showTransferError(error) {
+    showStatus(error?.message || "Settings transfer failed", "error", 4500);
+  }
+
+  function updateSettingsTransferState() {
+    const unavailable = settingsLocked || !settingsReady || settingsTransferBusy;
+    settingsTransfer.dataset.settingsLocked = String(unavailable);
+    settingsBackupData.disabled = unavailable;
+    exportSettingsButton.disabled = unavailable;
+    importSettingsButton.disabled = unavailable || !settingsBackupData.value.trim();
   }
 
   function updateColorTrigger(input, trigger, colorName) {
@@ -365,7 +386,7 @@
   function renderRoleTheme() {
     const available = Boolean(currentRoleContext?.id);
     const theme = api.getRoleTheme(currentSettings, currentRoleContext?.id);
-    const disabled = settingsLocked || !available || !currentSettings.enabled;
+    const disabled = settingsLocked || settingsTransferBusy || !available || !currentSettings.enabled;
 
     roleTheme.dataset.unavailable = String(!available);
     roleContextLabel.textContent = available
@@ -387,15 +408,17 @@
     squareCornersInput.checked = currentSettings.squareCorners;
     document.querySelector(`input[name="mode"][value="${currentSettings.mode}"]`).checked = true;
     form.dataset.settingsLocked = String(settingsLocked);
-    form.setAttribute("aria-disabled", String(settingsLocked || !currentSettings.enabled));
-    enabledInput.disabled = settingsLocked;
-    resetButton.disabled = settingsLocked;
+    form.setAttribute("aria-disabled", String(settingsLocked || settingsTransferBusy || !currentSettings.enabled));
+    form.setAttribute("aria-busy", String(settingsTransferBusy));
+    enabledInput.disabled = settingsLocked || settingsTransferBusy;
+    resetButton.disabled = settingsLocked || settingsTransferBusy;
 
     for (const input of form.querySelectorAll('fieldset input, #squareCorners')) {
-      input.disabled = settingsLocked || !currentSettings.enabled;
+      input.disabled = settingsLocked || settingsTransferBusy || !currentSettings.enabled;
     }
 
     renderRoleTheme();
+    updateSettingsTransferState();
   }
 
   function readAppearance() {
@@ -531,7 +554,7 @@
   function installCommands() {
     commandScope.register(COMMANDS.SETTINGS_APPLY_APPEARANCE, {
       allowReentry: true,
-      isAvailable: () => settingsReady && !settingsLocked,
+      isAvailable: () => settingsReady && !settingsLocked && !settingsTransferBusy,
       async run({ payload }) {
         const target = payload?.target;
         if (target?.classList?.contains("role-color")) {
@@ -587,6 +610,76 @@
         }
       }
     });
+    commandScope.register(COMMANDS.SETTINGS_EXPORT_BACKUP, {
+      isAvailable: () => settingsReady && !settingsLocked && !settingsTransferBusy,
+      async run() {
+        try {
+          const backup = transferApi.create(currentSettings);
+          settingsBackupData.value = backup;
+          updateSettingsTransferState();
+          settingsBackupData.focus();
+          settingsBackupData.select();
+          const copied = await settingsClipboard.writeText(backup);
+          if (copied.ok) {
+            showStatus("Settings backup copied", "success", 2200);
+          } else {
+            showStatus("Backup ready. Copy it manually.", "warning", 4500);
+          }
+          return copied;
+        } catch (error) {
+          showTransferError(error);
+          return { ok: false, error };
+        }
+      }
+    });
+    commandScope.register(COMMANDS.SETTINGS_IMPORT_BACKUP, {
+      isAvailable: () =>
+        settingsReady
+        && !settingsLocked
+        && !settingsTransferBusy
+        && Boolean(settingsBackupData.value.trim()),
+      async run() {
+        let parsed;
+        try {
+          parsed = transferApi.parse(settingsBackupData.value);
+        } catch (error) {
+          showTransferError(error);
+          return false;
+        }
+
+        const roleCount = Object.keys(parsed.settings.roleThemes).length;
+        const confirmed = window.confirm(
+          `Importing this backup will replace all SuiteMate V3 settings, including ${roleCount} role theme${roleCount === 1 ? "" : "s"}. Continue?`
+        );
+        if (!confirmed) {
+          showStatus("Import cancelled", "warning", 2200);
+          return false;
+        }
+
+        clearLiveColorSaveTimer();
+        const previousSettings = currentSettings;
+        settingsTransferBusy = true;
+        render(previousSettings);
+        try {
+          const result = await writeSettings(() => parsed.settings, { renderResult: false });
+          settingsTransferBusy = false;
+          render(currentSettings);
+          if (result.isLatest) {
+            settingsBackupData.value = "";
+            updateSettingsTransferState();
+            previewRoleColors();
+            showStatus("Settings imported", "success", 2500);
+          }
+          return true;
+        } catch (error) {
+          currentSettings = previousSettings;
+          settingsTransferBusy = false;
+          render(previousSettings);
+          showTransferError(error);
+          return false;
+        }
+      }
+    });
     commandScope.register(COMMANDS.SETTINGS_RESET_ALL, {
       isAvailable: () => settingsReady && !resetButton.disabled,
       async run() {
@@ -631,6 +724,9 @@
   );
 
   form.addEventListener("change", ({ target }) => {
+    if (target === settingsBackupData) {
+      return;
+    }
     void invokePopupCommand(COMMANDS.SETTINGS_APPLY_APPEARANCE, { target });
   });
 
@@ -736,6 +832,16 @@
     void invokePopupCommand(COMMANDS.THEME_RESET_ROLE_COLORS);
   });
 
+  settingsBackupData.addEventListener("input", updateSettingsTransferState);
+
+  exportSettingsButton.addEventListener("click", () => {
+    void invokePopupCommand(COMMANDS.SETTINGS_EXPORT_BACKUP);
+  });
+
+  importSettingsButton.addEventListener("click", () => {
+    void invokePopupCommand(COMMANDS.SETTINGS_IMPORT_BACKUP);
+  });
+
   resetButton.addEventListener("click", () => {
     void invokePopupCommand(COMMANDS.SETTINGS_RESET_ALL);
   });
@@ -752,6 +858,7 @@
         .catch(() => undefined);
     }
     statusNotice.dispose();
+    settingsClipboard.dispose();
     colorPickerModalController.dispose();
     commandScope.dispose();
   });

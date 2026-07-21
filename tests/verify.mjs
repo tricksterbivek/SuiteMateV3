@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8
 
 assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.name, "SuiteMate V3");
-assert.equal(manifest.version, "3.11.0");
+assert.equal(manifest.version, "3.12.0");
 assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
 assert.equal(
   Object.hasOwn(manifest, "optional_permissions"),
@@ -109,6 +109,8 @@ assert.match(popupHtml, /id="mainColorTrigger"[^>]*aria-haspopup="dialog"/, "The
 assert.match(popupHtml, /id="secondaryColorTrigger"[^>]*aria-haspopup="dialog"/, "The Secondary unified picker trigger is missing");
 assert.match(popupHtml, /id="colorPickerModal"[\s\S]*?role="dialog"[\s\S]*?aria-modal="true"/, "The unified picker is not an accessible modal");
 assert.match(popupHtml, /id="pickerMaterialShades"/, "Material shades are not contained inside the unified picker");
+assert.match(popupHtml, /id="settingsTransfer"[\s\S]*?id="settingsBackupData"[\s\S]*?id="exportSettings"[\s\S]*?id="importSettings"/, "The settings backup controls are missing or out of order");
+assert.match(popupHtml, /<script src="\.\.\/shared\/settings\.js"><\/script>\s*<script src="\.\.\/shared\/settings-transfer\.js"><\/script>/, "Settings transfer does not load after the schema authority");
 assert.doesNotMatch(popupHtml, /type="color"|mainMaterialShades|secondaryMaterialShades/, "The separate or native picker UI remains active");
 assert.doesNotMatch(popupHtml, /Generate|company logo|recommended pair/i, "A separate palette workflow remains in the popup");
 assert.match(popupHtml, />SuiteQL Console</, "The popup does not use the SuiteQL Console name");
@@ -158,6 +160,7 @@ const extensionSources = [
   "src/shared/bridge.js",
   "src/shared/lifecycle.js",
   "src/shared/settings.js",
+  "src/shared/settings-transfer.js",
   "src/shared/permissions.js",
   "src/runtime/theme-runtime.js",
   "src/runtime/notification-runtime.js",
@@ -265,6 +268,8 @@ assert.equal(commandApi.VERSION, 1);
 assert.equal(commandApi.IDS.SUITEQL_EXECUTE, "suiteql.execute");
 assert.equal(commandApi.IDS.POPUP_OPEN_SUITEQL, "popup.open-suiteql");
 assert.equal(commandApi.IDS.RECORD_CSV_IMPORT, "record.csv-import");
+assert.equal(commandApi.IDS.SETTINGS_EXPORT_BACKUP, "settings.export-backup");
+assert.equal(commandApi.IDS.SETTINGS_IMPORT_BACKUP, "settings.import-backup");
 assert.equal(Object.isFrozen(commandApi.DEFINITIONS), true);
 assert.equal(
   commandApi.getShortcut(commandApi.IDS.SUITEQL_EXECUTE).editor,
@@ -354,6 +359,10 @@ assert.match(
 assert.doesNotMatch(popupSource, /companyLogo|logoPixel|generateLogo|recommendedPalette/i, "Logo-specific palette code remains in the popup");
 assert.doesNotMatch(themeRuntimeSource, /companyLogo|logoPixel|LOGO_MAX/i, "Logo-specific palette code remains in the NetSuite runtime");
 assert.match(popupSource, /api\.ensureCurrentSchema\(\)/, "The popup does not intentionally persist legacy settings migration");
+assert.match(popupSource, /transferApi\.create\(currentSettings\)/, "Popup export bypasses the validated settings transfer core");
+assert.match(popupSource, /transferApi\.parse\(settingsBackupData\.value\)/, "Popup import bypasses the validated settings transfer core");
+assert.match(popupSource, /window\.confirm\(/, "Settings import does not require overwrite confirmation");
+assert.match(popupSource, /settingsClipboard\.writeText\(backup\)/, "Settings export does not use the shared clipboard adapter");
 assert.match(popupSource, /settingsLocked = true/, "Settings failures do not lock the popup");
 assert.doesNotMatch(popupSource, /chrome\.storage\.sync\.set/, "The popup bypasses the versioned settings API");
 assert.match(themeRuntimeSource, /isSettingsVersionError\(error\)/, "The theme runtime does not safely handle future settings");
@@ -761,6 +770,11 @@ assert.doesNotMatch(
 );
 
 const settingsSource = await readFile(resolve(root, "src/shared/settings.js"), "utf8");
+const settingsTransferSource = await readFile(resolve(root, "src/shared/settings-transfer.js"), "utf8");
+assert.doesNotMatch(settingsTransferSource, /chrome\.|fetch\(|XMLHttpRequest|document\.|localStorage|sessionStorage/, "Settings transfer has unnecessary browser, storage or network authority");
+assert.match(settingsTransferSource, /settingsApi\.validateForStorage/, "Settings transfer bypasses canonical schema and quota validation");
+assert.match(settingsTransferSource, /TextEncoder/, "Settings export is not Unicode safe");
+assert.match(settingsTransferSource, /TextDecoder\("utf-8", \{ fatal: true \}\)/, "Settings import does not reject malformed UTF-8");
 assert.doesNotMatch(settingsSource, /function normalizeHexColor|function utf8ByteLength/, "Settings retain duplicated shared primitives");
 const settingsSandbox = {};
 settingsSandbox.globalThis = settingsSandbox;
@@ -771,6 +785,10 @@ assert.equal(settingsApi.THEME_PREVIEW_MESSAGE, "SUITEMATE_V3_PREVIEW_ROLE_THEME
 assert.equal(settingsApi.SCHEMA_VERSION, 1);
 assert.equal(settingsApi.DEFAULTS.schemaVersion, settingsApi.SCHEMA_VERSION);
 assert.equal(settingsApi.DEFAULTS.squareCorners, false);
+assert.deepEqual(
+  JSON.parse(JSON.stringify(settingsApi.validateForStorage({ mode: "dark" }))),
+  { schemaVersion: 1, enabled: true, mode: "dark", squareCorners: false, roleThemes: {} }
+);
 assert.equal(settingsApi.normalize({ squareCorners: true }).squareCorners, true);
 const roleContext = { id: "9845683_SB2~11596~3~N", name: "DBG Health (SB2) - Administrator" };
 const roleSettings = settingsApi.withRoleTheme(settingsApi.DEFAULTS, roleContext, {

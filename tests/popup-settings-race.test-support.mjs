@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { TextDecoder, TextEncoder } from "node:util";
 import { runInNewContext } from "node:vm";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -12,6 +13,7 @@ const [
   routeSource,
   commandSource,
   settingsSource,
+  settingsTransferSource,
   suiteqlCoreSource,
   popupSource
 ] = await Promise.all([
@@ -20,16 +22,19 @@ const [
   readFile(resolve(root, "src/shared/routes.js"), "utf8"),
   readFile(resolve(root, "src/shared/commands.js"), "utf8"),
   readFile(resolve(root, "src/shared/settings.js"), "utf8"),
+  readFile(resolve(root, "src/shared/settings-transfer.js"), "utf8"),
   readFile(resolve(root, "src/suiteql/core.js"), "utf8"),
   readFile(resolve(root, "src/popup/popup.js"), "utf8")
 ]);
 
 function deferred() {
   let resolvePromise;
-  const promise = new Promise((resolve) => {
+  let rejectPromise;
+  const promise = new Promise((resolve, reject) => {
     resolvePromise = resolve;
+    rejectPromise = reject;
   });
-  return { promise, resolve: resolvePromise };
+  return { promise, resolve: resolvePromise, reject: rejectPromise };
 }
 
 async function flushTasks(count = 4) {
@@ -163,6 +168,10 @@ class FakeElement {
 
   focus() {}
 
+  select() {
+    this.selected = true;
+  }
+
   setPointerCapture() {}
 
   getBoundingClientRect() {
@@ -204,6 +213,9 @@ function createPopupDocument() {
     add("secondaryColorTrigger", "button"),
     add("swapColors", "button"),
     add("resetColors", "button"),
+    add("settingsBackupData", "textarea"),
+    add("exportSettings", "button"),
+    add("importSettings", "button"),
     add("reset", "button")
   ];
   form.elements = {
@@ -214,7 +226,7 @@ function createPopupDocument() {
     }
   };
   form.querySelectorAll = (selector) => {
-    if (selector === "input, button") {
+    if (selector === "input, button" || selector === "input, button, textarea") {
       return formControls;
     }
     if (selector === "fieldset input, #squareCorners") {
@@ -232,6 +244,7 @@ function createPopupDocument() {
     ["openSuiteQL", "button"],
     ["suiteqlToolContext", "small"],
     ["status", "output"],
+    ["settingsTransfer", "details"],
     ["colorPickerTitle", "h2"],
     ["closeColorPicker", "button"],
     ["doneColorPicker", "button"],
@@ -291,7 +304,7 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-async function createPopupHarness() {
+async function createPopupHarness(options = {}) {
   const dom = createPopupDocument();
   const initialSettings = {
     schemaVersion: 1,
@@ -310,6 +323,8 @@ async function createPopupHarness() {
   const pendingSets = [];
   const writes = [];
   const windowListeners = new Map();
+  const clipboardWrites = [];
+  const confirmations = [];
 
   const chrome = {
     storage: {
@@ -356,8 +371,19 @@ async function createPopupHarness() {
   const sandbox = {
     URL,
     URLSearchParams,
+    TextDecoder,
+    TextEncoder,
+    atob,
+    btoa,
     console,
-    navigator: { platform: "MacIntel" },
+    navigator: {
+      platform: "MacIntel",
+      clipboard: {
+        async writeText(value) {
+          clipboardWrites.push(value);
+        }
+      }
+    },
     chrome,
     document: dom.document,
     location: new URL("chrome-extension://fixture/src/popup/popup.html"),
@@ -372,6 +398,10 @@ async function createPopupHarness() {
   sandbox.window = sandbox;
   sandbox.window.top = sandbox;
   sandbox.window.close = () => {};
+  sandbox.window.confirm = (message) => {
+    confirmations.push(message);
+    return options.confirmImport !== false;
+  };
   sandbox.window.addEventListener = (type, listener) => {
     const listeners = windowListeners.get(type) ?? [];
     listeners.push(listener);
@@ -384,6 +414,7 @@ async function createPopupHarness() {
   runInNewContext(routeSource, sandbox);
   runInNewContext(commandSource, sandbox);
   runInNewContext(settingsSource, sandbox);
+  runInNewContext(settingsTransferSource, sandbox);
   runInNewContext(suiteqlCoreSource, sandbox);
   sandbox.SuiteMateV3MaterialPalette = {
     generateMaterialShades: () => null
@@ -394,6 +425,11 @@ async function createPopupHarness() {
   return {
     ...dom,
     writes,
+    clipboardWrites,
+    confirmations,
+    initialSettings: clone(initialSettings),
+    transferApi: sandbox.SuiteMateV3SettingsTransfer,
+    settingsApi: sandbox.SuiteMateV3Settings,
     get storedSettings() {
       return clone(storedSettings);
     },
@@ -401,6 +437,13 @@ async function createPopupHarness() {
       const write = pendingSets.shift();
       assert.ok(write, "Expected a pending settings write");
       write.completion.resolve();
+      await flushTasks();
+      return write;
+    },
+    async rejectNextWrite(error = new Error("Storage write failed")) {
+      const write = pendingSets.shift();
+      assert.ok(write, "Expected a pending settings write");
+      write.completion.reject(error);
       await flushTasks();
       return write;
     }
@@ -456,4 +499,100 @@ test("popup composes rapid color swap and appearance edits without stale renderi
   assert.equal(harness.element("secondaryColor").value, "#112233");
   assert.equal(dark.checked, true);
   assert.equal(squareCorners.checked, true);
+});
+
+test("popup exports, confirms and atomically imports a validated settings backup", async () => {
+  const harness = await createPopupHarness();
+  const backupData = harness.element("settingsBackupData");
+  const exportButton = harness.element("exportSettings");
+  const importButton = harness.element("importSettings");
+
+  assert.equal(exportButton.disabled, false);
+  exportButton.click();
+  await flushTasks();
+  assert.equal(backupData.value.startsWith(harness.transferApi.PREFIX), true);
+  assert.deepEqual(harness.clipboardWrites, [backupData.value]);
+  assert.equal(backupData.selected, true);
+  assert.equal(importButton.disabled, false);
+  assert.equal(harness.element("status").textContent, "Settings backup copied");
+
+  const importedSettings = {
+    schemaVersion: 1,
+    enabled: false,
+    mode: "dark",
+    squareCorners: true,
+    roleThemes: {
+      "role-2": {
+        name: "Imported Role",
+        main: "#abcdef"
+      }
+    }
+  };
+  backupData.value = harness.transferApi.create(importedSettings, {
+    exportedAt: "2026-07-22T01:02:03.456Z"
+  });
+  backupData.dispatch("input");
+  importButton.click();
+  await flushTasks();
+
+  assert.equal(harness.writes.length, 1);
+  assert.deepEqual(harness.writes[0].snapshot, importedSettings);
+  await harness.resolveNextWrite();
+  assert.deepEqual(harness.storedSettings, importedSettings);
+  assert.equal(backupData.value, "");
+  assert.equal(importButton.disabled, true);
+  assert.equal(harness.element("status").textContent, "Settings imported");
+});
+
+test("popup rejects malformed backup text without touching storage", async () => {
+  const harness = await createPopupHarness();
+  const backupData = harness.element("settingsBackupData");
+  backupData.value = "not-a-suite-mate-backup";
+  backupData.dispatch("input");
+  harness.element("importSettings").click();
+  await flushTasks();
+
+  assert.equal(harness.writes.length, 0);
+  assert.equal(harness.element("status").dataset.type, "error");
+  assert.match(harness.element("status").textContent, /not a SuiteMate V3 settings backup/);
+});
+
+test("popup leaves settings untouched when overwrite confirmation is cancelled", async () => {
+  const harness = await createPopupHarness({ confirmImport: false });
+  const backupData = harness.element("settingsBackupData");
+  backupData.value = harness.transferApi.create(harness.settingsApi.DEFAULTS, {
+    exportedAt: "2026-07-22T01:02:03.456Z"
+  });
+  backupData.dispatch("input");
+  harness.element("importSettings").click();
+  await flushTasks();
+
+  assert.equal(harness.confirmations.length, 1);
+  assert.match(harness.confirmations[0], /replace all SuiteMate V3 settings/);
+  assert.equal(harness.writes.length, 0);
+  assert.deepEqual(harness.storedSettings, harness.initialSettings);
+  assert.equal(harness.element("status").textContent, "Import cancelled");
+});
+
+test("popup rolls back its in-memory import when Chrome storage rejects the overwrite", async () => {
+  const harness = await createPopupHarness();
+  const backupData = harness.element("settingsBackupData");
+  backupData.value = harness.transferApi.create({
+    schemaVersion: 1,
+    enabled: false,
+    mode: "dark",
+    squareCorners: true,
+    roleThemes: {}
+  }, { exportedAt: "2026-07-22T01:02:03.456Z" });
+  backupData.dispatch("input");
+  harness.element("importSettings").click();
+  await flushTasks();
+
+  assert.equal(harness.element("exportSettings").disabled, true);
+  await harness.rejectNextWrite();
+  assert.deepEqual(harness.storedSettings, harness.initialSettings);
+  assert.notEqual(backupData.value, "", "A failed import must retain the backup text for retry");
+  assert.equal(harness.element("exportSettings").disabled, false);
+  assert.equal(harness.element("status").dataset.type, "error");
+  assert.equal(harness.element("status").textContent, "Storage write failed");
 });
