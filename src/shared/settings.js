@@ -175,6 +175,12 @@
     }
   }
 
+  function validateForStorage(value) {
+    const normalized = normalize(value);
+    assertWithinStorageLimit(normalized);
+    return normalized;
+  }
+
   function getRoleTheme(value, roleId) {
     const settings = normalize(value);
     const custom = roleId ? settings.roleThemes[roleId] : null;
@@ -305,10 +311,9 @@
   }
 
   async function set(value) {
-    const normalized = normalize(value);
+    const normalized = validateForStorage(value);
     const stored = await chrome.storage.sync.get(STORAGE_KEY);
     assertStoredVersionIsWritable(stored[STORAGE_KEY]);
-    assertWithinStorageLimit(normalized);
     await chrome.storage.sync.set({ [STORAGE_KEY]: normalized });
     return normalized;
   }
@@ -352,6 +357,7 @@
     withoutRoleTheme,
     swapRoleTheme,
     deriveThemeVariables,
+    validateForStorage,
     get,
     set,
     ensureCurrentSchema

@@ -206,6 +206,20 @@ test("set writes one canonical object and storage values are returned by copy", 
   assert.equal(harness.storedValue.roleThemes["ACCOUNT~ROLE"].main, "#123456");
 });
 
+test("validateForStorage normalizes and enforces the same limit without writing", () => {
+  const harness = createHarness();
+  const validated = harness.api.validateForStorage({ mode: "dark" });
+  assert.deepEqual(plain(validated), {
+    schemaVersion: 1,
+    enabled: true,
+    mode: "dark",
+    squareCorners: false,
+    roleThemes: {}
+  });
+  assert.equal(harness.reads, 0);
+  assert.equal(harness.writes.length, 0);
+});
+
 test("role operations preserve schema version and unrelated roles", () => {
   const { api } = createHarness();
   const roleA = { id: "ACCOUNT_A~ROLE_1", name: "Role A" };
