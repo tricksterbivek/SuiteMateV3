@@ -4,9 +4,9 @@ This file records verified development baselines. New feature work must not begi
 
 ## v3.11.0: Regression Fixtures
 
-Status: Awaiting authenticated smoke test
+Status: Verified
 
-Date: 2026-07-21
+Date: 2026-07-22
 
 Pull request: <https://github.com/tricksterbivek/SuiteMateV3/pull/14>
 
@@ -31,7 +31,13 @@ Planned release: <https://github.com/tricksterbivek/SuiteMateV3/releases/tag/v3.
 - Protected 15-file SuiteMate V1 styling hash suite unchanged.
 - `git diff --check`.
 - `npm audit --omit=dev` with zero vulnerabilities.
-- Authenticated dashboard, SuiteQL Console, normal search and record action checks remain pending after extension reload.
+- Authenticated NetSuite SB2 checks after allowing each page to load completely plus ten seconds.
+- Confirmed the dashboard initialized the `dashboard` route, lifecycle generation 4 and active Main and Secondary theme tokens without mounting SuiteQL Console.
+- Confirmed normal Global Search initialized the `global-search-results` route, retained its native results body and did not mount SuiteQL Console.
+- Confirmed a blank Sales Order initialized the general NetSuite record route and retained exactly one visible CSV Import action targeting `recordsubtype=salesorder` immediately after Actions.
+- Confirmed SuiteQL Console mounted exactly once, returned ten transaction rows with the expected `id` and `tranid` columns in 773 ms and produced no browser warnings or errors.
+- Confirmed CSV export reported `Exported 10 loaded rows.` with the loaded result set unchanged.
+- Confirmed SuiteQL Console, Global Search and Sales Order browser logs were clean. Dashboard errors were isolated to an account-owned Suitelet iframe at `script=29`, with no SuiteMate or extension source involved.
 
 ### Restore
 
