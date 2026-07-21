@@ -2,6 +2,53 @@
 
 This file records verified development baselines. New feature work must not begin until the preceding checkpoint has passed automated tests, live NetSuite verification, pull request review and release publication.
 
+## v3.11.0: Regression Fixtures
+
+Status: Awaiting authenticated smoke test
+
+Date: 2026-07-21
+
+Pull request: <https://github.com/tricksterbivek/SuiteMateV3/pull/14>
+
+Planned release: <https://github.com/tricksterbivek/SuiteMateV3/releases/tag/v3.11.0>
+
+### Included
+
+- Adds one versioned fixture catalog with a primary Classic baseline for every classified NetSuite route except the intentionally unsupported `unknown` route.
+- Adds Classic variants for Customer Center login, Field Help and Map/Reduce status.
+- Retains the existing Redwood record and SuiteQL Console visual contracts without expanding Redwood ahead of Classic.
+- Adds a local headless Chrome capture harness with deterministic 1440 by 1000 screenshots and a one-percent visual-difference release gate.
+- Verifies route classification, required and forbidden DOM selectors, every page-specific manifest stylesheet, local-only resources and screenshot dimensions.
+- Prevents SuiteQL Console from mounting on all non-SuiteQL route fixtures.
+- Corrects the focused Saved Search results fixture to use the actual `searchresults.nl` route.
+- Restores the FND-08 browser utility load order in the Classic, Redwood and normal Global Search SuiteQL fixtures.
+- Adds no user-facing feature, browser permission, host access, remote dependency or external request.
+
+### Verification
+
+- Full `npm test` regression suite with 122 passing tests.
+- All 26 screenshot baselines reproduced at 0.000 percent difference.
+- Protected 15-file SuiteMate V1 styling hash suite unchanged.
+- `git diff --check`.
+- `npm audit --omit=dev` with zero vulnerabilities.
+- Authenticated dashboard, SuiteQL Console, normal search and record action checks remain pending after extension reload.
+
+### Restore
+
+```bash
+git switch --detach v3.11.0
+```
+
+To resume normal development after inspecting the checkpoint:
+
+```bash
+git switch main
+```
+
+### Next feature
+
+`SET-14`: Settings export and import
+
 ## v3.10.0: Shared Utilities
 
 Status: Verified
