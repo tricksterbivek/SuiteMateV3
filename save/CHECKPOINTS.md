@@ -2,6 +2,55 @@
 
 This file records verified development baselines. New feature work must not begin until the preceding checkpoint has passed automated tests, live NetSuite verification, pull request review and release publication.
 
+## v3.10.0: Shared Utilities
+
+Status: Awaiting authenticated smoke test
+
+Date: 2026-07-21
+
+Pull request: <https://github.com/tricksterbivek/SuiteMateV3/pull/13>
+
+Planned release: <https://github.com/tricksterbivek/SuiteMateV3/releases/tag/v3.10.0>
+
+### Included
+
+- Adds one versioned, side-effect-free utility core for deep freezing SuiteMate-owned structures, color normalization, UTF-8 sizing, bounded error normalization, formula-safe CSV, filename safety and bounded JSON formatting.
+- Adds capability-injected browser adapters for direct clipboard writes, local Blob downloads, extension-owned notices, modal lifecycle and text-only XML formatting.
+- Keeps the pure core safe in content scripts, popup and the extension service worker without requiring DOM, Chrome or network globals at module initialization.
+- Starts clipboard writes in the originating UI gesture, reports typed failures and adds no clipboard permission or deprecated DOM fallback.
+- Removes temporary download anchors, revokes every Blob URL and adds no Chrome downloads permission.
+- Preserves prior inert and `aria-hidden` state, focus ownership and command-owned Escape behavior for the unified color picker.
+- Migrates commands, permissions, settings, the typed bridge, Material palette, SuiteQL CSV, SuiteQL downloads, Console notices and popup status to shared primitives or adapters.
+- Leaves NetSuite-owned alerts, route policy, domain error contracts and the serialized main-world data adapter independent.
+- Adds no dependent user-facing feature, host access, remote dependency or external request.
+
+### Verification
+
+- Full `npm test` regression suite with 118 passing tests.
+- Focused hostile-input, cross-context, CSV, clipboard, download, notice, modal, JSON and XML utility coverage.
+- Existing typed bridge, data adapter, lifecycle, settings, permission broker, command framework, role theme, CSV Import and SuiteQL behavior checks.
+- Protected 15-file SuiteMate V1 styling hash suite unchanged.
+- `git diff --check`.
+- `npm audit --omit=dev` with zero vulnerabilities.
+- Independent architecture review passed with no release blocker.
+- Authenticated popup, SuiteQL Console, Global Search, record action and browser-log checks remain pending after extension reload.
+
+### Restore
+
+```bash
+git switch --detach v3.10.0
+```
+
+To resume normal development after inspecting the checkpoint:
+
+```bash
+git switch main
+```
+
+### Next feature
+
+`FND-09`: Regression Fixtures
+
 ## v3.9.0: Optional Permission Broker
 
 Status: Verified

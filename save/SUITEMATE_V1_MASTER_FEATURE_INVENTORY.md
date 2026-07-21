@@ -25,6 +25,8 @@ This is the canonical inventory for selecting the next SuiteMate V3 features. It
 - `FND-04`: General typed NetSuite bridge with one versioned command registry, command-specific schemas, route and document authority, response identity checks, timeouts, cancellation and duplicate-request protection.
 - `FND-05`: Closed NetSuite data adapter for SuiteQL, constrained Saved Search execution, bounded record metadata and authenticated Import Assistant category lookup.
 - `FND-06`: Immutable shared UI command framework with stable command identity, metadata, availability, platform-aware shortcuts, invocation, re-entry, failure isolation and per-surface lifecycle ownership.
+- `FND-07`: Optional permission broker with a closed Chrome capability allowlist, direct user-gesture requests, live state, mutation serialization and deterministic disposal.
+- `FND-08`: Versioned shared utility core and capability-injected browser adapters for errors, colors, UTF-8 limits, CSV, filenames, clipboard, downloads, notices, modal lifecycle and safe JSON/XML text formatting.
 - `SQL-01`, `SQL-02`, `SQL-03`, `SQL-13` and `SQL-14`: SuiteQL Console shell, execution, progressive paging, abort handling, safe result rendering, sorting, client pagination, hidden table inspection support, selection execution and persistent resizing.
 - Core portions of `SQL-05` and `SQL-06`: loaded-row CSV export, Clear Results, Execute, Abort, Paged toggle and their current keyboard shortcuts.
 - Per-tab SuiteQL draft and Paged-mode persistence, 5,000-row warnings, SuiteSense promotion and popup launch into the active NetSuite account.
@@ -86,7 +88,6 @@ Priority:
 
 | ID | Feature | Description | Complexity | Dependencies | Migration | Priority |
 |---|---|---|---:|---|---|---:|
-| FND-08 | Shared utilities | Clipboard, CSV, downloads, modal, toast, syntax formatting and errors. | M | Sanitization, browser APIs | Adapt | P0 |
 | FND-09 | Regression fixtures | Classic and Redwood fixtures for every supported route. | L | Test harness, screenshots | Rebuild | P0 |
 
 ## 2. Theme and settings
@@ -356,4 +357,4 @@ Priority:
 
 ## Current selected feature
 
-`FND-08`: Shared Utilities. It is the next recommended foundation checkpoint and should centralize clipboard, CSV, downloads, modal, toast, syntax formatting and error helpers without adding dependent user-facing features.
+`FND-09`: Regression Fixtures. It is the final recommended foundation checkpoint and should add route-complete Classic fixtures first, with Redwood coverage retained only where the current V3 styling contract already supports it.
