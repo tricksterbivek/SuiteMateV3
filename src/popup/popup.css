@@ -92,7 +92,8 @@ form {
 
 .toggle-row,
 fieldset,
-.theme-card {
+.theme-card,
+.settings-transfer {
   border: 1px solid #d8dee8;
   border-radius: 9px;
   background: #fff;
@@ -153,6 +154,98 @@ fieldset input {
   display: grid;
   gap: 11px;
   padding: 13px 14px;
+}
+
+.settings-transfer {
+  overflow: hidden;
+}
+
+.settings-transfer summary {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 11px 14px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.settings-transfer summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-transfer summary::after {
+  content: "+";
+  margin-left: auto;
+  color: #667085;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.settings-transfer[open] summary::after {
+  content: "−";
+}
+
+.settings-transfer summary > span,
+.settings-transfer-content,
+.settings-transfer-content label {
+  display: grid;
+  gap: 3px;
+}
+
+.settings-transfer-content {
+  gap: 9px;
+  border-top: 1px solid #e4e8ef;
+  padding: 11px 14px 13px;
+}
+
+.settings-transfer-content p {
+  margin: 0;
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.settings-transfer-content label > span {
+  color: #475467;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.settings-transfer textarea {
+  width: 100%;
+  min-height: 62px;
+  resize: vertical;
+  border: 1px solid #b8c0cc;
+  border-radius: 6px;
+  padding: 7px 9px;
+  background: #fff;
+  color: #344054;
+  font: 10px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow-wrap: anywhere;
+}
+
+.settings-transfer textarea:focus {
+  border-color: #607799;
+  outline: 2px solid rgb(96 119 153 / 18%);
+  outline-offset: 0;
+}
+
+.settings-transfer-actions {
+  display: flex;
+  gap: 7px;
+}
+
+.settings-transfer-actions button {
+  flex: 1;
+}
+
+.settings-transfer-actions .danger-action:not(:disabled) {
+  border-color: #d92d20;
+  color: #b42318;
+}
+
+.settings-transfer-actions .danger-action:hover:not(:disabled) {
+  background: #fff4f2;
 }
 
 .theme-heading,
@@ -521,16 +614,31 @@ button:hover {
 output {
   color: #397552;
   font-size: 11px;
+  text-align: right;
+}
+
+output[data-type="warning"] {
+  color: #9a6700;
+}
+
+output[data-type="error"] {
+  color: #b42318;
 }
 
 form[aria-disabled="true"] fieldset,
 form[aria-disabled="true"] .toggle-row[for="squareCorners"],
 form[aria-disabled="true"] .theme-card,
+.settings-transfer[data-settings-locked="true"],
 .theme-card[data-unavailable="true"] {
   opacity: 0.55;
 }
 
+form[aria-busy="true"] {
+  pointer-events: none;
+}
+
 button:disabled,
-input:disabled {
+input:disabled,
+textarea:disabled {
   cursor: default;
 }

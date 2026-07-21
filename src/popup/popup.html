@@ -91,6 +91,32 @@
           </div>
         </section>
 
+        <details id="settingsTransfer" class="settings-transfer">
+          <summary>
+            <span>
+              <strong>Backup and restore</strong>
+              <small>Move settings between browser profiles</small>
+            </span>
+          </summary>
+          <div class="settings-transfer-content">
+            <p>Export copies an encoded backup. Import validates it, then replaces all SuiteMate V3 settings.</p>
+            <label for="settingsBackupData">
+              <span>Backup data</span>
+              <textarea
+                id="settingsBackupData"
+                rows="3"
+                spellcheck="false"
+                autocomplete="off"
+                placeholder="Paste a SuiteMate V3 settings backup"
+              ></textarea>
+            </label>
+            <div class="settings-transfer-actions">
+              <button id="exportSettings" type="button" data-suitemate-v3-command="settings.export-backup">Export settings</button>
+              <button id="importSettings" class="danger-action" type="button" data-suitemate-v3-command="settings.import-backup" disabled>Import settings</button>
+            </div>
+          </div>
+        </details>
+
         <div class="actions">
           <button id="reset" type="button" data-suitemate-v3-command="settings.reset-all">Reset all</button>
           <output id="status" aria-live="polite"></output>
@@ -167,6 +193,7 @@
     <script src="../shared/commands.js"></script>
     <script src="../shared/permissions.js"></script>
     <script src="../shared/settings.js"></script>
+    <script src="../shared/settings-transfer.js"></script>
     <script src="../suiteql/core.js"></script>
     <script src="../../dist/material-palette.js"></script>
     <script src="popup.js"></script>

@@ -32,6 +32,8 @@
   const IDS = Object.freeze({
     POPUP_OPEN_SUITEQL: "popup.open-suiteql",
     SETTINGS_APPLY_APPEARANCE: "settings.apply-appearance",
+    SETTINGS_EXPORT_BACKUP: "settings.export-backup",
+    SETTINGS_IMPORT_BACKUP: "settings.import-backup",
     SETTINGS_RESET_ALL: "settings.reset-all",
     THEME_OPEN_MAIN_PICKER: "theme.open-main-picker",
     THEME_OPEN_SECONDARY_PICKER: "theme.open-secondary-picker",
@@ -266,6 +268,18 @@
       id: IDS.SETTINGS_APPLY_APPEARANCE,
       label: "Apply appearance",
       description: "Apply the selected SuiteMate appearance settings",
+      surface: SURFACES.POPUP
+    },
+    {
+      id: IDS.SETTINGS_EXPORT_BACKUP,
+      label: "Export settings",
+      description: "Copy a validated SuiteMate V3 settings backup",
+      surface: SURFACES.POPUP
+    },
+    {
+      id: IDS.SETTINGS_IMPORT_BACKUP,
+      label: "Import settings",
+      description: "Validate and replace all SuiteMate V3 settings from a backup",
       surface: SURFACES.POPUP
     },
     {
