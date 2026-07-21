@@ -10,6 +10,7 @@ import { keymap } from "@codemirror/view";
   const bridgeApi = globalThis.SuiteMateV3Bridge;
   const commandApi = globalThis.SuiteMateV3Commands;
   const routeApi = globalThis.SuiteMateV3Routes;
+  const browserUtilityApi = globalThis.SuiteMateV3BrowserUtilities;
   let topFrame = false;
   try {
     topFrame = window === window.top;
@@ -25,6 +26,7 @@ import { keymap } from "@codemirror/view";
     || !bridgeApi
     || !commandApi
     || !routeApi
+    || !browserUtilityApi
     || !routeApi.supports(routeApi.CAPABILITIES.SUITEQL_CONSOLE, pageContext)
   ) {
     return;
@@ -75,15 +77,15 @@ import { keymap } from "@codemirror/view";
   let pageStatus;
   let editorPanel;
   let resizeHandle;
+  let noticeController;
+  let downloadAdapter;
 
   function createRequestId() {
     return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 
   function setNotice(message = "", type = "info") {
-    notice.textContent = message;
-    notice.dataset.type = type;
-    notice.hidden = !message;
+    noticeController.show(message, { type });
   }
 
   function setBusy(value, label = "") {
@@ -395,15 +397,18 @@ import { keymap } from "@codemirror/view";
       return;
     }
     const csv = core.toCsv(state.columns, getSortedRows());
-    const blob = new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = core.createExportFilename(getAccountIdentifier());
-    document.body.append(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const result = downloadAdapter.downloadText(csv, {
+      filename: core.createExportFilename(getAccountIdentifier()),
+      mimeType: "text/csv;charset=utf-8",
+      bom: true
+    });
+    if (!result.ok) {
+      setNotice(
+        [result.error.code, result.error.message, result.error.details].filter(Boolean).join("\n"),
+        "error"
+      );
+      return;
+    }
     setNotice(`Exported ${state.rows.length.toLocaleString()} loaded rows.`, "success");
   }
 
@@ -580,6 +585,8 @@ import { keymap } from "@codemirror/view";
       if (!event.persisted) {
         void disposeRequest(state.requestId);
         commandScope.dispose();
+        noticeController.dispose();
+        downloadAdapter.dispose();
       }
     });
   }
@@ -698,6 +705,16 @@ import { keymap } from "@codemirror/view";
     document.documentElement.classList.add("suiteql-results", "suiteql-v3");
     document.title = "SuiteQL Console";
     createMarkup();
+    noticeController = browserUtilityApi.notices.create({
+      element: notice,
+      defaultDuration: 0,
+      toggleHidden: true
+    });
+    downloadAdapter = browserUtilityApi.downloads.create({
+      documentRef: document,
+      urlApi: URL,
+      BlobClass: Blob
+    });
 
     const urlParams = new URLSearchParams(location.search);
     const urlQuery = urlParams.get("suiteql")?.trim() || "";

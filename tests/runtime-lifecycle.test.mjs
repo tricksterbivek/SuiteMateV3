@@ -8,6 +8,7 @@ import { runInNewContext } from "node:vm";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const sources = Object.fromEntries(await Promise.all(
   [
+    "src/shared/utilities.js",
     "src/shared/routes.js",
     "src/shared/commands.js",
     "src/shared/bridge.js",
@@ -185,6 +186,7 @@ test("theme ignores a stale settings read after a newer storage update", async (
   sandbox.globalThis = sandbox;
   sandbox.window = sandbox;
   sandbox.top = sandbox;
+  runInNewContext(sources["src/shared/utilities.js"], sandbox);
   runInNewContext(sources["src/shared/routes.js"], sandbox);
   runInNewContext(sources["src/shared/settings.js"], sandbox);
   runInNewContext(sources["src/runtime/theme-runtime.js"], sandbox);
@@ -324,6 +326,7 @@ test("CSV Import rejects a late record-type response after lifecycle pause", asy
   sandbox.globalThis = sandbox;
   sandbox.window = sandbox;
   sandbox.top = sandbox;
+  runInNewContext(sources["src/shared/utilities.js"], sandbox);
   runInNewContext(sources["src/shared/routes.js"], sandbox);
   runInNewContext(sources["src/shared/commands.js"], sandbox);
   runInNewContext(sources["src/shared/bridge.js"], sandbox);
@@ -470,6 +473,7 @@ test("Import Assistant does not write a subtype after its sourced option wait fa
   };
   sandbox.globalThis = sandbox;
   sandbox.top = sandbox;
+  runInNewContext(sources["src/shared/utilities.js"], sandbox);
   runInNewContext(sources["src/shared/routes.js"], sandbox);
   runInNewContext(sources["src/shared/bridge.js"], sandbox);
   runInNewContext(sources["src/import-assistant/core.js"], sandbox);

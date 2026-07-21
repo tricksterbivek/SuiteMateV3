@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 
+const utilitySource = await readFile(resolve("src/shared/utilities.js"), "utf8");
 const source = await readFile(resolve("src/shared/permissions.js"), "utf8");
 
 function plain(value) {
@@ -148,6 +149,7 @@ function createHarness(options = {}) {
     setTimeout
   };
   sandbox.globalThis = sandbox;
+  runInNewContext(utilitySource, sandbox);
   runInNewContext(source, sandbox);
 
   return {

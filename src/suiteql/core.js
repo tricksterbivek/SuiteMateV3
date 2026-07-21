@@ -1,7 +1,11 @@
 (function registerSuiteMateV3SuiteQLCore(globalScope) {
   "use strict";
 
+  const utilityApi = globalScope.SuiteMateV3Utilities;
   const routeApi = globalScope.SuiteMateV3Routes;
+  if (!utilityApi || !routeApi) {
+    return;
+  }
   const STUDIO_PATH = routeApi.PATHS.SUITEQL_CONSOLE;
   const MAX_QUERY_LENGTH = 100000;
   const NETSUITE_PAGE_SIZE = 1000;
@@ -147,17 +151,11 @@
   }
 
   function normalizeError(value) {
-    const error = value && typeof value === "object" ? value : {};
-    const message = [error.message, error.description, error.details, error.detail]
-      .find((candidate) => typeof candidate === "string" && candidate.trim());
-    const details = [error.details, error.detail, error.stack]
-      .find((candidate) => typeof candidate === "string" && candidate.trim() && candidate !== message);
-
-    return {
-      code: String(error.code || error.name || "SUITEQL_ERROR"),
-      message: message?.trim() || String(value || "SuiteQL execution failed."),
-      details: details?.trim() || ""
-    };
+    return utilityApi.normalizeError(value, {
+      fallbackCode: "SUITEQL_ERROR",
+      fallbackMessage: "SuiteQL execution failed.",
+      includeStack: true
+    });
   }
 
   function normalizeResponse(value, fallbackRequestId = "") {
@@ -264,32 +262,22 @@
   }
 
   function protectCsvValue(value) {
-    const text = displayValue(value);
-    if (typeof value === "string" && /^[\t\r\n ]*[=+\-@]/.test(text)) {
-      return `'${text}`;
-    }
-    return text;
+    return utilityApi.csv.protectValue(value, { nullValue: "null" });
   }
 
   function escapeCsvValue(value) {
-    const text = protectCsvValue(value);
-    return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+    return utilityApi.csv.escapeValue(value, { nullValue: "null" });
   }
 
   function toCsv(columns, rows) {
-    return [
-      columns.map(escapeCsvValue).join(","),
-      ...rows.map((row) => columns.map((column) => escapeCsvValue(row?.[column])).join(","))
-    ].join("\r\n");
+    return utilityApi.csv.serialize([
+      columns,
+      ...rows.map((row) => columns.map((column) => row?.[column]))
+    ], { nullValue: "null" });
   }
 
   function sanitizeFilenamePart(value, fallback = "account") {
-    const sanitized = String(value ?? "")
-      .trim()
-      .replace(/[^a-z0-9._-]+/gi, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 80);
-    return sanitized || fallback;
+    return utilityApi.files.sanitizePart(value, fallback);
   }
 
   function createExportFilename(accountId, date = new Date()) {

@@ -7,12 +7,16 @@ import { runInNewContext } from "node:vm";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const [
+  utilitySource,
+  browserUtilitySource,
   routeSource,
   commandSource,
   settingsSource,
   suiteqlCoreSource,
   popupSource
 ] = await Promise.all([
+  readFile(resolve(root, "src/shared/utilities.js"), "utf8"),
+  readFile(resolve(root, "src/shared/browser-utilities.js"), "utf8"),
   readFile(resolve(root, "src/shared/routes.js"), "utf8"),
   readFile(resolve(root, "src/shared/commands.js"), "utf8"),
   readFile(resolve(root, "src/shared/settings.js"), "utf8"),
@@ -375,6 +379,8 @@ async function createPopupHarness() {
   };
   sandbox.globalThis = sandbox;
 
+  runInNewContext(utilitySource, sandbox);
+  runInNewContext(browserUtilitySource, sandbox);
   runInNewContext(routeSource, sandbox);
   runInNewContext(commandSource, sandbox);
   runInNewContext(settingsSource, sandbox);

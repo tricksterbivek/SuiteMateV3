@@ -2,6 +2,11 @@
   "use strict";
 
   const VERSION = 1;
+  const utilityApi = globalScope.SuiteMateV3Utilities;
+  if (!utilityApi) {
+    return;
+  }
+  const { deepFreeze } = utilityApi;
 
   const IDS = Object.freeze({
     BOOKMARKS: "bookmarks",
@@ -40,17 +45,6 @@
       featureIds: ["BRW-03", "INS-01", "INS-02", "INS-03", "INS-04", "INS-05", "INS-06", "INS-07"]
     }
   ];
-
-  function deepFreeze(value, seen = new Set()) {
-    if (!value || typeof value !== "object" || seen.has(value)) {
-      return value;
-    }
-    seen.add(value);
-    for (const child of Object.values(value)) {
-      deepFreeze(child, seen);
-    }
-    return Object.freeze(value);
-  }
 
   const DEFINITIONS = deepFreeze(RAW_DEFINITIONS.map((definition) => ({
     ...definition,

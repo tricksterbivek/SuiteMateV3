@@ -8,6 +8,7 @@ import "./popup-settings-race.test-support.mjs";
 import "./suiteql-studio-commands.test-support.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const utilitySource = await readFile(resolve(root, "src/shared/utilities.js"), "utf8");
 const routeSource = await readFile(resolve(root, "src/shared/routes.js"), "utf8");
 const commandSource = await readFile(resolve(root, "src/shared/commands.js"), "utf8");
 
@@ -23,6 +24,7 @@ function createApi(platform = "MacIntel") {
     console
   };
   sandbox.globalThis = sandbox;
+  runInNewContext(utilitySource, sandbox);
   runInNewContext(routeSource, sandbox);
   runInNewContext(commandSource, sandbox);
   return {

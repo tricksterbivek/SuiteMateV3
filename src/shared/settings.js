@@ -1,6 +1,10 @@
 (function registerSuiteMateV3Settings(globalScope) {
   "use strict";
 
+  const utilityApi = globalScope.SuiteMateV3Utilities;
+  if (!utilityApi) {
+    return;
+  }
   const STORAGE_KEY = "suiteMateV3Style";
   const SCHEMA_VERSION = 1;
   const LEGACY_SCHEMA_VERSION = 0;
@@ -85,18 +89,7 @@
     }
   }
 
-  function normalizeHexColor(value) {
-    if (typeof value !== "string") {
-      return null;
-    }
-
-    const compact = value.trim().replace(/^#/, "");
-    const expanded = /^[0-9a-f]{3}$/i.test(compact)
-      ? compact.replace(/(.)/g, "$1$1")
-      : compact;
-
-    return /^[0-9a-f]{6}$/i.test(expanded) ? `#${expanded.toLowerCase()}` : null;
-  }
+  const { normalizeHexColor, utf8ByteLength } = utilityApi;
 
   function normalizeRoleThemes(value) {
     const candidate = isPlainObject(value) ? value : {};
@@ -166,15 +159,6 @@
 
   function normalize(value) {
     return migrate(value);
-  }
-
-  function utf8ByteLength(value) {
-    let bytes = 0;
-    for (const character of value) {
-      const codePoint = character.codePointAt(0);
-      bytes += codePoint <= 0x7f ? 1 : codePoint <= 0x7ff ? 2 : codePoint <= 0xffff ? 3 : 4;
-    }
-    return bytes;
   }
 
   function assertWithinStorageLimit(settings) {

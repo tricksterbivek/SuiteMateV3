@@ -5,6 +5,8 @@ import {
   hexFromArgb
 } from "@material/material-color-utilities";
 
+const utilityApi = globalThis.SuiteMateV3Utilities;
+
 const SHADE_TONES = Object.freeze({
   50: 95,
   100: 90,
@@ -17,19 +19,6 @@ const SHADE_TONES = Object.freeze({
   800: 20,
   900: 10
 });
-
-function normalizeHexColor(value) {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const compact = value.trim().replace(/^#/, "");
-  const expanded = /^[0-9a-f]{3}$/i.test(compact)
-    ? compact.replace(/(.)/g, "$1$1")
-    : compact;
-
-  return /^[0-9a-f]{6}$/i.test(expanded) ? `#${expanded.toLowerCase()}` : null;
-}
 
 function relativeLuminance(hex) {
   const channels = hex.slice(1).match(/.{2}/g).map((value) => Number.parseInt(value, 16) / 255);
@@ -51,7 +40,7 @@ function readableTextColor(hex) {
 }
 
 function generateMaterialShades(value) {
-  const source = normalizeHexColor(value);
+  const source = utilityApi?.normalizeHexColor(value);
   if (!source) {
     return null;
   }
