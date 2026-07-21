@@ -199,14 +199,16 @@
   }
 
   function sanitizeDownloadFilename(value, fallback = "download.txt") {
-    const source = safeString(value).split(/[\\/]/).pop() || "";
-    const sanitized = source
-      .trim()
-      .replace(/[\u0000-\u001f\u007f<>:"|?*]+/g, "-")
-      .replace(/\.{2,}/g, ".")
-      .replace(/^[. -]+|[. -]+$/g, "")
-      .slice(0, 160);
-    return sanitized || safeString(fallback, "download.txt").slice(0, 160) || "download.txt";
+    function sanitize(valueToSanitize) {
+      const source = safeString(valueToSanitize).split(/[\\/]/).pop() || "";
+      return source
+        .trim()
+        .replace(/[\u0000-\u001f\u007f<>:"|?*]+/g, "-")
+        .replace(/\.{2,}/g, ".")
+        .replace(/^[. -]+|[. -]+$/g, "")
+        .slice(0, 160);
+    }
+    return sanitize(value) || sanitize(fallback) || "download.txt";
   }
 
   function syntaxResult(ok, language, text, error = null) {

@@ -467,6 +467,17 @@
           })
         });
       }
+      if (/<!DOCTYPE\b|<!ENTITY\b/i.test(text)) {
+        return Object.freeze({
+          ok: false,
+          language: "xml",
+          text: "",
+          error: utilityApi.normalizeError({
+            code: "UNSAFE_XML_DECLARATION",
+            message: "XML document type and entity declarations are not supported."
+          })
+        });
+      }
       if (typeof DOMParserClass !== "function" || typeof XMLSerializerClass !== "function") {
         return Object.freeze({
           ok: false,

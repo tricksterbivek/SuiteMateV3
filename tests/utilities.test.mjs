@@ -144,6 +144,7 @@ test("serializes RFC 4180 CSV with formula protection and stable matrix order", 
   assert.equal(api.csv.serialize([[cyclic]]), "[object Object]");
   assert.equal(api.files.sanitizePart(" ACME AU "), "ACME-AU");
   assert.equal(api.files.sanitizeDownloadName("../../unsafe:name.csv"), "unsafe-name.csv");
+  assert.equal(api.files.sanitizeDownloadName("", "../../fallback:name.csv"), "fallback-name.csv");
   assert.equal(api.files.sanitizePart("x".repeat(100)).length, 80);
 });
 
@@ -441,5 +442,6 @@ test("XML formatter returns text only and rejects invalid or unavailable parsers
     error: null
   });
   assert.equal(formatter.format("invalid").error.code, "INVALID_XML");
+  assert.equal(formatter.format('<!DOCTYPE root [<!ENTITY x "value">]><root>&x;</root>').error.code, "UNSAFE_XML_DECLARATION");
   assert.equal(browserApi.syntax.createXmlFormatter({ DOMParserClass: null }).format("<x/>").error.code, "XML_FORMATTER_UNAVAILABLE");
 });
