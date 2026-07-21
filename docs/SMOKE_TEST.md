@@ -141,6 +141,16 @@ The styling foundation is not complete because the extension loads. It is comple
 - Confirm CSV Import remains a single native toolbar action with its originating record context.
 - Confirm browser logs contain no SuiteMate utility, popup, SuiteQL, theme or CSV Import errors.
 
+## Regression fixture pass
+
+- Run `npm run fixtures:verify` and require all 26 screenshot comparisons to remain within the one-percent visual threshold.
+- Confirm the catalog contains one primary Classic fixture for every route ID except the intentionally unsupported `unknown` route.
+- Confirm Customer Center login, Field Help and Map/Reduce status remain covered as Classic route variants.
+- Confirm the existing Redwood record and SuiteQL Console baselines still render, but do not expand Redwood coverage ahead of Classic without a separate product decision.
+- Review screenshot changes individually before running `npm run fixtures:update`. Never refresh baselines merely to silence a failed comparison.
+- Confirm normal Global Search and every non-SuiteQL route reject an unexpected `#suitemate-suiteql-studio` mount.
+- Confirm the fixture server makes no external request and every page-specific stylesheet declared by the manifest is represented in the route catalog.
+
 ## Exit gate
 
 The SuiteQL milestone is complete only when the styling regressions remain clear, the SuiteQL checks pass, and final evidence is retained.

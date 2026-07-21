@@ -1,0 +1,253 @@
+:root {
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  animation: none !important;
+  caret-color: transparent !important;
+  transition: none !important;
+}
+
+body {
+  background: #f7f8fa;
+  color: #1f2937;
+  font-family: Arial, sans-serif;
+}
+
+.fixture-shell-header {
+  border-bottom: 4px solid var(--theme-main, #607799);
+}
+
+.fixture-shell-header nav a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.fixture-page {
+  min-height: 820px;
+  background: #fff;
+}
+
+.fixture-page-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 500;
+}
+
+.fixture-record-type {
+  margin-bottom: 3px;
+  color: #607799;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.fixture-section {
+  margin-top: 20px;
+}
+
+.fixture-card-grid,
+.ns-dashboard-column {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.ns-portlet-wrapper,
+.fixture-panel,
+.uir-alert-box {
+  border: 1px solid #d7dce2;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(31, 41, 55, 0.08);
+}
+
+.ns-portlet-header,
+.fixture-panel-title {
+  padding: 11px 14px;
+  background: var(--theme-secondary-light, #f0f2f5);
+  font-weight: 700;
+}
+
+.ns-portlet-body,
+.fixture-panel-body {
+  padding: 14px;
+}
+
+.fixture-login-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  background: linear-gradient(145deg, #f7f8fa, #dfe5ec);
+}
+
+.fixture-login-card {
+  width: 380px;
+  padding: 30px;
+  border: 1px solid #d7dce2;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(31, 41, 55, 0.14);
+}
+
+.fixture-login-card h1 {
+  margin-top: 0;
+}
+
+.fixture-login-card label,
+.fixture-stack {
+  display: grid;
+  gap: 7px;
+}
+
+.fixture-login-card label {
+  margin: 16px 0;
+}
+
+.fixture-login-card input,
+.fixture-login-card button {
+  min-height: 38px;
+}
+
+.fixture-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.fixture-split {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 18px;
+}
+
+.fixture-tree {
+  min-height: 580px;
+  padding: 14px;
+  border: 1px solid #d7dce2;
+  background: #f8fafc;
+}
+
+.fixture-tree ul {
+  margin: 8px 0;
+  padding-left: 22px;
+}
+
+.fixture-code,
+.CodeMirror {
+  min-height: 480px;
+  padding: 14px;
+  overflow: auto;
+  border: 1px solid #bcc5cf;
+  background: #18212f;
+  color: #e5edf6;
+  font: 14px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre;
+}
+
+.fixture-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 18px;
+  padding: 16px 8px;
+}
+
+.fixture-form-grid label {
+  display: grid;
+  gap: 6px;
+}
+
+.fixture-form-grid :is(input, select, textarea) {
+  min-height: 34px;
+}
+
+.fixture-subtabs {
+  display: flex;
+  align-items: center;
+  margin-top: 0;
+}
+
+.fixture-subtabs > span {
+  padding: 10px 16px;
+}
+
+.uir-list-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.uir-list-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e4e7eb;
+}
+
+.fixture-wizard-steps {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+}
+
+.fixture-wizard-steps span {
+  flex: 1;
+  padding: 12px;
+  background: #e9edf2;
+  text-align: center;
+}
+
+.fixture-wizard-steps .active {
+  background: var(--theme-main, #607799);
+  color: #fff;
+}
+
+.workflow-canvas {
+  position: relative;
+  min-height: 540px;
+  overflow: hidden;
+  border: 1px solid #cbd2da;
+  background-color: #f7f9fb;
+  background-image: radial-gradient(#cbd2da 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+.workflow-state {
+  position: absolute;
+  width: 210px;
+  padding: 14px;
+  border: 2px solid var(--theme-main, #607799);
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(31, 41, 55, 0.12);
+}
+
+.workflow-state:nth-child(1) {
+  left: 90px;
+  top: 90px;
+}
+
+.workflow-state:nth-child(2) {
+  left: 440px;
+  top: 220px;
+}
+
+.workflow-state:nth-child(3) {
+  left: 790px;
+  top: 90px;
+}
+
+.fixture-field-help {
+  max-width: 680px;
+  margin: 70px auto;
+}
+
+.fixture-field-help .uir-alert-box {
+  padding: 24px;
+}
+
+@media (max-width: 900px) {
+  .fixture-card-grid,
+  .ns-dashboard-column,
+  .fixture-form-grid,
+  .fixture-split {
+    grid-template-columns: 1fr;
+  }
+}

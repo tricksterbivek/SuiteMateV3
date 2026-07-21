@@ -16,6 +16,7 @@ SuiteMate V3 restores the SuiteMate V1 NetSuite visual system and adds focused d
 - Versioned shared UI command registry for popup, record, and SuiteQL Console actions and shortcuts
 - Versioned optional permission broker with a closed Chrome capability allowlist
 - Versioned shared utility core for errors, colors, byte limits, CSV, filenames, JSON and browser-safe adapters
+- Route-complete Classic regression fixtures with deterministic visual baselines
 - SuiteQL Console on `/app/common/search/ubersearchresults.nl?suiteql`
 - Locally bundled CodeMirror SQL editor with per-tab drafts and resize persistence
 - Authenticated V1-style SuiteQL execution, optional progressive paging, sorting, loaded-row CSV export, and table inspection
@@ -71,6 +72,17 @@ Run:
 ```sh
 npm test
 ```
+
+`npm test` validates the route catalog, fixture DOM contracts, local resource isolation and 26 visual baselines at 1440 by 1000. The baseline set contains one Classic fixture for every classified NetSuite route, three additional Classic variants for Customer Center login, Field Help and Map/Reduce status, and the two retained Redwood contracts.
+
+After an intentional styling change, review every changed screenshot before updating the baselines:
+
+```sh
+npm run fixtures:update
+npm run fixtures:verify
+```
+
+The capture script uses an installed Chrome or Chromium binary and makes no external request. Set `CHROME_PATH` when Chrome is installed outside the standard macOS or Linux locations.
 
 Run the styling and SuiteQL checks in `docs/SMOKE_TEST.md` before treating the current state as a release baseline.
 
