@@ -114,6 +114,20 @@ The styling foundation is not complete because the extension loads. It is comple
 - Confirm a normal Global Search page has no SuiteQL command workspace or keyboard dispatcher.
 - Confirm browser logs contain no SuiteMate command errors after popup, CSV Import, SuiteQL and Global Search checks.
 
+## Optional permission broker pass
+
+- Reload the unpacked extension and confirm it remains enabled without showing a permission prompt.
+- Confirm the popup opens normally and no permission is requested during startup, settings reads or capability discovery.
+- Confirm the manifest does not declare dormant `bookmarks`, `contextMenus`, `history` or `sidePanel` permissions before a user-facing consumer ships.
+- Confirm unknown permission IDs are rejected without calling Chrome.
+- Confirm permission requests begin synchronously inside the originating extension-UI click handler and are not relayed through the service worker.
+- Confirm Chrome remains the only source of permission state and no permission state is written to SuiteMate settings.
+- Confirm concurrent permission mutations are rejected within a broker instance.
+- Confirm addition and revocation events are filtered to registered permissions and subscriber failures remain isolated.
+- Confirm disposal removes event listeners and converts every late success or rejection into a disposed result.
+- Recheck the dashboard theme, SuiteQL Console execution and one contextual CSV Import toolbar action.
+- Confirm browser logs contain no SuiteMate errors after the permission-broker regression pass.
+
 ## Exit gate
 
 The SuiteQL milestone is complete only when the styling regressions remain clear, the SuiteQL checks pass, and final evidence is retained.

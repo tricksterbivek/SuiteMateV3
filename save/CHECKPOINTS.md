@@ -2,6 +2,59 @@
 
 This file records verified development baselines. New feature work must not begin until the preceding checkpoint has passed automated tests, live NetSuite verification, pull request review and release publication.
 
+## v3.9.0: Optional Permission Broker
+
+Status: Verified
+
+Date: 2026-07-21
+
+Pull request: <https://github.com/tricksterbivek/SuiteMateV3/pull/12>
+
+Release: <https://github.com/tricksterbivek/SuiteMateV3/releases/tag/v3.9.0>
+
+### Included
+
+- Adds one immutable and versioned optional permission registry for bookmarks, context menus, history and Side Panel capabilities.
+- Records plain-language explanations and every known dependent V1 feature against the exact Chrome permission ID.
+- Adds permission discovery, live state checks, direct user-gesture requests, revocation, filtered snapshots, subscriptions and deterministic disposal.
+- Rejects arbitrary permissions, origins, URL parameters and overlapping mutations before privileged Chrome calls can occur.
+- Keeps Chrome as the only permission-state authority and writes no permission state to SuiteMate settings.
+- Handles both permission addition and revocation events, isolates failing subscribers and removes listeners after the final subscriber or broker disposal.
+- Invalidates late successes and failures after disposal and never claims a pending Chrome permission prompt can be canceled.
+- Loads the broker only in extension-owned popup and service-worker contexts, not inside NetSuite pages.
+- Leaves dormant permissions out of the manifest until the first user-facing consumer ships, complying with Chrome Web Store minimum-permission policy.
+- Does not migrate bookmarks, context menus, history, Side Panel, saved queries or any other dependent feature.
+
+### Verification
+
+- Full `npm test` regression suite with 104 passing tests.
+- Focused broker coverage for immutable definitions, unknown IDs, user-gesture timing, grant and denial outcomes, removal, Chrome failures, unavailable APIs, snapshots, events, listener cleanup, mutation races and stale disposal results.
+- Manifest checks proving dormant optional permissions are absent and the broker is not injected into NetSuite content scripts.
+- Existing typed bridge, data adapter, lifecycle, versioned settings, protected V1 styling, role-theme, CSV Import and SuiteQL Console checks.
+- `git diff --check`.
+- `npm audit --omit=dev` with zero vulnerabilities.
+- Independent V1, architecture, security and regression reviews with identified blockers corrected before release.
+- Authenticated NetSuite Sandbox checks after allowing each page to load completely plus ten seconds.
+- Confirmed the dashboard retained active SuiteMate theming, route metadata, lifecycle state and clean browser logs.
+- Confirmed SuiteQL Console returned one row through bridge and adapter version 1 in 268 ms with no permission prompt or browser error.
+- Confirmed a Customer record retained exactly one contextual CSV Import action with the native `customer` Import Assistant URL.
+
+### Restore
+
+```bash
+git switch --detach v3.9.0
+```
+
+To resume normal development after inspecting the checkpoint:
+
+```bash
+git switch main
+```
+
+### Next feature
+
+`FND-08`: Shared Utilities
+
 ## v3.8.0: Shared Command Framework
 
 Status: Verified
