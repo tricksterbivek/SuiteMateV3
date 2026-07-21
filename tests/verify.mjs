@@ -10,8 +10,13 @@ const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8
 
 assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.name, "SuiteMate V3");
-assert.equal(manifest.version, "3.8.0");
+assert.equal(manifest.version, "3.9.0");
 assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
+assert.equal(
+  Object.hasOwn(manifest, "optional_permissions"),
+  false,
+  "Dormant optional permissions must ship only with their first user-facing consumer"
+);
 assert.deepEqual(manifest.host_permissions, ["https://*.netsuite.com/*"]);
 assert.equal(manifest.background.service_worker, "src/background/service-worker.js");
 
@@ -41,6 +46,11 @@ assert.deepEqual(globalThemeContentScript.js, [
   "src/record-actions/core.js",
   "src/record-actions/csv-import.js"
 ]);
+assert.equal(
+  globalThemeContentScript.js.includes("src/shared/permissions.js"),
+  false,
+  "The optional permission broker is unnecessarily injected into NetSuite pages"
+);
 const importAssistantContentScript = manifest.content_scripts.find((entry) =>
   entry.js?.includes("src/import-assistant/context-runtime.js")
 );
@@ -77,6 +87,11 @@ for (const file of referencedFiles) {
 }
 
 const popupHtml = await readFile(resolve(root, manifest.action.default_popup), "utf8");
+assert.match(
+  popupHtml,
+  /<script src="\.\.\/shared\/permissions\.js"><\/script>[\s\S]*?<script src="popup\.js"><\/script>/,
+  "The popup cannot use the optional permission broker from direct user actions"
+);
 assert.equal((popupHtml.match(/class="role-color" type="hidden"/g) ?? []).length, 2, "The canonical Main and Secondary values changed");
 assert.match(popupHtml, /id="mainColorTrigger"[^>]*aria-haspopup="dialog"/, "The Main unified picker trigger is missing");
 assert.match(popupHtml, /id="secondaryColorTrigger"[^>]*aria-haspopup="dialog"/, "The Secondary unified picker trigger is missing");
@@ -128,6 +143,7 @@ const extensionSources = [
   "src/shared/bridge.js",
   "src/shared/lifecycle.js",
   "src/shared/settings.js",
+  "src/shared/permissions.js",
   "src/runtime/theme-runtime.js",
   "src/runtime/notification-runtime.js",
   "src/record-actions/core.js",
@@ -157,6 +173,37 @@ for (const file of extensionSources) {
     /SuiteAdvanced|ExtPay|payment|license/i.test(sourceWithoutNetSuitePaymentRecords),
     false,
     `${file} contains an excluded V1 integration`
+  );
+}
+
+const permissionSource = await readFile(resolve(root, "src/shared/permissions.js"), "utf8");
+const permissionSandbox = {};
+permissionSandbox.globalThis = permissionSandbox;
+runInNewContext(permissionSource, permissionSandbox);
+assert.deepEqual(
+  JSON.parse(JSON.stringify(permissionSandbox.SuiteMateV3Permissions.DEFINITIONS.map(({ id }) => id))),
+  ["bookmarks", "contextMenus", "history", "sidePanel"],
+  "The optional permission broker allowlist has drifted"
+);
+assert.match(permissionSource, /UNKNOWN_OPTIONAL_PERMISSION/, "Unknown optional permissions are not rejected");
+assert.match(permissionSource, /PERMISSION_MUTATION_BUSY/, "Overlapping permission changes are not rejected");
+assert.match(permissionSource, /permissionsApi\.request\(descriptor\)/, "Permission requests do not use the closed broker descriptor");
+assert.match(permissionSource, /permissionsApi\.onRemoved/, "Permission revocation events are not centralized");
+assert.doesNotMatch(permissionSource, /URLSearchParams|location|chrome\.tabs|chrome\.runtime\.sendMessage/, "The permission broker accepts route-controlled input or broadcasts permission state");
+
+const permissionBackgroundSource = await readFile(resolve(root, "src/background/service-worker.js"), "utf8");
+assert.match(
+  permissionBackgroundSource,
+  /importScripts\(chrome\.runtime\.getURL\("src\/shared\/permissions\.js"\)\)/,
+  "The service worker does not load the optional permission foundation"
+);
+
+for (const file of extensionSources.filter((file) => file !== "src/shared/permissions.js")) {
+  const source = await readFile(resolve(root, file), "utf8");
+  assert.doesNotMatch(
+    source,
+    /chrome\.permissions\.(?:contains|getAll|request|remove)|permissionsApi\.(?:contains|getAll|request|remove)/,
+    `${file} bypasses the optional permission broker`
   );
 }
 

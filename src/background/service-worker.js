@@ -1,5 +1,6 @@
 importScripts(chrome.runtime.getURL("src/shared/routes.js"));
 importScripts(chrome.runtime.getURL("src/shared/bridge.js"));
+importScripts(chrome.runtime.getURL("src/shared/permissions.js"));
 importScripts(chrome.runtime.getURL("src/suiteql/core.js"));
 importScripts(chrome.runtime.getURL("src/record-actions/core.js"));
 importScripts(chrome.runtime.getURL("src/import-assistant/core.js"));
