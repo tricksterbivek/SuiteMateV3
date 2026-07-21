@@ -4,7 +4,7 @@ This file records verified development baselines. New feature work must not begi
 
 ## v3.10.0: Shared Utilities
 
-Status: Awaiting authenticated smoke test
+Status: Verified
 
 Date: 2026-07-21
 
@@ -33,7 +33,12 @@ Planned release: <https://github.com/tricksterbivek/SuiteMateV3/releases/tag/v3.
 - `git diff --check`.
 - `npm audit --omit=dev` with zero vulnerabilities.
 - Independent architecture review passed with no release blocker.
-- Authenticated popup, SuiteQL Console, Global Search, record action and browser-log checks remain pending after extension reload.
+- Authenticated NetSuite Sandbox checks after allowing each page to load completely plus ten seconds.
+- Confirmed the dashboard initialized the `dashboard` route once, retained the shared lifecycle state, did not mount SuiteQL Console and produced no browser warnings or errors.
+- Confirmed SuiteQL Console executed the restored Customer query, returned one row with the expected three columns in 368 ms and produced no browser warnings or errors.
+- Confirmed CSV export reported `Exported 1 loaded rows.` without requiring an added Chrome permission. Chrome automation did not expose the resulting download event, so file-level behavior remains covered by the dedicated adapter tests.
+- Confirmed a Customer record retained exactly one visible contextual CSV Import action immediately after the Actions area, targeting the native Import Assistant with `recordsubtype=customer`.
+- Chrome does not expose extension toolbar popups to this automation session. Popup notice and modal behavior therefore remain verified by dedicated DOM lifecycle tests rather than mislabeled as a live toolbar-popup assertion.
 
 ### Restore
 
