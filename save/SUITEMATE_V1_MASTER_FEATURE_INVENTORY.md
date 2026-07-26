@@ -355,4 +355,4 @@ No foundation features remain. All `FND-01` through `FND-09` checkpoints are imp
 
 ## Current selected feature
 
-CSV Export baseline from `/Users/Bivek.Shah/Downloads/Concept for CSV EXPORT`. This is external proof-of-concept work rather than a pending V1 inventory item. The baseline is implemented on its feature branch and is awaiting authenticated Chrome and NetSuite smoke testing before checkpoint release.
+None from this inventory. The external CSV Export proof-of-concept baseline passed authenticated Sales Order, Item Receipt and Purchase Order testing and is checkpointed as `v3.14.0`. The next active work is one evidence-backed CSV Export improvement on a separate branch.

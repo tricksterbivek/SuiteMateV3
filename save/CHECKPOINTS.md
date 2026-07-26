@@ -2,6 +2,55 @@
 
 This file records verified development baselines. New feature work must not begin until the preceding checkpoint has passed automated tests, live NetSuite verification, pull request review and release publication.
 
+## v3.14.0: CSV Export Baseline
+
+Status: Verified
+
+Date: 2026-07-26
+
+Pull request: <https://github.com/tricksterbivek/SuiteMateV3/pull/17>
+
+Planned release: <https://github.com/tricksterbivek/SuiteMateV3/releases/tag/v3.14.0>
+
+### Included
+
+- Integrates the external CSV Export proof of concept without replacing its `N/record` and `N/currentRecord` architecture.
+- Adds one native `Export CSV` record-menu action through the shared route, command, settings and observer-lifecycle foundations.
+- Preserves Custom Form field selection, display-text output and first-populated-sublist behavior.
+- Falls back safely when a Custom Form is missing, a candidate sublist is unsupported or a field API is unavailable.
+- Produces RFC 4180 CSV with CRLF rows, UTF-8 BOM, stable duplicate headers and spreadsheet-formula protection.
+- Sanitizes download filenames and revokes temporary Blob URLs.
+- Reports success and readable errors through text-only NetSuite-native notices.
+- Keeps all record data inside the current NetSuite tab with no Chrome storage write or external request.
+- Saves the proof-of-concept architecture, quality, performance, security and maintainability review at `save/CSV_EXPORT_BASELINE_REVIEW.md`.
+
+### Verification
+
+- Full `npm test` regression suite with 150 passing tests.
+- All 26 screenshot baselines reproduced at 0.000 percent difference.
+- Protected 15-file SuiteMate V1 styling hash suite unchanged.
+- Focused route, command, request-envelope, CSV encoding, formula protection, missing-Custom-Form, unsupported-sublist, download and error tests.
+- `git diff --check`.
+- `npm audit --omit=dev` with zero vulnerabilities.
+- User-confirmed authenticated Chrome and NetSuite exports passed for Sales Order, Item Receipt and Purchase Order records.
+- User-confirmed downloaded CSV content looked correct for all three tested record families.
+
+### Restore
+
+```bash
+git switch --detach v3.14.0
+```
+
+To resume normal development after inspecting the checkpoint:
+
+```bash
+git switch main
+```
+
+### Next feature
+
+Review the three verified live exports and the baseline implementation, then select only the highest-value CSV Export improvement for the next divide-and-conquer iteration.
+
 ## v3.13.0: Internal IDs Toolkit
 
 Status: Verified
