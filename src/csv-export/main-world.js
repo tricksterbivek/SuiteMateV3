@@ -419,7 +419,7 @@
     return core.createFilename(name);
   }
 
-  function downloadCsv(csv, filename) {
+  function downloadCsv(csv, filename, options = {}) {
     if (
       typeof globalScope.Blob !== "function"
       || typeof globalScope.URL?.createObjectURL !== "function"
@@ -431,7 +431,8 @@
       throw error;
     }
 
-    const blob = new globalScope.Blob([`\ufeff${csv}`], {
+    const contents = options.bom === false ? csv : `\ufeff${csv}`;
+    const blob = new globalScope.Blob([contents], {
       type: "text/csv;charset=utf-8"
     });
     const url = globalScope.URL.createObjectURL(blob);
@@ -500,7 +501,9 @@
     const downloadRows = mode === "template"
       ? [matrix.rows[0]]
       : matrix.rows;
-    downloadCsv(core.serializeCsv(downloadRows), filename);
+    downloadCsv(core.serializeCsv(downloadRows), filename, {
+      bom: mode !== "template"
+    });
     return Object.freeze({
       filename,
       recordType,
