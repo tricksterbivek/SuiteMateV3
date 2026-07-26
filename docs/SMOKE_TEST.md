@@ -156,6 +156,23 @@ The styling foundation is not complete because the extension loads. It is comple
 - Confirm a backup that requires a newer settings or backup format reports a readable compatibility error and leaves existing settings untouched.
 - Confirm browser logs contain no SuiteMate errors after a successful export, cancelled import, invalid import and successful import.
 
+## Internal IDs pass
+
+- Reload the unpacked extension and confirm Show Internal IDs is unchecked by default.
+- Enable Show Internal IDs and confirm the current NetSuite page updates without a page reload.
+- On a record form, confirm the record type, body field, tab, subtab, sublist, sublist-column and supported button IDs appear as plain-text badges.
+- On Saved Search edit and results pages, confirm supported field, subtab, sublist and list-column IDs appear without changing Criteria or result-table behavior.
+- On a customization page, confirm supported script IDs appear in the customization grid without exposing field values.
+- Open or switch a dynamic subtab and confirm IDs are added once to newly rendered NetSuite content.
+- Confirm same-account framed or split-search content receives IDs while external forms and non-NetSuite pages remain untouched.
+- Disable NetSuite styling while leaving Show Internal IDs enabled and confirm the ID badges remain readable.
+- Disable Show Internal IDs and confirm every SuiteMate-owned badge is removed immediately without reloading the page.
+- Confirm toggling IDs does not modify record data, NetSuite preferences, network requests or native event behavior.
+- Press Ctrl + I and confirm SuiteMate does not claim or execute that shortcut.
+- Reload the NetSuite page and popup and confirm the checkbox state persists.
+- Export and re-import settings, including a schema 1 V3 backup, and confirm the Internal IDs setting migrates safely.
+- Confirm browser logs contain no SuiteMate Internal IDs errors after record, Saved Search, list, customization and framed-content checks.
+
 ## Regression fixture pass
 
 - Run `npm run fixtures:verify` and require all 26 screenshot comparisons to remain within the one-percent visual threshold.

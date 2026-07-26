@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8
 
 assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.name, "SuiteMate V3");
-assert.equal(manifest.version, "3.12.0");
+assert.equal(manifest.version, "3.13.0");
 assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
 assert.equal(
   Object.hasOwn(manifest, "optional_permissions"),
@@ -33,6 +33,7 @@ assert.deepEqual(globalThemeContentScript.css, [
   "src/styles/netsuite.css",
   "src/styles/radii.css",
   "src/styles/v3-compat.css",
+  "src/internal-ids/internal-ids.css",
   "src/record-actions/csv-import.css"
 ]);
 assert.deepEqual(globalThemeContentScript.js, [
@@ -42,9 +43,11 @@ assert.deepEqual(globalThemeContentScript.js, [
   "src/shared/bridge.js",
   "src/shared/lifecycle.js",
   "src/shared/settings.js",
+  "src/internal-ids/core.js",
   "src/runtime/theme-runtime.js",
   "src/runtime/notification-runtime.js",
   "src/record-actions/core.js",
+  "src/internal-ids/runtime.js",
   "src/record-actions/csv-import.js"
 ]);
 assert.equal(
@@ -115,6 +118,11 @@ assert.doesNotMatch(popupHtml, /type="color"|mainMaterialShades|secondaryMateria
 assert.doesNotMatch(popupHtml, /Generate|company logo|recommended pair/i, "A separate palette workflow remains in the popup");
 assert.match(popupHtml, />SuiteQL Console</, "The popup does not use the SuiteQL Console name");
 assert.doesNotMatch(popupHtml, /SuiteQL Studio/, "The old SuiteQL Studio name remains in the popup");
+assert.match(
+  popupHtml,
+  /for="showInternalIds"[\s\S]*?>Show Internal IDs<[\s\S]*?id="showInternalIds"[^>]*type="checkbox"/,
+  "The Internal IDs popup checkbox is missing"
+);
 for (const match of popupHtml.matchAll(/(?:src|href)="([^"]+)"/g)) {
   const reference = match[1];
   if (!reference.startsWith("#")) {
@@ -162,6 +170,9 @@ const extensionSources = [
   "src/shared/settings.js",
   "src/shared/settings-transfer.js",
   "src/shared/permissions.js",
+  "src/internal-ids/core.js",
+  "src/internal-ids/runtime.js",
+  "src/internal-ids/internal-ids.css",
   "src/runtime/theme-runtime.js",
   "src/runtime/notification-runtime.js",
   "src/record-actions/core.js",
@@ -366,6 +377,39 @@ assert.match(popupSource, /settingsClipboard\.writeText\(backup\)/, "Settings ex
 assert.match(popupSource, /settingsLocked = true/, "Settings failures do not lock the popup");
 assert.doesNotMatch(popupSource, /chrome\.storage\.sync\.set/, "The popup bypasses the versioned settings API");
 assert.match(themeRuntimeSource, /isSettingsVersionError\(error\)/, "The theme runtime does not safely handle future settings");
+
+const internalIdsCoreSource = await readFile(resolve(root, "src/internal-ids/core.js"), "utf8");
+const internalIdsRuntimeSource = await readFile(resolve(root, "src/internal-ids/runtime.js"), "utf8");
+assert.match(
+  internalIdsRuntimeSource,
+  /capability: routeApi\.CAPABILITIES\.INTERNAL_IDS/,
+  "Internal IDs bypasses the route capability registry"
+);
+assert.match(
+  internalIdsRuntimeSource,
+  /lifecycleApi\.register/,
+  "Internal IDs bypasses the shared observer lifecycle"
+);
+assert.match(
+  internalIdsRuntimeSource,
+  /settings\.showInternalIds/,
+  "Internal IDs is not driven by the popup setting"
+);
+assert.match(
+  internalIdsRuntimeSource,
+  /bridgeApi\.COMMANDS\.RECORD_GET_TYPE/,
+  "Internal IDs bypasses the typed record-type bridge fallback"
+);
+assert.match(
+  internalIdsRuntimeSource,
+  /badge\.textContent = normalized/,
+  "Internal ID badges are not rendered as inert text"
+);
+assert.doesNotMatch(
+  `${internalIdsCoreSource}\n${internalIdsRuntimeSource}`,
+  /innerHTML|new MutationObserver|Ctrl\s*\+\s*I|addEventListener\(["']keydown/,
+  "Internal IDs contains unsafe HTML, direct observer ownership or the rejected keyboard shortcut"
+);
 
 const suiteqlStudioSource = await readFile(resolve(root, "src/suiteql/studio-entry.js"), "utf8");
 assert.match(
@@ -782,14 +826,23 @@ runInNewContext(utilitySource, settingsSandbox);
 runInNewContext(settingsSource, settingsSandbox);
 const settingsApi = settingsSandbox.SuiteMateV3Settings;
 assert.equal(settingsApi.THEME_PREVIEW_MESSAGE, "SUITEMATE_V3_PREVIEW_ROLE_THEME");
-assert.equal(settingsApi.SCHEMA_VERSION, 1);
+assert.equal(settingsApi.SCHEMA_VERSION, 2);
 assert.equal(settingsApi.DEFAULTS.schemaVersion, settingsApi.SCHEMA_VERSION);
 assert.equal(settingsApi.DEFAULTS.squareCorners, false);
+assert.equal(settingsApi.DEFAULTS.showInternalIds, false);
 assert.deepEqual(
   JSON.parse(JSON.stringify(settingsApi.validateForStorage({ mode: "dark" }))),
-  { schemaVersion: 1, enabled: true, mode: "dark", squareCorners: false, roleThemes: {} }
+  {
+    schemaVersion: 2,
+    enabled: true,
+    mode: "dark",
+    squareCorners: false,
+    showInternalIds: false,
+    roleThemes: {}
+  }
 );
 assert.equal(settingsApi.normalize({ squareCorners: true }).squareCorners, true);
+assert.equal(settingsApi.normalize({ showInternalIds: true }).showInternalIds, true);
 const roleContext = { id: "9845683_SB2~11596~3~N", name: "DBG Health (SB2) - Administrator" };
 const roleSettings = settingsApi.withRoleTheme(settingsApi.DEFAULTS, roleContext, {
   main: "#123456",

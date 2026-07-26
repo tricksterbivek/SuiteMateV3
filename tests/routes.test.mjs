@@ -40,6 +40,7 @@ test("exports stable route and capability constants", () => {
   assert.equal(PATHS.SUITEQL_CONSOLE, "/app/common/search/ubersearchresults.nl");
   assert.equal(PATHS.IMPORT_ASSISTANT, "/app/setup/assistants/nsimport/importassistant.nl");
   assert.equal(CAPABILITIES.GLOBAL_THEME, "global-theme");
+  assert.equal(CAPABILITIES.INTERNAL_IDS, "internal-ids");
   assert.equal(CAPABILITIES.SUITEQL_BRIDGE, "suiteql-bridge");
   assert.equal(CAPABILITIES.SEARCH_QUERY_BRIDGE, "search-query-bridge");
   assert.equal(CAPABILITIES.RECORD_METADATA_BRIDGE, "record-metadata-bridge");
@@ -159,6 +160,32 @@ test("keeps global styling and notifications available in supported child frames
   assert.equal(routes.supports(CAPABILITIES.GLOBAL_THEME, context), true);
   assert.equal(routes.supports(CAPABILITIES.NOTIFICATIONS, context), true);
   assert.equal(routes.supports(CAPABILITIES.CSV_IMPORT_TOOLBAR, context), false);
+  assert.equal(routes.supports(CAPABILITIES.INTERNAL_IDS, context), true);
+});
+
+test("allows Internal IDs on trusted NetSuite pages and same-account frames", () => {
+  for (const path of [
+    "/app/accounting/transactions/salesord.nl?id=1",
+    "/app/common/search/search.nl?e=T",
+    "/app/common/search/searchresults.nl?searchid=1",
+    "/app/common/scripting/scriptrecord.nl?id=1"
+  ]) {
+    assert.equal(routes.supports(CAPABILITIES.INTERNAL_IDS, page(path)), true, path);
+  }
+  assert.equal(
+    routes.supports(
+      CAPABILITIES.INTERNAL_IDS,
+      page("/app/accounting/transactions/salesord.nl?id=1", { isTopFrame: false })
+    ),
+    true
+  );
+  assert.equal(
+    routes.supports(
+      CAPABILITIES.INTERNAL_IDS,
+      routes.createPageContext("https://example.com/app/accounting/transactions/salesord.nl?id=1")
+    ),
+    false
+  );
 });
 
 test("preserves the broad CSV Import route probe while excluding known non-record results", () => {

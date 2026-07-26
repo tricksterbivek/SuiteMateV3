@@ -13,6 +13,8 @@ const sources = Object.fromEntries(await Promise.all(
     "src/shared/commands.js",
     "src/shared/bridge.js",
     "src/shared/settings.js",
+    "src/internal-ids/core.js",
+    "src/internal-ids/runtime.js",
     "src/record-actions/core.js",
     "src/import-assistant/core.js",
     "src/runtime/theme-runtime.js",
@@ -192,10 +194,11 @@ test("theme ignores a stale settings read after a newer storage update", async (
   runInNewContext(sources["src/runtime/theme-runtime.js"], sandbox);
 
   const newerSettings = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     enabled: true,
     mode: "dark",
     squareCorners: false,
+    showInternalIds: false,
     roleThemes: {}
   };
   storageListeners[0](
@@ -203,16 +206,160 @@ test("theme ignores a stale settings read after a newer storage update", async (
     "sync"
   );
   resolveInitialRead({
-    schemaVersion: 1,
+    schemaVersion: 2,
     enabled: true,
     mode: "light",
     squareCorners: false,
+    showInternalIds: false,
     roleThemes: {}
   });
   await flushTasks();
 
   assert.equal(documentElement.dataset.suitemateV3Mode, "dark");
   assert.equal(classes.has("isDarkMode"), true);
+});
+
+test("Internal IDs follows its setting live and removes only owned badges", async () => {
+  const lifecycle = createLifecycleStub();
+  const storageListeners = [];
+  const rootClasses = new Set();
+  const badges = [];
+  const label = {
+    badge: null,
+    querySelector(selector) {
+      return selector.includes("data-suitemate-v3-internal-id") && this.badge?.isConnected
+        ? this.badge
+        : null;
+    },
+    append(badge) {
+      badge.isConnected = true;
+      this.badge = badge;
+      badges.push(badge);
+    }
+  };
+  const fieldWrapper = {
+    nodeType: 1,
+    dataset: { walkthrough: "Field:entity" },
+    querySelector(selector) {
+      return selector === ".uir-label > span" ? label : null;
+    }
+  };
+  const documentElement = {
+    dataset: {},
+    classList: {
+      add(name) {
+        rootClasses.add(name);
+      },
+      remove(name) {
+        rootClasses.delete(name);
+      }
+    }
+  };
+  const document = {
+    documentElement,
+    querySelector: () => null,
+    querySelectorAll(selector) {
+      if (selector === '[data-walkthrough^="Field:"]') {
+        return [fieldWrapper];
+      }
+      if (selector.includes(".ns-field-id[data-suitemate-v3-internal-id]")) {
+        return badges.filter((badge) => badge.isConnected);
+      }
+      return [];
+    },
+    createElement() {
+      return {
+        className: "",
+        dataset: {},
+        textContent: "",
+        title: "",
+        isConnected: false,
+        remove() {
+          this.isConnected = false;
+        }
+      };
+    }
+  };
+  const location = createLocation(
+    "https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl?id=1"
+  );
+  const sandbox = {
+    URL,
+    URLSearchParams,
+    location,
+    document,
+    CSS: { escape: (value) => String(value) },
+    chrome: {
+      runtime: {},
+      storage: {
+        sync: {
+          async get(key) {
+            return {
+              [key]: {
+                schemaVersion: 2,
+                enabled: false,
+                mode: "light",
+                squareCorners: false,
+                showInternalIds: true,
+                roleThemes: {}
+              }
+            };
+          }
+        },
+        onChanged: {
+          addListener(listener) {
+            storageListeners.push(listener);
+          }
+        }
+      }
+    },
+    SuiteMateV3Lifecycle: lifecycle,
+    SuiteMateV3Bridge: {
+      COMMANDS: { RECORD_GET_TYPE: "record.getType" },
+      async request() {
+        throw new Error("Record bridge should not run in this fixture");
+      },
+      toCommandResult: (value) => value
+    },
+    SuiteMateV3RecordActionsCore: {
+      resolveRecordTypeFromDocument: () => null,
+      normalizeRecordType: (value) => value
+    },
+    addEventListener() {},
+    console
+  };
+  sandbox.globalThis = sandbox;
+  sandbox.window = sandbox;
+  sandbox.top = sandbox;
+  runInNewContext(sources["src/shared/utilities.js"], sandbox);
+  runInNewContext(sources["src/shared/routes.js"], sandbox);
+  runInNewContext(sources["src/shared/settings.js"], sandbox);
+  runInNewContext(sources["src/internal-ids/core.js"], sandbox);
+  runInNewContext(sources["src/internal-ids/runtime.js"], sandbox);
+  await flushTasks();
+
+  assert.equal(rootClasses.has("show-field-ids"), true);
+  assert.equal(documentElement.dataset.suitemateV3InternalIds, "visible");
+  assert.equal(label.badge.textContent, "entity");
+  assert.equal(label.badge.dataset.suitemateV3InternalId, "field");
+  assert.equal(label.badge.isConnected, true);
+
+  storageListeners[0]({
+    suiteMateV3Style: {
+      newValue: {
+        schemaVersion: 2,
+        enabled: false,
+        mode: "light",
+        squareCorners: false,
+        showInternalIds: false,
+        roleThemes: {}
+      }
+    }
+  }, "sync");
+
+  assert.equal(rootClasses.has("show-field-ids"), false);
+  assert.equal(documentElement.dataset.suitemateV3InternalIds, "hidden");
+  assert.equal(label.badge.isConnected, false);
 });
 
 test("CSV Import rejects a late record-type response after lifecycle pause", async () => {

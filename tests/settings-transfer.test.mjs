@@ -73,6 +73,38 @@ test("creates a versioned UTF-8 backup and restores canonical settings", () => {
   assert.equal(Object.isFrozen(parsed), true);
 });
 
+test("imports a canonical schema 1 backup through the current settings migration", () => {
+  const { settings, transfer } = createHarness();
+  const legacySettings = {
+    schemaVersion: 1,
+    enabled: false,
+    mode: "dark",
+    squareCorners: true,
+    roleThemes: {
+      "ACCOUNT~ROLE": {
+        name: "Legacy Role",
+        main: "#123456"
+      }
+    }
+  };
+  const backup = encodeEnvelope(transfer, {
+    format: transfer.FORMAT,
+    formatVersion: transfer.FORMAT_VERSION,
+    exportedAt: "2026-07-22T01:02:03.456Z",
+    settingsSchemaVersion: 1,
+    settings: legacySettings
+  });
+
+  assert.deepEqual(plain(transfer.parse(backup).settings), {
+    schemaVersion: settings.SCHEMA_VERSION,
+    enabled: false,
+    mode: "dark",
+    squareCorners: true,
+    showInternalIds: false,
+    roleThemes: legacySettings.roleThemes
+  });
+});
+
 test("rejects empty, unrecognized and malformed encoded input", () => {
   const { transfer } = createHarness();
   expectCode(() => transfer.parse(""), "EMPTY_BACKUP");

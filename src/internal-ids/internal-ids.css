@@ -1,0 +1,19 @@
+html.ext-f.show-field-ids .ns-field-id[data-suitemate-v3-internal-id] {
+    display: block;
+    width: fit-content;
+    height: 12px;
+    margin: 3px 0;
+    color: #d92d20;
+    font: 400 12px/1 "Open Sans", Arial, sans-serif !important;
+    opacity: 1
+}
+
+html.ext-f.show-field-ids :is(.formtabtext, .formsubtabtext)+.ns-field-id[data-suitemate-v3-internal-id],
+html.ext-f.show-field-ids .uir-button+.ns-field-id[data-suitemate-v3-internal-id] {
+    display: inline-block;
+    margin-inline: 5px
+}
+
+html.ext-f.show-field-ids .uir-list-table .ns-field-id[data-suitemate-v3-internal-id] {
+    padding: 0 5px
+}

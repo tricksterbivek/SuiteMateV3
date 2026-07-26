@@ -195,6 +195,7 @@ function createPopupDocument() {
 
   const enabled = add("enabled", "input");
   const squareCorners = add("squareCorners", "input");
+  const showInternalIds = add("showInternalIds", "input");
   const light = add("mode-light", "input");
   light.value = "light";
   light.checked = true;
@@ -206,6 +207,7 @@ function createPopupDocument() {
   const formControls = [
     enabled,
     squareCorners,
+    showInternalIds,
     ...modes,
     add("mainColor", "input", ["role-color"]),
     add("secondaryColor", "input", ["role-color"]),
@@ -307,10 +309,11 @@ function clone(value) {
 async function createPopupHarness(options = {}) {
   const dom = createPopupDocument();
   const initialSettings = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     enabled: true,
     mode: "light",
     squareCorners: false,
+    showInternalIds: false,
     roleThemes: {
       "role-1": {
         name: "Fixture Role",
@@ -454,6 +457,7 @@ test("popup composes rapid color swap and appearance edits without stale renderi
   const harness = await createPopupHarness();
   const swap = harness.element("swapColors");
   const squareCorners = harness.element("squareCorners");
+  const showInternalIds = harness.element("showInternalIds");
   const light = harness.modes.find(({ value }) => value === "light");
   const dark = harness.modes.find(({ value }) => value === "dark");
 
@@ -470,6 +474,7 @@ test("popup composes rapid color swap and appearance edits without stale renderi
   light.checked = false;
   dark.checked = true;
   squareCorners.checked = true;
+  showInternalIds.checked = true;
   harness.form.dispatch("change", dark);
   await flushTasks();
   assert.equal(harness.writes.length, 1, "The second write must wait for the queued first write");
@@ -481,6 +486,7 @@ test("popup composes rapid color swap and appearance edits without stale renderi
 
   assert.equal(harness.writes[1].snapshot.mode, "dark");
   assert.equal(harness.writes[1].snapshot.squareCorners, true);
+  assert.equal(harness.writes[1].snapshot.showInternalIds, true);
   assert.deepEqual(harness.writes[1].snapshot.roleThemes["role-1"], {
     name: "Fixture Role",
     main: "#445566",
@@ -490,6 +496,7 @@ test("popup composes rapid color swap and appearance edits without stale renderi
   await harness.resolveNextWrite();
   assert.equal(harness.storedSettings.mode, "dark");
   assert.equal(harness.storedSettings.squareCorners, true);
+  assert.equal(harness.storedSettings.showInternalIds, true);
   assert.deepEqual(harness.storedSettings.roleThemes["role-1"], {
     name: "Fixture Role",
     main: "#445566",
@@ -499,6 +506,7 @@ test("popup composes rapid color swap and appearance edits without stale renderi
   assert.equal(harness.element("secondaryColor").value, "#112233");
   assert.equal(dark.checked, true);
   assert.equal(squareCorners.checked, true);
+  assert.equal(showInternalIds.checked, true);
 });
 
 test("popup exports, confirms and atomically imports a validated settings backup", async () => {
@@ -517,10 +525,11 @@ test("popup exports, confirms and atomically imports a validated settings backup
   assert.equal(harness.element("status").textContent, "Settings backup copied");
 
   const importedSettings = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     enabled: false,
     mode: "dark",
     squareCorners: true,
+    showInternalIds: true,
     roleThemes: {
       "role-2": {
         name: "Imported Role",
@@ -578,10 +587,11 @@ test("popup rolls back its in-memory import when Chrome storage rejects the over
   const harness = await createPopupHarness();
   const backupData = harness.element("settingsBackupData");
   backupData.value = harness.transferApi.create({
-    schemaVersion: 1,
+    schemaVersion: 2,
     enabled: false,
     mode: "dark",
     squareCorners: true,
+    showInternalIds: true,
     roleThemes: {}
   }, { exportedAt: "2026-07-22T01:02:03.456Z" });
   backupData.dispatch("input");
