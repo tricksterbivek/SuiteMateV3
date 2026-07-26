@@ -16,6 +16,8 @@ const sources = Object.fromEntries(await Promise.all(
     "src/internal-ids/core.js",
     "src/internal-ids/runtime.js",
     "src/record-actions/core.js",
+    "src/csv-export/core.js",
+    "src/csv-export/runtime.js",
     "src/import-assistant/core.js",
     "src/runtime/theme-runtime.js",
     "src/record-actions/csv-import.js",
@@ -362,11 +364,11 @@ test("Internal IDs follows its setting live and removes only owned badges", asyn
   assert.equal(label.badge.isConnected, false);
 });
 
-test("CSV Import rejects a late record-type response after lifecycle pause", async () => {
+test("CSV Utils rejects stale installation and routes Import and Export independently", async () => {
   let mainFormReady = false;
   let toolbarReady = false;
   let injectedAction = null;
-  let createdLink = null;
+  let exportInvocations = 0;
   let resolveRecordType;
   let recordTypeResponse = new Promise((resolve) => {
     resolveRecordType = resolve;
@@ -384,11 +386,12 @@ test("CSV Import rejects a late record-type response after lifecycle pause", asy
   };
   const document = {
     documentElement: { dataset: {} },
+    activeElement: null,
     querySelector(selector) {
       if (selector === "#main_form") {
         return mainFormReady ? {} : null;
       }
-      if (selector === '[data-suitemate-v3-action="csv-import-toolbar"]') {
+      if (selector === '[data-suitemate-v3-action="csv-utils-toolbar"]') {
         return injectedAction;
       }
       return null;
@@ -405,23 +408,42 @@ test("CSV Import rejects a late record-type response after lifecycle pause", asy
     createElement(tagName) {
       const element = {
         tagName,
+        className: "",
         dataset: {},
+        attributes: {},
         listeners: {},
+        children: [],
+        style: {},
+        isConnected: true,
         addEventListener(type, listener) {
           this.listeners[type] = listener;
         },
-        append(child) {
-          this.child = child;
+        setAttribute(name, value) {
+          this.attributes[name] = String(value);
+        },
+        append(...children) {
+          this.children.push(...children);
+          for (const child of children) {
+            child.parent = this;
+          }
+        },
+        contains(candidate) {
+          if (!candidate) {
+            return false;
+          }
+          return candidate === this
+            || this.children.some((child) => child.contains?.(candidate));
+        },
+        focus() {
+          document.activeElement = this;
         },
         remove() {
+          this.isConnected = false;
           if (injectedAction === this) {
             injectedAction = null;
           }
         }
       };
-      if (tagName === "a") {
-        createdLink = element;
-      }
       return element;
     }
   };
@@ -473,6 +495,12 @@ test("CSV Import rejects a late record-type response after lifecycle pause", asy
   sandbox.globalThis = sandbox;
   sandbox.window = sandbox;
   sandbox.top = sandbox;
+  sandbox[Symbol.for("SuiteMateV3.csvExport.runtime.v2")] = {
+    invoke() {
+      exportInvocations += 1;
+      return { ok: true };
+    }
+  };
   runInNewContext(sources["src/shared/utilities.js"], sandbox);
   runInNewContext(sources["src/shared/routes.js"], sandbox);
   runInNewContext(sources["src/shared/commands.js"], sandbox);
@@ -492,18 +520,49 @@ test("CSV Import rejects a late record-type response after lifecycle pause", asy
   recordTypeResponse = Promise.resolve("salesorder");
   lifecycle.handle.resume("settings-enabled");
   await lifecycle.lastRun;
-  assert.equal(injectedAction?.dataset.suitemateV3Action, "csv-import-toolbar");
-  assert.equal(createdLink?.dataset.suitemateV3Command, "record.csv-import");
+  assert.equal(injectedAction?.dataset.suitemateV3Action, "csv-utils-toolbar");
+  assert.equal(injectedAction?.className, "suitemate-v3-csv-utils-cell");
+  const createdElements = [];
+  const collectElements = (element) => {
+    createdElements.push(element);
+    element.children?.forEach(collectElements);
+  };
+  collectElements(injectedAction);
+  const importLink = createdElements.find(
+    (element) => element.dataset?.suitemateV3Action === "csv-utils-import"
+  );
+  const exportLink = createdElements.find(
+    (element) => element.dataset?.suitemateV3Action === "csv-utils-export"
+  );
+  const trigger = createdElements.find(
+    (element) => element.dataset?.suitemateV3Action === "csv-utils-trigger"
+  );
+  assert.equal(importLink?.dataset.suitemateV3Command, "record.csv-import");
+  assert.equal(exportLink?.dataset.suitemateV3Command, "record.csv-export");
+  assert.equal(trigger?.textContent, "CSV Utils");
 
   let prevented = false;
-  createdLink.listeners.click({
+  importLink.listeners.click({
     preventDefault() {
       prevented = true;
     }
   });
   assert.equal(prevented, false, "An authorized CSV Import click must retain native navigation");
+  prevented = false;
+  let stopped = false;
+  exportLink.listeners.click({
+    preventDefault() {
+      prevented = true;
+    },
+    stopPropagation() {
+      stopped = true;
+    }
+  });
+  assert.equal(prevented, true, "CSV Export must not navigate away from the record");
+  assert.equal(stopped, true);
+  assert.equal(exportInvocations, 1);
 
-  const installedLink = createdLink;
+  const installedLink = importLink;
   storageListeners[0](
     { suiteMateV3Style: { newValue: { enabled: false } } },
     "sync"
@@ -525,6 +584,144 @@ test("CSV Import rejects a late record-type response after lifecycle pause", asy
       { addedNodes: [nestedToolbar], removedNodes: [] }
     ]),
     true
+  );
+});
+
+test("CSV Utils Export invokes the typed bridge and reports the completed download", async () => {
+  const location = createLocation(
+    "https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl?id=1"
+  );
+  const storageListeners = [];
+  const statusElements = [];
+  const exportLink = {
+    textContent: "Export",
+    attributes: {},
+    style: {},
+    setAttribute(name, value) {
+      this.attributes[name] = String(value);
+    }
+  };
+  const document = {
+    documentElement: { dataset: {} },
+    querySelector(selector) {
+      if (selector === '[data-suitemate-v3-action="csv-utils-export"]') {
+        return exportLink;
+      }
+      if (selector === "#div__alert") {
+        return {
+          append(element) {
+            statusElements.push(element);
+          }
+        };
+      }
+      return null;
+    },
+    querySelectorAll(selector) {
+      return selector === '[data-suitemate-v3-action="csv-export-status"]'
+        ? statusElements.filter((element) => element.isConnected !== false)
+        : [];
+    },
+    createElement(tagName) {
+      return {
+        tagName,
+        className: "",
+        dataset: {},
+        attributes: {},
+        children: [],
+        isConnected: true,
+        setAttribute(name, value) {
+          this.attributes[name] = String(value);
+        },
+        append(...children) {
+          this.children.push(...children);
+        },
+        remove() {
+          this.isConnected = false;
+        }
+      };
+    }
+  };
+  const sentMessages = [];
+  const sandbox = {
+    URL,
+    URLSearchParams,
+    AbortController,
+    location,
+    document,
+    console,
+    setTimeout() {
+      return 1;
+    },
+    clearTimeout() {},
+    addEventListener() {},
+    chrome: {
+      runtime: {
+        async sendMessage(message) {
+          sentMessages.push(message);
+          return {
+            type: "SUITEMATE_V3_NETSUITE_BRIDGE_RESPONSE",
+            version: 1,
+            ok: true,
+            requestId: message.requestId,
+            command: message.command,
+            data: {
+              filename: "SO1.csv",
+              recordType: "salesorder",
+              sublistId: "item",
+              rowCount: 3,
+              columnCount: 12
+            }
+          };
+        }
+      },
+      storage: {
+        onChanged: {
+          addListener(listener) {
+            storageListeners.push(listener);
+          }
+        }
+      }
+    },
+    SuiteMateV3Settings: {
+      STORAGE_KEY: "suiteMateV3Style",
+      async get() {
+        return { enabled: true };
+      },
+      normalize(value) {
+        return value;
+      }
+    }
+  };
+  sandbox.globalThis = sandbox;
+  sandbox.window = sandbox;
+  sandbox.top = sandbox;
+  runInNewContext(sources["src/shared/utilities.js"], sandbox);
+  runInNewContext(sources["src/shared/routes.js"], sandbox);
+  runInNewContext(sources["src/shared/commands.js"], sandbox);
+  runInNewContext(sources["src/shared/bridge.js"], sandbox);
+  runInNewContext(sources["src/csv-export/core.js"], sandbox);
+  runInNewContext(sources["src/csv-export/runtime.js"], sandbox);
+  await flushTasks();
+
+  const exportRuntime = runInNewContext(
+    'globalThis[Symbol.for("SuiteMateV3.csvExport.runtime.v2")]',
+    sandbox
+  );
+  assert.equal(exportRuntime?.VERSION, 2);
+  assert.equal(exportRuntime.isAvailable(), true);
+  const commandResult = await exportRuntime.invoke();
+  assert.equal(commandResult.ok, true);
+  assert.equal(commandResult.value.ok, true);
+  assert.equal(sentMessages.length, 1);
+  assert.equal(sentMessages[0].command, "record.exportCsv");
+  assert.deepEqual(Object.keys(sentMessages[0].payload), []);
+  assert.equal(exportLink.textContent, "Export");
+  assert.equal(exportLink.attributes["aria-busy"], "false");
+  assert.equal(statusElements.length, 1);
+  assert.equal(statusElements[0].attributes.role, "status");
+  assert.equal(
+    statusElements[0].children[0].children[0].textContent,
+    "Exported 3 item rows to SO1.csv."
   );
 });
 

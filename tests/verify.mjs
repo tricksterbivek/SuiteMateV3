@@ -581,23 +581,30 @@ assert.equal(
   false
 );
 const csvImportSource = await readFile(resolve(root, "src/record-actions/csv-import.js"), "utf8");
-assert.match(csvImportSource, /className = "suitemate-v3-csv-import-cell"/, "CSV Import is not emitted as a standalone toolbar action");
-assert.match(csvImportSource, /applyMetadata\(link, csvImportCommand/, "CSV Import does not use shared command metadata");
-assert.match(csvImportSource, /createScope\(commandApi\.SURFACES\.RECORD/, "CSV Import does not use a record command scope");
+assert.match(csvImportSource, /className = "suitemate-v3-csv-utils-cell"/, "CSV Utils is not emitted as one toolbar menu");
+assert.match(csvImportSource, /textContent = "CSV Utils"/, "The CSV Utils parent label is missing");
+assert.match(csvImportSource, /"csv-utils-export"/, "CSV Utils does not expose Export");
+assert.match(csvImportSource, /"csv-utils-import"/, "CSV Utils does not expose Import");
+assert.match(csvImportSource, /className = "ns-menuitem suitemate-v3-csv-utils-option"/, "CSV Utils does not use native NetSuite menu items");
+assert.match(csvImportSource, /applyMetadata\(link, commandId/, "CSV Utils children do not use shared command metadata");
+assert.match(csvImportSource, /createScope\(commandApi\.SURFACES\.RECORD/, "CSV Utils does not use a record command scope");
 assert.match(csvImportSource, /commandScope\.invoke\(/, "CSV Import bypasses click-time command authority");
+assert.match(csvImportSource, /csvExport\.runtime\.v2/, "CSV Utils is not connected to the isolated CSV Export runtime");
 assert.match(csvImportSource, /\.uir-buttons-top\.uir-header-buttons/, "The top record toolbar target is missing");
-assert.match(csvImportSource, /actionsCell\.after\(createToolbarAction\(href\)\)/, "CSV Import is not inserted immediately after Actions");
-assert.match(csvImportSource, /data-suitemate-v3-action/, "CSV Import injection is not idempotent");
-assert.match(csvImportSource, /lifecycleApi\.register/, "CSV Import bypasses the shared observer lifecycle");
+assert.match(csvImportSource, /actionsCell\.after\(createToolbarMenu\(href\)\)/, "CSV Utils is not inserted immediately after Actions");
+assert.match(csvImportSource, /data-suitemate-v3-action/, "CSV Utils injection is not idempotent");
+assert.match(csvImportSource, /lifecycleApi\.register/, "CSV Utils bypasses the shared observer lifecycle");
 assert.match(csvImportSource, /COMMANDS\.RECORD_GET_TYPE/, "CSV Import bypasses the typed NetSuite bridge");
 assert.match(csvImportSource, /signal\.aborted \|\| !isCurrent\(\)/, "CSV Import does not reject stale asynchronous installation");
-assert.doesNotMatch(csvImportSource, /new MutationObserver/, "CSV Import retains direct observer ownership");
+assert.doesNotMatch(csvImportSource, /new MutationObserver/, "CSV Utils retains direct observer ownership");
 assert.doesNotMatch(csvImportSource, /Scripted Record|getRecordTypes|PlatformClientScriptHandler/, "CSV Import copied unrelated V1 dependencies");
 
 const csvImportStyles = await readFile(resolve(root, "src/record-actions/csv-import.css"), "utf8");
-assert.match(csvImportStyles, /--theme-secondary-light/, "CSV Import does not use the active SuiteMate theme");
-assert.match(csvImportStyles, /--suitemate-radius-compact/, "CSV Import does not use the global radius system");
-assert.match(csvImportStyles, /:focus-visible/, "CSV Import lacks a keyboard focus state");
+assert.match(csvImportStyles, /--theme-secondary-light/, "CSV Utils does not use the active SuiteMate theme");
+assert.match(csvImportStyles, /--suitemate-radius-overlay/, "CSV Utils does not use the global overlay radius");
+assert.match(csvImportStyles, /:focus-visible/, "CSV Utils lacks a keyboard focus state");
+assert.match(csvImportStyles, /:focus-within/, "CSV Utils is not keyboard-openable");
+assert.match(csvImportStyles, /:hover>.suitemate-v3-csv-utils-dropdown/, "CSV Utils is not hover-openable");
 
 const csvExportCoreSource = await readFile(resolve(root, "src/csv-export/core.js"), "utf8");
 const csvExportMainWorldSource = await readFile(resolve(root, "src/csv-export/main-world.js"), "utf8");
@@ -619,13 +626,13 @@ const csvExportLineValueSource = csvExportMainWorldSource.match(
 assert.doesNotMatch(csvExportBodyValueSource, /getValue/, "CSV Export body text falls back to raw values");
 assert.doesNotMatch(csvExportLineValueSource, /getSublistValue/, "CSV Export line text falls back to raw values");
 assert.match(csvExportMainWorldSource, /revokeObjectURL/, "CSV Export leaks Blob download URLs");
-assert.match(csvExportRuntimeSource, /applyMetadata\(link, exportCommand/, "CSV Export does not use shared command metadata");
-assert.match(csvExportRuntimeSource, /lifecycleApi\.register/, "CSV Export bypasses the shared observer lifecycle");
+assert.match(csvExportRuntimeSource, /csvExport\.runtime\.v2/, "CSV Export does not expose its isolated runtime contract");
+assert.match(csvExportRuntimeSource, /commandScope\.invoke\(exportCommand/, "CSV Export bypasses command authority");
 assert.match(csvExportRuntimeSource, /COMMANDS\.RECORD_EXPORT_CSV/, "CSV Export bypasses the typed NetSuite bridge");
 assert.match(csvExportRuntimeSource, /bridgeApi\.toCommandResult/, "CSV Export does not normalize typed bridge responses");
 assert.doesNotMatch(csvExportRuntimeSource, /CustomEvent|REQUEST_EVENT|RESULT_EVENT/, "CSV Export UI retains a direct main-world event bridge");
 assert.match(csvExportRuntimeSource, /textContent = String\(message/, "CSV Export status renders untrusted HTML");
-assert.doesNotMatch(csvExportRuntimeSource, /new MutationObserver|innerHTML/, "CSV Export owns an observer or renders arbitrary HTML");
+assert.doesNotMatch(csvExportRuntimeSource, /lifecycleApi|new MutationObserver|innerHTML/, "CSV Export owns UI lifecycle or renders arbitrary HTML");
 assert.doesNotMatch(
   `${csvExportCoreSource}\n${csvExportMainWorldSource}\n${csvExportRuntimeSource}`,
   /chrome\.storage\.(?:sync|local)\.(?:set|remove)|localStorage|sessionStorage|fetch\(|XMLHttpRequest/,

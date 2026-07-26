@@ -4,8 +4,8 @@
   const VERSION = 1;
   const REQUEST_EVENT = "suitemate:v3:csv-export:request";
   const RESULT_EVENT = "suitemate:v3:csv-export:result";
-  const ACTION_ID = "suitemate-v3-export-csv";
-  const ACTION_SELECTOR = '[data-suitemate-v3-action="csv-export"]';
+  const ACTION_ID = "suitemate-v3-csv-utils-export";
+  const ACTION_SELECTOR = '[data-suitemate-v3-action="csv-utils-export"]';
   const REQUEST_ID_PATTERN = /^[a-z0-9][a-z0-9._:-]{7,99}$/i;
   const FORMULA_PREFIX = /^[\t\r\n ]*[=+\-@]/;
   const MAX_TEXT_LENGTH = 1000;
