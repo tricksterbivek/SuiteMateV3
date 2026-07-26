@@ -4,14 +4,12 @@
   const commandApi = globalScope.SuiteMateV3Commands;
   const bridgeApi = globalScope.SuiteMateV3Bridge;
   const core = globalScope.SuiteMateV3CsvExportCore;
-  const lifecycleApi = globalScope.SuiteMateV3Lifecycle;
   const routeApi = globalScope.SuiteMateV3Routes;
   const settingsApi = globalScope.SuiteMateV3Settings;
   if (
     !commandApi
     || !bridgeApi
     || !core
-    || !lifecycleApi
     || !routeApi
     || !settingsApi
     || !globalScope.document
@@ -37,18 +35,14 @@
     return;
   }
 
-  const MENU_IDS = Object.freeze(["NS_MENU_ID1", "NS_MENU_ID0"]);
-  const FALLBACK_MENU_SELECTOR = [
-    "#main_form",
-    ".uir-page-title-record",
-    ".uir-page-title-firstline-record",
-    ".page-title-menu",
-    "ul"
-  ].join(" ");
+  const RUNTIME_KEY = Symbol.for("SuiteMateV3.csvExport.runtime.v2");
+  if (globalScope[RUNTIME_KEY]) {
+    return;
+  }
+
   const STATUS_SELECTOR = '[data-suitemate-v3-action="csv-export-status"]';
   let currentSettings = null;
   let settingsRevision = 0;
-  let actionLink = null;
   let statusTimer = null;
 
   const exportCommand = commandApi.IDS.RECORD_CSV_EXPORT;
@@ -68,14 +62,8 @@
     }
   });
 
-  function findMenu() {
-    for (const id of MENU_IDS) {
-      const menu = document.getElementById(id);
-      if (menu) {
-        return menu;
-      }
-    }
-    return document.querySelector(FALLBACK_MENU_SELECTOR);
+  function findExportLink() {
+    return globalScope.document.querySelector(core.ACTION_SELECTOR);
   }
 
   function clearStatus() {
@@ -83,12 +71,13 @@
       globalScope.clearTimeout(statusTimer);
       statusTimer = null;
     }
-    document.querySelectorAll(STATUS_SELECTOR).forEach((element) => element.remove());
+    globalScope.document.querySelectorAll(STATUS_SELECTOR)
+      .forEach((element) => element.remove());
   }
 
   function showStatus(message, type = "info") {
     clearStatus();
-    const alert = document.createElement("div");
+    const alert = globalScope.document.createElement("div");
     alert.className = [
       "uir-alert-box",
       "suitemate-v3-csv-export-status",
@@ -98,19 +87,19 @@
     alert.dataset.suitemateV3Action = "csv-export-status";
     alert.setAttribute("role", type === "error" ? "alert" : "status");
 
-    const content = document.createElement("div");
+    const content = globalScope.document.createElement("div");
     content.className = "uir-alert-box-content";
-    const description = document.createElement("div");
+    const description = globalScope.document.createElement("div");
     description.className = "uir-alert-box-description";
     description.textContent = String(message ?? "");
     content.append(description);
     alert.append(content);
 
-    const target = document.querySelector("#div__alert");
+    const target = globalScope.document.querySelector("#div__alert");
     if (target) {
       target.append(alert);
     } else {
-      document.querySelector("#main_form")?.prepend(alert);
+      globalScope.document.querySelector("#main_form")?.prepend(alert);
     }
 
     if (type !== "error") {
@@ -122,16 +111,15 @@
   }
 
   function setBusy(busy) {
-    if (!actionLink?.isConnected) {
-      actionLink = document.querySelector(core.ACTION_SELECTOR)?.querySelector("a") ?? null;
-    }
-    if (!actionLink) {
+    const link = findExportLink();
+    if (!link) {
       return;
     }
-    actionLink.textContent = busy ? "Exporting CSV..." : "Export CSV";
-    actionLink.setAttribute("aria-busy", busy ? "true" : "false");
-    actionLink.style.pointerEvents = busy ? "none" : "";
-    actionLink.style.opacity = busy ? "0.6" : "";
+    link.textContent = busy ? "Exporting..." : "Export";
+    link.setAttribute("aria-busy", busy ? "true" : "false");
+    link.setAttribute("aria-disabled", busy ? "true" : "false");
+    link.style.pointerEvents = busy ? "none" : "";
+    link.style.opacity = busy ? "0.6" : "";
   }
 
   function showExportResult(result) {
@@ -166,83 +154,18 @@
     run: beginExport
   });
 
-  function createAction() {
-    const item = document.createElement("li");
-    item.className = "ns-menuitem ns-header";
-    item.id = core.ACTION_ID;
-    item.dataset.suitemateV3Action = "csv-export";
-    item.dataset.nspsType = "menu_top";
-    item.dataset.nspsLabel = "Export CSV";
-    item.setAttribute("role", "menuitem");
-
-    const link = document.createElement("a");
-    link.href = "#";
-    link.tabIndex = 0;
-    commandApi.applyMetadata(link, exportCommand, { setLabel: true });
-    link.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      commandScope.invoke(exportCommand, {}, {
+  const runtimeApi = Object.freeze({
+    VERSION: 2,
+    isAvailable() {
+      return commandScope.isAvailable(exportCommand);
+    },
+    invoke() {
+      return commandScope.invoke(exportCommand, {}, {
         source: commandApi.SOURCES.LINK
       });
-    });
-    item.append(link);
-    actionLink = link;
-    return item;
-  }
-
-  function installAction({ signal, isCurrent }) {
-    if (
-      signal.aborted
-      || !isCurrent()
-      || !core.isExportableLocation(globalScope.location)
-      || !commandScope.isAvailable(exportCommand)
-    ) {
-      return false;
     }
-    const menu = findMenu();
-    if (!menu || document.querySelector(core.ACTION_SELECTOR)) {
-      return Boolean(menu);
-    }
-    menu.append(createAction());
-    return true;
-  }
-
-  function nodeContainsRelevantMenu(node) {
-    if (node?.nodeType !== Node.ELEMENT_NODE) {
-      return false;
-    }
-    return MENU_IDS.some((id) => node.id === id)
-      || node.matches?.(FALLBACK_MENU_SELECTOR)
-      || node.matches?.(core.ACTION_SELECTOR)
-      || MENU_IDS.some((id) => Boolean(node.querySelector?.(`#${id}`)))
-      || Boolean(node.querySelector?.(`${FALLBACK_MENU_SELECTOR}, ${core.ACTION_SELECTOR}`));
-  }
-
-  function containsRelevantMutation(mutations) {
-    return mutations.some((mutation) =>
-      [...mutation.addedNodes, ...mutation.removedNodes].some(nodeContainsRelevantMenu));
-  }
-
-  function cleanup() {
-    document.querySelectorAll(core.ACTION_SELECTOR).forEach((element) => element.remove());
-    actionLink = null;
-    clearStatus();
-  }
-
-  const lifecycleHandle = lifecycleApi.register({
-    id: "record.csv-export",
-    replace: true,
-    capability: routeApi.CAPABILITIES.CSV_EXPORT_RECORD,
-    startPaused: true,
-    observe: {
-      childList: true,
-      subtree: true
-    },
-    relevant: containsRelevantMutation,
-    evaluate: installAction,
-    cleanup
   });
+  globalScope[RUNTIME_KEY] = runtimeApi;
 
   async function start() {
     const revision = settingsRevision;
@@ -252,14 +175,8 @@
         return;
       }
       currentSettings = settings;
-      if (settings.enabled) {
-        lifecycleHandle.resume("settings-enabled");
-      } else {
-        lifecycleHandle.pause("settings-disabled");
-      }
     } catch {
       currentSettings = null;
-      lifecycleHandle.pause("settings-failed");
     }
   }
 
@@ -271,20 +188,15 @@
     settingsRevision += 1;
     try {
       currentSettings = settingsApi.normalize(settingsChange.newValue);
-      if (currentSettings.enabled) {
-        lifecycleHandle.resume("settings-enabled");
-      } else {
-        lifecycleHandle.pause("settings-disabled");
-      }
     } catch {
       currentSettings = null;
-      lifecycleHandle.pause("settings-failed");
     }
   });
 
   globalScope.addEventListener("pagehide", (event) => {
     if (!event.persisted) {
       commandScope.dispose();
+      clearStatus();
     }
   });
 
