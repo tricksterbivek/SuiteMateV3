@@ -244,9 +244,22 @@ test("serializes RFC 4180 CSV and neutralizes spreadsheet formulas", () => {
       { label: "Currency", fieldId: "currency", scope: "record" },
       { label: "Currency", fieldId: "currency", scope: "item" },
       { label: "Status", fieldId: "orderstatus", scope: "record" },
-      { label: "Internal ID", fieldId: "internalid", scope: "record" }
+      { label: "Internal ID", fieldId: "internalid", scope: "record" },
+      { label: "Billing Address", fieldId: "billaddress", scope: "record" },
+      {
+        label: "Billing Address",
+        fieldId: "billingaddress_text",
+        scope: "record"
+      }
     ])),
-    ["Record Currency", "Item Currency", "Order Status", "Record Internal ID"]
+    [
+      "Record Currency",
+      "Item Currency",
+      "Order Status",
+      "Record Internal ID",
+      "Billing Address",
+      "Billing Address Text"
+    ]
   );
   assert.equal(core.createFilename("../../SO:42"), "SO-42.csv");
 });

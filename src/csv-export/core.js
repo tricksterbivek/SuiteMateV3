@@ -21,6 +21,7 @@
   const FIELD_LABEL_OVERRIDES = Object.freeze({
     billaddress: "Billing Address",
     billisresidential: "Billing Address Is Residential",
+    billingaddress_text: "Billing Address Text",
     costestimate: "Estimated Cost",
     currencyname: "Currency Name",
     discounttotal: "Discount Total",
@@ -35,6 +36,7 @@
     overrideholdchecked: "Override Hold Checked",
     shipaddress: "Shipping Address",
     shipisresidential: "Shipping Address Is Residential",
+    shippingaddress_text: "Shipping Address Text",
     totalcostestimate: "Total Estimated Cost"
   });
 
