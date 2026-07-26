@@ -2,6 +2,53 @@
 
 This file records verified development baselines. New feature work must not begin until the preceding checkpoint has passed automated tests, live NetSuite verification, pull request review and release publication.
 
+## v3.13.0: Internal IDs Toolkit
+
+Status: Verified
+
+Date: 2026-07-26
+
+Pull request: <https://github.com/tricksterbivek/SuiteMateV3/pull/16>
+
+Planned release: <https://github.com/tricksterbivek/SuiteMateV3/releases/tag/v3.13.0>
+
+### Included
+
+- Adds an independent `Show Internal IDs` checkbox to the SuiteMate popup, disabled by default.
+- Recreates V1 identifier extraction for record types, body fields, tabs, subtabs, sublists, sublist columns, buttons, list headers and customization-grid script IDs.
+- Applies the preference immediately without a page reload and removes only SuiteMate-owned badges when disabled.
+- Uses the shared route registry and observer lifecycle across trusted top-level NetSuite pages and same-account frames.
+- Keeps Internal IDs independent of the global NetSuite styling toggle.
+- Adds a bounded typed record-type fallback without exposing record field values.
+- Migrates existing settings to schema 2 and preserves import compatibility with canonical schema 1 SuiteMate V3 backups.
+- Adds no keyboard shortcut, browser permission, host access, external request or arbitrary HTML rendering.
+
+### Verification
+
+- Full `npm test` regression suite with 142 passing tests.
+- All 26 screenshot baselines reproduced at 0.000 percent difference.
+- Protected 15-file SuiteMate V1 styling hash suite unchanged.
+- Focused identifier parsing, hostile-input, lifecycle, live setting, route authority, settings migration and backup compatibility tests.
+- `git diff --check`.
+- `npm audit --omit=dev` with zero vulnerabilities.
+- User-confirmed live Chrome smoke test passed after reloading the extension.
+
+### Restore
+
+```bash
+git switch --detach v3.13.0
+```
+
+To resume normal development after inspecting the checkpoint:
+
+```bash
+git switch main
+```
+
+### Next feature
+
+Integrate the reviewed CSV Export proof of concept as a working SuiteMate V3 baseline before any major redesign.
+
 ## v3.12.0: Settings Backup and Restore
 
 Status: Verified
