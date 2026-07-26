@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8
 
 assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.name, "SuiteMate V3");
-assert.equal(manifest.version, "3.16.1");
+assert.equal(manifest.version, "3.16.2");
 assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
 assert.equal(
   Object.hasOwn(manifest, "optional_permissions"),
@@ -112,6 +112,10 @@ for (const file of referencedFiles) {
 const utilitySource = await readFile(resolve(root, "src/shared/utilities.js"), "utf8");
 const browserUtilitySource = await readFile(resolve(root, "src/shared/browser-utilities.js"), "utf8");
 const popupHtml = await readFile(resolve(root, manifest.action.default_popup), "utf8");
+const popupStyles = await readFile(resolve(root, "src/popup/popup.css"), "utf8");
+assert.match(popupStyles, /:root\s*\{[\s\S]*?min-width:\s*360px/, "The Chrome popup root lacks an explicit minimum width");
+assert.match(popupStyles, /body\s*\{[\s\S]*?width:\s*360px;[\s\S]*?min-width:\s*360px/, "The Chrome popup body can collapse below its intended width");
+assert.doesNotMatch(popupStyles, /max-width:\s*100vw/, "Viewport-relative sizing can collapse the Chrome action popup");
 assert.match(
   popupHtml,
   /<script src="\.\.\/shared\/utilities\.js"><\/script>[\s\S]*?<script src="\.\.\/shared\/browser-utilities\.js"><\/script>[\s\S]*?<script src="\.\.\/shared\/permissions\.js"><\/script>[\s\S]*?<script src="popup\.js"><\/script>/,
