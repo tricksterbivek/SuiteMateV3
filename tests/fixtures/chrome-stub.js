@@ -110,6 +110,19 @@
       return bridgeResponse(message, { recordType: "salesorder" });
     }
 
+    if (message.command === "record.exportCsv") {
+      document.documentElement.dataset.csvExportMessageCount = String(
+        Number(document.documentElement.dataset.csvExportMessageCount ?? 0) + 1
+      );
+      return bridgeResponse(message, {
+        filename: "SO10428.csv",
+        recordType: "salesorder",
+        sublistId: "item",
+        rowCount: 2,
+        columnCount: 8
+      });
+    }
+
     if (message.command === "bridge.cancel") {
       return bridgeResponse(message, { canceled: true });
     }
