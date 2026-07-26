@@ -8,6 +8,10 @@ import { runInNewContext } from "node:vm";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const coreSource = await readFile(resolve(root, "src/csv-export/core.js"), "utf8");
 const mainWorldSource = await readFile(resolve(root, "src/csv-export/main-world.js"), "utf8");
+const qualityFixture = JSON.parse(await readFile(
+  resolve(root, "tests/fixtures/csv-export-quality.json"),
+  "utf8"
+));
 
 function plain(value) {
   return JSON.parse(JSON.stringify(value));
@@ -139,6 +143,9 @@ function createMainWorldHarness(options = {}) {
     load: {
       promise: async ({ type }) => {
         if (type === "custform") {
+          if (options.formRef) {
+            return options.formRef;
+          }
           throw new Error("No form load expected");
         }
         return recordRef;
@@ -184,6 +191,8 @@ test("exports one frozen versioned CSV baseline core", () => {
   assert.equal(core.VERSION, 1);
   assert.equal(Object.isFrozen(core), true);
   assert.equal(Object.isFrozen(core.CANDIDATE_SUBLISTS), true);
+  assert.equal(core.toCellText({ raw: true }), "");
+  assert.equal(core.toCellText(["A", "B"]), "A; B");
   assert.equal(core.REQUEST_EVENT, "suitemate:v3:csv-export:request");
   assert.equal(core.RESULT_EVENT, "suitemate:v3:csv-export:result");
 });
@@ -214,8 +223,10 @@ test("serializes RFC 4180 CSV and neutralizes spreadsheet formulas", () => {
       ["Acme, Inc.", "=HYPERLINK(\"https://evil.example\")"],
       ["Line\nbreak", -2]
     ]),
-    'Customer,Memo\r\n"Acme, Inc.","\'=HYPERLINK(""https://evil.example"")"\r\n"Line\nbreak",-2'
+    'Customer,Memo\r\n"Acme, Inc.","\'=HYPERLINK(""https://evil.example"")"\r\nLine break,-2'
   );
+  assert.equal(core.serializeCsv([["Tags"], [["A", "B"]]]), "Tags\r\nA; B");
+  assert.equal(core.serializeCsv([["Raw"], [{ token: "must-not-export" }]]), "Raw\r\n");
   assert.deepEqual(
     plain(core.makeUniqueHeaders([
       { label: "Amount", fieldId: "amount" },
@@ -290,6 +301,148 @@ test("main-world baseline survives unsupported sublists and missing custom forms
   assert.match(BrowserUrl.created[0].parts[0], /^\ufeffDocument Number,Customer,Line Id,Account,Memo/);
   assert.match(BrowserUrl.created[0].parts[0], /"'=HYPERLINK\(""https:\/\/evil\.example""\)"/);
   assert.deepEqual(BrowserUrl.revoked, ["blob:test-1"]);
+});
+
+test("golden quality cases reject internal fields, raw fallbacks, HTML controls, and multiline output", async () => {
+  assert.equal(qualityFixture.version, 1);
+  for (const fixture of qualityFixture.cases) {
+    let rawBodyFallbackCalls = 0;
+    let rawSublistFallbackCalls = 0;
+    const uiOnlyFields = fixture.uiOnlyFieldIds.map((fieldId) => ({
+      fieldId,
+      label: "-",
+      mandatory: "T",
+      onScreen: "T"
+    }));
+    const bodyFieldDefinitions = [
+      { fieldId: "tranid", label: "Document Number" },
+      { fieldId: "shipaddress", label: "Shipping Address" },
+      { fieldId: "rawmetadata", label: "Raw Metadata" },
+      ...fixture.blockedBodyFieldIds.map((fieldId) => ({ fieldId, label: "" }))
+    ];
+    const lineFieldDefinitions = [
+      { fieldId: "item", label: "Item" },
+      { fieldId: "description", label: "Description" },
+      { fieldId: "rawlinemetadata", label: "Raw Line Metadata" },
+      ...fixture.blockedLineFieldIds.map((fieldId) => ({ fieldId, label: "" }))
+    ];
+    const bodyDefinitions = new Map(
+      bodyFieldDefinitions.map((definition) => [definition.fieldId, definition])
+    );
+    const lineDefinitions = new Map(
+      lineFieldDefinitions.map((definition) => [definition.fieldId, definition])
+    );
+    const recordRef = {
+      id: 42,
+      type: fixture.recordType,
+      getFields: () => bodyFieldDefinitions.map(({ fieldId }) => fieldId),
+      getField: ({ fieldId }) => {
+        const definition = bodyDefinitions.get(fieldId);
+        return definition ? { id: fieldId, label: definition.label } : null;
+      },
+      getValue: ({ fieldId }) => {
+        if (fieldId === "customform") {
+          return "77";
+        }
+        if (fieldId === "tranid") {
+          return "TEST-42";
+        }
+        if (fieldId === "rawmetadata") {
+          rawBodyFallbackCalls += 1;
+          return { token: "raw-body-must-not-export" };
+        }
+        return "internal-body-must-not-export";
+      },
+      getText: ({ fieldId }) => ({
+        tranid: "TEST-42",
+        shipaddress: "Line 1\nLine 2",
+        rawmetadata: "ERROR: Field 'rawmetadata' Not Found"
+      })[fieldId] ?? "",
+      getLineCount: ({ sublistId }) => sublistId === "item" ? 1 : 0,
+      getSublistFields: ({ sublistId }) =>
+        sublistId === "item"
+          ? lineFieldDefinitions.map(({ fieldId }) => fieldId)
+          : [],
+      getSublistField: ({ sublistId, fieldId }) => {
+        if (sublistId !== "item") {
+          return null;
+        }
+        const definition = lineDefinitions.get(fieldId);
+        return definition ? { id: fieldId, label: definition.label } : null;
+      },
+      getSublistText: ({ sublistId, fieldId }) => {
+        assert.equal(sublistId, "item");
+        return {
+          line: "1",
+          item: "Widget",
+          description: "Blue\nWidget",
+          rawlinemetadata: "ERROR: Field 'rawlinemetadata' Not Found"
+        }[fieldId] ?? "";
+      },
+      getSublistValue: () => {
+        rawSublistFallbackCalls += 1;
+        return ["raw-line-must-not-export"];
+      }
+    };
+    const formRef = {
+      getLineCount: ({ sublistId }) => sublistId === "body" ? uiOnlyFields.length : 0,
+      getSublistValue: ({ sublistId, line, fieldId }) => {
+        assert.equal(sublistId, "body");
+        const definition = uiOnlyFields[line];
+        return {
+          bodyfield: definition.fieldId,
+          bodylabel: definition.label,
+          bodymandatory: definition.mandatory,
+          bodybscreen: definition.onScreen
+        }[fieldId] ?? "";
+      }
+    };
+    const { sandbox } = createMainWorldHarness({
+      currentRecord: { id: 42, type: fixture.recordType },
+      recordRef,
+      formRef
+    });
+    const result = new Promise((resolveResult) => {
+      sandbox.addEventListener(
+        sandbox.SuiteMateV3CsvExportCore.RESULT_EVENT,
+        (event) => resolveResult(event.detail),
+        { once: true }
+      );
+    });
+
+    sandbox.dispatchEvent(new FakeCustomEvent(
+      sandbox.SuiteMateV3CsvExportCore.REQUEST_EVENT,
+      { detail: { requestId: `csv-quality-${fixture.recordType}` } }
+    ));
+
+    assert.deepEqual(plain(await result), {
+      ok: true,
+      requestId: `csv-quality-${fixture.recordType}`,
+      filename: "TEST-42.csv",
+      recordType: fixture.recordType,
+      sublistId: "item",
+      rowCount: 1,
+      columnCount: qualityFixture.expectedHeaders.length
+    });
+    const csv = BrowserUrl.created[0].parts[0].slice(1);
+    assert.equal(
+      csv,
+      `${qualityFixture.expectedHeaders.join(",")}\r\n${qualityFixture.expectedRow.join(",")}`
+    );
+    assert.equal(rawBodyFallbackCalls, 0);
+    assert.equal(rawSublistFallbackCalls, 0);
+    for (const fieldId of [
+      ...fixture.blockedBodyFieldIds,
+      ...fixture.blockedLineFieldIds,
+      ...fixture.uiOnlyFieldIds
+    ]) {
+      assert.doesNotMatch(csv, new RegExp(fieldId, "i"));
+    }
+    assert.doesNotMatch(
+      csv.replaceAll("\r\n", ""),
+      /raw-body-must-not-export|raw-line-must-not-export|<div|\r|\n/
+    );
+  }
 });
 
 test("main-world baseline returns a readable failure instead of throwing", async () => {

@@ -604,8 +604,20 @@ const csvExportMainWorldSource = await readFile(resolve(root, "src/csv-export/ma
 const csvExportRuntimeSource = await readFile(resolve(root, "src/csv-export/runtime.js"), "utf8");
 assert.match(csvExportCoreSource, /FORMULA_PREFIX/, "CSV Export does not neutralize spreadsheet formulas");
 assert.match(csvExportCoreSource, /join\("\\r\\n"\)/, "CSV Export does not generate RFC 4180 line endings");
+assert.match(csvExportCoreSource, /replace\(\/\\r\\n\?\|\\n\/g, " "\)/, "CSV Export does not normalize multiline values");
+assert.doesNotMatch(csvExportCoreSource, /JSON\.stringify\(value\)/, "CSV Export can serialize raw record objects");
 assert.match(csvExportMainWorldSource, /\["N\/record", "N\/currentRecord"\]/, "CSV Export does not use the proof-of-concept record APIs");
 assert.match(csvExportMainWorldSource, /recordModule\.load\.promise/, "CSV Export does not use supported asynchronous record loading");
+assert.match(csvExportMainWorldSource, /UI_ONLY_FIELD_PATTERN/, "CSV Export does not reject page-only HTML controls");
+assert.match(csvExportMainWorldSource, /\|\| !normalizedLabel/, "CSV Export can expose unlabeled internal fields");
+const csvExportBodyValueSource = csvExportMainWorldSource.match(
+  /function safeTextValue[\s\S]*?\n  }\n\n  function safeSublistTextValue/
+)?.[0] ?? "";
+const csvExportLineValueSource = csvExportMainWorldSource.match(
+  /function safeSublistTextValue[\s\S]*?\n  }\n\n  function normalizeDescriptor/
+)?.[0] ?? "";
+assert.doesNotMatch(csvExportBodyValueSource, /getValue/, "CSV Export body text falls back to raw values");
+assert.doesNotMatch(csvExportLineValueSource, /getSublistValue/, "CSV Export line text falls back to raw values");
 assert.match(csvExportMainWorldSource, /revokeObjectURL/, "CSV Export leaks Blob download URLs");
 assert.match(csvExportRuntimeSource, /applyMetadata\(link, exportCommand/, "CSV Export does not use shared command metadata");
 assert.match(csvExportRuntimeSource, /lifecycleApi\.register/, "CSV Export bypasses the shared observer lifecycle");

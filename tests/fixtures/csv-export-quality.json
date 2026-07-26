@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "recordType": "purchaseorder",
+      "blockedBodyFieldIds": [
+        "baserecordtype",
+        "billingaddress2_set",
+        "custpage_cs_msgs"
+      ],
+      "blockedLineFieldIds": [
+        "linkedordbill",
+        "lineuniquekey"
+      ],
+      "uiOnlyFieldIds": [
+        "custpage_inline_html"
+      ]
+    },
+    {
+      "recordType": "salesorder",
+      "blockedBodyFieldIds": [
+        "defaultcustomerallocationstrategy",
+        "orderleveldata",
+        "promotionids"
+      ],
+      "blockedLineFieldIds": [
+        "generatedinvdetail",
+        "itempacked"
+      ],
+      "uiOnlyFieldIds": [
+        "custpage_getratesbutton_inline_html",
+        "custpage_validate_address_inline_html"
+      ]
+    },
+    {
+      "recordType": "itemreceipt",
+      "blockedBodyFieldIds": [
+        "entryformquerystring",
+        "nlrole",
+        "nluser"
+      ],
+      "blockedLineFieldIds": [
+        "inventorydetailavail",
+        "orderline"
+      ],
+      "uiOnlyFieldIds": [
+        "custpage_receipt_inlinehtml"
+      ]
+    }
+  ],
+  "expectedHeaders": [
+    "Document Number",
+    "Shipping Address",
+    "Raw Metadata",
+    "Line Id",
+    "Item",
+    "Description",
+    "Raw Line Metadata"
+  ],
+  "expectedRow": [
+    "TEST-42",
+    "Line 1 Line 2",
+    "",
+    "1",
+    "Widget",
+    "Blue Widget",
+    ""
+  ]
+}

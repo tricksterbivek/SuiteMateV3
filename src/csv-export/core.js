@@ -31,13 +31,17 @@
     if (typeof value === "string") {
       return value;
     }
-    if (typeof value === "object") {
-      try {
-        const serialized = JSON.stringify(value);
-        if (serialized !== undefined) {
-          return serialized;
-        }
-      } catch {}
+    if (Array.isArray(value)) {
+      return value
+        .filter((entry) =>
+          entry === null
+          || entry === undefined
+          || ["string", "number", "boolean"].includes(typeof entry))
+        .map((entry) => entry === null || entry === undefined ? "" : String(entry))
+        .join("; ");
+    }
+    if (typeof value === "object" || typeof value === "function") {
+      return "";
     }
     try {
       return String(value);
@@ -48,11 +52,14 @@
 
   function protectCsvValue(value) {
     const text = safeValueToText(value);
-    return typeof value === "string" && FORMULA_PREFIX.test(text) ? `'${text}` : text;
+    return (typeof value === "string" || Array.isArray(value))
+      && FORMULA_PREFIX.test(text)
+      ? `'${text}`
+      : text;
   }
 
   function escapeCsvValue(value) {
-    const text = protectCsvValue(value);
+    const text = protectCsvValue(value).replace(/\r\n?|\n/g, " ");
     return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
   }
 
@@ -190,6 +197,7 @@
     ACTION_ID,
     ACTION_SELECTOR,
     CANDIDATE_SUBLISTS,
+    toCellText: safeValueToText,
     protectCsvValue,
     escapeCsvValue,
     serializeCsv,

@@ -13,6 +13,7 @@
 
   const PRICE_MATRIX_PATTERN = /price\d+quantity\d+|quantity\d+price\d+/;
   const FIELD_ERROR_PATTERN = /ERROR:\s*Field\s*'[^']+'\s*Not\s*Found/i;
+  const UI_ONLY_FIELD_PATTERN = /inline_?html/i;
   let activeRequestId = "";
 
   function safeCall(callback, fallback = null) {
@@ -28,37 +29,44 @@
     return value === true || value === "T";
   }
 
+  function normalizeDisplayText(value) {
+    return core.toCellText(value);
+  }
+
   function safeTextValue(recordRef, fieldId) {
-    const text = safeCall(() => recordRef.getText({ fieldId }), null);
-    if (text !== null && text !== undefined && text !== "") {
-      return text;
-    }
-    return safeCall(() => recordRef.getValue({ fieldId }), "");
+    const text = normalizeDisplayText(safeCall(
+      () => recordRef.getText({ fieldId }),
+      ""
+    ));
+    return FIELD_ERROR_PATTERN.test(text) ? "" : text;
   }
 
   function safeSublistTextValue(recordRef, sublistId, fieldId, line) {
     const text = safeCall(
       () => recordRef.getSublistText({ sublistId, fieldId, line }),
-      null
-    );
-    if (text !== null && text !== undefined && text !== "" && !FIELD_ERROR_PATTERN.test(String(text))) {
-      return text;
-    }
-    return safeCall(
-      () => recordRef.getSublistValue({ sublistId, fieldId, line }),
       ""
     );
+    if (FIELD_ERROR_PATTERN.test(String(text))) {
+      return "";
+    }
+    return normalizeDisplayText(text);
   }
 
   function normalizeDescriptor(fieldId, label) {
     const normalizedId = String(fieldId ?? "").trim().toLowerCase();
-    if (!normalizedId || PRICE_MATRIX_PATTERN.test(normalizedId)) {
+    const normalizedLabel = String(label ?? "").trim();
+    if (
+      !normalizedId
+      || !normalizedLabel
+      || normalizedLabel.startsWith("_")
+      || PRICE_MATRIX_PATTERN.test(normalizedId)
+      || UI_ONLY_FIELD_PATTERN.test(normalizedId)
+    ) {
       return null;
     }
-    const normalizedLabel = String(label ?? "").trim();
     return {
       fieldId: normalizedId,
-      label: normalizedLabel || normalizedId
+      label: normalizedLabel
     };
   }
 
@@ -155,7 +163,7 @@
         ? safeCall(() => recordRef.getSublistField({ sublistId, fieldId, line: 0 }), null)
         : safeCall(() => recordRef.getField({ fieldId }), null);
       const descriptor = normalizeDescriptor(field?.id ?? fieldId, field?.label);
-      if (descriptor?.label && !descriptor.label.startsWith("_")) {
+      if (descriptor) {
         fields.push(descriptor);
       }
     }
