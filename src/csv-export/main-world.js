@@ -272,7 +272,12 @@
 
     if (!sublistId) {
       rows.push(bodyFields.map(({ value }) => value));
-      return { rows, dataRowCount: 1, columnCount: headers.length };
+      const populatedRows = core.removeEmptyColumns(rows);
+      return {
+        rows: populatedRows,
+        dataRowCount: 1,
+        columnCount: populatedRows[0]?.length ?? 0
+      };
     }
 
     for (let line = 0; line < lineCount; line += 1) {
@@ -283,7 +288,12 @@
           safeSublistTextValue(recordRef, sublistId, fieldId, line))
       ]);
     }
-    return { rows, dataRowCount: lineCount, columnCount: headers.length };
+    const populatedRows = core.removeEmptyColumns(rows);
+    return {
+      rows: populatedRows,
+      dataRowCount: lineCount,
+      columnCount: populatedRows[0]?.length ?? 0
+    };
   }
 
   function getRecordFilename(recordRef) {

@@ -74,6 +74,35 @@
       .join("\r\n");
   }
 
+  function removeEmptyColumns(rows) {
+    if (!Array.isArray(rows) || rows.length === 0 || !Array.isArray(rows[0])) {
+      return Object.freeze([]);
+    }
+
+    const columnCount = rows[0].length;
+    const populatedIndexes = [];
+    for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
+      let populated = false;
+      for (let rowIndex = 1; rowIndex < rows.length; rowIndex += 1) {
+        const row = rows[rowIndex];
+        if (
+          safeValueToText(Array.isArray(row) ? row[columnIndex] : "").trim() !== ""
+        ) {
+          populated = true;
+          break;
+        }
+      }
+      if (populated) {
+        populatedIndexes.push(columnIndex);
+      }
+    }
+
+    return Object.freeze(rows.map((row) => Object.freeze(
+      populatedIndexes.map((columnIndex) =>
+        Array.isArray(row) ? row[columnIndex] : "")
+    )));
+  }
+
   function normalizeFieldDescriptor(value) {
     const fieldId = boundedText(value?.fieldId).toLowerCase();
     const label = boundedText(value?.label, fieldId || "Field");
@@ -201,6 +230,7 @@
     protectCsvValue,
     escapeCsvValue,
     serializeCsv,
+    removeEmptyColumns,
     makeUniqueHeaders,
     sanitizeFilenamePart,
     createFilename,

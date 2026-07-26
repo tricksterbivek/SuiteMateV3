@@ -238,6 +238,23 @@ test("serializes RFC 4180 CSV and neutralizes spreadsheet formulas", () => {
   assert.equal(core.createFilename("../../SO:42"), "SO-42.csv");
 });
 
+test("removes columns that are blank across every exported row", () => {
+  const core = createCore();
+  assert.deepEqual(
+    plain(core.removeEmptyColumns([
+      ["Order #", "Unused", "Line Id", "Memo", "Whitespace only"],
+      ["SO1", "", "1", "", "   "],
+      ["SO1", "", "2", "Ready", "\t"]
+    ])),
+    [
+      ["Order #", "Line Id", "Memo"],
+      ["SO1", "1", ""],
+      ["SO1", "2", "Ready"]
+    ]
+  );
+  assert.deepEqual(plain(core.removeEmptyColumns([])), []);
+});
+
 test("validates event envelopes and renders only bounded result metadata", () => {
   const core = createCore();
   const requestId = "csv-12345678";
@@ -291,14 +308,14 @@ test("main-world baseline survives unsupported sublists and missing custom forms
     recordType: "salesorder",
     sublistId: "expense",
     rowCount: 1,
-    columnCount: 5
+    columnCount: 4
   });
   assert.equal(links.length, 1);
   assert.equal(links[0].download, "SO-42.csv");
   assert.equal(links[0].clicked, true);
   assert.equal(links[0].removed, true);
   assert.equal(BrowserUrl.created[0].type, "text/csv;charset=utf-8");
-  assert.match(BrowserUrl.created[0].parts[0], /^\ufeffDocument Number,Customer,Line Id,Account,Memo/);
+  assert.match(BrowserUrl.created[0].parts[0], /^\ufeffDocument Number,Customer,Account,Memo/);
   assert.match(BrowserUrl.created[0].parts[0], /"'=HYPERLINK\(""https:\/\/evil\.example""\)"/);
   assert.deepEqual(BrowserUrl.revoked, ["blob:test-1"]);
 });
@@ -422,12 +439,13 @@ test("golden quality cases reject internal fields, raw fallbacks, HTML controls,
       recordType: fixture.recordType,
       sublistId: "item",
       rowCount: 1,
-      columnCount: qualityFixture.expectedHeaders.length
+      columnCount: qualityFixture.expectedHeaders.length - 2
     });
     const csv = BrowserUrl.created[0].parts[0].slice(1);
     assert.equal(
       csv,
-      `${qualityFixture.expectedHeaders.join(",")}\r\n${qualityFixture.expectedRow.join(",")}`
+      "Document Number,Shipping Address,Line Id,Item,Description\r\n"
+      + "TEST-42,Line 1 Line 2,1,Widget,Blue Widget"
     );
     assert.equal(rawBodyFallbackCalls, 0);
     assert.equal(rawSublistFallbackCalls, 0);
