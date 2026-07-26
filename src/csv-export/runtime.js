@@ -35,7 +35,7 @@
     return;
   }
 
-  const RUNTIME_KEY = Symbol.for("SuiteMateV3.csvExport.runtime.v2");
+  const RUNTIME_KEY = Symbol.for("SuiteMateV3.csvExport.runtime.v3");
   if (globalScope[RUNTIME_KEY]) {
     return;
   }
@@ -46,6 +46,7 @@
   let statusTimer = null;
 
   const exportCommand = commandApi.IDS.RECORD_CSV_EXPORT;
+  const templateCommand = commandApi.IDS.RECORD_CSV_TEMPLATE;
   const commandScope = commandApi.createScope(commandApi.SURFACES.RECORD, {
     getContext: () => ({
       pageContext: routeApi.createPageContext(globalScope.location, {
@@ -62,8 +63,12 @@
     }
   });
 
-  function findExportLink() {
-    return globalScope.document.querySelector(core.ACTION_SELECTOR);
+  function findActionLink(mode) {
+    return globalScope.document.querySelector(
+      mode === "template"
+        ? core.TEMPLATE_ACTION_SELECTOR
+        : core.ACTION_SELECTOR
+    );
   }
 
   function clearStatus() {
@@ -110,12 +115,15 @@
     }
   }
 
-  function setBusy(busy) {
-    const link = findExportLink();
+  function setBusy(mode, busy) {
+    const link = findActionLink(mode);
     if (!link) {
       return;
     }
-    link.textContent = busy ? "Exporting..." : "Export";
+    const label = mode === "template" ? "Template" : "Export";
+    link.textContent = busy
+      ? mode === "template" ? "Preparing..." : "Exporting..."
+      : label;
     link.setAttribute("aria-busy", busy ? "true" : "false");
     link.setAttribute("aria-disabled", busy ? "true" : "false");
     link.style.pointerEvents = busy ? "none" : "";
@@ -124,6 +132,13 @@
 
   function showExportResult(result) {
     if (result.ok) {
+      if (result.mode === "template") {
+        showStatus(
+          `Downloaded ${result.columnCount}-column template to ${result.filename}.`,
+          "success"
+        );
+        return;
+      }
       const target = result.sublistId
         ? `${result.rowCount} ${result.sublistId} rows`
         : `${result.rowCount} record row`;
@@ -133,34 +148,40 @@
     }
   }
 
-  async function beginExport() {
-    setBusy(true);
+  async function beginExport(mode = "export") {
+    setBusy(mode, true);
     clearStatus();
     try {
       const response = await bridgeApi.request(
         bridgeApi.COMMANDS.RECORD_EXPORT_CSV,
-        {},
+        { mode },
         { timeoutMs: bridgeApi.MAX_TIMEOUT_MS }
       );
       const result = bridgeApi.toCommandResult(response);
       showExportResult(result);
       return result;
     } finally {
-      setBusy(false);
+      setBusy(mode, false);
     }
   }
 
   commandScope.register(exportCommand, {
-    run: beginExport
+    run: () => beginExport("export")
+  });
+  commandScope.register(templateCommand, {
+    run: () => beginExport("template")
   });
 
   const runtimeApi = Object.freeze({
-    VERSION: 2,
-    isAvailable() {
-      return commandScope.isAvailable(exportCommand);
+    VERSION: 3,
+    isAvailable(mode = "export") {
+      return commandScope.isAvailable(
+        mode === "template" ? templateCommand : exportCommand
+      );
     },
-    invoke() {
-      return commandScope.invoke(exportCommand, {}, {
+    invoke(mode = "export") {
+      const command = mode === "template" ? templateCommand : exportCommand;
+      return commandScope.invoke(command, {}, {
         source: commandApi.SOURCES.LINK
       });
     }

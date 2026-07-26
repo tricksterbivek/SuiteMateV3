@@ -6,7 +6,7 @@
     return;
   }
 
-  const INSTANCE_KEY = Symbol.for("SuiteMateV3.csvExport.mainWorld.v2");
+  const INSTANCE_KEY = Symbol.for("SuiteMateV3.csvExport.mainWorld.v3");
   if (globalScope[INSTANCE_KEY]) {
     return;
   }
@@ -448,7 +448,7 @@
     }
   }
 
-  async function runExport(recordModule, currentRecordModule) {
+  async function runExport(recordModule, currentRecordModule, mode = "export") {
     const currentRecord = currentRecordModule?.get?.();
     const recordId = currentRecord?.id;
     const recordType = String(currentRecord?.type ?? "").trim();
@@ -493,13 +493,20 @@
       throw error;
     }
 
-    const filename = getRecordFilename(recordRef);
-    downloadCsv(core.serializeCsv(matrix.rows), filename);
+    const recordFilename = getRecordFilename(recordRef);
+    const filename = mode === "template"
+      ? core.createTemplateFilename(recordFilename)
+      : recordFilename;
+    const downloadRows = mode === "template"
+      ? [matrix.rows[0]]
+      : matrix.rows;
+    downloadCsv(core.serializeCsv(downloadRows), filename);
     return Object.freeze({
       filename,
       recordType,
       sublistId,
-      rowCount: matrix.dataRowCount,
+      mode,
+      rowCount: mode === "template" ? 0 : matrix.dataRowCount,
       columnCount: matrix.columnCount
     });
   }
@@ -571,7 +578,11 @@
     activeRequestId = request.requestId;
     try {
       const { recordModule, currentRecordModule } = await loadSuiteScriptModules();
-      const result = await runExport(recordModule, currentRecordModule);
+      const result = await runExport(
+        recordModule,
+        currentRecordModule,
+        request.mode
+      );
       dispatchResult({
         ok: true,
         requestId: request.requestId,

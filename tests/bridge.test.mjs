@@ -50,7 +50,7 @@ const recordUrl = "https://123456.app.netsuite.com/app/accounting/transactions/s
 const importUrl = `https://123456.app.netsuite.com${routes.PATHS.IMPORT_ASSISTANT}?recordsubtype=salesorder`;
 
 test("exports one frozen versioned command registry", () => {
-  assert.equal(bridge.VERSION, 1);
+  assert.equal(bridge.VERSION, 2);
   assert.equal(bridge.MESSAGE_TYPE, "SUITEMATE_V3_NETSUITE_BRIDGE");
   assert.equal(bridge.RESPONSE_TYPE, "SUITEMATE_V3_NETSUITE_BRIDGE_RESPONSE");
   assert.deepEqual(plain(bridge.COMMANDS), {
@@ -190,7 +190,7 @@ test("reuses the same bridge API and reports its live protocol version", () => {
   const first = sandbox.SuiteMateV3Bridge;
   runInNewContext(bridgeSource, sandbox);
   assert.equal(sandbox.SuiteMateV3Bridge, first);
-  assert.equal(documentElement.dataset.suitemateV3Bridge, "1");
+  assert.equal(documentElement.dataset.suitemateV3Bridge, "2");
 });
 
 test("creates canonical requests and rejects malformed command payloads", () => {
@@ -202,7 +202,7 @@ test("creates canonical requests and rejects malformed command payloads", () => 
     )),
     {
       type: bridge.MESSAGE_TYPE,
-      version: 1,
+      version: 2,
       requestId: "query-1",
       command: "suiteql.start",
       payload: { query: "SELECT 1", paged: true }
@@ -222,7 +222,15 @@ test("creates canonical requests and rejects malformed command payloads", () => 
       {},
       { requestId: "record-export-1" }
     ).payload),
-    {}
+    { mode: "export" }
+  );
+  assert.deepEqual(
+    plain(bridge.createRequest(
+      bridge.COMMANDS.RECORD_EXPORT_CSV,
+      { mode: "template" },
+      { requestId: "record-template-1" }
+    ).payload),
+    { mode: "template" }
   );
   assert.throws(
     () => bridge.createRequest(
@@ -231,6 +239,14 @@ test("creates canonical requests and rejects malformed command payloads", () => 
       { requestId: "record-export-payload" }
     ),
     (error) => error.code === "UNEXPECTED_PAYLOAD_FIELD"
+  );
+  assert.throws(
+    () => bridge.createRequest(
+      bridge.COMMANDS.RECORD_EXPORT_CSV,
+      { mode: "all" },
+      { requestId: "record-export-mode" }
+    ),
+    (error) => error.code === "INVALID_CSV_EXPORT_MODE"
   );
   assert.throws(
     () => bridge.createRequest("record.delete", {}, { requestId: "blocked-1" }),
@@ -479,7 +495,7 @@ test("normalizes response envelopes and rejects stale or malformed responses", (
   );
   assert.equal(
     bridge.normalizeResponse(
-      { ...success, version: 2 },
+      { ...success, version: 3 },
       expected
     ).error.code,
     "INVALID_BRIDGE_RESPONSE"
@@ -518,6 +534,7 @@ test("validates bounded CSV Export response metadata", () => {
       filename: "SO-42.csv",
       recordType: "salesorder",
       sublistId: "item",
+      mode: "export",
       rowCount: 3,
       columnCount: 12
     }
@@ -528,6 +545,7 @@ test("validates bounded CSV Export response metadata", () => {
       filename: "SO-42.csv",
       recordType: "salesorder",
       sublistId: "item",
+      mode: "export",
       rowCount: 3,
       columnCount: 12,
       ok: true,
@@ -578,7 +596,7 @@ test("client request validates the response and forwards no extra fields", async
   );
   assert.deepEqual(sentMessage, {
     type: bridge.MESSAGE_TYPE,
-    version: 1,
+    version: 2,
     requestId: "record-client",
     command: "record.getType",
     payload: {}

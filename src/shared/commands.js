@@ -1,7 +1,7 @@
 (function defineSuiteMateV3Commands(globalScope) {
   "use strict";
 
-  const VERSION = 1;
+  const VERSION = 2;
   const utilityApi = globalScope.SuiteMateV3Utilities;
   const routeApi = globalScope.SuiteMateV3Routes;
   if (!utilityApi) {
@@ -43,6 +43,7 @@
     THEME_RESET_ROLE_COLORS: "theme.reset-role-colors",
     RECORD_CSV_IMPORT: "record.csv-import",
     RECORD_CSV_EXPORT: "record.csv-export",
+    RECORD_CSV_TEMPLATE: "record.csv-template",
     SUITEQL_EXECUTE: "suiteql.execute",
     SUITEQL_ABORT: "suiteql.abort",
     SUITEQL_TOGGLE_PAGED: "suiteql.toggle-paged",
@@ -346,6 +347,14 @@
       id: IDS.RECORD_CSV_EXPORT,
       label: "Export CSV",
       description: "Export the current NetSuite record as CSV",
+      surface: SURFACES.RECORD,
+      capability: routeApi?.CAPABILITIES?.CSV_EXPORT_RECORD ?? "csv-export-record",
+      requiresSettingsEnabled: true
+    },
+    {
+      id: IDS.RECORD_CSV_TEMPLATE,
+      label: "CSV Template",
+      description: "Download the current record CSV headers without data",
       surface: SURFACES.RECORD,
       capability: routeApi?.CAPABILITIES?.CSV_EXPORT_RECORD ?? "csv-export-record",
       requiresSettingsEnabled: true

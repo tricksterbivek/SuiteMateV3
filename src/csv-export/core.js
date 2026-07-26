@@ -1,11 +1,13 @@
 (function defineSuiteMateV3CsvExportCore(globalScope) {
   "use strict";
 
-  const VERSION = 2;
+  const VERSION = 3;
   const REQUEST_EVENT = "suitemate:v3:csv-export:request";
   const RESULT_EVENT = "suitemate:v3:csv-export:result";
   const ACTION_ID = "suitemate-v3-csv-utils-export";
   const ACTION_SELECTOR = '[data-suitemate-v3-action="csv-utils-export"]';
+  const TEMPLATE_ACTION_SELECTOR =
+    '[data-suitemate-v3-action="csv-utils-template"]';
   const REQUEST_ID_PATTERN = /^[a-z0-9][a-z0-9._:-]{7,99}$/i;
   const FORMULA_PREFIX = /^[\t\r\n ]*[=+\-@]/;
   const MAX_TEXT_LENGTH = 1000;
@@ -222,6 +224,11 @@
     return part.toLowerCase().endsWith(".csv") ? part : `${part}.csv`;
   }
 
+  function createTemplateFilename(value) {
+    const filename = createFilename(value);
+    return `${filename.slice(0, -4)}-template.csv`;
+  }
+
   function parseLocation(value) {
     try {
       if (typeof value === "string" || value instanceof URL) {
@@ -250,7 +257,14 @@
     ) {
       return null;
     }
-    return Object.freeze({ requestId: String(value.requestId) });
+    const mode = value.mode ?? "export";
+    if (!["export", "template"].includes(mode)) {
+      return null;
+    }
+    return Object.freeze({
+      requestId: String(value.requestId),
+      mode
+    });
   }
 
   function normalizeResultDetail(value, expectedRequestId = "") {
@@ -275,14 +289,24 @@
       });
     }
 
+    if (!["export", "template"].includes(value.mode)) {
+      return null;
+    }
     const rowCount = Number(value.rowCount);
     const columnCount = Number(value.columnCount);
+    if (
+      value.mode === "template"
+      && (!Number.isSafeInteger(rowCount) || rowCount !== 0)
+    ) {
+      return null;
+    }
     return Object.freeze({
       ok: true,
       requestId: String(value.requestId),
       filename: createFilename(value.filename),
       recordType: boundedText(value.recordType),
       sublistId: boundedText(value.sublistId),
+      mode: value.mode,
       rowCount: Number.isSafeInteger(rowCount) && rowCount >= 0 ? rowCount : 0,
       columnCount: Number.isSafeInteger(columnCount) && columnCount >= 0 ? columnCount : 0
     });
@@ -294,6 +318,7 @@
     RESULT_EVENT,
     ACTION_ID,
     ACTION_SELECTOR,
+    TEMPLATE_ACTION_SELECTOR,
     CANDIDATE_SUBLISTS,
     toCellText: safeValueToText,
     protectCsvValue,
@@ -303,6 +328,7 @@
     makeUniqueHeaders,
     sanitizeFilenamePart,
     createFilename,
+    createTemplateFilename,
     isExportableLocation,
     normalizeRequestDetail,
     normalizeResultDetail

@@ -192,13 +192,14 @@ function createMainWorldHarness(options = {}) {
 
 test("exports one frozen versioned CSV baseline core", () => {
   const core = createCore();
-  assert.equal(core.VERSION, 2);
+  assert.equal(core.VERSION, 3);
   assert.equal(Object.isFrozen(core), true);
   assert.equal(Object.isFrozen(core.CANDIDATE_SUBLISTS), true);
   assert.equal(core.toCellText({ raw: true }), "");
   assert.equal(core.toCellText(["A", "B"]), "A; B");
   assert.equal(core.REQUEST_EVENT, "suitemate:v3:csv-export:request");
   assert.equal(core.RESULT_EVENT, "suitemate:v3:csv-export:result");
+  assert.equal(core.createTemplateFilename("SO-42.csv"), "SO-42-template.csv");
 });
 
 test("limits CSV Export to saved record-like locations", () => {
@@ -292,8 +293,14 @@ test("validates event envelopes and renders only bounded result metadata", () =>
   const core = createCore();
   const requestId = "csv-12345678";
   assert.deepEqual(plain(core.normalizeRequestDetail({ requestId, extra: "ignored" })), {
-    requestId
+    requestId,
+    mode: "export"
   });
+  assert.deepEqual(
+    plain(core.normalizeRequestDetail({ requestId, mode: "template" })),
+    { requestId, mode: "template" }
+  );
+  assert.equal(core.normalizeRequestDetail({ requestId, mode: "all" }), null);
   assert.equal(core.normalizeRequestDetail({ requestId: "<script>" }), null);
   assert.deepEqual(
     plain(core.normalizeResultDetail({
@@ -302,7 +309,8 @@ test("validates event envelopes and renders only bounded result metadata", () =>
       filename: "../SO:42.csv",
       recordType: "salesorder",
       sublistId: "item",
-      rowCount: 2,
+      mode: "template",
+      rowCount: 0,
       columnCount: 4,
       html: "<img onerror=alert(1)>"
     }, requestId)),
@@ -312,9 +320,23 @@ test("validates event envelopes and renders only bounded result metadata", () =>
       filename: "SO-42.csv",
       recordType: "salesorder",
       sublistId: "item",
-      rowCount: 2,
+      mode: "template",
+      rowCount: 0,
       columnCount: 4
     }
+  );
+  assert.equal(
+    core.normalizeResultDetail({
+      ok: true,
+      requestId,
+      filename: "SO-42-template.csv",
+      recordType: "salesorder",
+      sublistId: "item",
+      mode: "template",
+      rowCount: 1,
+      columnCount: 4
+    }, requestId),
+    null
   );
   assert.equal(
     core.normalizeResultDetail({ ok: true, requestId: "csv-other123" }, requestId),
@@ -340,6 +362,7 @@ test("main-world baseline survives unsupported sublists and missing custom forms
     filename: "SO-42.csv",
     recordType: "salesorder",
     sublistId: "expense",
+    mode: "export",
     rowCount: 1,
     columnCount: 7
   });
@@ -354,6 +377,40 @@ test("main-world baseline survives unsupported sublists and missing custom forms
   );
   assert.match(BrowserUrl.created[0].parts[0], /"'=HYPERLINK\(""https:\/\/evil\.example""\)"/);
   assert.deepEqual(BrowserUrl.revoked, ["blob:test-1"]);
+});
+
+test("main-world template downloads the same headers without record rows", async () => {
+  const { sandbox, links } = createMainWorldHarness();
+  const core = sandbox.SuiteMateV3CsvExportCore;
+  const result = new Promise((resolveResult) => {
+    sandbox.addEventListener(core.RESULT_EVENT, (event) => resolveResult(event.detail), {
+      once: true
+    });
+  });
+
+  sandbox.dispatchEvent(new FakeCustomEvent(core.REQUEST_EVENT, {
+    detail: {
+      requestId: "csv-template-123456",
+      mode: "template"
+    }
+  }));
+  assert.deepEqual(plain(await result), {
+    ok: true,
+    requestId: "csv-template-123456",
+    filename: "SO-42-template.csv",
+    recordType: "salesorder",
+    sublistId: "expense",
+    mode: "template",
+    rowCount: 0,
+    columnCount: 7
+  });
+  assert.equal(links.length, 1);
+  assert.equal(links[0].download, "SO-42-template.csv");
+  assert.equal(
+    BrowserUrl.created[0].parts[0],
+    "\ufeffDocument Number,Record Internal ID,Record External ID,"
+    + "Customer Internal ID,Customer,Account,Memo"
+  );
 });
 
 test("golden quality cases reject internal fields, raw fallbacks, HTML controls, and multiline output", async () => {
@@ -479,6 +536,7 @@ test("golden quality cases reject internal fields, raw fallbacks, HTML controls,
       filename: "TEST-42.csv",
       recordType: fixture.recordType,
       sublistId: "item",
+      mode: "export",
       rowCount: 1,
       columnCount: qualityFixture.expectedHeaders.length - 2
     });
