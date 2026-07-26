@@ -4,7 +4,7 @@ This file records verified development baselines. New feature work must not begi
 
 ## v3.14.0: CSV Export Baseline
 
-Status: Verified
+Status: Automated verification complete; authenticated V3 retest required
 
 Date: 2026-07-26
 
@@ -32,8 +32,9 @@ Planned release: <https://github.com/tricksterbivek/SuiteMateV3/releases/tag/v3.
 - Focused route, command, request-envelope, CSV encoding, formula protection, missing-Custom-Form, unsupported-sublist, download and error tests.
 - `git diff --check`.
 - `npm audit --omit=dev` with zero vulnerabilities.
-- User-confirmed authenticated Chrome and NetSuite exports passed for Sales Order, Item Receipt and Purchase Order records.
-- User-confirmed downloaded CSV content looked correct for all three tested record families.
+- The submitted Sales Order, Item Receipt and Purchase Order CSVs were structurally valid, but byte-level inspection proved they came from the separately installed proof-of-concept exporter rather than SuiteMate V3.
+- Chrome inspection confirmed both exporters were active on the same Purchase Order page. The SuiteMate V3 action had `data-suitemate-v3-action="csv-export"` while the proof-of-concept action had `id="export_csv_file"`.
+- Authenticated SuiteMate V3 export verification therefore remains open and must be repeated with the proof-of-concept extension disabled.
 
 ### Restore
 
@@ -49,7 +50,7 @@ git switch main
 
 ### Next feature
 
-Review the three verified live exports and the baseline implementation, then select only the highest-value CSV Export improvement for the next divide-and-conquer iteration.
+Disable the separate proof-of-concept exporter, reload SuiteMate V3, repeat one authenticated export through the sole remaining action and verify the downloaded file signature before starting any improvement work.
 
 ## v3.13.0: Internal IDs Toolkit
 
