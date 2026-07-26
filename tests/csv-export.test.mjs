@@ -57,24 +57,28 @@ function createRecord(options = {}) {
   const lineCount = options.lineCount ?? 1;
   const bodyValues = {
     tranid: "SO/42",
-    entity: "Acme, Inc.",
+    entity: 7,
+    externalid: "EXT-SO-42",
     customform: "",
     custbody_hidden: "Hidden"
+  };
+  const bodyLabels = {
+    tranid: "Document Number",
+    entity: "Customer",
+    externalid: "External ID",
+    custbody_hidden: "Hidden custom body"
   };
   return {
     id: 42,
     type: "salesorder",
-    getFields: () => ["tranid", "entity", "custbody_hidden"],
-    getField: ({ fieldId }) => ({
-      id: fieldId,
-      label: {
-        tranid: "Document Number",
-        entity: "Customer",
-        custbody_hidden: "Hidden custom body"
-      }[fieldId]
-    }),
+    getFields: () => ["tranid", "entity", "externalid", "custbody_hidden"],
+    getField: ({ fieldId }) => bodyLabels[fieldId]
+      ? { id: fieldId, label: bodyLabels[fieldId] }
+      : null,
     getValue: ({ fieldId }) => bodyValues[fieldId] ?? "",
-    getText: ({ fieldId }) => bodyValues[fieldId] ?? "",
+    getText: ({ fieldId }) => fieldId === "entity"
+      ? "Acme, Inc."
+      : bodyValues[fieldId] ?? "",
     getLineCount: ({ sublistId: requested }) => {
       if (requested === "item") {
         throw new Error("Unsupported sublist");
@@ -188,7 +192,7 @@ function createMainWorldHarness(options = {}) {
 
 test("exports one frozen versioned CSV baseline core", () => {
   const core = createCore();
-  assert.equal(core.VERSION, 1);
+  assert.equal(core.VERSION, 2);
   assert.equal(Object.isFrozen(core), true);
   assert.equal(Object.isFrozen(core.CANDIDATE_SUBLISTS), true);
   assert.equal(core.toCellText({ raw: true }), "");
@@ -233,7 +237,29 @@ test("serializes RFC 4180 CSV and neutralizes spreadsheet formulas", () => {
       { label: "Amount", fieldId: "foreignamount" },
       { label: "Amount", fieldId: "amount" }
     ])),
-    ["Amount [amount]", "Amount [foreignamount]", "Amount [amount] 2"]
+    ["Amount", "Foreign Amount", "Amount 2"]
+  );
+  assert.deepEqual(
+    plain(core.makeUniqueHeaders([
+      { label: "Currency", fieldId: "currency", scope: "record" },
+      { label: "Currency", fieldId: "currency", scope: "item" },
+      { label: "Status", fieldId: "orderstatus", scope: "record" },
+      { label: "Internal ID", fieldId: "internalid", scope: "record" },
+      { label: "Billing Address", fieldId: "billaddress", scope: "record" },
+      {
+        label: "Billing Address",
+        fieldId: "billingaddress_text",
+        scope: "record"
+      }
+    ])),
+    [
+      "Record Currency",
+      "Item Currency",
+      "Order Status",
+      "Record Internal ID",
+      "Billing Address",
+      "Billing Address Text"
+    ]
   );
   assert.equal(core.createFilename("../../SO:42"), "SO-42.csv");
 });
@@ -253,6 +279,13 @@ test("removes columns that are blank across every exported row", () => {
     ]
   );
   assert.deepEqual(plain(core.removeEmptyColumns([])), []);
+  assert.deepEqual(
+    plain(core.removeEmptyColumns([
+      ["Required", "Unused"],
+      ["", ""]
+    ], [0])),
+    [["Required"], [""]]
+  );
 });
 
 test("validates event envelopes and renders only bounded result metadata", () => {
@@ -308,23 +341,27 @@ test("main-world baseline survives unsupported sublists and missing custom forms
     recordType: "salesorder",
     sublistId: "expense",
     rowCount: 1,
-    columnCount: 4
+    columnCount: 7
   });
   assert.equal(links.length, 1);
   assert.equal(links[0].download, "SO-42.csv");
   assert.equal(links[0].clicked, true);
   assert.equal(links[0].removed, true);
   assert.equal(BrowserUrl.created[0].type, "text/csv;charset=utf-8");
-  assert.match(BrowserUrl.created[0].parts[0], /^\ufeffDocument Number,Customer,Account,Memo/);
+  assert.match(
+    BrowserUrl.created[0].parts[0],
+    /^\ufeffDocument Number,Record Internal ID,Record External ID,Customer Internal ID,Customer,Account,Memo/
+  );
   assert.match(BrowserUrl.created[0].parts[0], /"'=HYPERLINK\(""https:\/\/evil\.example""\)"/);
   assert.deepEqual(BrowserUrl.revoked, ["blob:test-1"]);
 });
 
 test("golden quality cases reject internal fields, raw fallbacks, HTML controls, and multiline output", async () => {
-  assert.equal(qualityFixture.version, 1);
+  assert.equal(qualityFixture.version, 2);
   for (const fixture of qualityFixture.cases) {
     let rawBodyFallbackCalls = 0;
     let rawSublistFallbackCalls = 0;
+    let targetedItemIdCalls = 0;
     const uiOnlyFields = fixture.uiOnlyFieldIds.map((fieldId) => ({
       fieldId,
       label: "-",
@@ -396,7 +433,11 @@ test("golden quality cases reject internal fields, raw fallbacks, HTML controls,
           rawlinemetadata: "ERROR: Field 'rawlinemetadata' Not Found"
         }[fieldId] ?? "";
       },
-      getSublistValue: () => {
+      getSublistValue: ({ sublistId, fieldId }) => {
+        if (sublistId === "item" && fieldId === "item") {
+          targetedItemIdCalls += 1;
+          return 9001;
+        }
         rawSublistFallbackCalls += 1;
         return ["raw-line-must-not-export"];
       }
@@ -444,11 +485,13 @@ test("golden quality cases reject internal fields, raw fallbacks, HTML controls,
     const csv = BrowserUrl.created[0].parts[0].slice(1);
     assert.equal(
       csv,
-      "Document Number,Shipping Address,Line Id,Item,Description\r\n"
-      + "TEST-42,Line 1 Line 2,1,Widget,Blue Widget"
+      "Document Number,Record Internal ID,Shipping Address,Line ID,"
+      + "Item Internal ID,Item,Description\r\n"
+      + "TEST-42,42,Line 1 Line 2,1,9001,Widget,Blue Widget"
     );
     assert.equal(rawBodyFallbackCalls, 0);
     assert.equal(rawSublistFallbackCalls, 0);
+    assert.equal(targetedItemIdCalls, 1);
     for (const fieldId of [
       ...fixture.blockedBodyFieldIds,
       ...fixture.blockedLineFieldIds,
