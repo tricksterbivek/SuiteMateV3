@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8
 
 assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.name, "SuiteMate V3");
-assert.equal(manifest.version, "3.16.2");
+assert.equal(manifest.version, "3.16.3");
 assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
 assert.equal(
   Object.hasOwn(manifest, "optional_permissions"),
@@ -609,8 +609,10 @@ const csvImportStyles = await readFile(resolve(root, "src/record-actions/csv-imp
 assert.match(csvImportStyles, /--theme-secondary-light/, "CSV Utils does not use the active SuiteMate theme");
 assert.match(csvImportStyles, /--suitemate-radius-overlay/, "CSV Utils does not use the global overlay radius");
 assert.match(csvImportStyles, /:focus-visible/, "CSV Utils lacks a keyboard focus state");
-assert.match(csvImportStyles, /:focus-within/, "CSV Utils is not keyboard-openable");
-assert.match(csvImportStyles, /:hover>.suitemate-v3-csv-utils-dropdown/, "CSV Utils is not hover-openable");
+assert.match(csvImportStyles, /\[data-open=true\]>.suitemate-v3-csv-utils-dropdown/, "CSV Utils does not expose its explicit open state");
+assert.doesNotMatch(csvImportStyles, /:hover>.suitemate-v3-csv-utils-dropdown/, "CSV Utils still opens on hover");
+assert.doesNotMatch(csvImportStyles, /:focus-within>.suitemate-v3-csv-utils-dropdown/, "CSV Utils still opens on focus without activation");
+assert.doesNotMatch(csvImportSource, /addEventListener\("pointer(?:enter|leave)"/, "CSV Utils still binds hover-open listeners");
 
 const csvExportCoreSource = await readFile(resolve(root, "src/csv-export/core.js"), "utf8");
 const csvExportMainWorldSource = await readFile(resolve(root, "src/csv-export/main-world.js"), "utf8");

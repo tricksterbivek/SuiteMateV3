@@ -544,10 +544,29 @@ test("CSV Utils rejects stale installation and routes Import, Export and Templat
   const trigger = createdElements.find(
     (element) => element.dataset?.suitemateV3Action === "csv-utils-trigger"
   );
+  const parentItem = createdElements.find(
+    (element) => element.className === "ns-menuitem suitemate-v3-csv-utils-parent"
+  );
   assert.equal(importLink?.dataset.suitemateV3Command, "record.csv-import");
   assert.equal(exportLink?.dataset.suitemateV3Command, "record.csv-export");
   assert.equal(templateLink?.dataset.suitemateV3Command, "record.csv-template");
   assert.equal(trigger?.textContent, "CSV Utils");
+  assert.equal(parentItem?.listeners.pointerenter, undefined, "Hover must not open CSV Utils");
+  assert.equal(parentItem?.listeners.pointerleave, undefined, "Hover must not close CSV Utils");
+  assert.equal(parentItem?.dataset.open, "false");
+
+  let triggerPrevented = false;
+  trigger.listeners.click({
+    preventDefault() {
+      triggerPrevented = true;
+    }
+  });
+  assert.equal(triggerPrevented, true);
+  assert.equal(parentItem?.dataset.open, "true");
+  assert.equal(trigger?.attributes["aria-expanded"], "true");
+  trigger.listeners.click({ preventDefault() {} });
+  assert.equal(parentItem?.dataset.open, "false");
+  assert.equal(trigger?.attributes["aria-expanded"], "false");
 
   let prevented = false;
   importLink.listeners.click({

@@ -175,14 +175,6 @@
         parentItem.dataset.open !== "true"
       );
     });
-    parentItem.addEventListener("pointerenter", () => {
-      setMenuOpen(parentItem, trigger, true);
-    });
-    parentItem.addEventListener("pointerleave", () => {
-      if (!parentItem.contains(globalScope.document.activeElement)) {
-        setMenuOpen(parentItem, trigger, false);
-      }
-    });
     parentItem.addEventListener("focusout", (event) => {
       if (!parentItem.contains(event.relatedTarget)) {
         setMenuOpen(parentItem, trigger, false);
