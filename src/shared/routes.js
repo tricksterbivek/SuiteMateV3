@@ -4,6 +4,7 @@
   const CAPABILITIES = Object.freeze({
     GLOBAL_THEME: "global-theme",
     NOTIFICATIONS: "notifications",
+    INTERNAL_IDS: "internal-ids",
     CSV_IMPORT_TOOLBAR: "csv-import-toolbar",
     RECORD_TYPE_BRIDGE: "record-type-bridge",
     RECORD_METADATA_BRIDGE: "record-metadata-bridge",
@@ -261,6 +262,8 @@
       case CAPABILITIES.NOTIFICATIONS:
       case CAPABILITIES.SUITEQL_LAUNCH:
         return true;
+      case CAPABILITIES.INTERNAL_IDS:
+        return Boolean(context.path);
       case CAPABILITIES.CSV_IMPORT_TOOLBAR:
         return context.isTopFrame
           && Boolean(context.path)

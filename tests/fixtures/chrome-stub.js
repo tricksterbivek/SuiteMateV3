@@ -10,7 +10,8 @@
   let settings = {
     enabled: params.get("enabled") !== "false",
     mode: ["light", "dark", "system"].includes(params.get("mode")) ? params.get("mode") : "light",
-    squareCorners: params.get("squareCorners") === "true"
+    squareCorners: params.get("squareCorners") === "true",
+    showInternalIds: params.get("showInternalIds") === "true"
   };
   const roleKey = params.get("roleKey");
   const main = params.get("mainColor");

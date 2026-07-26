@@ -15,6 +15,7 @@
   const form = document.querySelector("#settings");
   const enabledInput = document.querySelector("#enabled");
   const squareCornersInput = document.querySelector("#squareCorners");
+  const showInternalIdsInput = document.querySelector("#showInternalIds");
   const roleTheme = document.querySelector("#roleTheme");
   const roleContextLabel = document.querySelector("#roleContext");
   const themeState = document.querySelector("#themeState");
@@ -406,11 +407,13 @@
     settingsReady = !settingsLocked;
     enabledInput.checked = currentSettings.enabled;
     squareCornersInput.checked = currentSettings.squareCorners;
+    showInternalIdsInput.checked = currentSettings.showInternalIds;
     document.querySelector(`input[name="mode"][value="${currentSettings.mode}"]`).checked = true;
     form.dataset.settingsLocked = String(settingsLocked);
     form.setAttribute("aria-disabled", String(settingsLocked || settingsTransferBusy || !currentSettings.enabled));
     form.setAttribute("aria-busy", String(settingsTransferBusy));
     enabledInput.disabled = settingsLocked || settingsTransferBusy;
+    showInternalIdsInput.disabled = settingsLocked || settingsTransferBusy;
     resetButton.disabled = settingsLocked || settingsTransferBusy;
 
     for (const input of form.querySelectorAll('fieldset input, #squareCorners')) {
@@ -425,7 +428,8 @@
     return {
       enabled: enabledInput.checked,
       mode: form.elements.mode.value,
-      squareCorners: squareCornersInput.checked
+      squareCorners: squareCornersInput.checked,
+      showInternalIds: showInternalIdsInput.checked
     };
   }
 

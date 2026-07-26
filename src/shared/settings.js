@@ -6,7 +6,7 @@
     return;
   }
   const STORAGE_KEY = "suiteMateV3Style";
-  const SCHEMA_VERSION = 1;
+  const SCHEMA_VERSION = 2;
   const LEGACY_SCHEMA_VERSION = 0;
   const MAX_SYNC_ITEM_BYTES = 7800;
   const INVALID_VERSION_CODE = "INVALID_SETTINGS_VERSION";
@@ -31,6 +31,7 @@
     enabled: true,
     mode: "light",
     squareCorners: false,
+    showInternalIds: false,
     roleThemes: Object.freeze({})
   });
 
@@ -123,6 +124,7 @@
       enabled: candidate.enabled !== false,
       mode: MODES.includes(candidate.mode) ? candidate.mode : DEFAULTS.mode,
       squareCorners: candidate.squareCorners === true,
+      showInternalIds: candidate.showInternalIds === true,
       roleThemes: normalizeRoleThemes(candidate.roleThemes)
     };
   }
@@ -133,6 +135,13 @@
       return {
         ...candidate,
         schemaVersion: 1
+      };
+    },
+    1(value) {
+      return {
+        ...value,
+        schemaVersion: 2,
+        showInternalIds: value.showInternalIds === true
       };
     }
   });

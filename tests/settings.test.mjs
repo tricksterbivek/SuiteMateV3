@@ -63,7 +63,7 @@ function createHarness(initialValue, options = {}) {
 test("exports a stable versioned schema and current defaults", () => {
   const { api } = createHarness();
   assert.equal(api.STORAGE_KEY, "suiteMateV3Style");
-  assert.equal(api.SCHEMA_VERSION, 1);
+  assert.equal(api.SCHEMA_VERSION, 2);
   assert.equal(api.DEFAULTS.schemaVersion, api.SCHEMA_VERSION);
 
   for (const value of [undefined, null, "invalid", 42, [], true]) {
@@ -93,10 +93,11 @@ test("migrates legacy appearance and role themes without changing their meaning"
 
   const migrated = api.migrate(legacy);
   assert.deepEqual(plain(migrated), {
-    schemaVersion: 1,
+    schemaVersion: 2,
     enabled: false,
     mode: "dark",
     squareCorners: true,
+    showInternalIds: false,
     roleThemes: {
       "9845683_SB2~11596~3~N": {
         name: "DBG Health (SB2) - Administrator",
@@ -113,25 +114,46 @@ test("migrates legacy appearance and role themes without changing their meaning"
   assert.equal(Object.hasOwn(legacy, "schemaVersion"), false, "Migration mutated the legacy object");
 });
 
+test("migrates schema 1 settings and preserves an explicit Internal IDs preference", () => {
+  const { api } = createHarness();
+  assert.deepEqual(plain(api.migrate({
+    schemaVersion: 1,
+    enabled: true,
+    mode: "dark",
+    squareCorners: false,
+    showInternalIds: true,
+    roleThemes: {}
+  })), {
+    schemaVersion: 2,
+    enabled: true,
+    mode: "dark",
+    squareCorners: false,
+    showInternalIds: true,
+    roleThemes: {}
+  });
+});
+
 test("repairs invalid declared settings while preserving valid role data", () => {
   const { api } = createHarness();
   const maliciousThemes = JSON.parse(
     '{"__proto__":{"main":"#111111"},"constructor":{"main":"#222222"},"valid":{"name":"   ","main":"nope","secondary":"#abc"}}'
   );
   const repaired = api.normalize({
-    schemaVersion: 1,
+    schemaVersion: 2,
     enabled: "false",
     mode: "sepia",
     squareCorners: 1,
+    showInternalIds: "yes",
     roleThemes: maliciousThemes,
     unknown: "removed"
   });
 
   assert.deepEqual(plain(repaired), {
-    schemaVersion: 1,
+    schemaVersion: 2,
     enabled: true,
     mode: "light",
     squareCorners: false,
+    showInternalIds: false,
     roleThemes: {
       valid: {
         name: "valid",
@@ -162,10 +184,11 @@ test("reads legacy settings in memory without producing migration writes", async
   const harness = createHarness({ enabled: false, mode: "system", squareCorners: true });
   const settings = await harness.api.get();
   assert.deepEqual(plain(settings), {
-    schemaVersion: 1,
+    schemaVersion: 2,
     enabled: false,
     mode: "system",
     squareCorners: true,
+    showInternalIds: false,
     roleThemes: {}
   });
   assert.equal(harness.reads, 1);
@@ -182,7 +205,7 @@ test("ensureCurrentSchema persists one canonical migration and then becomes idem
   });
 
   const first = await harness.api.ensureCurrentSchema();
-  assert.equal(first.schemaVersion, 1);
+  assert.equal(first.schemaVersion, 2);
   assert.equal(harness.writes.length, 1);
   assert.deepEqual(harness.storedValue, plain(first));
 
@@ -210,10 +233,11 @@ test("validateForStorage normalizes and enforces the same limit without writing"
   const harness = createHarness();
   const validated = harness.api.validateForStorage({ mode: "dark" });
   assert.deepEqual(plain(validated), {
-    schemaVersion: 1,
+    schemaVersion: 2,
     enabled: true,
     mode: "dark",
     squareCorners: false,
+    showInternalIds: false,
     roleThemes: {}
   });
   assert.equal(harness.reads, 0);
@@ -239,7 +263,7 @@ test("role operations preserve schema version and unrelated roles", () => {
 
 test("future settings cannot be read, migrated or overwritten by an older release", async () => {
   const future = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     enabled: false,
     futureFeature: { importantData: ["must", "survive"] }
   };
@@ -296,6 +320,7 @@ function harnessDefaults(schemaVersion) {
     enabled: true,
     mode: "light",
     squareCorners: false,
+    showInternalIds: false,
     roleThemes: {}
   };
 }

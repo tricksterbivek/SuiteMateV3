@@ -112,6 +112,19 @@
       throw transferError("SETTINGS_VERSION_MISMATCH", "The backup settings version does not match its metadata.");
     }
 
+    const legacySchemaKeys = {
+      1: ["schemaVersion", "enabled", "mode", "squareCorners", "roleThemes"]
+    };
+    if (
+      declaredSchemaVersion < settingsApi.SCHEMA_VERSION
+      && !hasOnlyKeys(value, legacySchemaKeys[declaredSchemaVersion] ?? [])
+    ) {
+      throw transferError(
+        "NON_CANONICAL_BACKUP_SETTINGS",
+        "The settings backup contains unsupported, missing or invalid fields."
+      );
+    }
+
     let normalized;
     try {
       normalized = settingsApi.validateForStorage(value);
@@ -124,7 +137,16 @@
       }
       throw transferError("INVALID_BACKUP_SETTINGS", "The settings backup contains invalid settings data.");
     }
-    if (!jsonEquivalent(value, normalized)) {
+    const comparable = declaredSchemaVersion === 1
+      ? {
+          schemaVersion: 1,
+          enabled: normalized.enabled,
+          mode: normalized.mode,
+          squareCorners: normalized.squareCorners,
+          roleThemes: normalized.roleThemes
+        }
+      : normalized;
+    if (!jsonEquivalent(value, comparable)) {
       throw transferError(
         "NON_CANONICAL_BACKUP_SETTINGS",
         "The settings backup contains unsupported, missing or invalid fields."

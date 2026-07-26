@@ -355,4 +355,4 @@ No foundation features remain. All `FND-01` through `FND-09` checkpoints are imp
 
 ## Current selected feature
 
-None. `SET-14` is complete and excluded from the active backlog. The next recommended candidate is `GEN-17`: Internal IDs toolkit.
+None from this inventory. `SET-14` and `GEN-17` are complete and excluded from the active backlog. The next active work is the external CSV Export proof-of-concept baseline requested for SuiteMate V3.
