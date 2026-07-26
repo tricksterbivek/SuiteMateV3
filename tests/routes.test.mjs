@@ -41,6 +41,7 @@ test("exports stable route and capability constants", () => {
   assert.equal(PATHS.IMPORT_ASSISTANT, "/app/setup/assistants/nsimport/importassistant.nl");
   assert.equal(CAPABILITIES.GLOBAL_THEME, "global-theme");
   assert.equal(CAPABILITIES.INTERNAL_IDS, "internal-ids");
+  assert.equal(CAPABILITIES.CSV_EXPORT_RECORD, "csv-export-record");
   assert.equal(CAPABILITIES.SUITEQL_BRIDGE, "suiteql-bridge");
   assert.equal(CAPABILITIES.SEARCH_QUERY_BRIDGE, "search-query-bridge");
   assert.equal(CAPABILITIES.RECORD_METADATA_BRIDGE, "record-metadata-bridge");
@@ -218,6 +219,36 @@ test("preserves the broad CSV Import route probe while excluding known non-recor
   }
   assert.equal(
     routes.supports(CAPABILITIES.CSV_IMPORT_TOOLBAR, page("/app/accounting/transactions/salesord.nl", { isTopFrame: false })),
+    false
+  );
+});
+
+test("limits CSV Export to saved top-frame records with a numeric ID", () => {
+  for (const path of [
+    "/app/accounting/transactions/salesord.nl?id=1",
+    "/app/common/item/item.nl?id=2&e=T",
+    "/app/common/custom/custrecordentry.nl?id=3",
+    "/app/uncommon/customrecordtool.nl?id=4"
+  ]) {
+    assert.equal(routes.supports(CAPABILITIES.CSV_EXPORT_RECORD, page(path)), true, path);
+  }
+
+  for (const path of [
+    "/app/accounting/transactions/salesord.nl",
+    "/app/accounting/transactions/salesord.nl?id=-1",
+    "/app/accounting/transactions/salesord.nl?id=fixture",
+    "/app/common/custom/custlist.nl?id=9",
+    `${PATHS.SUITEQL_CONSOLE}?suiteql&id=1`,
+    `${PATHS.SAVED_SEARCH_RESULTS}?id=1`,
+    `${PATHS.IMPORT_ASSISTANT}?id=1`
+  ]) {
+    assert.equal(routes.supports(CAPABILITIES.CSV_EXPORT_RECORD, page(path)), false, path);
+  }
+  assert.equal(
+    routes.supports(
+      CAPABILITIES.CSV_EXPORT_RECORD,
+      page("/app/accounting/transactions/salesord.nl?id=1", { isTopFrame: false })
+    ),
     false
   );
 });

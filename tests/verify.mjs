@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8
 
 assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.name, "SuiteMate V3");
-assert.equal(manifest.version, "3.13.0");
+assert.equal(manifest.version, "3.14.0");
 assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
 assert.equal(
   Object.hasOwn(manifest, "optional_permissions"),
@@ -44,17 +44,34 @@ assert.deepEqual(globalThemeContentScript.js, [
   "src/shared/lifecycle.js",
   "src/shared/settings.js",
   "src/internal-ids/core.js",
+  "src/csv-export/core.js",
   "src/runtime/theme-runtime.js",
   "src/runtime/notification-runtime.js",
   "src/record-actions/core.js",
   "src/internal-ids/runtime.js",
-  "src/record-actions/csv-import.js"
+  "src/record-actions/csv-import.js",
+  "src/csv-export/runtime.js"
 ]);
 assert.equal(
   globalThemeContentScript.js.includes("src/shared/permissions.js"),
   false,
   "The optional permission broker is unnecessarily injected into NetSuite pages"
 );
+const csvExportMainWorldScript = manifest.content_scripts.find((entry) =>
+  entry.world === "MAIN" && entry.js?.includes("src/csv-export/main-world.js")
+);
+assert.ok(csvExportMainWorldScript, "The CSV Export main-world adapter is missing");
+assert.deepEqual(csvExportMainWorldScript.matches, ["https://*.netsuite.com/*"]);
+assert.deepEqual(csvExportMainWorldScript.exclude_matches, [
+  "https://www.netsuite.com/*",
+  "https://*.extforms.netsuite.com/*"
+]);
+assert.deepEqual(csvExportMainWorldScript.js, [
+  "src/csv-export/core.js",
+  "src/csv-export/main-world.js"
+]);
+assert.equal(csvExportMainWorldScript.run_at, "document_start");
+assert.equal(csvExportMainWorldScript.all_frames, false);
 const suiteqlContentScript = manifest.content_scripts.find((entry) =>
   entry.js?.includes("dist/suiteql-studio.js")
 );
@@ -279,6 +296,7 @@ assert.equal(commandApi.VERSION, 1);
 assert.equal(commandApi.IDS.SUITEQL_EXECUTE, "suiteql.execute");
 assert.equal(commandApi.IDS.POPUP_OPEN_SUITEQL, "popup.open-suiteql");
 assert.equal(commandApi.IDS.RECORD_CSV_IMPORT, "record.csv-import");
+assert.equal(commandApi.IDS.RECORD_CSV_EXPORT, "record.csv-export");
 assert.equal(commandApi.IDS.SETTINGS_EXPORT_BACKUP, "settings.export-backup");
 assert.equal(commandApi.IDS.SETTINGS_IMPORT_BACKUP, "settings.import-backup");
 assert.equal(Object.isFrozen(commandApi.DEFINITIONS), true);
@@ -586,6 +604,24 @@ const csvImportStyles = await readFile(resolve(root, "src/record-actions/csv-imp
 assert.match(csvImportStyles, /--theme-secondary-light/, "CSV Import does not use the active SuiteMate theme");
 assert.match(csvImportStyles, /--suitemate-radius-compact/, "CSV Import does not use the global radius system");
 assert.match(csvImportStyles, /:focus-visible/, "CSV Import lacks a keyboard focus state");
+
+const csvExportCoreSource = await readFile(resolve(root, "src/csv-export/core.js"), "utf8");
+const csvExportMainWorldSource = await readFile(resolve(root, "src/csv-export/main-world.js"), "utf8");
+const csvExportRuntimeSource = await readFile(resolve(root, "src/csv-export/runtime.js"), "utf8");
+assert.match(csvExportCoreSource, /FORMULA_PREFIX/, "CSV Export does not neutralize spreadsheet formulas");
+assert.match(csvExportCoreSource, /join\("\\r\\n"\)/, "CSV Export does not generate RFC 4180 line endings");
+assert.match(csvExportMainWorldSource, /\["N\/record", "N\/currentRecord"\]/, "CSV Export does not use the proof-of-concept record APIs");
+assert.match(csvExportMainWorldSource, /recordModule\.load\.promise/, "CSV Export does not use supported asynchronous record loading");
+assert.match(csvExportMainWorldSource, /revokeObjectURL/, "CSV Export leaks Blob download URLs");
+assert.match(csvExportRuntimeSource, /applyMetadata\(link, exportCommand/, "CSV Export does not use shared command metadata");
+assert.match(csvExportRuntimeSource, /lifecycleApi\.register/, "CSV Export bypasses the shared observer lifecycle");
+assert.match(csvExportRuntimeSource, /textContent = String\(message/, "CSV Export status renders untrusted HTML");
+assert.doesNotMatch(csvExportRuntimeSource, /new MutationObserver|innerHTML/, "CSV Export owns an observer or renders arbitrary HTML");
+assert.doesNotMatch(
+  `${csvExportCoreSource}\n${csvExportMainWorldSource}\n${csvExportRuntimeSource}`,
+  /chrome\.storage\.(?:sync|local)\.(?:set|remove)|localStorage|sessionStorage|fetch\(|XMLHttpRequest/,
+  "CSV Export persists record data or makes external requests"
+);
 
 const salesOrderFixtureSource = await readFile(resolve(root, "tests/fixtures/sales-order.html"), "utf8");
 assert.match(salesOrderFixtureSource, /id="main_form"[\s\S]*?id="baserecordtype"[^>]+value="salesorder"/, "The CSV Import fixture lacks record context");
@@ -1775,5 +1811,5 @@ for (const [file, expectedHash] of Object.entries(expectedStyleHashes)) {
 }
 
 console.log(
-  `Verified ${referencedFiles.size} manifest resources, the route registry, the typed NetSuite bridge, the observer lifecycle, ${Object.keys(expectedStyleHashes).length} V1 style hashes, role themes, CSV Import, and SuiteQL Core behavior.`
+  `Verified ${referencedFiles.size} manifest resources, the route registry, the typed NetSuite bridge, the observer lifecycle, ${Object.keys(expectedStyleHashes).length} V1 style hashes, role themes, CSV Import, CSV Export, and SuiteQL Core behavior.`
 );

@@ -173,6 +173,24 @@ The styling foundation is not complete because the extension loads. It is comple
 - Export and re-import settings, including a schema 1 V3 backup, and confirm the Internal IDs setting migrates safely.
 - Confirm browser logs contain no SuiteMate Internal IDs errors after record, Saved Search, list, customization and framed-content checks.
 
+## CSV Export baseline pass
+
+- Reload the unpacked extension and open a saved Sales Order with at least two item lines.
+- Confirm one `Export CSV` item appears in the native record menu and no duplicate appears after opening subtabs or dynamically refreshing record content.
+- Select Export CSV and confirm its label changes to Exporting CSV while NetSuite loads the record.
+- Confirm the browser downloads one CSV named from the transaction number, record name or internal ID.
+- Open the CSV and confirm body fields repeat on each exported line and the first populated supported sublist supplies the line columns.
+- Confirm commas, double quotes and line breaks are RFC 4180 encoded, row endings are CRLF and the file opens as UTF-8.
+- Test a text value beginning with `=`, `+`, `-` or `@` and confirm the exported string is neutralized before opening it in a spreadsheet.
+- Test a record without a Custom Form value and confirm it still exports using native record field metadata.
+- Test a record type where one candidate sublist is unsupported and confirm SuiteMate continues to the next candidate instead of aborting.
+- Confirm a success message reports the filename and exported row count.
+- Force a role-permission or record-load failure and confirm a readable error appears without leaving Export CSV disabled.
+- Confirm new, unsaved records, Custom List pages, Saved Search results, SuiteQL Console and child frames do not show the action.
+- Disable SuiteMate from the popup and confirm the action disappears. Re-enable SuiteMate and confirm one action returns.
+- Confirm the export writes no record data to Chrome storage and makes no external request.
+- Confirm temporary Blob URLs are revoked and browser logs contain no SuiteMate CSV Export error after a successful run.
+
 ## Regression fixture pass
 
 - Run `npm run fixtures:verify` and require all 26 screenshot comparisons to remain within the one-percent visual threshold.
