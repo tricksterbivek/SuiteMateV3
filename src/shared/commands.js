@@ -42,6 +42,7 @@
     THEME_SWAP_COLORS: "theme.swap-colors",
     THEME_RESET_ROLE_COLORS: "theme.reset-role-colors",
     RECORD_CSV_IMPORT: "record.csv-import",
+    RECORD_CSV_EXPORT: "record.csv-export",
     SUITEQL_EXECUTE: "suiteql.execute",
     SUITEQL_ABORT: "suiteql.abort",
     SUITEQL_TOGGLE_PAGED: "suiteql.toggle-paged",
@@ -340,6 +341,14 @@
       capability: routeApi?.CAPABILITIES?.CSV_IMPORT_TOOLBAR ?? "csv-import-toolbar",
       requiresSettingsEnabled: true,
       link: {}
+    },
+    {
+      id: IDS.RECORD_CSV_EXPORT,
+      label: "Export CSV",
+      description: "Export the current NetSuite record as CSV",
+      surface: SURFACES.RECORD,
+      capability: routeApi?.CAPABILITIES?.CSV_EXPORT_RECORD ?? "csv-export-record",
+      requiresSettingsEnabled: true
     },
     {
       id: IDS.SUITEQL_EXECUTE,

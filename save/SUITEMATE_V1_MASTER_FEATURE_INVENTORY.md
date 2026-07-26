@@ -355,4 +355,4 @@ No foundation features remain. All `FND-01` through `FND-09` checkpoints are imp
 
 ## Current selected feature
 
-None from this inventory. `SET-14` and `GEN-17` are complete and excluded from the active backlog. The next active work is the external CSV Export proof-of-concept baseline requested for SuiteMate V3.
+CSV Export baseline from `/Users/Bivek.Shah/Downloads/Concept for CSV EXPORT`. This is external proof-of-concept work rather than a pending V1 inventory item. The baseline is implemented on its feature branch and is awaiting authenticated Chrome and NetSuite smoke testing before checkpoint release.

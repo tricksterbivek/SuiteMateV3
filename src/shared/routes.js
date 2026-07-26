@@ -6,6 +6,7 @@
     NOTIFICATIONS: "notifications",
     INTERNAL_IDS: "internal-ids",
     CSV_IMPORT_TOOLBAR: "csv-import-toolbar",
+    CSV_EXPORT_RECORD: "csv-export-record",
     RECORD_TYPE_BRIDGE: "record-type-bridge",
     RECORD_METADATA_BRIDGE: "record-metadata-bridge",
     SEARCH_QUERY_BRIDGE: "search-query-bridge",
@@ -267,6 +268,12 @@
       case CAPABILITIES.CSV_IMPORT_TOOLBAR:
         return context.isTopFrame
           && Boolean(context.path)
+          && !CSV_IMPORT_EXCLUDED_ROUTES.has(context.routeId);
+      case CAPABILITIES.CSV_EXPORT_RECORD:
+        return context.isTopFrame
+          && Boolean(context.path)
+          && /^[1-9]\d*$/.test(getParam(context, "id") ?? "")
+          && !context.path.toLowerCase().endsWith("/custlist.nl")
           && !CSV_IMPORT_EXCLUDED_ROUTES.has(context.routeId);
       case CAPABILITIES.RECORD_TYPE_BRIDGE:
       case CAPABILITIES.RECORD_METADATA_BRIDGE:

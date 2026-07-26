@@ -55,14 +55,32 @@
         "src/shared/lifecycle.js",
         "src/shared/settings.js",
         "src/internal-ids/core.js",
+        "src/csv-export/core.js",
         "src/runtime/theme-runtime.js",
         "src/runtime/notification-runtime.js",
         "src/record-actions/core.js",
         "src/internal-ids/runtime.js",
-        "src/record-actions/csv-import.js"
+        "src/record-actions/csv-import.js",
+        "src/csv-export/runtime.js"
       ],
       "run_at": "document_start",
       "all_frames": true
+    },
+    {
+      "matches": [
+        "https://*.netsuite.com/*"
+      ],
+      "exclude_matches": [
+        "https://www.netsuite.com/*",
+        "https://*.extforms.netsuite.com/*"
+      ],
+      "js": [
+        "src/csv-export/core.js",
+        "src/csv-export/main-world.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false,
+      "world": "MAIN"
     },
     {
       "matches": [

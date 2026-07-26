@@ -287,6 +287,27 @@ test("enforces route capability and settings availability from one descriptor", 
     false
   );
   assert.equal(
+    commands.isSupported(commands.IDS.RECORD_CSV_EXPORT, {
+      pageContext: record,
+      settings: { enabled: true }
+    }),
+    true
+  );
+  assert.equal(
+    commands.isSupported(commands.IDS.RECORD_CSV_EXPORT, {
+      pageContext: record,
+      settings: { enabled: false }
+    }),
+    false
+  );
+  assert.equal(
+    commands.isSupported(commands.IDS.RECORD_CSV_EXPORT, {
+      pageContext: childRecord,
+      settings: { enabled: true }
+    }),
+    false
+  );
+  assert.equal(
     commands.isSupported(commands.IDS.RECORD_CSV_IMPORT, {
       pageContext: record
     }),
