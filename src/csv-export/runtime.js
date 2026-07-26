@@ -2,12 +2,14 @@
   "use strict";
 
   const commandApi = globalScope.SuiteMateV3Commands;
+  const bridgeApi = globalScope.SuiteMateV3Bridge;
   const core = globalScope.SuiteMateV3CsvExportCore;
   const lifecycleApi = globalScope.SuiteMateV3Lifecycle;
   const routeApi = globalScope.SuiteMateV3Routes;
   const settingsApi = globalScope.SuiteMateV3Settings;
   if (
     !commandApi
+    || !bridgeApi
     || !core
     || !lifecycleApi
     || !routeApi
@@ -15,6 +17,7 @@
     || !globalScope.document
     || !globalScope.location
     || !globalScope.chrome?.storage
+    || !globalScope.chrome?.runtime
   ) {
     return;
   }
@@ -43,10 +46,8 @@
     "ul"
   ].join(" ");
   const STATUS_SELECTOR = '[data-suitemate-v3-action="csv-export-status"]';
-  const EXPORT_TIMEOUT_MS = 120000;
   let currentSettings = null;
   let settingsRevision = 0;
-  let pending = null;
   let actionLink = null;
   let statusTimer = null;
 
@@ -66,14 +67,6 @@
       );
     }
   });
-
-  function createRequestId() {
-    try {
-      return `csv-${globalScope.crypto.randomUUID()}`;
-    } catch {
-      return `csv-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
-    }
-  }
 
   function findMenu() {
     for (const id of MENU_IDS) {
@@ -141,23 +134,7 @@
     actionLink.style.opacity = busy ? "0.6" : "";
   }
 
-  function finishPending(result) {
-    if (!pending || result.requestId !== pending.requestId) {
-      return false;
-    }
-    globalScope.clearTimeout(pending.timer);
-    const resolve = pending.resolve;
-    pending = null;
-    setBusy(false);
-    resolve(result);
-    return true;
-  }
-
-  function handleResult(event) {
-    const result = core.normalizeResultDetail(event?.detail, pending?.requestId);
-    if (!result || !finishPending(result)) {
-      return;
-    }
+  function showExportResult(result) {
     if (result.ok) {
       const target = result.sublistId
         ? `${result.rowCount} ${result.sublistId} rows`
@@ -168,38 +145,21 @@
     }
   }
 
-  function beginExport() {
-    if (pending) {
-      return Promise.reject(new Error("Another CSV export is already running."));
-    }
-    const requestId = createRequestId();
+  async function beginExport() {
     setBusy(true);
     clearStatus();
-
-    return new Promise((resolve) => {
-      const timer = globalScope.setTimeout(() => {
-        if (!pending || pending.requestId !== requestId) {
-          return;
-        }
-        pending = null;
-        setBusy(false);
-        const result = Object.freeze({
-          ok: false,
-          requestId,
-          error: Object.freeze({
-            code: "CSV_EXPORT_TIMEOUT",
-            message: "NetSuite did not finish the CSV export within two minutes."
-          })
-        });
-        showStatus(result.error.message, "error");
-        resolve(result);
-      }, EXPORT_TIMEOUT_MS);
-
-      pending = { requestId, resolve, timer };
-      globalScope.dispatchEvent(new globalScope.CustomEvent(core.REQUEST_EVENT, {
-        detail: { requestId }
-      }));
-    });
+    try {
+      const response = await bridgeApi.request(
+        bridgeApi.COMMANDS.RECORD_EXPORT_CSV,
+        {},
+        { timeoutMs: bridgeApi.MAX_TIMEOUT_MS }
+      );
+      const result = bridgeApi.toCommandResult(response);
+      showExportResult(result);
+      return result;
+    } finally {
+      setBusy(false);
+    }
   }
 
   commandScope.register(exportCommand, {
@@ -267,20 +227,6 @@
   function cleanup() {
     document.querySelectorAll(core.ACTION_SELECTOR).forEach((element) => element.remove());
     actionLink = null;
-    if (pending) {
-      globalScope.clearTimeout(pending.timer);
-      const resolve = pending.resolve;
-      const requestId = pending.requestId;
-      pending = null;
-      resolve(Object.freeze({
-        ok: false,
-        requestId,
-        error: Object.freeze({
-          code: "CSV_EXPORT_DISPOSED",
-          message: "The CSV export page was closed before completion."
-        })
-      }));
-    }
     clearStatus();
   }
 
@@ -317,7 +263,6 @@
     }
   }
 
-  globalScope.addEventListener(core.RESULT_EVENT, handleResult);
   globalScope.chrome.storage.onChanged.addListener((changes, areaName) => {
     const settingsChange = changes[settingsApi.STORAGE_KEY];
     if (areaName !== "sync" || !settingsChange) {
@@ -340,7 +285,6 @@
   globalScope.addEventListener("pagehide", (event) => {
     if (!event.persisted) {
       commandScope.dispose();
-      globalScope.removeEventListener(core.RESULT_EVENT, handleResult);
     }
   });
 
