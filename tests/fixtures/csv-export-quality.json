@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "cases": [
     {
       "recordType": "purchaseorder",
@@ -50,18 +50,22 @@
   ],
   "expectedHeaders": [
     "Document Number",
+    "Record Internal ID",
     "Shipping Address",
     "Raw Metadata",
-    "Line Id",
+    "Line ID",
+    "Item Internal ID",
     "Item",
     "Description",
     "Raw Line Metadata"
   ],
   "expectedRow": [
     "TEST-42",
+    "42",
     "Line 1 Line 2",
     "",
     "1",
+    "9001",
     "Widget",
     "Blue Widget",
     ""

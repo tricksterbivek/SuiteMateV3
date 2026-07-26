@@ -621,10 +621,25 @@ const csvExportBodyValueSource = csvExportMainWorldSource.match(
   /function safeTextValue[\s\S]*?\n  }\n\n  function safeSublistTextValue/
 )?.[0] ?? "";
 const csvExportLineValueSource = csvExportMainWorldSource.match(
-  /function safeSublistTextValue[\s\S]*?\n  }\n\n  function normalizeDescriptor/
+  /function safeSublistTextValue[\s\S]*?\n  }\n\n  function safeIdentifierValue/
 )?.[0] ?? "";
 assert.doesNotMatch(csvExportBodyValueSource, /getValue/, "CSV Export body text falls back to raw values");
 assert.doesNotMatch(csvExportLineValueSource, /getSublistValue/, "CSV Export line text falls back to raw values");
+assert.match(
+  csvExportMainWorldSource,
+  /safeIdentifierValue\(recordRef, "externalid"\)/,
+  "CSV Export does not include the targeted record External ID"
+);
+assert.match(
+  csvExportMainWorldSource,
+  /safeIdentifierValue\(recordRef, "entity"\)/,
+  "CSV Export does not include the targeted entity Internal ID"
+);
+assert.match(
+  csvExportMainWorldSource,
+  /sourceFieldId: "item"[\s\S]*?valueMode: "identifier"/,
+  "CSV Export does not include the targeted item Internal ID"
+);
 assert.match(csvExportMainWorldSource, /revokeObjectURL/, "CSV Export leaks Blob download URLs");
 assert.match(csvExportRuntimeSource, /csvExport\.runtime\.v2/, "CSV Export does not expose its isolated runtime contract");
 assert.match(csvExportRuntimeSource, /commandScope\.invoke\(exportCommand/, "CSV Export bypasses command authority");

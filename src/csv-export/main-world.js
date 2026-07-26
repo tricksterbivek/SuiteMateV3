@@ -6,7 +6,7 @@
     return;
   }
 
-  const INSTANCE_KEY = Symbol.for("SuiteMateV3.csvExport.mainWorld.v1");
+  const INSTANCE_KEY = Symbol.for("SuiteMateV3.csvExport.mainWorld.v2");
   if (globalScope[INSTANCE_KEY]) {
     return;
   }
@@ -52,7 +52,21 @@
     return normalizeDisplayText(text);
   }
 
-  function normalizeDescriptor(fieldId, label) {
+  function safeIdentifierValue(recordRef, fieldId) {
+    return normalizeDisplayText(safeCall(
+      () => recordRef.getValue({ fieldId }),
+      ""
+    )).trim();
+  }
+
+  function safeSublistIdentifierValue(recordRef, sublistId, fieldId, line) {
+    return normalizeDisplayText(safeCall(
+      () => recordRef.getSublistValue({ sublistId, fieldId, line }),
+      ""
+    )).trim();
+  }
+
+  function normalizeDescriptor(fieldId, label, scope = "") {
     const normalizedId = String(fieldId ?? "").trim().toLowerCase();
     const normalizedLabel = String(label ?? "").trim();
     if (
@@ -66,7 +80,8 @@
     }
     return {
       fieldId: normalizedId,
-      label: normalizedLabel
+      label: normalizedLabel,
+      scope: String(scope ?? "").trim().toLowerCase()
     };
   }
 
@@ -143,7 +158,10 @@
         ? recordSublistId && recordHasSublistField(recordRef, recordSublistId, descriptor.fieldId)
         : recordHasField(recordRef, descriptor.fieldId);
       if (exists) {
-        fields.push(descriptor);
+        fields.push({
+          ...descriptor,
+          scope: sublistId === "col" ? recordSublistId : "record"
+        });
       }
     }
     return fields;
@@ -162,7 +180,11 @@
       const field = sublistId
         ? safeCall(() => recordRef.getSublistField({ sublistId, fieldId, line: 0 }), null)
         : safeCall(() => recordRef.getField({ fieldId }), null);
-      const descriptor = normalizeDescriptor(field?.id ?? fieldId, field?.label);
+      const descriptor = normalizeDescriptor(
+        field?.id ?? fieldId,
+        field?.label,
+        sublistId || "record"
+      );
       if (descriptor) {
         fields.push(descriptor);
       }
@@ -189,6 +211,81 @@
       seen.add(descriptor.fieldId);
       return true;
     });
+  }
+
+  function createRecordIdentifierFields(recordRef) {
+    const fields = [{
+      fieldId: "internalid",
+      label: "Record Internal ID",
+      scope: "record",
+      value: normalizeDisplayText(recordRef.id).trim(),
+      alwaysInclude: true
+    }];
+
+    if (recordHasField(recordRef, "externalid")) {
+      fields.push({
+        fieldId: "externalid",
+        label: "Record External ID",
+        scope: "record",
+        value: safeIdentifierValue(recordRef, "externalid"),
+        alwaysInclude: true
+      });
+    }
+
+    const entityField = safeCall(
+      () => recordRef.getField({ fieldId: "entity" }),
+      null
+    );
+    if (entityField) {
+      const entityLabel = String(entityField.label ?? "").trim();
+      const subject = /customer/i.test(entityLabel)
+        ? "Customer"
+        : /supplier/i.test(entityLabel)
+          ? "Supplier"
+          : /vendor/i.test(entityLabel)
+            ? "Vendor"
+            : "Entity";
+      fields.push({
+        fieldId: "entityinternalid",
+        label: `${subject} Internal ID`,
+        scope: "record",
+        value: safeIdentifierValue(recordRef, "entity"),
+        alwaysInclude: true
+      });
+    }
+    return fields;
+  }
+
+  function createItemIdentifierField(recordRef, sublistId) {
+    if (
+      sublistId !== "item"
+      || !recordHasSublistField(recordRef, sublistId, "item")
+    ) {
+      return [];
+    }
+    return [{
+      fieldId: "iteminternalid",
+      sourceFieldId: "item",
+      label: "Item Internal ID",
+      scope: sublistId,
+      valueMode: "identifier",
+      alwaysInclude: true
+    }];
+  }
+
+  function prioritizeBodyFields(fields) {
+    const primaryIds = new Set(["tranid", "name", "entityid"]);
+    const identifierIds = new Set([
+      "internalid",
+      "externalid",
+      "entityinternalid"
+    ]);
+    return [
+      ...fields.filter(({ fieldId }) => primaryIds.has(fieldId)),
+      ...fields.filter(({ fieldId }) => identifierIds.has(fieldId)),
+      ...fields.filter(({ fieldId }) =>
+        !primaryIds.has(fieldId) && !identifierIds.has(fieldId))
+    ];
   }
 
   async function loadRecord(recordModule, options) {
@@ -265,14 +362,21 @@
 
   function buildCsvMatrix(recordRef, bodyFields, sublistId, lineCount, sublistFields) {
     const fields = sublistId
-      ? [...bodyFields, { label: "Line Id", fieldId: "line" }, ...sublistFields]
+      ? [
+        ...bodyFields,
+        { label: "Line ID", fieldId: "line", scope: sublistId },
+        ...sublistFields
+      ]
       : bodyFields;
     const headers = core.makeUniqueHeaders(fields);
+    const alwaysIncludeIndexes = fields
+      .map((field, index) => field.alwaysInclude ? index : -1)
+      .filter((index) => index >= 0);
     const rows = [headers];
 
     if (!sublistId) {
       rows.push(bodyFields.map(({ value }) => value));
-      const populatedRows = core.removeEmptyColumns(rows);
+      const populatedRows = core.removeEmptyColumns(rows, alwaysIncludeIndexes);
       return {
         rows: populatedRows,
         dataRowCount: 1,
@@ -284,11 +388,23 @@
       rows.push([
         ...bodyFields.map(({ value }) => value),
         safeSublistTextValue(recordRef, sublistId, "line", line),
-        ...sublistFields.map(({ fieldId }) =>
-          safeSublistTextValue(recordRef, sublistId, fieldId, line))
+        ...sublistFields.map((field) =>
+          field.valueMode === "identifier"
+            ? safeSublistIdentifierValue(
+              recordRef,
+              sublistId,
+              field.sourceFieldId || field.fieldId,
+              line
+            )
+            : safeSublistTextValue(
+              recordRef,
+              sublistId,
+              field.fieldId,
+              line
+            ))
       ]);
     }
-    const populatedRows = core.removeEmptyColumns(rows);
+    const populatedRows = core.removeEmptyColumns(rows, alwaysIncludeIndexes);
     return {
       rows: populatedRows,
       dataRowCount: lineCount,
@@ -353,12 +469,14 @@
       recordType,
       sublistId
     );
-    const bodyFields = deduplicateDescriptors([
+    const bodyFields = prioritizeBodyFields(deduplicateDescriptors([
+      ...createRecordIdentifierFields(recordRef),
       ...formFields.header,
       ...formFields.body,
       ...addNativeBodyFields(recordRef, recordType, formFields)
-    ]);
+    ]));
     const sublistFields = deduplicateDescriptors([
+      ...createItemIdentifierField(recordRef, sublistId),
       ...formFields.col,
       ...addNativeSublistFields(recordRef, sublistId, formFields.col)
     ]);

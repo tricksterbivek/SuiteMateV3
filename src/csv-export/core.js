@@ -1,7 +1,7 @@
 (function defineSuiteMateV3CsvExportCore(globalScope) {
   "use strict";
 
-  const VERSION = 1;
+  const VERSION = 2;
   const REQUEST_EVENT = "suitemate:v3:csv-export:request";
   const RESULT_EVENT = "suitemate:v3:csv-export:result";
   const ACTION_ID = "suitemate-v3-csv-utils-export";
@@ -18,6 +18,25 @@
     "inventory",
     "invt"
   ]);
+  const FIELD_LABEL_OVERRIDES = Object.freeze({
+    billaddress: "Billing Address",
+    billisresidential: "Billing Address Is Residential",
+    costestimate: "Estimated Cost",
+    currencyname: "Currency Name",
+    discounttotal: "Discount Total",
+    entity_nexus_country: "Entity Nexus Country",
+    entitynexus: "Entity Nexus",
+    externalid: "Record External ID",
+    foreignamount: "Foreign Amount",
+    internalid: "Record Internal ID",
+    itemdescription: "Item Description",
+    nexus_country: "Nexus Country",
+    orderstatus: "Order Status",
+    overrideholdchecked: "Override Hold Checked",
+    shipaddress: "Shipping Address",
+    shipisresidential: "Shipping Address Is Residential",
+    totalcostestimate: "Total Estimated Cost"
+  });
 
   function boundedText(value, fallback = "") {
     const text = typeof value === "string" ? value.trim() : "";
@@ -74,16 +93,22 @@
       .join("\r\n");
   }
 
-  function removeEmptyColumns(rows) {
+  function removeEmptyColumns(rows, alwaysIncludeIndexes = []) {
     if (!Array.isArray(rows) || rows.length === 0 || !Array.isArray(rows[0])) {
       return Object.freeze([]);
     }
 
     const columnCount = rows[0].length;
+    const preserved = new Set(
+      Array.isArray(alwaysIncludeIndexes)
+        ? alwaysIncludeIndexes.filter((index) =>
+          Number.isSafeInteger(index) && index >= 0 && index < columnCount)
+        : []
+    );
     const populatedIndexes = [];
     for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
-      let populated = false;
-      for (let rowIndex = 1; rowIndex < rows.length; rowIndex += 1) {
+      let populated = preserved.has(columnIndex);
+      for (let rowIndex = 1; !populated && rowIndex < rows.length; rowIndex += 1) {
         const row = rows[rowIndex];
         if (
           safeValueToText(Array.isArray(row) ? row[columnIndex] : "").trim() !== ""
@@ -103,10 +128,38 @@
     )));
   }
 
+  function humanizeFieldId(fieldId) {
+    return boundedText(fieldId)
+      .replace(/^cust(?:body|col|record|entity|item)_?/i, "")
+      .replace(/([a-z\d])([A-Z])/g, "$1 $2")
+      .replace(/[_-]+/g, " ")
+      .replace(/\b\w/g, (character) => character.toUpperCase())
+      .trim();
+  }
+
+  function readableFieldLabel(fieldId, label) {
+    const normalizedId = boundedText(fieldId).toLowerCase();
+    const landedCostSource = normalizedId.match(/^landedcostsource(\d+)$/);
+    if (landedCostSource) {
+      return `Landed Cost Source ${landedCostSource[1]}`;
+    }
+    return FIELD_LABEL_OVERRIDES[normalizedId]
+      || boundedText(label, humanizeFieldId(normalizedId) || "Field");
+  }
+
+  function readableScopeLabel(scope) {
+    const normalized = boundedText(scope).toLowerCase();
+    if (!normalized) {
+      return "";
+    }
+    return normalized === "record" ? "Record" : humanizeFieldId(normalized);
+  }
+
   function normalizeFieldDescriptor(value) {
     const fieldId = boundedText(value?.fieldId).toLowerCase();
-    const label = boundedText(value?.label, fieldId || "Field");
-    return fieldId ? Object.freeze({ fieldId, label }) : null;
+    const label = readableFieldLabel(fieldId, value?.label);
+    const scope = boundedText(value?.scope).toLowerCase();
+    return fieldId ? Object.freeze({ fieldId, label, scope }) : null;
   }
 
   function makeUniqueHeaders(descriptors) {
@@ -116,9 +169,15 @@
 
     const normalized = descriptors.map(normalizeFieldDescriptor);
     const labelCounts = new Map();
+    const labelScopeCounts = new Map();
     for (const descriptor of normalized) {
       if (descriptor) {
         labelCounts.set(descriptor.label, (labelCounts.get(descriptor.label) ?? 0) + 1);
+        const labelScopeKey = `${descriptor.label}\u0000${descriptor.scope}`;
+        labelScopeCounts.set(
+          labelScopeKey,
+          (labelScopeCounts.get(labelScopeKey) ?? 0) + 1
+        );
       }
     }
 
@@ -127,9 +186,17 @@
       if (!descriptor) {
         return `Column ${index + 1}`;
       }
-      const base = labelCounts.get(descriptor.label) > 1
-        ? `${descriptor.label} [${descriptor.fieldId}]`
-        : descriptor.label;
+      let base = descriptor.label;
+      if (labelCounts.get(descriptor.label) > 1) {
+        const labelScopeKey = `${descriptor.label}\u0000${descriptor.scope}`;
+        const scopeLabel = readableScopeLabel(descriptor.scope);
+        const fieldLabel = humanizeFieldId(descriptor.fieldId);
+        if (scopeLabel && labelScopeCounts.get(labelScopeKey) === 1) {
+          base = `${scopeLabel} ${descriptor.label}`;
+        } else if (fieldLabel.toLowerCase() !== descriptor.label.toLowerCase()) {
+          base = `${descriptor.label} (${fieldLabel || "Field"})`;
+        }
+      }
       const count = (used.get(base) ?? 0) + 1;
       used.set(base, count);
       return count === 1 ? base : `${base} ${count}`;
