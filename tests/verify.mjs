@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8
 
 assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.name, "SuiteMate V3");
-assert.equal(manifest.version, "3.14.0");
+assert.equal(manifest.version, "3.14.1");
 assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
 assert.equal(
   Object.hasOwn(manifest, "optional_permissions"),
@@ -60,18 +60,11 @@ assert.equal(
 const csvExportMainWorldScript = manifest.content_scripts.find((entry) =>
   entry.world === "MAIN" && entry.js?.includes("src/csv-export/main-world.js")
 );
-assert.ok(csvExportMainWorldScript, "The CSV Export main-world adapter is missing");
-assert.deepEqual(csvExportMainWorldScript.matches, ["https://*.netsuite.com/*"]);
-assert.deepEqual(csvExportMainWorldScript.exclude_matches, [
-  "https://www.netsuite.com/*",
-  "https://*.extforms.netsuite.com/*"
-]);
-assert.deepEqual(csvExportMainWorldScript.js, [
-  "src/csv-export/core.js",
-  "src/csv-export/main-world.js"
-]);
-assert.equal(csvExportMainWorldScript.run_at, "document_start");
-assert.equal(csvExportMainWorldScript.all_frames, false);
+assert.equal(
+  csvExportMainWorldScript,
+  undefined,
+  "CSV Export must not depend on unreliable manifest-level MAIN-world injection"
+);
 const suiteqlContentScript = manifest.content_scripts.find((entry) =>
   entry.js?.includes("dist/suiteql-studio.js")
 );
@@ -332,6 +325,7 @@ const bridgeApi = bridgeSandbox.SuiteMateV3Bridge;
 assert.equal(bridgeApi.VERSION, 1);
 assert.equal(bridgeApi.COMMANDS.SUITEQL_START, "suiteql.start");
 assert.equal(bridgeApi.COMMANDS.RECORD_GET_TYPE, "record.getType");
+assert.equal(bridgeApi.COMMANDS.RECORD_EXPORT_CSV, "record.exportCsv");
 assert.equal(
   bridgeApi.COMMANDS.IMPORT_ASSISTANT_SET_VALUES,
   "importAssistant.setValues"
@@ -610,11 +604,26 @@ const csvExportMainWorldSource = await readFile(resolve(root, "src/csv-export/ma
 const csvExportRuntimeSource = await readFile(resolve(root, "src/csv-export/runtime.js"), "utf8");
 assert.match(csvExportCoreSource, /FORMULA_PREFIX/, "CSV Export does not neutralize spreadsheet formulas");
 assert.match(csvExportCoreSource, /join\("\\r\\n"\)/, "CSV Export does not generate RFC 4180 line endings");
+assert.match(csvExportCoreSource, /replace\(\/\\r\\n\?\|\\n\/g, " "\)/, "CSV Export does not normalize multiline values");
+assert.doesNotMatch(csvExportCoreSource, /JSON\.stringify\(value\)/, "CSV Export can serialize raw record objects");
 assert.match(csvExportMainWorldSource, /\["N\/record", "N\/currentRecord"\]/, "CSV Export does not use the proof-of-concept record APIs");
 assert.match(csvExportMainWorldSource, /recordModule\.load\.promise/, "CSV Export does not use supported asynchronous record loading");
+assert.match(csvExportMainWorldSource, /UI_ONLY_FIELD_PATTERN/, "CSV Export does not reject page-only HTML controls");
+assert.match(csvExportMainWorldSource, /\|\| !normalizedLabel/, "CSV Export can expose unlabeled internal fields");
+const csvExportBodyValueSource = csvExportMainWorldSource.match(
+  /function safeTextValue[\s\S]*?\n  }\n\n  function safeSublistTextValue/
+)?.[0] ?? "";
+const csvExportLineValueSource = csvExportMainWorldSource.match(
+  /function safeSublistTextValue[\s\S]*?\n  }\n\n  function normalizeDescriptor/
+)?.[0] ?? "";
+assert.doesNotMatch(csvExportBodyValueSource, /getValue/, "CSV Export body text falls back to raw values");
+assert.doesNotMatch(csvExportLineValueSource, /getSublistValue/, "CSV Export line text falls back to raw values");
 assert.match(csvExportMainWorldSource, /revokeObjectURL/, "CSV Export leaks Blob download URLs");
 assert.match(csvExportRuntimeSource, /applyMetadata\(link, exportCommand/, "CSV Export does not use shared command metadata");
 assert.match(csvExportRuntimeSource, /lifecycleApi\.register/, "CSV Export bypasses the shared observer lifecycle");
+assert.match(csvExportRuntimeSource, /COMMANDS\.RECORD_EXPORT_CSV/, "CSV Export bypasses the typed NetSuite bridge");
+assert.match(csvExportRuntimeSource, /bridgeApi\.toCommandResult/, "CSV Export does not normalize typed bridge responses");
+assert.doesNotMatch(csvExportRuntimeSource, /CustomEvent|REQUEST_EVENT|RESULT_EVENT/, "CSV Export UI retains a direct main-world event bridge");
 assert.match(csvExportRuntimeSource, /textContent = String\(message/, "CSV Export status renders untrusted HTML");
 assert.doesNotMatch(csvExportRuntimeSource, /new MutationObserver|innerHTML/, "CSV Export owns an observer or renders arbitrary HTML");
 assert.doesNotMatch(
@@ -1080,10 +1089,17 @@ assert.match(dataAdapterSource, /\["N\/currentRecord"\]/, "CSV Import and record
 assert.match(dataAdapterSource, /forceSyncSourcing: true/, "CSV Import dependent fields are not sourced synchronously");
 assert.doesNotMatch(dataAdapterSource, /\["N\/query"\]/, "SuiteQL still depends on an unavailable page-level N/query loader");
 assert.match(backgroundSource, /bridgeApi\.createDispatcher/, "Background commands bypass the typed bridge dispatcher");
+assert.match(backgroundSource, /src\/csv-export\/core\.js/, "The service worker does not load the CSV Export contract");
+assert.match(
+  backgroundSource,
+  /files:\s*\[\s*"src\/csv-export\/core\.js",\s*"src\/csv-export\/main-world\.js"\s*\]/,
+  "CSV Export does not inject its fixed main-world adapter on demand"
+);
 assert.match(backgroundSource, /\[COMMANDS\.SUITEQL_START\]/, "SuiteQL start is not allowlisted");
 assert.match(backgroundSource, /\[COMMANDS\.SEARCH_RUN\]/, "Search query is not allowlisted");
 assert.match(backgroundSource, /\[COMMANDS\.RECORD_DESCRIBE\]/, "Record metadata is not allowlisted");
 assert.match(backgroundSource, /\[COMMANDS\.RECORD_GET_TYPE\]/, "Record type lookup is not allowlisted");
+assert.match(backgroundSource, /\[COMMANDS\.RECORD_EXPORT_CSV\]/, "CSV Export is not allowlisted");
 assert.match(backgroundSource, /\[COMMANDS\.IMPORT_ASSISTANT_SET_VALUES\]/, "Import Assistant updates are not allowlisted");
 assert.match(backgroundSource, /\[COMMANDS\.IMPORT_ASSISTANT_RESOLVE_CATEGORY\]/, "Import Assistant category lookup is not allowlisted");
 assert.doesNotMatch(

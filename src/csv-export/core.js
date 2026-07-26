@@ -31,13 +31,17 @@
     if (typeof value === "string") {
       return value;
     }
-    if (typeof value === "object") {
-      try {
-        const serialized = JSON.stringify(value);
-        if (serialized !== undefined) {
-          return serialized;
-        }
-      } catch {}
+    if (Array.isArray(value)) {
+      return value
+        .filter((entry) =>
+          entry === null
+          || entry === undefined
+          || ["string", "number", "boolean"].includes(typeof entry))
+        .map((entry) => entry === null || entry === undefined ? "" : String(entry))
+        .join("; ");
+    }
+    if (typeof value === "object" || typeof value === "function") {
+      return "";
     }
     try {
       return String(value);
@@ -48,11 +52,14 @@
 
   function protectCsvValue(value) {
     const text = safeValueToText(value);
-    return typeof value === "string" && FORMULA_PREFIX.test(text) ? `'${text}` : text;
+    return (typeof value === "string" || Array.isArray(value))
+      && FORMULA_PREFIX.test(text)
+      ? `'${text}`
+      : text;
   }
 
   function escapeCsvValue(value) {
-    const text = protectCsvValue(value);
+    const text = protectCsvValue(value).replace(/\r\n?|\n/g, " ");
     return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
   }
 
@@ -65,6 +72,35 @@
         .map(escapeCsvValue)
         .join(","))
       .join("\r\n");
+  }
+
+  function removeEmptyColumns(rows) {
+    if (!Array.isArray(rows) || rows.length === 0 || !Array.isArray(rows[0])) {
+      return Object.freeze([]);
+    }
+
+    const columnCount = rows[0].length;
+    const populatedIndexes = [];
+    for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
+      let populated = false;
+      for (let rowIndex = 1; rowIndex < rows.length; rowIndex += 1) {
+        const row = rows[rowIndex];
+        if (
+          safeValueToText(Array.isArray(row) ? row[columnIndex] : "").trim() !== ""
+        ) {
+          populated = true;
+          break;
+        }
+      }
+      if (populated) {
+        populatedIndexes.push(columnIndex);
+      }
+    }
+
+    return Object.freeze(rows.map((row) => Object.freeze(
+      populatedIndexes.map((columnIndex) =>
+        Array.isArray(row) ? row[columnIndex] : "")
+    )));
   }
 
   function normalizeFieldDescriptor(value) {
@@ -190,9 +226,11 @@
     ACTION_ID,
     ACTION_SELECTOR,
     CANDIDATE_SUBLISTS,
+    toCellText: safeValueToText,
     protectCsvValue,
     escapeCsvValue,
     serializeCsv,
+    removeEmptyColumns,
     makeUniqueHeaders,
     sanitizeFilenamePart,
     createFilename,

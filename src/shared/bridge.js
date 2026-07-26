@@ -31,6 +31,7 @@
     SEARCH_RUN: "search.run",
     RECORD_DESCRIBE: "record.describe",
     RECORD_GET_TYPE: "record.getType",
+    RECORD_EXPORT_CSV: "record.exportCsv",
     IMPORT_ASSISTANT_SET_VALUES: "importAssistant.setValues",
     IMPORT_ASSISTANT_RESOLVE_CATEGORY: "importAssistant.resolveCategory"
   });
@@ -603,6 +604,45 @@
         );
   }
 
+  function validateRecordCsvExportResponse(value) {
+    const invalid = validateResponseKeys(value, [
+      "filename",
+      "recordType",
+      "sublistId",
+      "rowCount",
+      "columnCount"
+    ]);
+    if (invalid) {
+      return invalid;
+    }
+    if (
+      typeof value.filename !== "string"
+      || !value.filename.endsWith(".csv")
+      || value.filename.length > 240
+      || typeof value.recordType !== "string"
+      || !value.recordType
+      || value.recordType.length > 200
+      || typeof value.sublistId !== "string"
+      || value.sublistId.length > 100
+      || !Number.isSafeInteger(value.rowCount)
+      || value.rowCount < 0
+      || !Number.isSafeInteger(value.columnCount)
+      || value.columnCount <= 0
+    ) {
+      return validationFailure(
+        "INVALID_BRIDGE_RESPONSE",
+        "CSV Export response metadata is invalid."
+      );
+    }
+    return validationSuccess({
+      filename: value.filename,
+      recordType: value.recordType,
+      sublistId: value.sublistId,
+      rowCount: value.rowCount,
+      columnCount: value.columnCount
+    });
+  }
+
   function validateImportAssistantResponse(value) {
     const invalid = validateResponseKeys(value, ["applied"]);
     if (invalid) {
@@ -691,6 +731,12 @@
       handlerTimeoutMs: 10000,
       validate: validateEmptyPayload,
       validateResponse: validateRecordTypeResponse
+    }),
+    [COMMANDS.RECORD_EXPORT_CSV]: Object.freeze({
+      capability: routeApi?.CAPABILITIES?.CSV_EXPORT_RECORD,
+      handlerTimeoutMs: 125000,
+      validate: validateEmptyPayload,
+      validateResponse: validateRecordCsvExportResponse
     }),
     [COMMANDS.IMPORT_ASSISTANT_SET_VALUES]: Object.freeze({
       capability: routeApi?.CAPABILITIES?.IMPORT_ASSISTANT_BRIDGE,

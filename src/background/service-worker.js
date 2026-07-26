@@ -5,6 +5,7 @@ importScripts(chrome.runtime.getURL("src/shared/permissions.js"));
 importScripts(chrome.runtime.getURL("src/suiteql/core.js"));
 importScripts(chrome.runtime.getURL("src/record-actions/core.js"));
 importScripts(chrome.runtime.getURL("src/import-assistant/core.js"));
+importScripts(chrome.runtime.getURL("src/csv-export/core.js"));
 importScripts(chrome.runtime.getURL("src/netsuite/data-adapter.js"));
 
 (function initializeSuiteMateV3Background() {
@@ -14,6 +15,7 @@ importScripts(chrome.runtime.getURL("src/netsuite/data-adapter.js"));
   const bridgeApi = globalThis.SuiteMateV3Bridge;
   const recordActionsCore = globalThis.SuiteMateV3RecordActionsCore;
   const importAssistantCore = globalThis.SuiteMateV3ImportAssistantCore;
+  const csvExportCore = globalThis.SuiteMateV3CsvExportCore;
   const adapterApi = globalThis.SuiteMateV3NetSuiteDataAdapter;
   const { COMMANDS } = bridgeApi;
   const { OPERATIONS } = adapterApi;
@@ -63,6 +65,98 @@ importScripts(chrome.runtime.getURL("src/netsuite/data-adapter.js"));
         details: String(error?.details || "")
       };
     }
+  }
+
+  function createExactDocumentTarget(senderContext) {
+    if (
+      !Number.isInteger(senderContext?.tabId)
+      || typeof senderContext?.documentId !== "string"
+      || !senderContext.documentId
+    ) {
+      throw {
+        code: "INVALID_CSV_EXPORT_DOCUMENT",
+        message: "CSV Export requires an exact NetSuite document target."
+      };
+    }
+    return {
+      tabId: senderContext.tabId,
+      documentIds: [senderContext.documentId]
+    };
+  }
+
+  function requestCsvExportInMainWorld(options) {
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (result) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        globalThis.clearTimeout(timeoutId);
+        globalThis.removeEventListener(options.resultEvent, handleResult);
+        resolve(result);
+      };
+      const handleResult = (event) => {
+        if (event?.detail?.requestId === options.requestId) {
+          finish(event.detail);
+        }
+      };
+      const timeoutId = globalThis.setTimeout(() => {
+        finish({
+          ok: false,
+          requestId: options.requestId,
+          error: {
+            code: "CSV_EXPORT_TIMEOUT",
+            message: "NetSuite did not finish the CSV export within two minutes."
+          }
+        });
+      }, options.timeoutMs);
+
+      globalThis.addEventListener(options.resultEvent, handleResult);
+      globalThis.dispatchEvent(new globalThis.CustomEvent(options.requestEvent, {
+        detail: { requestId: options.requestId }
+      }));
+    });
+  }
+
+  async function handleRecordCsvExport(request) {
+    const target = createExactDocumentTarget(request.senderContext);
+    await chrome.scripting.executeScript({
+      target,
+      world: "MAIN",
+      files: [
+        "src/csv-export/core.js",
+        "src/csv-export/main-world.js"
+      ]
+    });
+    const [{ result } = {}] = await chrome.scripting.executeScript({
+      target,
+      world: "MAIN",
+      func: requestCsvExportInMainWorld,
+      args: [{
+        requestId: request.requestId,
+        requestEvent: csvExportCore.REQUEST_EVENT,
+        resultEvent: csvExportCore.RESULT_EVENT,
+        timeoutMs: 120000
+      }]
+    });
+    const normalized = csvExportCore.normalizeResultDetail(result, request.requestId);
+    if (!normalized) {
+      throw {
+        code: "INVALID_CSV_EXPORT_RESPONSE",
+        message: "NetSuite returned an invalid CSV Export response."
+      };
+    }
+    if (!normalized.ok) {
+      throw normalized.error;
+    }
+    return {
+      filename: normalized.filename,
+      recordType: normalized.recordType,
+      sublistId: normalized.sublistId,
+      rowCount: normalized.rowCount,
+      columnCount: normalized.columnCount
+    };
   }
 
   async function handleImportAssistantSetValues(request) {
@@ -134,6 +228,7 @@ importScripts(chrome.runtime.getURL("src/netsuite/data-adapter.js"));
     [COMMANDS.SEARCH_RUN]: handleSearchRun,
     [COMMANDS.RECORD_DESCRIBE]: handleRecordDescribe,
     [COMMANDS.RECORD_GET_TYPE]: handleRecordTypeRequest,
+    [COMMANDS.RECORD_EXPORT_CSV]: handleRecordCsvExport,
     [COMMANDS.IMPORT_ASSISTANT_SET_VALUES]: handleImportAssistantSetValues,
     [COMMANDS.IMPORT_ASSISTANT_RESOLVE_CATEGORY]: handleImportAssistantResolveCategory
   });

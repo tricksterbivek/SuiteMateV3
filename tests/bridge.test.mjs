@@ -61,6 +61,7 @@ test("exports one frozen versioned command registry", () => {
     SEARCH_RUN: "search.run",
     RECORD_DESCRIBE: "record.describe",
     RECORD_GET_TYPE: "record.getType",
+    RECORD_EXPORT_CSV: "record.exportCsv",
     IMPORT_ASSISTANT_SET_VALUES: "importAssistant.setValues",
     IMPORT_ASSISTANT_RESOLVE_CATEGORY: "importAssistant.resolveCategory"
   });
@@ -215,6 +216,22 @@ test("creates canonical requests and rejects malformed command payloads", () => 
     ).payload),
     {}
   );
+  assert.deepEqual(
+    plain(bridge.createRequest(
+      bridge.COMMANDS.RECORD_EXPORT_CSV,
+      {},
+      { requestId: "record-export-1" }
+    ).payload),
+    {}
+  );
+  assert.throws(
+    () => bridge.createRequest(
+      bridge.COMMANDS.RECORD_EXPORT_CSV,
+      { recordId: 42 },
+      { requestId: "record-export-payload" }
+    ),
+    (error) => error.code === "UNEXPECTED_PAYLOAD_FIELD"
+  );
   assert.throws(
     () => bridge.createRequest("record.delete", {}, { requestId: "blocked-1" }),
     (error) => error.code === "UNKNOWN_BRIDGE_COMMAND"
@@ -305,6 +322,21 @@ test("enforces command-specific route and frame authority", () => {
   assert.equal(bridge.validateRequest(recordRequest, sender(recordUrl)).ok, true);
   assert.equal(
     bridge.validateRequest(recordRequest, sender(studioUrl)).response.error.code,
+    "INVALID_SENDER"
+  );
+
+  const exportRequest = bridge.createRequest(
+    bridge.COMMANDS.RECORD_EXPORT_CSV,
+    {},
+    { requestId: "record-export-auth" }
+  );
+  assert.equal(bridge.validateRequest(exportRequest, sender(recordUrl)).ok, true);
+  assert.equal(
+    bridge.validateRequest(exportRequest, sender(studioUrl)).response.error.code,
+    "INVALID_SENDER"
+  );
+  assert.equal(
+    bridge.validateRequest(exportRequest, sender(recordUrl, 7, 1)).response.error.code,
     "INVALID_SENDER"
   );
 
@@ -468,6 +500,56 @@ test("normalizes response envelopes and rejects stale or malformed responses", (
   assert.equal(
     bridge.normalizeResponse(
       { ...success, arbitrary: true },
+      expected
+    ).error.code,
+    "INVALID_BRIDGE_RESPONSE"
+  );
+});
+
+test("validates bounded CSV Export response metadata", () => {
+  const expected = {
+    requestId: "record-export-response",
+    command: bridge.COMMANDS.RECORD_EXPORT_CSV
+  };
+  const success = bridge.createSuccessResponse(
+    expected.requestId,
+    expected.command,
+    {
+      filename: "SO-42.csv",
+      recordType: "salesorder",
+      sublistId: "item",
+      rowCount: 3,
+      columnCount: 12
+    }
+  );
+  assert.deepEqual(
+    plain(bridge.toCommandResult(bridge.normalizeResponse(success, expected))),
+    {
+      filename: "SO-42.csv",
+      recordType: "salesorder",
+      sublistId: "item",
+      rowCount: 3,
+      columnCount: 12,
+      ok: true,
+      requestId: "record-export-response"
+    }
+  );
+  assert.equal(
+    bridge.normalizeResponse(
+      {
+        ...success,
+        data: { ...success.data, csv: "record data must not cross the bridge" }
+      },
+      expected
+    ).error.code,
+    "INVALID_BRIDGE_RESPONSE"
+  );
+  assert.equal(
+    bridge.normalizeResponse(
+      {
+        ...success,
+        data: { ...success.data, columnCount: 0 }
+      },
       expected
     ).error.code,
     "INVALID_BRIDGE_RESPONSE"
