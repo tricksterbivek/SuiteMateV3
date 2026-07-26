@@ -25,6 +25,10 @@ const sources = Object.fromEntries(await Promise.all(
   ].map(async (file) => [file, await readFile(resolve(root, file), "utf8")])
 ));
 
+function plain(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
 async function flushTasks() {
   await new Promise((resolve) => setImmediate(resolve));
   await new Promise((resolve) => setImmediate(resolve));
@@ -364,11 +368,11 @@ test("Internal IDs follows its setting live and removes only owned badges", asyn
   assert.equal(label.badge.isConnected, false);
 });
 
-test("CSV Utils rejects stale installation and routes Import and Export independently", async () => {
+test("CSV Utils rejects stale installation and routes Import, Export and Template independently", async () => {
   let mainFormReady = false;
   let toolbarReady = false;
   let injectedAction = null;
-  let exportInvocations = 0;
+  const exportInvocations = [];
   let resolveRecordType;
   let recordTypeResponse = new Promise((resolve) => {
     resolveRecordType = resolve;
@@ -474,7 +478,7 @@ test("CSV Utils rejects stale installation and routes Import and Export independ
           const recordType = await recordTypeResponse;
           return {
             type: "SUITEMATE_V3_NETSUITE_BRIDGE_RESPONSE",
-            version: 1,
+            version: 2,
             ok: true,
             requestId: message.requestId,
             command: message.command,
@@ -495,9 +499,9 @@ test("CSV Utils rejects stale installation and routes Import and Export independ
   sandbox.globalThis = sandbox;
   sandbox.window = sandbox;
   sandbox.top = sandbox;
-  sandbox[Symbol.for("SuiteMateV3.csvExport.runtime.v2")] = {
-    invoke() {
-      exportInvocations += 1;
+  sandbox[Symbol.for("SuiteMateV3.csvExport.runtime.v3")] = {
+    invoke(mode = "export") {
+      exportInvocations.push(mode);
       return { ok: true };
     }
   };
@@ -534,11 +538,15 @@ test("CSV Utils rejects stale installation and routes Import and Export independ
   const exportLink = createdElements.find(
     (element) => element.dataset?.suitemateV3Action === "csv-utils-export"
   );
+  const templateLink = createdElements.find(
+    (element) => element.dataset?.suitemateV3Action === "csv-utils-template"
+  );
   const trigger = createdElements.find(
     (element) => element.dataset?.suitemateV3Action === "csv-utils-trigger"
   );
   assert.equal(importLink?.dataset.suitemateV3Command, "record.csv-import");
   assert.equal(exportLink?.dataset.suitemateV3Command, "record.csv-export");
+  assert.equal(templateLink?.dataset.suitemateV3Command, "record.csv-template");
   assert.equal(trigger?.textContent, "CSV Utils");
 
   let prevented = false;
@@ -560,7 +568,20 @@ test("CSV Utils rejects stale installation and routes Import and Export independ
   });
   assert.equal(prevented, true, "CSV Export must not navigate away from the record");
   assert.equal(stopped, true);
-  assert.equal(exportInvocations, 1);
+  assert.deepEqual(exportInvocations, ["export"]);
+  prevented = false;
+  stopped = false;
+  templateLink.listeners.click({
+    preventDefault() {
+      prevented = true;
+    },
+    stopPropagation() {
+      stopped = true;
+    }
+  });
+  assert.equal(prevented, true, "CSV Template must not navigate away from the record");
+  assert.equal(stopped, true);
+  assert.deepEqual(exportInvocations, ["export", "template"]);
 
   const installedLink = importLink;
   storageListeners[0](
@@ -587,7 +608,7 @@ test("CSV Utils rejects stale installation and routes Import and Export independ
   );
 });
 
-test("CSV Utils Export invokes the typed bridge and reports the completed download", async () => {
+test("CSV Utils Export and Template invoke the typed bridge and report their downloads", async () => {
   const location = createLocation(
     "https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl?id=1"
   );
@@ -601,11 +622,22 @@ test("CSV Utils Export invokes the typed bridge and reports the completed downlo
       this.attributes[name] = String(value);
     }
   };
+  const templateLink = {
+    textContent: "Template",
+    attributes: {},
+    style: {},
+    setAttribute(name, value) {
+      this.attributes[name] = String(value);
+    }
+  };
   const document = {
     documentElement: { dataset: {} },
     querySelector(selector) {
       if (selector === '[data-suitemate-v3-action="csv-utils-export"]') {
         return exportLink;
+      }
+      if (selector === '[data-suitemate-v3-action="csv-utils-template"]') {
+        return templateLink;
       }
       if (selector === "#div__alert") {
         return {
@@ -660,15 +692,18 @@ test("CSV Utils Export invokes the typed bridge and reports the completed downlo
           sentMessages.push(message);
           return {
             type: "SUITEMATE_V3_NETSUITE_BRIDGE_RESPONSE",
-            version: 1,
+            version: 2,
             ok: true,
             requestId: message.requestId,
             command: message.command,
             data: {
-              filename: "SO1.csv",
+              filename: message.payload.mode === "template"
+                ? "SO1-template.csv"
+                : "SO1.csv",
               recordType: "salesorder",
               sublistId: "item",
-              rowCount: 3,
+              mode: message.payload.mode,
+              rowCount: message.payload.mode === "template" ? 0 : 3,
               columnCount: 12
             }
           };
@@ -704,17 +739,17 @@ test("CSV Utils Export invokes the typed bridge and reports the completed downlo
   await flushTasks();
 
   const exportRuntime = runInNewContext(
-    'globalThis[Symbol.for("SuiteMateV3.csvExport.runtime.v2")]',
+    'globalThis[Symbol.for("SuiteMateV3.csvExport.runtime.v3")]',
     sandbox
   );
-  assert.equal(exportRuntime?.VERSION, 2);
+  assert.equal(exportRuntime?.VERSION, 3);
   assert.equal(exportRuntime.isAvailable(), true);
   const commandResult = await exportRuntime.invoke();
   assert.equal(commandResult.ok, true);
   assert.equal(commandResult.value.ok, true);
   assert.equal(sentMessages.length, 1);
   assert.equal(sentMessages[0].command, "record.exportCsv");
-  assert.deepEqual(Object.keys(sentMessages[0].payload), []);
+  assert.deepEqual(plain(sentMessages[0].payload), { mode: "export" });
   assert.equal(exportLink.textContent, "Export");
   assert.equal(exportLink.attributes["aria-busy"], "false");
   assert.equal(statusElements.length, 1);
@@ -722,6 +757,16 @@ test("CSV Utils Export invokes the typed bridge and reports the completed downlo
   assert.equal(
     statusElements[0].children[0].children[0].textContent,
     "Exported 3 item rows to SO1.csv."
+  );
+  const templateResult = await exportRuntime.invoke("template");
+  assert.equal(templateResult.ok, true);
+  assert.equal(sentMessages.length, 2);
+  assert.deepEqual(plain(sentMessages[1].payload), { mode: "template" });
+  assert.equal(templateLink.textContent, "Template");
+  assert.equal(templateLink.attributes["aria-busy"], "false");
+  assert.equal(
+    statusElements.at(-1).children[0].children[0].textContent,
+    "Downloaded 12-column template to SO1-template.csv."
   );
 });
 
@@ -794,7 +839,7 @@ test("Import Assistant does not write a subtype after its sourced option wait fa
           sentValues.push(message.payload.values);
           return {
             type: "SUITEMATE_V3_NETSUITE_BRIDGE_RESPONSE",
-            version: 1,
+            version: 2,
             ok: true,
             requestId: message.requestId,
             command: message.command,

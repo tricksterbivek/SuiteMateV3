@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8
 
 assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.name, "SuiteMate V3");
-assert.equal(manifest.version, "3.15.1");
+assert.equal(manifest.version, "3.16.0");
 assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
 assert.equal(
   Object.hasOwn(manifest, "optional_permissions"),
@@ -285,11 +285,12 @@ commandSandbox.globalThis = commandSandbox;
 runInNewContext(utilitySource, commandSandbox);
 runInNewContext(commandSource, commandSandbox);
 const commandApi = commandSandbox.SuiteMateV3Commands;
-assert.equal(commandApi.VERSION, 1);
+assert.equal(commandApi.VERSION, 2);
 assert.equal(commandApi.IDS.SUITEQL_EXECUTE, "suiteql.execute");
 assert.equal(commandApi.IDS.POPUP_OPEN_SUITEQL, "popup.open-suiteql");
 assert.equal(commandApi.IDS.RECORD_CSV_IMPORT, "record.csv-import");
 assert.equal(commandApi.IDS.RECORD_CSV_EXPORT, "record.csv-export");
+assert.equal(commandApi.IDS.RECORD_CSV_TEMPLATE, "record.csv-template");
 assert.equal(commandApi.IDS.SETTINGS_EXPORT_BACKUP, "settings.export-backup");
 assert.equal(commandApi.IDS.SETTINGS_IMPORT_BACKUP, "settings.import-backup");
 assert.equal(Object.isFrozen(commandApi.DEFINITIONS), true);
@@ -322,7 +323,7 @@ bridgeSandbox.globalThis = bridgeSandbox;
 runInNewContext(utilitySource, bridgeSandbox);
 runInNewContext(bridgeSource, bridgeSandbox);
 const bridgeApi = bridgeSandbox.SuiteMateV3Bridge;
-assert.equal(bridgeApi.VERSION, 1);
+assert.equal(bridgeApi.VERSION, 2);
 assert.equal(bridgeApi.COMMANDS.SUITEQL_START, "suiteql.start");
 assert.equal(bridgeApi.COMMANDS.RECORD_GET_TYPE, "record.getType");
 assert.equal(bridgeApi.COMMANDS.RECORD_EXPORT_CSV, "record.exportCsv");
@@ -585,11 +586,12 @@ assert.match(csvImportSource, /className = "suitemate-v3-csv-utils-cell"/, "CSV 
 assert.match(csvImportSource, /textContent = "CSV Utils"/, "The CSV Utils parent label is missing");
 assert.match(csvImportSource, /"csv-utils-export"/, "CSV Utils does not expose Export");
 assert.match(csvImportSource, /"csv-utils-import"/, "CSV Utils does not expose Import");
+assert.match(csvImportSource, /"csv-utils-template"/, "CSV Utils does not expose Template");
 assert.match(csvImportSource, /className = "ns-menuitem suitemate-v3-csv-utils-option"/, "CSV Utils does not use native NetSuite menu items");
 assert.match(csvImportSource, /applyMetadata\(link, commandId/, "CSV Utils children do not use shared command metadata");
 assert.match(csvImportSource, /createScope\(commandApi\.SURFACES\.RECORD/, "CSV Utils does not use a record command scope");
 assert.match(csvImportSource, /commandScope\.invoke\(/, "CSV Import bypasses click-time command authority");
-assert.match(csvImportSource, /csvExport\.runtime\.v2/, "CSV Utils is not connected to the isolated CSV Export runtime");
+assert.match(csvImportSource, /csvExport\.runtime\.v3/, "CSV Utils is not connected to the isolated CSV Export runtime");
 assert.match(csvImportSource, /\.uir-buttons-top\.uir-header-buttons/, "The top record toolbar target is missing");
 assert.match(csvImportSource, /actionsCell\.after\(createToolbarMenu\(href\)\)/, "CSV Utils is not inserted immediately after Actions");
 assert.match(csvImportSource, /data-suitemate-v3-action/, "CSV Utils injection is not idempotent");
@@ -641,8 +643,9 @@ assert.match(
   "CSV Export does not include the targeted item Internal ID"
 );
 assert.match(csvExportMainWorldSource, /revokeObjectURL/, "CSV Export leaks Blob download URLs");
-assert.match(csvExportRuntimeSource, /csvExport\.runtime\.v2/, "CSV Export does not expose its isolated runtime contract");
-assert.match(csvExportRuntimeSource, /commandScope\.invoke\(exportCommand/, "CSV Export bypasses command authority");
+assert.match(csvExportRuntimeSource, /csvExport\.runtime\.v3/, "CSV Export does not expose its isolated runtime contract");
+assert.match(csvExportRuntimeSource, /\{ mode \}/, "CSV Export does not send its explicit export or template mode");
+assert.match(csvExportRuntimeSource, /commandScope\.invoke\(command/, "CSV Export bypasses command authority");
 assert.match(csvExportRuntimeSource, /COMMANDS\.RECORD_EXPORT_CSV/, "CSV Export bypasses the typed NetSuite bridge");
 assert.match(csvExportRuntimeSource, /bridgeApi\.toCommandResult/, "CSV Export does not normalize typed bridge responses");
 assert.doesNotMatch(csvExportRuntimeSource, /CustomEvent|REQUEST_EVENT|RESULT_EVENT/, "CSV Export UI retains a direct main-world event bridge");

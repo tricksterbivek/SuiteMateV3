@@ -70,7 +70,7 @@ function keyboardEvent(key, options = {}) {
 
 test("exports one deeply frozen versioned command registry", () => {
   const { commands } = createApi();
-  assert.equal(commands.VERSION, 1);
+  assert.equal(commands.VERSION, 2);
   assert.equal(Object.isFrozen(commands), true);
   assert.equal(Object.isFrozen(commands.IDS), true);
   assert.equal(Object.isFrozen(commands.DEFINITIONS), true);
@@ -297,6 +297,20 @@ test("enforces route capability and settings availability from one descriptor", 
     commands.isSupported(commands.IDS.RECORD_CSV_EXPORT, {
       pageContext: record,
       settings: { enabled: false }
+    }),
+    false
+  );
+  assert.equal(
+    commands.isSupported(commands.IDS.RECORD_CSV_TEMPLATE, {
+      pageContext: record,
+      settings: { enabled: true }
+    }),
+    true
+  );
+  assert.equal(
+    commands.isSupported(commands.IDS.RECORD_CSV_TEMPLATE, {
+      pageContext: childRecord,
+      settings: { enabled: true }
     }),
     false
   );

@@ -41,7 +41,7 @@
   function bridgeResponse(message, data) {
     return {
       type: "SUITEMATE_V3_NETSUITE_BRIDGE_RESPONSE",
-      version: 1,
+      version: 2,
       ok: true,
       requestId: message.requestId,
       command: message.command,
@@ -52,7 +52,7 @@
   function bridgeError(message, error) {
     return {
       type: "SUITEMATE_V3_NETSUITE_BRIDGE_RESPONSE",
-      version: 1,
+      version: 2,
       ok: false,
       requestId: message.requestId,
       command: message.command,
@@ -115,10 +115,13 @@
         Number(document.documentElement.dataset.csvExportMessageCount ?? 0) + 1
       );
       return bridgeResponse(message, {
-        filename: "SO10428.csv",
+        filename: message.payload?.mode === "template"
+          ? "SO10428-template.csv"
+          : "SO10428.csv",
         recordType: "salesorder",
         sublistId: "item",
-        rowCount: 2,
+        mode: message.payload?.mode ?? "export",
+        rowCount: message.payload?.mode === "template" ? 0 : 2,
         columnCount: 8
       });
     }

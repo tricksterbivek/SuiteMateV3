@@ -1,7 +1,7 @@
 (function defineSuiteMateV3Bridge(globalScope) {
   "use strict";
 
-  const VERSION = 1;
+  const VERSION = 2;
   const existing = globalScope.SuiteMateV3Bridge;
   if (existing?.VERSION === VERSION) {
     if (globalScope.document?.documentElement?.dataset) {
@@ -129,6 +129,20 @@
   function validateEmptyPayload(value) {
     const invalid = validateExactKeys(value, []);
     return invalid ?? validationSuccess({});
+  }
+
+  function validateRecordCsvExport(value) {
+    const invalid = validateExactKeys(value, ["mode"]);
+    if (invalid) {
+      return invalid;
+    }
+    const mode = value.mode ?? "export";
+    return ["export", "template"].includes(mode)
+      ? validationSuccess({ mode })
+      : validationFailure(
+          "INVALID_CSV_EXPORT_MODE",
+          "CSV Export mode must be export or template."
+        );
   }
 
   function validateCancel(value) {
@@ -609,6 +623,7 @@
       "filename",
       "recordType",
       "sublistId",
+      "mode",
       "rowCount",
       "columnCount"
     ]);
@@ -624,8 +639,10 @@
       || value.recordType.length > 200
       || typeof value.sublistId !== "string"
       || value.sublistId.length > 100
+      || !["export", "template"].includes(value.mode)
       || !Number.isSafeInteger(value.rowCount)
       || value.rowCount < 0
+      || (value.mode === "template" && value.rowCount !== 0)
       || !Number.isSafeInteger(value.columnCount)
       || value.columnCount <= 0
     ) {
@@ -638,6 +655,7 @@
       filename: value.filename,
       recordType: value.recordType,
       sublistId: value.sublistId,
+      mode: value.mode,
       rowCount: value.rowCount,
       columnCount: value.columnCount
     });
@@ -735,7 +753,7 @@
     [COMMANDS.RECORD_EXPORT_CSV]: Object.freeze({
       capability: routeApi?.CAPABILITIES?.CSV_EXPORT_RECORD,
       handlerTimeoutMs: 125000,
-      validate: validateEmptyPayload,
+      validate: validateRecordCsvExport,
       validateResponse: validateRecordCsvExportResponse
     }),
     [COMMANDS.IMPORT_ASSISTANT_SET_VALUES]: Object.freeze({

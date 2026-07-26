@@ -114,7 +114,10 @@ importScripts(chrome.runtime.getURL("src/netsuite/data-adapter.js"));
 
       globalThis.addEventListener(options.resultEvent, handleResult);
       globalThis.dispatchEvent(new globalThis.CustomEvent(options.requestEvent, {
-        detail: { requestId: options.requestId }
+        detail: {
+          requestId: options.requestId,
+          mode: options.mode
+        }
       }));
     });
   }
@@ -135,6 +138,7 @@ importScripts(chrome.runtime.getURL("src/netsuite/data-adapter.js"));
       func: requestCsvExportInMainWorld,
       args: [{
         requestId: request.requestId,
+        mode: request.payload.mode,
         requestEvent: csvExportCore.REQUEST_EVENT,
         resultEvent: csvExportCore.RESULT_EVENT,
         timeoutMs: 120000
@@ -154,6 +158,7 @@ importScripts(chrome.runtime.getURL("src/netsuite/data-adapter.js"));
       filename: normalized.filename,
       recordType: normalized.recordType,
       sublistId: normalized.sublistId,
+      mode: normalized.mode,
       rowCount: normalized.rowCount,
       columnCount: normalized.columnCount
     };
