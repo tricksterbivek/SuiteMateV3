@@ -408,8 +408,15 @@ test("main-world template downloads the same headers without record rows", async
   assert.equal(links[0].download, "SO-42-template.csv");
   assert.equal(
     BrowserUrl.created[0].parts[0],
-    "\ufeffDocument Number,Record Internal ID,Record External ID,"
+    "Document Number,Record Internal ID,Record External ID,"
     + "Customer Internal ID,Customer,Account,Memo"
+  );
+  assert.equal(BrowserUrl.created[0].parts[0].startsWith("\ufeff"), false);
+  const templateHeaders = BrowserUrl.created[0].parts[0].split(",");
+  assert.equal(templateHeaders.some((header) => header.trim() === ""), false);
+  assert.equal(
+    new Set(templateHeaders.map((header) => header.trim().toLowerCase())).size,
+    templateHeaders.length
   );
 });
 
