@@ -222,7 +222,12 @@
       const indicator = document.createElement("span");
       indicator.setAttribute(core.DATA_ATTRIBUTE, "sort-indicator");
       indicator.textContent = direction === "asc" ? " ↑" : " ↓";
-      sortCell.insertBefore(indicator, sortCell.querySelector(`[${core.DATA_ATTRIBUTE}="menu-toggle"]`));
+      const toggle = sortCell.querySelector(`[${core.DATA_ATTRIBUTE}="menu-toggle"]`);
+      if (toggle?.parentNode) {
+        toggle.parentNode.insertBefore(indicator, toggle);
+      } else {
+        sortCell.appendChild(indicator);
+      }
     }
   }
 
@@ -431,7 +436,9 @@
           event.stopPropagation();
           toggleColumnMenu(cell);
         });
-        cell.appendChild(arrow);
+        // Inside the 12px .listheader so the arrow rides the label's own line
+        // box; directly in the 16px cell it would inflate the header height.
+        (cell.querySelector(".listheader") ?? cell).appendChild(arrow);
       }
       updateArrowState(cell);
     }

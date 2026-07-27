@@ -829,3 +829,19 @@ Date: 2026-07-28
 
 - Full `npm test`: 180 passing tests, 28 screenshot baselines at 0.000 percent difference.
 - Browser reconstruction of NetSuite's sticky mechanism (sticky header cells in a scrollable container, 44-row table): header cells compute `position: sticky` again (previously forced to `relative`), header stays pinned at the container top after scrolling 400px, column menu opens mid-scroll with its solid surface, arrows/personalization unaffected. Screenshot reviewed.
+
+## Transaction Column Personalization: Milestone 10 (inline header arrows)
+
+Status: Automated + browser verification complete; live NetSuite confirmation pending
+
+Date: 2026-07-28
+
+### Included
+
+- The menu arrow now renders beside the column title ("Item ▼") instead of beneath it, vertically centered with consistent spacing; the sort indicator sits between label and arrow ("Item ↑ ▼").
+- Mechanism: the arrow and sort indicator are appended inside the 12px `.listheader` div rather than directly into the header cell. The cell's own font is 16px, so any inline child directly in the cell inflates the line box by ~5px — riding the label's own line box keeps the header at exactly its native height. No CSS positioning or display overrides on NetSuite elements remain.
+
+### Verification
+
+- Full `npm test`: 180 passing tests, 28 screenshot baselines at 0.000 percent difference.
+- Browser pass: header row height identical to native (29.5px) with arrows and an active sort indicator; label/arrow midpoints aligned; label text extraction stays clean ("Item"); menu, sorting and personalization unaffected. Screenshot reviewed.
