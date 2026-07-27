@@ -383,6 +383,35 @@ test("parseFilterQuery and matchesFilter cover text and numeric operators", () =
   assert.equal(core.matchesFilter("anything", null), true);
 });
 
+test("matchesFilter supports multi-select anyOf within a column", () => {
+  const core = createApi();
+  assert.equal(core.matchesFilter("Sydney", { anyOf: ["Sydney", "Melbourne"] }), true);
+  assert.equal(core.matchesFilter("Melbourne", { anyOf: ["Sydney", "Melbourne"] }), true);
+  assert.equal(core.matchesFilter("Brisbane", { anyOf: ["Sydney", "Melbourne"] }), false);
+  assert.equal(core.matchesFilter("Sydney", { anyOf: [] }), true);
+  assert.equal(core.matchesFilter("$500.00", { op: ">", value: 100, anyOf: ["$500.00"] }), true);
+  assert.equal(core.matchesFilter("$500.00", { op: ">", value: 1000, anyOf: ["$500.00"] }), false);
+  assert.equal(core.matchesFilter("$50.00", { op: ">", value: 10, anyOf: ["$500.00"] }), false);
+});
+
+test("applyFilters ORs multi-select values within a column, ANDs across columns", () => {
+  const core = createApi();
+  const { table, dataRows } = createSortableTable(
+    ["Item", "Location"],
+    [["SKU001", "Sydney"], ["SKU002", "Melbourne"], ["SKU003", "Brisbane"]]
+  );
+  const hidden = () => dataRows.map((row) => row.classList.contains("suitemate-v3-so-columns-filtered"));
+
+  assert.equal(core.applyFilters(table, [null, { anyOf: ["Sydney", "Melbourne"] }]), true);
+  assert.deepEqual(hidden(), [false, false, true]);
+
+  assert.equal(core.applyFilters(table, [{ op: "contains", value: "sku001" }, { anyOf: ["Sydney", "Melbourne"] }]), true);
+  assert.deepEqual(hidden(), [false, true, true]);
+
+  assert.equal(core.applyFilters(table, [{ anyOf: ["SKU001", "SKU002", "SKU003"] }, null]), true);
+  assert.deepEqual(hidden(), [false, false, false]);
+});
+
 test("applyFilters hides non-matching rows, AND-combines and unhides", () => {
   const core = createApi();
   const { table, dataRows, trailingRows } = createSortableTable(

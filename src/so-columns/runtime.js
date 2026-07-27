@@ -178,6 +178,9 @@
   }
 
   const FILTER_ROW_SELECTOR = `tr[${core.DATA_ATTRIBUTE}="filter-row"]`;
+  const FILTER_INPUT_SELECTOR = `[${core.DATA_ATTRIBUTE}="filter-input"]`;
+  const filterSelections = new WeakMap();
+  let openPanel = null;
 
   function handleFilterInput() {
     try {
@@ -186,12 +189,89 @@
       if (!table || !row) {
         return;
       }
-      const queries = Array.from(row.cells, (cell) => core.parseFilterQuery(cell.querySelector("input")?.value));
+      const queries = Array.from(row.cells, (cell) => {
+        const query = core.parseFilterQuery(cell.querySelector(FILTER_INPUT_SELECTOR)?.value);
+        const selected = filterSelections.get(cell);
+        if (selected?.size) {
+          return { ...(query ?? {}), anyOf: Array.from(selected) };
+        }
+        return query;
+      });
       core.applyFilters(table, queries);
     } catch {}
   }
 
+  function closeFilterPanel() {
+    openPanel?.panel.remove();
+    if (openPanel) {
+      document.removeEventListener("mousedown", openPanel.onOutside, true);
+    }
+    openPanel = null;
+  }
+
+  function updateFilterToggleState(cell) {
+    const active = (filterSelections.get(cell)?.size ?? 0) > 0;
+    cell.querySelector(`[${core.DATA_ATTRIBUTE}="filter-toggle"]`)?.classList
+      .toggle("suitemate-v3-so-columns-filter-active", active);
+  }
+
+  function toggleFilterPanel(cell) {
+    if (openPanel?.cell === cell) {
+      closeFilterPanel();
+      return;
+    }
+    closeFilterPanel();
+    const table = document.querySelector(TABLE_SELECTOR);
+    const values = core.distinctColumnValues(table, cell.cellIndex, 50);
+    if (!values.length) {
+      return;
+    }
+    const panel = document.createElement("div");
+    panel.setAttribute(core.DATA_ATTRIBUTE, "filter-panel");
+    const selected = filterSelections.get(cell) ?? new Set();
+    for (const value of values) {
+      const label = document.createElement("label");
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.checked = selected.has(value);
+      box.addEventListener("change", () => {
+        const current = filterSelections.get(cell) ?? new Set();
+        if (box.checked) {
+          current.add(value);
+        } else {
+          current.delete(value);
+        }
+        filterSelections.set(cell, current);
+        updateFilterToggleState(cell);
+        handleFilterInput();
+      });
+      label.append(box, document.createTextNode(` ${value}`));
+      panel.appendChild(label);
+    }
+    const clear = document.createElement("button");
+    clear.type = "button";
+    clear.textContent = "Clear";
+    clear.className = core.CLASSES.button;
+    clear.setAttribute(core.DATA_ATTRIBUTE, "filter-panel-clear");
+    clear.addEventListener("click", () => {
+      filterSelections.set(cell, new Set());
+      updateFilterToggleState(cell);
+      closeFilterPanel();
+      handleFilterInput();
+    });
+    panel.appendChild(clear);
+    cell.appendChild(panel);
+    const onOutside = (event) => {
+      if (!cell.contains(event.target)) {
+        closeFilterPanel();
+      }
+    };
+    document.addEventListener("mousedown", onOutside, true);
+    openPanel = { cell, panel, onOutside };
+  }
+
   function removeFilters(table) {
+    closeFilterPanel();
     table?.querySelectorAll?.(`.${core.CLASSES.filtered}`)?.forEach((row) => row.classList.remove(core.CLASSES.filtered));
     table?.querySelector?.(FILTER_ROW_SELECTOR)?.remove();
   }
@@ -222,6 +302,13 @@
         td.appendChild(list);
       }
       td.appendChild(input);
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.textContent = "▾";
+      toggle.title = "Select values";
+      toggle.setAttribute(core.DATA_ATTRIBUTE, "filter-toggle");
+      toggle.addEventListener("click", () => toggleFilterPanel(td));
+      td.appendChild(toggle);
       row.appendChild(td);
     });
     row.addEventListener("input", handleFilterInput);

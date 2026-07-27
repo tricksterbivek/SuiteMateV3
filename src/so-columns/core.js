@@ -299,6 +299,12 @@
       return true;
     }
     const raw = String(cellText ?? "").trim();
+    if (Array.isArray(query.anyOf) && query.anyOf.length && !query.anyOf.includes(raw)) {
+      return false;
+    }
+    if (!query.op) {
+      return true;
+    }
     if (query.op === "contains") {
       return raw.toLowerCase().includes(query.value);
     }

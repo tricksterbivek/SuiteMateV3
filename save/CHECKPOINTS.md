@@ -748,3 +748,20 @@ Date: 2026-07-28
 - Purchase Orders via generic transaction.nl dispatcher links: controls active across types; zero-item expense POs fail closed gracefully.
 - Scale check on real 44-column PO DOM cloned to 300 rows: first sort ~0.9s wall-clock (includes one-time row stamping and automation round-trip), subsequent sorts ~0.36s, live filter ~0.14s, correct visible counts; page reload discarded all test rows.
 - Zero JavaScript errors across the session.
+
+## Transaction Column Personalization: Milestone 6 (multi-select column filters)
+
+Status: Automated + browser verification complete; live NetSuite retest pending
+
+Date: 2026-07-28
+
+### Included
+
+- Excel-style multi-select per column: a ▾ toggle beside each filter input opens a checkbox panel of distinct column values (up to 50, scrollable, system-color themed); checked values OR-combine within the column and AND-combine with the column's text/numeric query and with other columns' filters.
+- Filter query object gains an optional `anyOf` value list; single-value filtering behavior unchanged.
+- Selection state lives in a WeakMap keyed by the filter cell, so selections travel automatically when columns are dragged; active selections highlight the toggle; outside click closes the panel; per-column Clear button; Reset/toggle-off remove everything.
+
+### Verification
+
+- Full `npm test`: 180 passing tests (anyOf matching, OR-within/AND-across combinations), 28 screenshot baselines at 0.000 percent difference.
+- Browser pass (served fixture, real checkbox clicks/typing/drags): Sydney+Melbourne OR example, combined text + multi-select, sort on multi-filtered rows, selections surviving a column drag, Clear, outside-click close, full Reset.
