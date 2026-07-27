@@ -377,6 +377,10 @@
     const size = menu.getBoundingClientRect();
     menu.style.left = `${Math.max(8, Math.min(anchor.left, (window.innerWidth || 1024) - (size.width || 224) - 8))}px`;
     menu.style.top = `${Math.max(8, Math.min(anchor.bottom + 2, (window.innerHeight || 768) - (size.height || 320) - 8))}px`;
+    const placed = menu.getBoundingClientRect();
+    if (placed.right > (window.innerWidth || 1024) - 8) {
+      menu.style.left = `${Math.max(8, (window.innerWidth || 1024) - placed.width - 8)}px`;
+    }
     search.focus();
     const onOutside = (event) => {
       if (!cell.contains(event.target) && !menu.contains(event.target)) {
@@ -388,10 +392,14 @@
         closeColumnMenu();
       }
     };
+    const openedAt = Date.now();
     const onScroll = (event) => {
-      if (!menu.contains(event.target)) {
-        closeColumnMenu();
+      // Grace period: ignore the trailing scroll events of a smooth scroll or
+      // the focus() reveal so the menu doesn't self-close right after opening.
+      if (Date.now() - openedAt < 350 || menu.contains(event.target)) {
+        return;
       }
+      closeColumnMenu();
     };
     document.addEventListener("mousedown", onOutside, true);
     document.addEventListener("keydown", onKey, true);

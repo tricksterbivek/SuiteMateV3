@@ -792,7 +792,7 @@ Date: 2026-07-28
 
 ## Transaction Column Personalization: Milestone 8 (column menu visual polish)
 
-Status: Automated + browser verification complete; live NetSuite retest pending
+Status: Complete; live NetSuite verification passed 2026-07-28
 
 Date: 2026-07-28
 
@@ -807,3 +807,10 @@ Date: 2026-07-28
 
 - Full `npm test`: 180 passing tests, 28 screenshot baselines at 0.000 percent difference.
 - Browser pass with screenshot review: solid surface confirmed visually, multi-select with live status, sort with indicators, Escape close, Reset; existing personalization unaffected.
+
+### Milestone 8 live verification (2026-07-28)
+
+- Production Sales Order (45 columns, light theme): menu renders as a solid body-appended overlay within the viewport, distinct values with checkboxes, live "n of m items" status (5 -> 2 of 5 on multi-select), sort via menu with indicator and auto-close, Escape close, Reset full restore. Screenshot reviewed.
+- Two micro-fixes found during the pass, verified on the served fixture (live after next extension reload): a second-pass right-edge re-clamp (menu width settles wider than first measurement by ~1px), and a 350ms scroll-close grace period so the menu is not self-closed by the trailing events of a smooth scroll.
+- Dark-mode overrides are token-derived (`html.isDarkMode`); account runs light theme, so dark styling is verified by construction against netsuite.css tokens rather than live.
+- Zero JavaScript errors.
