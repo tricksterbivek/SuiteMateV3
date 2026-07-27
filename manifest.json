@@ -44,6 +44,7 @@
         "src/styles/netsuite.css",
         "src/styles/radii.css",
         "src/styles/v3-compat.css",
+        "src/styles/notifications.css",
         "src/internal-ids/internal-ids.css",
         "src/record-actions/csv-import.css"
       ],

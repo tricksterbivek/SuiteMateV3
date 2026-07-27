@@ -195,6 +195,26 @@
 
   const CLASSIC_VARIANTS = [
     {
+      fixtureId: "toast-notification",
+      routeId: "netsuite-page",
+      path: "/app/accounting/transactions/salesord.nl?id=1&toast=success",
+      title: "Sales Order #SO10428",
+      layout: "record",
+      pageStyles: [],
+      requiredSelectors: ["#main_form", "#item_splits"],
+      beforeCapture: "SuiteMateV3Notifications.showToast('Exported 3 item rows to SO10428.csv.', { type: 'success' })"
+    },
+    {
+      fixtureId: "toast-loading",
+      routeId: "netsuite-page",
+      path: "/app/accounting/transactions/salesord.nl?id=1&toast=loading",
+      title: "Sales Order #SO10428",
+      layout: "record",
+      pageStyles: [],
+      requiredSelectors: ["#main_form", "#item_splits"],
+      beforeCapture: "SuiteMateV3Notifications.showToast('Exporting CSV. Larger exports may take a moment.', { type: 'loading' })"
+    },
+    {
       fixtureId: "customer-login",
       routeId: "login",
       path: "/pages/customerlogin.jsp?c=FIXTURE",

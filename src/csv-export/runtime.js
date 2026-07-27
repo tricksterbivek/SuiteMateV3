@@ -4,12 +4,14 @@
   const commandApi = globalScope.SuiteMateV3Commands;
   const bridgeApi = globalScope.SuiteMateV3Bridge;
   const core = globalScope.SuiteMateV3CsvExportCore;
+  const notificationApi = globalScope.SuiteMateV3Notifications;
   const routeApi = globalScope.SuiteMateV3Routes;
   const settingsApi = globalScope.SuiteMateV3Settings;
   if (
     !commandApi
     || !bridgeApi
     || !core
+    || !notificationApi?.showToast
     || !routeApi
     || !settingsApi
     || !globalScope.document
@@ -40,10 +42,8 @@
     return;
   }
 
-  const STATUS_SELECTOR = '[data-suitemate-v3-action="csv-export-status"]';
   let currentSettings = null;
   let settingsRevision = 0;
-  let statusTimer = null;
 
   const exportCommand = commandApi.IDS.RECORD_CSV_EXPORT;
   const templateCommand = commandApi.IDS.RECORD_CSV_TEMPLATE;
@@ -71,48 +71,10 @@
     );
   }
 
-  function clearStatus() {
-    if (statusTimer !== null) {
-      globalScope.clearTimeout(statusTimer);
-      statusTimer = null;
-    }
-    globalScope.document.querySelectorAll(STATUS_SELECTOR)
-      .forEach((element) => element.remove());
-  }
-
   function showStatus(message, type = "info") {
-    clearStatus();
-    const alert = globalScope.document.createElement("div");
-    alert.className = [
-      "uir-alert-box",
-      "suitemate-v3-csv-export-status",
-      type === "success" ? "confirmation" : type,
-      type === "error" ? "" : "auto-dismiss"
-    ].filter(Boolean).join(" ");
-    alert.dataset.suitemateV3Action = "csv-export-status";
-    alert.setAttribute("role", type === "error" ? "alert" : "status");
-
-    const content = globalScope.document.createElement("div");
-    content.className = "uir-alert-box-content";
-    const description = globalScope.document.createElement("div");
-    description.className = "uir-alert-box-description";
-    description.textContent = String(message ?? "");
-    content.append(description);
-    alert.append(content);
-
-    const target = globalScope.document.querySelector("#div__alert");
-    if (target) {
-      target.append(alert);
-    } else {
-      globalScope.document.querySelector("#main_form")?.prepend(alert);
-    }
-
-    if (type !== "error") {
-      statusTimer = globalScope.setTimeout(() => {
-        statusTimer = null;
-        alert.remove();
-      }, 8000);
-    }
+    return notificationApi.showToast(message, {
+      type
+    });
   }
 
   function setBusy(mode, busy) {
@@ -150,7 +112,12 @@
 
   async function beginExport(mode = "export") {
     setBusy(mode, true);
-    clearStatus();
+    const progressToast = showStatus(
+      mode === "template"
+        ? "Preparing CSV template..."
+        : "Exporting CSV. Larger exports may take a moment.",
+      "loading"
+    );
     try {
       const response = await bridgeApi.request(
         bridgeApi.COMMANDS.RECORD_EXPORT_CSV,
@@ -158,9 +125,11 @@
         { timeoutMs: bridgeApi.MAX_TIMEOUT_MS }
       );
       const result = bridgeApi.toCommandResult(response);
+      progressToast?.dismiss();
       showExportResult(result);
       return result;
     } finally {
+      progressToast?.dismiss();
       setBusy(mode, false);
     }
   }
@@ -217,7 +186,6 @@
   globalScope.addEventListener("pagehide", (event) => {
     if (!event.persisted) {
       commandScope.dispose();
-      clearStatus();
     }
   });
 

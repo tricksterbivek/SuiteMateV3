@@ -41,7 +41,8 @@ function fixtureCases() {
     profile: "classic",
     title: entry.title,
     url: `/tests/fixtures/route-classic.html?fixture=${encodeURIComponent(entry.fixtureId)}`,
-    readySelector: entry.requiredSelectors.at(-1)
+    readySelector: entry.requiredSelectors.at(-1),
+    beforeCapture: entry.beforeCapture || ""
   }));
   const redwood = catalog.REDWOOD_BASELINES.map((entry) => ({
     ...entry,
@@ -266,13 +267,22 @@ async function captureCase(client, origin, entry) {
     await client.send("Runtime.evaluate", {
       expression: `(() => {
         const style = document.createElement("style");
-        style.textContent = "*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}";
+        style.textContent = "*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}.suitemate-v3-toast{opacity:1!important;transform:none!important}";
         document.head.append(style);
         window.scrollTo(0, 0);
         return true;
       })()`,
       returnByValue: true
     }, sessionId);
+    if (entry.beforeCapture) {
+      const setup = await client.send("Runtime.evaluate", {
+        expression: entry.beforeCapture,
+        returnByValue: true
+      }, sessionId);
+      if (setup.exceptionDetails) {
+        throw new Error(`${entry.fixtureId}: beforeCapture failed: ${setup.exceptionDetails.text || "unknown error"}`);
+      }
+    }
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 100));
     const { data } = await client.send("Page.captureScreenshot", {
       format: "png",

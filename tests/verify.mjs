@@ -33,6 +33,7 @@ assert.deepEqual(globalThemeContentScript.css, [
   "src/styles/netsuite.css",
   "src/styles/radii.css",
   "src/styles/v3-compat.css",
+  "src/styles/notifications.css",
   "src/internal-ids/internal-ids.css",
   "src/record-actions/csv-import.css"
 ]);
@@ -189,6 +190,7 @@ const extensionSources = [
   "src/internal-ids/internal-ids.css",
   "src/runtime/theme-runtime.js",
   "src/runtime/notification-runtime.js",
+  "src/styles/notifications.css",
   "src/record-actions/core.js",
   "src/record-actions/csv-import.js",
   "src/record-actions/csv-import.css",
@@ -522,7 +524,26 @@ assert.equal(notificationClasses.has("dismiss"), true, "Alert dismissal animatio
 assert.equal(notificationRemoved, true, "Alert is not removed after clicking the V1 close target");
 assert.match(notificationRuntimeSource, /\.uir-alert-box/, "The global NetSuite alert selector is missing");
 assert.match(notificationRuntimeSource, /classList\.contains\("mac"\)/, "The macOS left-side close target is not supported");
+assert.match(notificationRuntimeSource, /showToast/, "The right-side toast API is missing");
+assert.match(notificationRuntimeSource, /body\.textContent = text/, "Toast messages are not rendered as plain text");
+assert.match(notificationRuntimeSource, /MAX_TOASTS = 4/, "Toast stacking is not bounded");
+assert.match(notificationRuntimeSource, /TOAST_DURATION_MS = 5000/, "Non-error toasts do not use the required five-second lifetime");
+assert.match(notificationRuntimeSource, /type === "error" \|\| type === "loading"/, "Loading feedback is not persistent");
+assert.match(notificationRuntimeSource, /container\.prepend\(toast\)/, "Newest toast notifications are not placed at the top");
+assert.match(notificationRuntimeSource, /container\.lastElementChild/, "Toast overflow does not remove the oldest notification");
+assert.match(notificationRuntimeSource, /mouseenter[\s\S]*?pauseToast/, "Toast auto-dismiss does not pause for reading");
+assert.match(notificationRuntimeSource, /aria-label", "Dismiss notification"/, "Toast notifications lack an accessible close action");
 assert.doesNotMatch(notificationRuntimeSource, /salesord|searchresults|data-path/, "Notification dismissal contains page-specific behavior");
+assert.doesNotMatch(notificationRuntimeSource, /innerHTML/, "Toast notifications can interpret arbitrary HTML");
+
+const notificationStyles = await readFile(resolve(root, "src/styles/notifications.css"), "utf8");
+assert.match(notificationStyles, /position:\s*fixed/, "Toast notifications are not viewport-positioned");
+assert.match(notificationStyles, /right:\s*16px/, "Toast notifications are not aligned to the right side");
+assert.match(notificationStyles, /top:\s*16px/, "Toast notifications are not aligned to the top of the viewport");
+assert.match(notificationStyles, /z-index:\s*2147483000/, "Toast notifications can be hidden behind NetSuite overlays");
+assert.match(notificationStyles, /prefers-reduced-motion/, "Toast animations ignore reduced-motion preferences");
+assert.match(notificationStyles, /\[data-type=loading\][\s\S]*?suitemate-v3-toast-spin/, "Loading feedback lacks a progress indicator");
+assert.doesNotMatch(notificationStyles, /html:not\(\.ext-f\)/, "Owned toast styles are incorrectly disabled by a NetSuite page class");
 
 const recordActionsCoreSource = await readFile(resolve(root, "src/record-actions/core.js"), "utf8");
 assert.doesNotMatch(recordActionsCoreSource, /isAllowedSender/, "Record actions retain a duplicate sender policy");
@@ -655,7 +676,14 @@ assert.match(csvExportRuntimeSource, /commandScope\.invoke\(command/, "CSV Expor
 assert.match(csvExportRuntimeSource, /COMMANDS\.RECORD_EXPORT_CSV/, "CSV Export bypasses the typed NetSuite bridge");
 assert.match(csvExportRuntimeSource, /bridgeApi\.toCommandResult/, "CSV Export does not normalize typed bridge responses");
 assert.doesNotMatch(csvExportRuntimeSource, /CustomEvent|REQUEST_EVENT|RESULT_EVENT/, "CSV Export UI retains a direct main-world event bridge");
-assert.match(csvExportRuntimeSource, /textContent = String\(message/, "CSV Export status renders untrusted HTML");
+assert.match(csvExportRuntimeSource, /notificationApi\.showToast\(message/, "CSV Export does not use the shared toast notification API");
+assert.match(
+  csvExportRuntimeSource,
+  /Exporting CSV\. Larger exports may take a moment\.[\s\S]*?"loading"[\s\S]*?await bridgeApi\.request/,
+  "CSV Export does not show persistent progress before starting the bridge request"
+);
+assert.match(csvExportRuntimeSource, /progressToast\?\.dismiss\(\)[\s\S]*?showExportResult/, "CSV Export does not replace progress with its final status");
+assert.doesNotMatch(csvExportRuntimeSource, /uir-alert-box|#div__alert/, "CSV Export still renders an inline NetSuite alert");
 assert.doesNotMatch(csvExportRuntimeSource, /lifecycleApi|new MutationObserver|innerHTML/, "CSV Export owns UI lifecycle or renders arbitrary HTML");
 assert.doesNotMatch(
   `${csvExportCoreSource}\n${csvExportMainWorldSource}\n${csvExportRuntimeSource}`,
