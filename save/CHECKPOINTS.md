@@ -845,3 +845,19 @@ Date: 2026-07-28
 
 - Full `npm test`: 180 passing tests, 28 screenshot baselines at 0.000 percent difference.
 - Browser pass: header row height identical to native (29.5px) with arrows and an active sort indicator; label/arrow midpoints aligned; label text extraction stays clean ("Item"); menu, sorting and personalization unaffected. Screenshot reviewed.
+
+## Transaction Column Personalization: Milestone 11 (personalize-mode visibility)
+
+Status: Automated + browser verification complete; live NetSuite confirmation pending
+
+Date: 2026-07-28
+
+### Included
+
+- Personalize mode is now unmistakable: the controls strip becomes a theme-accented banner reading "Personalizing — drag column headers to reorder. Click Done to finish.", Done switches to a filled primary button, and every header menu arrow dims to 25% with pointer-events disabled so filters cannot look clickable-but-broken during the mode. All indicators revert on Done.
+- Latent bug fixed, caught by screenshot review: the buttons' `display: inline-flex` had silently defeated the `hidden` attribute since Milestone 7, so Personalize/Done/Reset were all visible at once in every mode. A generic `[data-suitemate-v3-so-columns][hidden] { display: none !important }` guard now enforces hidden across all owned elements.
+
+### Verification
+
+- Full `npm test`: 180 passing tests, 28 screenshot baselines at 0.000 percent difference.
+- Browser pass at the computed-display level: normal mode shows only Personalize; personalize mode shows banner + filled Done + Reset with arrows inert (menu clicks blocked); Done restores everything and menus work again. Screenshot reviewed.

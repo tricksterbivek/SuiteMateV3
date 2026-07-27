@@ -5,11 +5,51 @@
    - the dragged cell carries .suitemate-v3-so-columns-dragging
    - the hovered target cell carries .suitemate-v3-so-columns-drop-target */
 
+[data-suitemate-v3-so-columns][hidden] {
+    display: none !important
+}
+
 .suitemate-v3-so-columns-controls {
     display: inline-flex;
+    align-items: center;
     gap: 6px;
     margin: 0 0 4px 6px;
     vertical-align: middle
+}
+
+.suitemate-v3-so-columns-mode-active {
+    padding: 4px 8px;
+    background: #eef2f7;
+    border: 1px solid #c9d2dc;
+    border-left: 3px solid var(--theme-main, #607799);
+    border-radius: var(--suitemate-radius-compact, 4px)
+}
+
+[data-suitemate-v3-so-columns="mode-hint"] {
+    color: #4c5561;
+    font-family: var(--normal-font, "Open Sans", Arial, sans-serif);
+    font-size: 11.5px
+}
+
+.suitemate-v3-so-columns-mode-active [data-suitemate-v3-so-columns="done"] {
+    background: var(--theme-main, #607799);
+    border-color: var(--theme-main, #607799);
+    color: #fff
+}
+
+.suitemate-v3-so-columns-personalizing [data-suitemate-v3-so-columns="menu-toggle"] {
+    opacity: .25;
+    pointer-events: none
+}
+
+html.isDarkMode .suitemate-v3-so-columns-mode-active {
+    background: var(--dark-3, #2b2b2e);
+    border-color: var(--dark-2, #414147);
+    border-left-color: var(--theme-main, #607799)
+}
+
+html.isDarkMode [data-suitemate-v3-so-columns="mode-hint"] {
+    color: var(--dark-text-2, #a7adb5)
 }
 
 .suitemate-v3-so-columns-button {

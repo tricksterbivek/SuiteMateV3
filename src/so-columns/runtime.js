@@ -580,8 +580,10 @@
       return;
     }
     controlButtons.personalize.hidden = personalizing;
+    controlButtons.hint.hidden = !personalizing;
     controlButtons.done.hidden = !personalizing;
     controlButtons.reset.hidden = !personalizing;
+    controlButtons.controls.classList.toggle("suitemate-v3-so-columns-mode-active", personalizing);
   }
 
   function handlePersonalizeClick() {
@@ -633,10 +635,14 @@
     controls.className = core.CLASSES.controls;
     controls.setAttribute(core.DATA_ATTRIBUTE, "controls");
     const personalize = createButton("Personalize", "personalize", handlePersonalizeClick);
+    const hint = document.createElement("span");
+    hint.setAttribute(core.DATA_ATTRIBUTE, "mode-hint");
+    hint.textContent = "Personalizing — drag column headers to reorder. Click Done to finish.";
+    hint.hidden = true;
     const done = createButton("Done", "done", handleDoneClick);
     const reset = createButton("Reset", "reset", handleResetClick);
-    controls.append(personalize, done, reset);
-    controlButtons = { controls, personalize, done, reset };
+    controls.append(personalize, hint, done, reset);
+    controlButtons = { controls, personalize, hint, done, reset };
     (table.closest(CONTAINER_SELECTOR) ?? table).before(controls);
     updateControls();
   }
