@@ -751,7 +751,7 @@ Date: 2026-07-28
 
 ## Transaction Column Personalization: Milestone 6 (multi-select column filters)
 
-Status: Automated + browser verification complete; live NetSuite retest pending
+Status: Complete; live NetSuite verification passed 2026-07-28
 
 Date: 2026-07-28
 
@@ -765,3 +765,9 @@ Date: 2026-07-28
 
 - Full `npm test`: 180 passing tests (anyOf matching, OR-within/AND-across combinations), 28 screenshot baselines at 0.000 percent difference.
 - Browser pass (served fixture, real checkbox clicks/typing/drags): Sydney+Melbourne OR example, combined text + multi-select, sort on multi-filtered rows, selections surviving a column drag, Clear, outside-click close, full Reset.
+
+### Milestone 6 live verification (2026-07-28)
+
+- Production Sales Order (45 columns, 45 filter toggles rendered): Item panel listed the real distinct values; selecting two SKUs showed exactly those rows (OR within column); Quantity `>0` text query AND-combined; Amount sort ran on the filtered set with its indicator; selections survived a personalize-mode round trip with the toggle still highlighted; Reset restored all rows, native columns, and removed the filter row and indicator.
+- Real low-cardinality columns confirmed present for the Excel-style use case (e.g. Product Category: Lips/Face).
+- Zero JavaScript errors.
