@@ -707,7 +707,7 @@ Date: 2026-07-28
 
 ## Transaction Column Personalization: Milestone 4 (column sorting)
 
-Status: Automated + browser verification complete; live NetSuite retest pending
+Status: Complete; live NetSuite verification passed 2026-07-28
 
 Date: 2026-07-28
 
@@ -726,7 +726,7 @@ Date: 2026-07-28
 
 ## Transaction Column Personalization: Milestone 5 (column filtering)
 
-Status: Automated + browser verification complete; live NetSuite retest pending
+Status: Complete; live NetSuite verification passed 2026-07-28
 
 Date: 2026-07-28
 
@@ -740,3 +740,11 @@ Date: 2026-07-28
 
 - Full `npm test`: 178 passing tests (query parsing, operator matching, AND-combining, distinct-value cap, fail-closed), 28 screenshot baselines at 0.000 percent difference.
 - Browser pass (served fixture, real typing/clicks/drags): text filter, combined text+numeric filter, sort-while-filtered, filter inputs traveling with a column drag, toggle-off restore, full Reset.
+
+### Milestone 4 + 5 live verification (2026-07-28)
+
+- Production account 6998262, real pointer interaction via Playwright bridge.
+- Sales Order (45 columns): sort asc/desc/native on Amount including a negative value (-8.54) ordered correctly; indicators shown and cleared; filter row rendered 45 inputs with 30 datalist dropdowns; text filter and combined text + `>1` numeric filter correct; Reset restored columns, rows, filters and indicators; native item links intact.
+- Purchase Orders via generic transaction.nl dispatcher links: controls active across types; zero-item expense POs fail closed gracefully.
+- Scale check on real 44-column PO DOM cloned to 300 rows: first sort ~0.9s wall-clock (includes one-time row stamping and automation round-trip), subsequent sorts ~0.36s, live filter ~0.14s, correct visible counts; page reload discarded all test rows.
+- Zero JavaScript errors across the session.
