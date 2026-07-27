@@ -789,3 +789,21 @@ Date: 2026-07-28
 
 - Full `npm test`: 180 passing tests unchanged, 28 screenshot baselines at 0.000 percent difference.
 - Browser pass (served fixture, real clicks/typing/drags): menu structure, sort via menu with indicator and auto-close, contextual Clear Sort, multi-select OR, search narrowing, operator filter AND-combining across columns, filters surviving column drag, outside-click close, full Reset; old filter UI absent.
+
+## Transaction Column Personalization: Milestone 8 (column menu visual polish)
+
+Status: Automated + browser verification complete; live NetSuite retest pending
+
+Date: 2026-07-28
+
+### Included
+
+- Column menu rebuilt on the SuiteMate design system (toast family): solid overlay surface with `--suitemate-radius-overlay`, theme-main accent edge, 0 8px 24px shadow, 13px `--normal-font`, 0.16s ease-out entry (reduced-motion respected), explicit `html.isDarkMode` overrides using the dark tokens.
+- Structure: SORT / FILTER eyebrow sections, glyphed sort items with an active-direction check state, focus-visible rings on every control, theme-colored checkboxes via native accent-color, ellipsized long values with full-text tooltips, thin scrollbars with overscroll containment.
+- Feedback: live "n of m items" status in the footer, sentence-case action copy (Select all, Clear filter, Clear sort), operator hint under the search box, empty-state note for high-cardinality columns.
+- Root-cause fix uncovered by visual verification: the menu previously rendered inside the machine table's paint order with a failing background (transparent surface, rows painting over it) and was clippable by the scroll container. The menu is now appended to document.body with fixed positioning, viewport-clamped coordinates, and closes on scroll and Escape.
+
+### Verification
+
+- Full `npm test`: 180 passing tests, 28 screenshot baselines at 0.000 percent difference.
+- Browser pass with screenshot review: solid surface confirmed visually, multi-select with live status, sort with indicators, Escape close, Reset; existing personalization unaffected.

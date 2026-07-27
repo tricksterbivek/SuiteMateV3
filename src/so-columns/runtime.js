@@ -185,6 +185,7 @@
     for (const cell of headerCells(table)) {
       updateArrowState(cell);
     }
+    updateMenuStatus();
   }
 
   function unhideAllRows(table) {
@@ -195,6 +196,8 @@
     openMenu?.menu.remove();
     if (openMenu) {
       document.removeEventListener("mousedown", openMenu.onOutside, true);
+      document.removeEventListener("keydown", openMenu.onKey, true);
+      document.removeEventListener("scroll", openMenu.onScroll, true);
     }
     openMenu = null;
   }
@@ -223,13 +226,40 @@
     }
   }
 
-  function menuItem(label, onClick) {
+  function menuItem(glyph, label, onClick, active) {
     const button = document.createElement("button");
     button.type = "button";
     button.setAttribute(core.DATA_ATTRIBUTE, "menu-item");
-    button.textContent = label;
+    if (active) {
+      button.classList.add("suitemate-v3-so-columns-menu-item-active");
+    }
+    const icon = document.createElement("span");
+    icon.setAttribute(core.DATA_ATTRIBUTE, "menu-item-icon");
+    icon.textContent = glyph;
+    const text = document.createElement("span");
+    text.textContent = label;
+    button.append(icon, text);
     button.addEventListener("click", onClick);
     return button;
+  }
+
+  function menuEyebrow(text) {
+    const label = document.createElement("div");
+    label.setAttribute(core.DATA_ATTRIBUTE, "menu-eyebrow");
+    label.textContent = text;
+    return label;
+  }
+
+  function updateMenuStatus() {
+    if (!openMenu?.status) {
+      return;
+    }
+    const table = document.querySelector(TABLE_SELECTOR);
+    const rows = table ? Array.from(table.querySelectorAll("tr.uir-machine-row")) : [];
+    const shown = rows.filter((row) => !row.classList.contains(core.CLASSES.filtered)).length;
+    openMenu.status.textContent = shown === rows.length
+      ? `${rows.length} items`
+      : `${shown} of ${rows.length} items`;
   }
 
   function openColumnMenu(cell) {
@@ -242,46 +272,61 @@
     const menu = document.createElement("div");
     menu.setAttribute(core.DATA_ATTRIBUTE, "column-menu");
 
-    menu.appendChild(menuItem("Sort A to Z", () => { setSortDirection(table, cell, "asc"); closeColumnMenu(); }));
-    menu.appendChild(menuItem("Sort Z to A", () => { setSortDirection(table, cell, "desc"); closeColumnMenu(); }));
-    if (sortCell === cell) {
-      menu.appendChild(menuItem("Clear Sort", () => { setSortDirection(table, cell, "native"); closeColumnMenu(); }));
+    menu.appendChild(menuEyebrow("Sort"));
+    const sortedHere = sortCell === cell;
+    menu.appendChild(menuItem("↑", "Sort A to Z", () => { setSortDirection(table, cell, "asc"); closeColumnMenu(); }, sortedHere && sortDirection === "asc"));
+    menu.appendChild(menuItem("↓", "Sort Z to A", () => { setSortDirection(table, cell, "desc"); closeColumnMenu(); }, sortedHere && sortDirection === "desc"));
+    if (sortedHere) {
+      menu.appendChild(menuItem("✕", "Clear sort", () => { setSortDirection(table, cell, "native"); closeColumnMenu(); }));
     }
-    const divider = document.createElement("div");
-    divider.setAttribute(core.DATA_ATTRIBUTE, "menu-divider");
-    menu.appendChild(divider);
 
+    menu.appendChild(menuEyebrow("Filter"));
     const values = core.distinctColumnValues(table, cell.cellIndex, 200);
     state.textAsRowFilter = !values.length;
 
     const search = document.createElement("input");
     search.type = "search";
-    search.placeholder = values.length ? "Search (or >100)" : "Filter text (or >100)";
+    search.placeholder = values.length ? "Search values" : "Type to filter";
     search.value = state.queryText;
     search.setAttribute(core.DATA_ATTRIBUTE, "menu-search");
     menu.appendChild(search);
 
-    const list = document.createElement("div");
-    list.setAttribute(core.DATA_ATTRIBUTE, "menu-values");
+    const hint = document.createElement("div");
+    hint.setAttribute(core.DATA_ATTRIBUTE, "menu-hint");
+    hint.textContent = "Use > < = for numbers";
+    menu.appendChild(hint);
+
     const optionRows = [];
-    for (const value of values) {
-      const label = document.createElement("label");
-      const box = document.createElement("input");
-      box.type = "checkbox";
-      box.checked = state.selected.has(value);
-      box.addEventListener("change", () => {
-        if (box.checked) {
-          state.selected.add(value);
-        } else {
-          state.selected.delete(value);
-        }
-        applyColumnFilters(table);
-      });
-      label.append(box, document.createTextNode(` ${value}`));
-      optionRows.push({ label, box, value });
-      list.appendChild(label);
+    if (values.length) {
+      const list = document.createElement("div");
+      list.setAttribute(core.DATA_ATTRIBUTE, "menu-values");
+      for (const value of values) {
+        const label = document.createElement("label");
+        label.title = value;
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.checked = state.selected.has(value);
+        box.addEventListener("change", () => {
+          if (box.checked) {
+            state.selected.add(value);
+          } else {
+            state.selected.delete(value);
+          }
+          applyColumnFilters(table);
+        });
+        const text = document.createElement("span");
+        text.textContent = value;
+        label.append(box, text);
+        optionRows.push({ label, box, value });
+        list.appendChild(label);
+      }
+      menu.appendChild(list);
+    } else {
+      const note = document.createElement("div");
+      note.setAttribute(core.DATA_ATTRIBUTE, "menu-note");
+      note.textContent = "Too many values to list — text filters as you type.";
+      menu.appendChild(note);
     }
-    menu.appendChild(list);
 
     const narrow = () => {
       const parsed = core.parseFilterQuery(search.value);
@@ -297,10 +342,13 @@
     });
     narrow();
 
-    const actions = document.createElement("div");
-    actions.setAttribute(core.DATA_ATTRIBUTE, "menu-actions");
+    const footer = document.createElement("div");
+    footer.setAttribute(core.DATA_ATTRIBUTE, "menu-actions");
+    const status = document.createElement("span");
+    status.setAttribute(core.DATA_ATTRIBUTE, "menu-status");
+    footer.appendChild(status);
     if (values.length) {
-      actions.appendChild(menuItem("Select All", () => {
+      footer.appendChild(menuItem("☑", "Select all", () => {
         for (const option of optionRows) {
           if (!option.label.hidden) {
             state.selected.add(option.value);
@@ -310,7 +358,7 @@
         applyColumnFilters(table);
       }));
     }
-    actions.appendChild(menuItem("Clear Filter", () => {
+    footer.appendChild(menuItem("✕", "Clear filter", () => {
       state.selected.clear();
       state.queryText = "";
       search.value = "";
@@ -320,17 +368,36 @@
       narrow();
       applyColumnFilters(table);
     }));
-    menu.appendChild(actions);
+    menu.appendChild(footer);
 
-    cell.appendChild(menu);
+    // Body-appended and fixed-positioned: escapes the machine table's paint
+    // order and the scroll container's clipping.
+    document.body.appendChild(menu);
+    const anchor = cell.getBoundingClientRect();
+    const size = menu.getBoundingClientRect();
+    menu.style.left = `${Math.max(8, Math.min(anchor.left, (window.innerWidth || 1024) - (size.width || 224) - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(anchor.bottom + 2, (window.innerHeight || 768) - (size.height || 320) - 8))}px`;
     search.focus();
     const onOutside = (event) => {
-      if (!cell.contains(event.target)) {
+      if (!cell.contains(event.target) && !menu.contains(event.target)) {
+        closeColumnMenu();
+      }
+    };
+    const onKey = (event) => {
+      if (event.key === "Escape") {
+        closeColumnMenu();
+      }
+    };
+    const onScroll = (event) => {
+      if (!menu.contains(event.target)) {
         closeColumnMenu();
       }
     };
     document.addEventListener("mousedown", onOutside, true);
-    openMenu = { cell, menu, onOutside };
+    document.addEventListener("keydown", onKey, true);
+    document.addEventListener("scroll", onScroll, true);
+    openMenu = { cell, menu, onOutside, onKey, onScroll, status };
+    updateMenuStatus();
   }
 
   function toggleColumnMenu(cell) {
