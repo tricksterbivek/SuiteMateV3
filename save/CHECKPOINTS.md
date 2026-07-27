@@ -869,7 +869,7 @@ Date: 2026-07-28
 
 ## Transaction Column Personalization: Milestone 12 (hide/show columns)
 
-Status: Automated + browser verification complete; live NetSuite retest pending
+Status: Complete; live NetSuite verification passed 2026-07-28
 
 Date: 2026-07-28
 
@@ -883,3 +883,8 @@ Date: 2026-07-28
 
 - Full `npm test`: 183 passing tests (schema migration, withHidden semantics, applyHidden row coverage), 28 screenshot baselines at 0.000 percent difference.
 - Browser pass: hide via menu (5 -> 4 visible columns across header and rows, v2 payload persisted), ghost + chip in personalize mode, chip restore with empty-entry cleanup, sorting with a hidden column present, full Reset.
+
+### Milestone 12 live verification (2026-07-28)
+
+- Production Sales Order (45 columns): "Hide column" removed Committed across header and rows (45 -> 44 visible); the hidden state survived a full page reload (schema-v2 sync storage round-trip); personalize mode showed the 35%-opacity ghost and the "Committed" restore chip; chip click restored all 45 columns and the restore itself persisted through a final reload with clean storage.
+- Zero JavaScript errors.
