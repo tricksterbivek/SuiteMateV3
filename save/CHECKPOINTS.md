@@ -817,7 +817,7 @@ Date: 2026-07-28
 
 ## Transaction Column Personalization: Milestone 9 (sticky header regression fix)
 
-Status: Automated + browser verification complete; live NetSuite confirmation pending
+Status: Complete; live NetSuite verification passed 2026-07-28
 
 Date: 2026-07-28
 
@@ -832,7 +832,7 @@ Date: 2026-07-28
 
 ## Transaction Column Personalization: Milestone 10 (inline header arrows)
 
-Status: Automated + browser verification complete; live NetSuite confirmation pending
+Status: Complete; live NetSuite verification passed 2026-07-28
 
 Date: 2026-07-28
 
@@ -848,7 +848,7 @@ Date: 2026-07-28
 
 ## Transaction Column Personalization: Milestone 11 (personalize-mode visibility)
 
-Status: Automated + browser verification complete; live NetSuite confirmation pending
+Status: Complete; live NetSuite verification passed 2026-07-28
 
 Date: 2026-07-28
 
@@ -861,3 +861,8 @@ Date: 2026-07-28
 
 - Full `npm test`: 180 passing tests, 28 screenshot baselines at 0.000 percent difference.
 - Browser pass at the computed-display level: normal mode shows only Personalize; personalize mode shows banner + filled Done + Reset with arrows inert (menu clicks blocked); Done restores everything and menus work again. Screenshot reviewed.
+
+### Milestones 9-11 combined live verification (2026-07-28)
+
+- Production Sales Order (45 columns): header cells compute `position: sticky` again (the regression had forced `relative`); the menu arrow renders inline inside `.listheader` on the same line as the title at a compact 28px header row; personalize mode shows the accent banner with filled Done and 25%-opacity inert arrows (menu clicks blocked), and Done restores arrows and menus fully.
+- Zero JavaScript errors.
