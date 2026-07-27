@@ -814,3 +814,18 @@ Date: 2026-07-28
 - Two micro-fixes found during the pass, verified on the served fixture (live after next extension reload): a second-pass right-edge re-clamp (menu width settles wider than first measurement by ~1px), and a 350ms scroll-close grace period so the menu is not self-closed by the trailing events of a smooth scroll.
 - Dark-mode overrides are token-derived (`html.isDarkMode`); account runs light theme, so dark styling is verified by construction against netsuite.css tokens rather than live.
 - Zero JavaScript errors.
+
+## Transaction Column Personalization: Milestone 9 (sticky header regression fix)
+
+Status: Automated + browser verification complete; live NetSuite confirmation pending
+
+Date: 2026-07-28
+
+### Included
+
+- Root cause: Milestone 8 added `position: relative` to `#item_splits` header cells to anchor the column menu inside them. SuiteMate/NetSuite pin those same cells with `position: sticky` when the body scrolls, and the override killed the pinning. The menu had since moved to body-appended fixed positioning, making the rule dead weight — the fix is its deletion; so-columns.css no longer touches header-cell positioning at all (the only remaining `position` rule is the menu's own `position: fixed`).
+
+### Verification
+
+- Full `npm test`: 180 passing tests, 28 screenshot baselines at 0.000 percent difference.
+- Browser reconstruction of NetSuite's sticky mechanism (sticky header cells in a scrollable container, 44-row table): header cells compute `position: sticky` again (previously forced to `relative`), header stays pinned at the container top after scrolling 400px, column menu opens mid-scroll with its solid surface, arrows/personalization unaffected. Screenshot reviewed.

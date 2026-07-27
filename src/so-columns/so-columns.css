@@ -56,10 +56,6 @@
     user-select: none
 }
 
-#item_splits[data-suitemate-v3-so-columns-sortable] tr.uir-machine-headerrow td {
-    position: relative
-}
-
 [data-suitemate-v3-so-columns="menu-toggle"] {
     margin-left: 4px;
     padding: 1px 4px;
