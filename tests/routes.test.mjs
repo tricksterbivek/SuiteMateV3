@@ -39,9 +39,11 @@ function sender(url, tabId, frameId = 0, documentId = `document-${tabId}`) {
 test("exports stable route and capability constants", () => {
   assert.equal(PATHS.SUITEQL_CONSOLE, "/app/common/search/ubersearchresults.nl");
   assert.equal(PATHS.IMPORT_ASSISTANT, "/app/setup/assistants/nsimport/importassistant.nl");
+  assert.equal(PATHS.SALES_ORDER, "/app/accounting/transactions/salesord.nl");
   assert.equal(CAPABILITIES.GLOBAL_THEME, "global-theme");
   assert.equal(CAPABILITIES.INTERNAL_IDS, "internal-ids");
   assert.equal(CAPABILITIES.CSV_EXPORT_RECORD, "csv-export-record");
+  assert.equal(CAPABILITIES.SO_COLUMN_PERSONALIZATION, "so-column-personalization");
   assert.equal(CAPABILITIES.SUITEQL_BRIDGE, "suiteql-bridge");
   assert.equal(CAPABILITIES.SEARCH_QUERY_BRIDGE, "search-query-bridge");
   assert.equal(CAPABILITIES.RECORD_METADATA_BRIDGE, "record-metadata-bridge");
@@ -248,6 +250,41 @@ test("limits CSV Export to saved top-frame records with a numeric ID", () => {
     routes.supports(
       CAPABILITIES.CSV_EXPORT_RECORD,
       page("/app/accounting/transactions/salesord.nl?id=1", { isTopFrame: false })
+    ),
+    false
+  );
+});
+
+test("limits Sales Order column personalization to top-frame view mode", () => {
+  for (const path of [
+    "/app/accounting/transactions/salesord.nl?id=1",
+    "/app/accounting/transactions/salesord.nl?id=42&whence=TRNSALESORD"
+  ]) {
+    assert.equal(routes.supports(CAPABILITIES.SO_COLUMN_PERSONALIZATION, page(path)), true, path);
+  }
+
+  for (const path of [
+    "/app/accounting/transactions/salesord.nl",
+    "/app/accounting/transactions/salesord.nl?id=1&e=T",
+    "/app/accounting/transactions/salesord.nl?id=1&e=F",
+    "/app/accounting/transactions/salesord.nl?e=T",
+    "/app/common/item/item.nl?id=2",
+    `${PATHS.SAVED_SEARCH_RESULTS}?id=1`
+  ]) {
+    assert.equal(routes.supports(CAPABILITIES.SO_COLUMN_PERSONALIZATION, page(path)), false, path);
+  }
+
+  assert.equal(
+    routes.supports(
+      CAPABILITIES.SO_COLUMN_PERSONALIZATION,
+      page("/app/accounting/transactions/salesord.nl?id=1", { isTopFrame: false })
+    ),
+    false
+  );
+  assert.equal(
+    routes.supports(
+      CAPABILITIES.SO_COLUMN_PERSONALIZATION,
+      routes.createPageContext("https://example.com/app/accounting/transactions/salesord.nl?id=1")
     ),
     false
   );

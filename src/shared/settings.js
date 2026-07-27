@@ -6,7 +6,7 @@
     return;
   }
   const STORAGE_KEY = "suiteMateV3Style";
-  const SCHEMA_VERSION = 2;
+  const SCHEMA_VERSION = 3;
   const LEGACY_SCHEMA_VERSION = 0;
   const MAX_SYNC_ITEM_BYTES = 7800;
   const INVALID_VERSION_CODE = "INVALID_SETTINGS_VERSION";
@@ -32,6 +32,7 @@
     mode: "light",
     squareCorners: false,
     showInternalIds: false,
+    salesOrderColumns: false,
     roleThemes: Object.freeze({})
   });
 
@@ -125,6 +126,7 @@
       mode: MODES.includes(candidate.mode) ? candidate.mode : DEFAULTS.mode,
       squareCorners: candidate.squareCorners === true,
       showInternalIds: candidate.showInternalIds === true,
+      salesOrderColumns: candidate.salesOrderColumns === true,
       roleThemes: normalizeRoleThemes(candidate.roleThemes)
     };
   }
@@ -142,6 +144,13 @@
         ...value,
         schemaVersion: 2,
         showInternalIds: value.showInternalIds === true
+      };
+    },
+    2(value) {
+      return {
+        ...value,
+        schemaVersion: 3,
+        salesOrderColumns: value.salesOrderColumns === true
       };
     }
   });

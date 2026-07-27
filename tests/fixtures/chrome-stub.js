@@ -11,8 +11,10 @@
     enabled: params.get("enabled") !== "false",
     mode: ["light", "dark", "system"].includes(params.get("mode")) ? params.get("mode") : "light",
     squareCorners: params.get("squareCorners") === "true",
-    showInternalIds: params.get("showInternalIds") === "true"
+    showInternalIds: params.get("showInternalIds") === "true",
+    salesOrderColumns: params.get("salesOrderColumns") === "true"
   };
+  let columnOrders;
   const roleKey = params.get("roleKey");
   const main = params.get("mainColor");
   const secondary = params.get("secondaryColor");
@@ -202,10 +204,24 @@
     storage: {
       sync: {
         async get(key) {
+          if (key === "suiteMateV3ColumnOrder") {
+            return { [key]: columnOrders };
+          }
           return { [key]: settings };
         },
         async set(value) {
           const [key, nextSettings] = Object.entries(value)[0];
+          if (key === "suiteMateV3ColumnOrder") {
+            const previousOrders = columnOrders;
+            columnOrders = nextSettings;
+            document.documentElement.dataset.columnOrderWrites = String(
+              Number(document.documentElement.dataset.columnOrderWrites ?? 0) + 1
+            );
+            for (const listener of listeners) {
+              listener({ [key]: { oldValue: previousOrders, newValue: columnOrders } }, "sync");
+            }
+            return;
+          }
           const previousSettings = settings;
           settings = nextSettings;
           document.documentElement.dataset.storageWrites = String(
@@ -279,6 +295,9 @@
   globalThis.SuiteMateV3Fixture = {
     get settings() {
       return settings;
+    },
+    get columnOrders() {
+      return columnOrders;
     },
     previewMessages,
     suiteqlMessages,

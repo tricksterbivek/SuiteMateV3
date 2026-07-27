@@ -35,7 +35,8 @@ assert.deepEqual(globalThemeContentScript.css, [
   "src/styles/v3-compat.css",
   "src/styles/notifications.css",
   "src/internal-ids/internal-ids.css",
-  "src/record-actions/csv-import.css"
+  "src/record-actions/csv-import.css",
+  "src/so-columns/so-columns.css"
 ]);
 assert.deepEqual(globalThemeContentScript.js, [
   "src/shared/utilities.js",
@@ -46,12 +47,14 @@ assert.deepEqual(globalThemeContentScript.js, [
   "src/shared/settings.js",
   "src/internal-ids/core.js",
   "src/csv-export/core.js",
+  "src/so-columns/core.js",
   "src/runtime/theme-runtime.js",
   "src/runtime/notification-runtime.js",
   "src/record-actions/core.js",
   "src/internal-ids/runtime.js",
   "src/record-actions/csv-import.js",
-  "src/csv-export/runtime.js"
+  "src/csv-export/runtime.js",
+  "src/so-columns/runtime.js"
 ]);
 assert.equal(
   globalThemeContentScript.js.includes("src/shared/permissions.js"),
@@ -194,6 +197,9 @@ const extensionSources = [
   "src/record-actions/core.js",
   "src/record-actions/csv-import.js",
   "src/record-actions/csv-import.css",
+  "src/so-columns/core.js",
+  "src/so-columns/runtime.js",
+  "src/so-columns/so-columns.css",
   "src/import-assistant/core.js",
   "src/import-assistant/context-runtime.js",
   "src/popup/popup.html",
@@ -930,18 +936,20 @@ runInNewContext(utilitySource, settingsSandbox);
 runInNewContext(settingsSource, settingsSandbox);
 const settingsApi = settingsSandbox.SuiteMateV3Settings;
 assert.equal(settingsApi.THEME_PREVIEW_MESSAGE, "SUITEMATE_V3_PREVIEW_ROLE_THEME");
-assert.equal(settingsApi.SCHEMA_VERSION, 2);
+assert.equal(settingsApi.SCHEMA_VERSION, 3);
 assert.equal(settingsApi.DEFAULTS.schemaVersion, settingsApi.SCHEMA_VERSION);
 assert.equal(settingsApi.DEFAULTS.squareCorners, false);
 assert.equal(settingsApi.DEFAULTS.showInternalIds, false);
+assert.equal(settingsApi.DEFAULTS.salesOrderColumns, false);
 assert.deepEqual(
   JSON.parse(JSON.stringify(settingsApi.validateForStorage({ mode: "dark" }))),
   {
-    schemaVersion: 2,
+    schemaVersion: 3,
     enabled: true,
     mode: "dark",
     squareCorners: false,
     showInternalIds: false,
+    salesOrderColumns: false,
     roleThemes: {}
   }
 );

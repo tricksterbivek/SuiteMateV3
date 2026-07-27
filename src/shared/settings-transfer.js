@@ -113,7 +113,8 @@
     }
 
     const legacySchemaKeys = {
-      1: ["schemaVersion", "enabled", "mode", "squareCorners", "roleThemes"]
+      1: ["schemaVersion", "enabled", "mode", "squareCorners", "roleThemes"],
+      2: ["schemaVersion", "enabled", "mode", "squareCorners", "showInternalIds", "roleThemes"]
     };
     if (
       declaredSchemaVersion < settingsApi.SCHEMA_VERSION
@@ -145,7 +146,16 @@
           squareCorners: normalized.squareCorners,
           roleThemes: normalized.roleThemes
         }
-      : normalized;
+      : declaredSchemaVersion === 2
+        ? {
+            schemaVersion: 2,
+            enabled: normalized.enabled,
+            mode: normalized.mode,
+            squareCorners: normalized.squareCorners,
+            showInternalIds: normalized.showInternalIds,
+            roleThemes: normalized.roleThemes
+          }
+        : normalized;
     if (!jsonEquivalent(value, comparable)) {
       throw transferError(
         "NON_CANONICAL_BACKUP_SETTINGS",

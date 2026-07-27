@@ -1,0 +1,58 @@
+/* SuiteMate V3 — Sales Order view-mode column personalization.
+   Hooks for src/so-columns/runtime.js (names exported by SuiteMateV3SoColumnsCore.CLASSES):
+   - #item_splits carries .suitemate-v3-so-columns-personalizing while the mode is active
+   - header cells become draggable="true" in that mode
+   - the dragged cell carries .suitemate-v3-so-columns-dragging
+   - the hovered target cell carries .suitemate-v3-so-columns-drop-target */
+
+.suitemate-v3-so-columns-controls {
+    display: inline-flex;
+    gap: 6px;
+    margin: 0 0 4px 6px;
+    vertical-align: middle
+}
+
+.suitemate-v3-so-columns-button {
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+    min-height: 24px;
+    padding: 0 10px;
+    border: 1px solid color-mix(in srgb, var(--theme-main, #607799) 38%, var(--field-border-color, #c7c7c7));
+    border-radius: var(--suitemate-radius-compact, 4px);
+    background: transparent;
+    color: var(--theme-main, #607799);
+    font-family: var(--normal-font, "Open Sans", Arial, sans-serif);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 22px;
+    white-space: nowrap;
+    cursor: pointer
+}
+
+.suitemate-v3-so-columns-button:hover {
+    border-color: var(--theme-main, #607799);
+    background: var(--theme-secondary-light-light, rgb(0 0 0 / .05))
+}
+
+.suitemate-v3-so-columns-button:focus-visible {
+    outline: 2px solid var(--theme-main, #607799);
+    outline-offset: 2px
+}
+
+.suitemate-v3-so-columns-personalizing tr.uir-machine-headerrow td[draggable="true"] {
+    cursor: grab;
+    user-select: none
+}
+
+.suitemate-v3-so-columns-personalizing tr.uir-machine-headerrow td[draggable="true"]:active {
+    cursor: grabbing
+}
+
+.suitemate-v3-so-columns-dragging {
+    opacity: .45
+}
+
+td.suitemate-v3-so-columns-drop-target {
+    box-shadow: inset 4px 0 0 0 var(--theme-main, #607799)
+}
