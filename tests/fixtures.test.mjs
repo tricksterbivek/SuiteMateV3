@@ -98,7 +98,7 @@ test("every route and retained Redwood contract has a valid screenshot baseline"
     ...catalog.CLASSIC_VARIANTS.map((entry) => ({ ...entry, profile: "classic" })),
     ...catalog.REDWOOD_BASELINES.map((entry) => ({ ...entry, profile: "redwood" }))
   ];
-  assert.equal(entries.length, 26);
+  assert.equal(entries.length, 28);
 
   for (const entry of entries) {
     const path = resolve(root, "tests/fixtures/screenshots", entry.profile, `${entry.fixtureId}.png`);

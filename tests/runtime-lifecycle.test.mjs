@@ -19,6 +19,7 @@ const sources = Object.fromEntries(await Promise.all(
     "src/csv-export/core.js",
     "src/csv-export/runtime.js",
     "src/import-assistant/core.js",
+    "src/runtime/notification-runtime.js",
     "src/runtime/theme-runtime.js",
     "src/record-actions/csv-import.js",
     "src/import-assistant/context-runtime.js"
@@ -368,6 +369,189 @@ test("Internal IDs follows its setting live and removes only owned badges", asyn
   assert.equal(label.badge.isConnected, false);
 });
 
+test("SuiteMate toasts stack on the right, use text only and dismiss reliably", () => {
+  const timers = new Map();
+  const windowListeners = {};
+  let timerSequence = 0;
+
+  function createElement(tagName) {
+    const classes = new Set();
+    const element = {
+      tagName,
+      id: "",
+      className: "",
+      type: "",
+      textContent: "",
+      dataset: {},
+      attributes: {},
+      children: [],
+      parent: null,
+      listeners: {},
+      classList: {
+        add(...names) {
+          names.forEach((name) => classes.add(name));
+        },
+        contains(name) {
+          return classes.has(name);
+        }
+      },
+      setAttribute(name, value) {
+        this.attributes[name] = String(value);
+      },
+      addEventListener(type, listener) {
+        this.listeners[type] = listener;
+      },
+      append(...children) {
+        for (const child of children) {
+          child.parent = this;
+          this.children.push(child);
+        }
+      },
+      prepend(...children) {
+        for (const child of [...children].reverse()) {
+          child.parent = this;
+          this.children.unshift(child);
+        }
+      },
+      contains(candidate) {
+        return candidate === this
+          || this.children.some((child) => child.contains(candidate));
+      },
+      remove() {
+        if (!this.parent) {
+          return;
+        }
+        this.parent.children = this.parent.children.filter((child) => child !== this);
+        this.parent = null;
+      },
+      get childElementCount() {
+        return this.children.length;
+      },
+      get firstElementChild() {
+        return this.children[0] ?? null;
+      },
+      get lastElementChild() {
+        return this.children.at(-1) ?? null;
+      }
+    };
+    return element;
+  }
+
+  const documentElement = createElement("html");
+  documentElement.classList = {
+    contains: () => false
+  };
+  const body = createElement("body");
+  documentElement.append(body);
+  const findById = (root, id) => {
+    if (root.id === id) {
+      return root;
+    }
+    for (const child of root.children) {
+      const match = findById(child, id);
+      if (match) {
+        return match;
+      }
+    }
+    return null;
+  };
+  const document = {
+    documentElement,
+    body,
+    createElement,
+    getElementById(id) {
+      return findById(documentElement, id);
+    },
+    addEventListener() {}
+  };
+  const sandbox = {
+    URL,
+    URLSearchParams,
+    Date,
+    location: createLocation("https://123456.app.netsuite.com/app/center/card.nl"),
+    document,
+    setTimeout(callback, delay) {
+      const id = ++timerSequence;
+      timers.set(id, { callback, delay });
+      return id;
+    },
+    clearTimeout(id) {
+      timers.delete(id);
+    },
+    addEventListener(type, listener) {
+      windowListeners[type] = listener;
+    }
+  };
+  sandbox.globalThis = sandbox;
+  sandbox.window = sandbox;
+  sandbox.top = sandbox;
+  runInNewContext(sources["src/shared/routes.js"], sandbox);
+  runInNewContext(sources["src/runtime/notification-runtime.js"], sandbox);
+
+  const toastApi = sandbox.SuiteMateV3Notifications;
+  const success = toastApi.showToast("<b>Export complete</b>", { type: "success" });
+  const region = document.getElementById("suitemate-v3-toast-region");
+  assert.ok(success);
+  assert.equal(region?.attributes["aria-live"], "polite");
+  assert.equal(region?.childElementCount, 1);
+  const successToast = region.firstElementChild;
+  assert.equal(successToast.dataset.type, "success");
+  assert.equal(successToast.attributes.role, "status");
+  assert.equal(successToast.children[1].textContent, "<b>Export complete</b>");
+  assert.equal(successToast.children[2].attributes["aria-label"], "Dismiss notification");
+  assert.equal([...timers.values()].some((timer) => timer.delay === 5000), true);
+
+  successToast.listeners.mouseenter();
+  assert.equal([...timers.values()].some((timer) => timer.delay === 5000), false);
+  successToast.listeners.mouseleave();
+  assert.equal(timers.size > 0, true);
+
+  successToast.children[2].listeners.click({ stopPropagation() {} });
+  const dismissTimer = [...timers.values()].find((timer) => timer.delay === 180);
+  assert.ok(dismissTimer);
+  dismissTimer.callback();
+  assert.equal(region.childElementCount, 0);
+
+  const error = toastApi.showToast("Export failed", { type: "error" });
+  const errorToast = document.getElementById(error.id);
+  assert.equal(errorToast.attributes.role, "alert");
+  assert.equal(
+    [...timers.values()].some((timer) => timer.delay === 5000),
+    false,
+    "Errors must remain until explicitly dismissed"
+  );
+
+  const loading = toastApi.showToast("Exporting CSV", { type: "loading" });
+  const loadingToast = document.getElementById(loading.id);
+  assert.equal(loadingToast.dataset.type, "loading");
+  assert.equal(loadingToast.attributes.role, "status");
+  assert.equal(
+    [...timers.values()].some((timer) => timer.delay === 5000),
+    false,
+    "Loading feedback must remain visible until the operation completes"
+  );
+  toastApi.clearToasts();
+  assert.equal(document.getElementById("suitemate-v3-toast-region"), null);
+
+  for (let index = 0; index < 5; index += 1) {
+    toastApi.showToast(`Notice ${index}`);
+  }
+  const stackedRegion = document.getElementById("suitemate-v3-toast-region");
+  assert.equal(
+    stackedRegion.childElementCount,
+    4,
+    "Toast stacking must remain bounded"
+  );
+  assert.deepEqual(
+    stackedRegion.children.map((toast) => toast.children[1].textContent),
+    ["Notice 4", "Notice 3", "Notice 2", "Notice 1"],
+    "Newest toasts must appear at the top and displace the oldest toast"
+  );
+
+  windowListeners.pagehide({ persisted: false });
+  assert.equal(document.getElementById("suitemate-v3-toast-region"), null);
+});
+
 test("CSV Utils rejects stale installation and routes Import, Export and Template independently", async () => {
   let mainFormReady = false;
   let toolbarReady = false;
@@ -632,7 +816,7 @@ test("CSV Utils Export and Template invoke the typed bridge and report their dow
     "https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl?id=1"
   );
   const storageListeners = [];
-  const statusElements = [];
+  const toastCalls = [];
   const exportLink = {
     textContent: "Export",
     attributes: {},
@@ -658,41 +842,15 @@ test("CSV Utils Export and Template invoke the typed bridge and report their dow
       if (selector === '[data-suitemate-v3-action="csv-utils-template"]') {
         return templateLink;
       }
-      if (selector === "#div__alert") {
-        return {
-          append(element) {
-            statusElements.push(element);
-          }
-        };
-      }
       return null;
     },
-    querySelectorAll(selector) {
-      return selector === '[data-suitemate-v3-action="csv-export-status"]'
-        ? statusElements.filter((element) => element.isConnected !== false)
-        : [];
-    },
-    createElement(tagName) {
-      return {
-        tagName,
-        className: "",
-        dataset: {},
-        attributes: {},
-        children: [],
-        isConnected: true,
-        setAttribute(name, value) {
-          this.attributes[name] = String(value);
-        },
-        append(...children) {
-          this.children.push(...children);
-        },
-        remove() {
-          this.isConnected = false;
-        }
-      };
+    querySelectorAll() {
+      return [];
     }
   };
   const sentMessages = [];
+  let resolveDelayedExport;
+  let delayNextExport = true;
   const sandbox = {
     URL,
     URLSearchParams,
@@ -709,7 +867,7 @@ test("CSV Utils Export and Template invoke the typed bridge and report their dow
       runtime: {
         async sendMessage(message) {
           sentMessages.push(message);
-          return {
+          const response = {
             type: "SUITEMATE_V3_NETSUITE_BRIDGE_RESPONSE",
             version: 2,
             ok: true,
@@ -726,6 +884,13 @@ test("CSV Utils Export and Template invoke the typed bridge and report their dow
               columnCount: 12
             }
           };
+          if (delayNextExport) {
+            delayNextExport = false;
+            return new Promise((resolve) => {
+              resolveDelayedExport = () => resolve(response);
+            });
+          }
+          return response;
         }
       },
       storage: {
@@ -743,6 +908,21 @@ test("CSV Utils Export and Template invoke the typed bridge and report their dow
       },
       normalize(value) {
         return value;
+      }
+    },
+    SuiteMateV3Notifications: {
+      showToast(message, options) {
+        const call = {
+          message,
+          options: { ...options },
+          dismissed: false
+        };
+        toastCalls.push(call);
+        return {
+          dismiss() {
+            call.dismissed = true;
+          }
+        };
       }
     }
   };
@@ -763,7 +943,21 @@ test("CSV Utils Export and Template invoke the typed bridge and report their dow
   );
   assert.equal(exportRuntime?.VERSION, 3);
   assert.equal(exportRuntime.isAvailable(), true);
-  const commandResult = await exportRuntime.invoke();
+  const pendingCommand = exportRuntime.invoke();
+  await flushTasks();
+  assert.equal(typeof resolveDelayedExport, "function");
+  assert.equal(exportLink.textContent, "Exporting...");
+  assert.equal(exportLink.attributes["aria-busy"], "true");
+  assert.equal(toastCalls.length, 1);
+  assert.equal(
+    toastCalls[0].message,
+    "Exporting CSV. Larger exports may take a moment."
+  );
+  assert.deepEqual(toastCalls[0].options, { type: "loading" });
+  assert.equal(toastCalls[0].dismissed, false);
+
+  resolveDelayedExport();
+  const commandResult = await pendingCommand;
   assert.equal(commandResult.ok, true);
   assert.equal(commandResult.value.ok, true);
   assert.equal(sentMessages.length, 1);
@@ -771,22 +965,22 @@ test("CSV Utils Export and Template invoke the typed bridge and report their dow
   assert.deepEqual(plain(sentMessages[0].payload), { mode: "export" });
   assert.equal(exportLink.textContent, "Export");
   assert.equal(exportLink.attributes["aria-busy"], "false");
-  assert.equal(statusElements.length, 1);
-  assert.equal(statusElements[0].attributes.role, "status");
-  assert.equal(
-    statusElements[0].children[0].children[0].textContent,
-    "Exported 3 item rows to SO1.csv."
-  );
+  assert.equal(toastCalls.length, 2);
+  assert.equal(toastCalls[0].dismissed, true);
+  assert.equal(toastCalls[1].message, "Exported 3 item rows to SO1.csv.");
+  assert.deepEqual(toastCalls[1].options, { type: "success" });
   const templateResult = await exportRuntime.invoke("template");
   assert.equal(templateResult.ok, true);
   assert.equal(sentMessages.length, 2);
   assert.deepEqual(plain(sentMessages[1].payload), { mode: "template" });
   assert.equal(templateLink.textContent, "Template");
   assert.equal(templateLink.attributes["aria-busy"], "false");
-  assert.equal(
-    statusElements.at(-1).children[0].children[0].textContent,
-    "Downloaded 12-column template to SO1-template.csv."
-  );
+  assert.equal(toastCalls.length, 4);
+  assert.equal(toastCalls[2].message, "Preparing CSV template...");
+  assert.deepEqual(toastCalls[2].options, { type: "loading" });
+  assert.equal(toastCalls[2].dismissed, true);
+  assert.equal(toastCalls.at(-1).message, "Downloaded 12-column template to SO1-template.csv.");
+  assert.deepEqual(toastCalls.at(-1).options, { type: "success" });
 });
 
 test("Import Assistant does not write a subtype after its sourced option wait fails", async () => {

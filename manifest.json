@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "SuiteMate V3",
   "short_name": "SuiteMate V3",
-  "version": "3.16.3",
+  "version": "3.16.4",
   "description": "Restores the SuiteMate V1 NetSuite UI and adds focused developer tools.",
   "icons": {
     "16": "icons/16.png",
@@ -44,6 +44,7 @@
         "src/styles/netsuite.css",
         "src/styles/radii.css",
         "src/styles/v3-compat.css",
+        "src/styles/notifications.css",
         "src/internal-ids/internal-ids.css",
         "src/record-actions/csv-import.css"
       ],
