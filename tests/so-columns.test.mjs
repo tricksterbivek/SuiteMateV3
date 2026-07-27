@@ -281,12 +281,18 @@ function createSortableTable(headerLabels, dataRowsValues, trailing = []) {
   };
   const makeRow = (labels, className) => {
     const attrs = {};
+    const classes = new Set();
     const row = {
       className,
       parentNode: parent,
       cells: labels.map((label) => ({ textContent: label })),
       getAttribute: (name) => (name in attrs ? attrs[name] : null),
-      setAttribute: (name, value) => { attrs[name] = String(value); }
+      setAttribute: (name, value) => { attrs[name] = String(value); },
+      classList: {
+        toggle: (name, force) => { if (force) { classes.add(name); } else { classes.delete(name); } },
+        contains: (name) => classes.has(name),
+        remove: (name) => classes.delete(name)
+      }
     };
     Object.defineProperty(row, "nextSibling", {
       get() {
@@ -357,6 +363,56 @@ test("sortRows fails closed on non-contiguous rows and invalid input", () => {
   assert.equal(core.sortRows(ok.table, 0, "sideways"), false);
   assert.equal(core.sortRows(null, 0, "asc"), false);
   assert.deepEqual(ok.rows[1].cells.map((c) => c.textContent), ["1", "2"]);
+});
+
+test("parseFilterQuery and matchesFilter cover text and numeric operators", () => {
+  const core = createApi();
+  assert.equal(core.parseFilterQuery(""), null);
+  assert.equal(core.parseFilterQuery("   "), null);
+  assert.deepEqual(plain(core.parseFilterQuery("SKU001")), { op: "contains", value: "sku001" });
+  assert.deepEqual(plain(core.parseFilterQuery(">100")), { op: ">", value: 100 });
+  assert.deepEqual(plain(core.parseFilterQuery(">= $1,500")), { op: ">=", value: 1500 });
+  assert.deepEqual(plain(core.parseFilterQuery("> abc")), { op: "contains", value: "> abc" });
+
+  assert.equal(core.matchesFilter("SKU001-Blue", core.parseFilterQuery("sku001")), true);
+  assert.equal(core.matchesFilter("Sydney", core.parseFilterQuery("melb")), false);
+  assert.equal(core.matchesFilter("$500.00", core.parseFilterQuery(">100")), true);
+  assert.equal(core.matchesFilter("$50.00", core.parseFilterQuery(">100")), false);
+  assert.equal(core.matchesFilter("$100.00", core.parseFilterQuery(">=100")), true);
+  assert.equal(core.matchesFilter("no-number", core.parseFilterQuery(">100")), false);
+  assert.equal(core.matchesFilter("anything", null), true);
+});
+
+test("applyFilters hides non-matching rows, AND-combines and unhides", () => {
+  const core = createApi();
+  const { table, dataRows, trailingRows } = createSortableTable(
+    ["Item", "Location", "Amount"],
+    [["SKU001", "Sydney", "$500.00"], ["SKU002", "Sydney", "$50.00"], ["SKU001-B", "Melbourne", "$150.00"]],
+    [["Total", "", "$700.00"]]
+  );
+  const hidden = () => dataRows.map((row) => row.classList.contains("suitemate-v3-so-columns-filtered"));
+
+  assert.equal(core.applyFilters(table, [core.parseFilterQuery("SKU001"), null, null]), true);
+  assert.deepEqual(hidden(), [false, true, false]);
+
+  assert.equal(core.applyFilters(table, [core.parseFilterQuery("SKU001"), core.parseFilterQuery("sydney"), core.parseFilterQuery(">100")]), true);
+  assert.deepEqual(hidden(), [false, true, true]);
+
+  assert.equal(core.applyFilters(table, [null, null, null]), true);
+  assert.deepEqual(hidden(), [false, false, false]);
+  assert.equal(trailingRows[0].classList.contains("suitemate-v3-so-columns-filtered"), false);
+  assert.equal(core.applyFilters(null, []), false);
+});
+
+test("distinctColumnValues lists unique values and respects the cap", () => {
+  const core = createApi();
+  const { table } = createSortableTable(
+    ["Location"],
+    [["Sydney"], ["Melbourne"], ["Sydney"], [""]]
+  );
+  assert.deepEqual(plain(core.distinctColumnValues(table, 0, 20)), ["Melbourne", "Sydney"]);
+  assert.deepEqual(plain(core.distinctColumnValues(table, 0, 1)), []);
+  assert.deepEqual(plain(core.distinctColumnValues(null, 0, 5)), []);
 });
 
 test("core has no DOM, storage, bridge or network authority", () => {

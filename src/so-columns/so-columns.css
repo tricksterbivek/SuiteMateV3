@@ -60,6 +60,25 @@
     user-select: none
 }
 
+tr[data-suitemate-v3-so-columns="filter-row"] td {
+    padding: 2px 4px
+}
+
+[data-suitemate-v3-so-columns="filter-input"] {
+    width: 100%;
+    min-width: 56px;
+    box-sizing: border-box;
+    padding: 2px 4px;
+    border: 1px solid var(--field-border-color, #c7c7c7);
+    border-radius: var(--suitemate-radius-compact, 4px);
+    font-family: var(--normal-font, "Open Sans", Arial, sans-serif);
+    font-size: 11px
+}
+
+.suitemate-v3-so-columns-filtered {
+    display: none
+}
+
 .suitemate-v3-so-columns-dragging {
     opacity: .45
 }

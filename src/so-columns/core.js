@@ -19,7 +19,8 @@
     button: "suitemate-v3-so-columns-button",
     personalizing: "suitemate-v3-so-columns-personalizing",
     dragging: "suitemate-v3-so-columns-dragging",
-    dropTarget: "suitemate-v3-so-columns-drop-target"
+    dropTarget: "suitemate-v3-so-columns-drop-target",
+    filtered: "suitemate-v3-so-columns-filtered"
   });
 
   if (globalScope.SuiteMateV3SoColumnsCore?.VERSION === VERSION) {
@@ -272,6 +273,95 @@
     }
   }
 
+  function isDataRow(row, headerCount) {
+    return String(row?.className ?? "").includes(DATA_ROW_CLASS)
+      && !String(row.className).includes("uir-machine-headerrow")
+      && row.cells?.length === headerCount;
+  }
+
+  function parseFilterQuery(raw) {
+    const text = String(raw ?? "").trim();
+    if (!text) {
+      return null;
+    }
+    const match = /^(>=|<=|>|<|=)\s*(.+)$/.exec(text);
+    if (match) {
+      const value = Number(match[2].replace(/[$,%\s]/g, ""));
+      if (Number.isFinite(value)) {
+        return { op: match[1], value };
+      }
+    }
+    return { op: "contains", value: text.toLowerCase() };
+  }
+
+  function matchesFilter(cellText, query) {
+    if (!query) {
+      return true;
+    }
+    const raw = String(cellText ?? "").trim();
+    if (query.op === "contains") {
+      return raw.toLowerCase().includes(query.value);
+    }
+    const value = Number(raw.replace(/[$,%\s]/g, ""));
+    if (!Number.isFinite(value)) {
+      return false;
+    }
+    switch (query.op) {
+      case ">": return value > query.value;
+      case "<": return value < query.value;
+      case ">=": return value >= query.value;
+      case "<=": return value <= query.value;
+      default: return value === query.value;
+    }
+  }
+
+  function applyFilters(table, queries) {
+    try {
+      const headerCount = table?.querySelector?.(HEADER_ROW_SELECTOR)?.cells?.length ?? 0;
+      if (!headerCount) {
+        return false;
+      }
+      const active = Array.isArray(queries) ? queries : [];
+      for (const row of Array.from(table.rows ?? [])) {
+        if (!isDataRow(row, headerCount) || typeof row.classList?.toggle !== "function") {
+          continue;
+        }
+        let visible = true;
+        for (let index = 0; index < active.length && visible; index += 1) {
+          if (active[index]) {
+            visible = matchesFilter(readCellLabel(row.cells[index]), active[index]);
+          }
+        }
+        row.classList.toggle(CLASSES.filtered, !visible);
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function distinctColumnValues(table, columnIndex, cap) {
+    try {
+      const headerCount = table?.querySelector?.(HEADER_ROW_SELECTOR)?.cells?.length ?? 0;
+      const values = new Set();
+      for (const row of Array.from(table?.rows ?? [])) {
+        if (!isDataRow(row, headerCount)) {
+          continue;
+        }
+        const value = readCellLabel(row.cells[columnIndex]);
+        if (value) {
+          values.add(value);
+        }
+        if (values.size > cap) {
+          return [];
+        }
+      }
+      return Array.from(values).sort();
+    } catch {
+      return [];
+    }
+  }
+
   function captureNativeOrder(table) {
     try {
       const headerRow = table?.querySelector?.(HEADER_ROW_SELECTOR);
@@ -352,6 +442,10 @@
       parseSortValue,
       detectColumnKind,
       sortRows,
+      parseFilterQuery,
+      matchesFilter,
+      applyFilters,
+      distinctColumnValues,
       readCellLabel,
       readHeaderLabels,
       captureNativeOrder,

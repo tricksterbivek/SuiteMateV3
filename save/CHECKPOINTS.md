@@ -723,3 +723,20 @@ Date: 2026-07-28
 
 - Full `npm test`: 175 passing tests (sort engine unit coverage: kinds, currency, dates, empties, stability, contiguity fail-closed), 28 screenshot baselines at 0.000 percent difference.
 - Browser pass (served fixture, real clicks/drags via Playwright): asc/desc/native cycle with indicators, numeric ordering ($240 after $36), empty-last, indicator traveling with dragged column, sort retained across column reorder, Reset full restore.
+
+## Transaction Column Personalization: Milestone 5 (column filtering)
+
+Status: Automated + browser verification complete; live NetSuite retest pending
+
+Date: 2026-07-28
+
+### Included
+
+- Filter button in the controls strip toggles an owned filter row under the header: one search input per column, native `datalist` suggestions when a column has 20 or fewer distinct values (Excel-style dropdown via platform feature, zero dependencies).
+- Case-insensitive contains matching for text; `>` `<` `>=` `<=` `=` prefixes for numeric/currency comparison; filters AND-combine across columns; display-only (a hide class — no NetSuite data touched), session-only.
+- Composes with everything: the filter row's cells reorder in lockstep with column drags (inputs travel), sorting operates on filtered tables, Filter toggle-off and Reset unhide all rows, feature toggle-off removes every trace.
+
+### Verification
+
+- Full `npm test`: 178 passing tests (query parsing, operator matching, AND-combining, distinct-value cap, fail-closed), 28 screenshot baselines at 0.000 percent difference.
+- Browser pass (served fixture, real typing/clicks/drags): text filter, combined text+numeric filter, sort-while-filtered, filter inputs traveling with a column drag, toggle-off restore, full Reset.

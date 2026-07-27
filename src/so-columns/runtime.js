@@ -177,6 +177,71 @@
     }
   }
 
+  const FILTER_ROW_SELECTOR = `tr[${core.DATA_ATTRIBUTE}="filter-row"]`;
+
+  function handleFilterInput() {
+    try {
+      const table = document.querySelector(TABLE_SELECTOR);
+      const row = table?.querySelector(FILTER_ROW_SELECTOR);
+      if (!table || !row) {
+        return;
+      }
+      const queries = Array.from(row.cells, (cell) => core.parseFilterQuery(cell.querySelector("input")?.value));
+      core.applyFilters(table, queries);
+    } catch {}
+  }
+
+  function removeFilters(table) {
+    table?.querySelectorAll?.(`.${core.CLASSES.filtered}`)?.forEach((row) => row.classList.remove(core.CLASSES.filtered));
+    table?.querySelector?.(FILTER_ROW_SELECTOR)?.remove();
+  }
+
+  function buildFilterRow(table) {
+    const headerRow = table.querySelector(core.HEADER_ROW_SELECTOR);
+    if (!headerRow) {
+      return;
+    }
+    const row = document.createElement("tr");
+    row.setAttribute(core.DATA_ATTRIBUTE, "filter-row");
+    headerCells(table).forEach((cell, index) => {
+      const td = document.createElement("td");
+      const input = document.createElement("input");
+      input.type = "search";
+      input.placeholder = "Filter";
+      input.setAttribute(core.DATA_ATTRIBUTE, "filter-input");
+      const values = core.distinctColumnValues(table, index, 20);
+      if (values.length) {
+        const list = document.createElement("datalist");
+        list.id = `suitemate-v3-so-columns-list-${index}`;
+        for (const value of values) {
+          const option = document.createElement("option");
+          option.value = value;
+          list.appendChild(option);
+        }
+        input.setAttribute("list", list.id);
+        td.appendChild(list);
+      }
+      td.appendChild(input);
+      row.appendChild(td);
+    });
+    row.addEventListener("input", handleFilterInput);
+    headerRow.parentNode.insertBefore(row, headerRow.nextSibling);
+  }
+
+  function handleFilterClick() {
+    try {
+      const table = document.querySelector(TABLE_SELECTOR);
+      if (!table) {
+        return;
+      }
+      if (table.querySelector(FILTER_ROW_SELECTOR)) {
+        removeFilters(table);
+      } else {
+        buildFilterRow(table);
+      }
+    } catch {}
+  }
+
   async function saveOrder(labels, message) {
     try {
       if (!scopeKey) {
@@ -340,6 +405,7 @@
         core.applyOrder(table, nativeLabels);
       }
       resetSort(table);
+      removeFilters(table);
       saveOrder(null, "Column order reset.");
       exitPersonalize();
     } catch {}
@@ -365,10 +431,11 @@
     controls.className = core.CLASSES.controls;
     controls.setAttribute(core.DATA_ATTRIBUTE, "controls");
     const personalize = createButton("Personalize", "personalize", handlePersonalizeClick);
+    const filter = createButton("Filter", "filter", handleFilterClick);
     const done = createButton("Done", "done", handleDoneClick);
     const reset = createButton("Reset", "reset", handleResetClick);
-    controls.append(personalize, done, reset);
-    controlButtons = { controls, personalize, done, reset };
+    controls.append(personalize, filter, done, reset);
+    controlButtons = { controls, personalize, filter, done, reset };
     (table.closest(CONTAINER_SELECTOR) ?? table).before(controls);
     updateControls();
   }
@@ -417,6 +484,7 @@
       exitPersonalize();
       const table = document.querySelector(TABLE_SELECTOR);
       resetSort(table);
+      removeFilters(table);
       if (table?.hasAttribute?.(core.SORTABLE_ATTRIBUTE)) {
         table.removeAttribute(core.SORTABLE_ATTRIBUTE);
         table.removeEventListener("click", handleSortClick);
