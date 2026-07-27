@@ -47,6 +47,8 @@
   let dragCell = null;
   let dragLabel = null;
   let dropCell = null;
+  let sortCell = null;
+  let sortDirection = null;
 
   function showToast(message, type) {
     globalThis.SuiteMateV3Notifications?.showToast(message, { type });
@@ -130,6 +132,49 @@
     const next = labels.slice();
     next.splice(to, 0, next.splice(from, 1)[0]);
     return next;
+  }
+
+  function clearSortIndicators() {
+    document.querySelectorAll(`[${core.DATA_ATTRIBUTE}="sort-indicator"]`).forEach((node) => node.remove());
+  }
+
+  function resetSort(table) {
+    clearSortIndicators();
+    if (sortDirection && table) {
+      core.sortRows(table, -1, "native");
+    }
+    sortCell = null;
+    sortDirection = null;
+  }
+
+  function handleSortClick(event) {
+    try {
+      if (personalizing) {
+        return;
+      }
+      const table = event.currentTarget;
+      const cell = event.target?.closest?.("td");
+      if (!cell || !cell.parentElement?.matches?.(core.HEADER_ROW_SELECTOR) || !table.contains(cell)) {
+        return;
+      }
+      const next = sortCell === cell
+        ? (sortDirection === "asc" ? "desc" : sortDirection === "desc" ? "native" : "asc")
+        : "asc";
+      if (!core.sortRows(table, cell.cellIndex, next)) {
+        return;
+      }
+      clearSortIndicators();
+      sortCell = next === "native" ? null : cell;
+      sortDirection = next === "native" ? null : next;
+      if (sortCell) {
+        const indicator = document.createElement("span");
+        indicator.setAttribute(core.DATA_ATTRIBUTE, "sort-indicator");
+        indicator.textContent = next === "asc" ? " ↑" : " ↓";
+        sortCell.appendChild(indicator);
+      }
+    } catch {
+      resetSort(document.querySelector(TABLE_SELECTOR));
+    }
   }
 
   async function saveOrder(labels, message) {
@@ -294,6 +339,7 @@
       if (table && nativeLabels) {
         core.applyOrder(table, nativeLabels);
       }
+      resetSort(table);
       saveOrder(null, "Column order reset.");
       exitPersonalize();
     } catch {}
@@ -348,6 +394,10 @@
       nativeLabels = core.captureNativeOrder(table);
       scopeKey = resolveScopeKey();
       ensureControls(table);
+      if (!table.hasAttribute(core.SORTABLE_ATTRIBUTE)) {
+        table.setAttribute(core.SORTABLE_ATTRIBUTE, "");
+        table.addEventListener("click", handleSortClick);
+      }
       const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
       if (signal.aborted || !isCurrent() || !table.isConnected) {
         return false;
@@ -366,6 +416,11 @@
     try {
       exitPersonalize();
       const table = document.querySelector(TABLE_SELECTOR);
+      resetSort(table);
+      if (table?.hasAttribute?.(core.SORTABLE_ATTRIBUTE)) {
+        table.removeAttribute(core.SORTABLE_ATTRIBUTE);
+        table.removeEventListener("click", handleSortClick);
+      }
       if (table && nativeLabels) {
         core.applyOrder(table, nativeLabels);
       }

@@ -704,3 +704,22 @@ Date: 2026-07-28
 - Full `npm test` suite: 172 passing tests (new stamp-survival unit test), 28 screenshot baselines at 0.000 percent difference.
 - Live production pass (account 6998262, 45-column Sales Order, real pointer drags via Playwright bridge): native load, drag, persistence across reload, Reset restoring the exact stamped native order, native retained after final reload, zero console errors.
 - Storage forensics (Sync Extension Settings LevelDB) confirmed per-user, per-type scope keys (`company:user:recordType`) in production and correct entry deletion on Reset; pre-existing user personalizations preserved.
+
+## Transaction Column Personalization: Milestone 4 (column sorting)
+
+Status: Automated + browser verification complete; live NetSuite retest pending
+
+Date: 2026-07-28
+
+### Included
+
+- Click-to-sort on transaction item sublist headers: ascending, descending, third click restores the native line order (rows are stamped with their original index on first sort, mirroring the column-stamp pattern).
+- Visual ↑/↓ indicator span (owned, label-stripped, travels with the column when dragged).
+- Type-aware comparison: currency/number (strips $ , %), day-first dates, case-insensitive text; column kind detected by majority; empty and non-conforming cells always sort last; equal keys keep native relative order.
+- Client-side only by design: NetSuite has no native sorting on view-mode machine tables; session-only (nothing persisted), fail-closed — non-contiguous data rows (expansion sub-rows) refuse to sort rather than orphan children.
+- Composes with personalization: sort clicks suppressed in personalize mode, sort survives column drags, Reset clears sort and restores native rows.
+
+### Verification
+
+- Full `npm test`: 175 passing tests (sort engine unit coverage: kinds, currency, dates, empties, stability, contiguity fail-closed), 28 screenshot baselines at 0.000 percent difference.
+- Browser pass (served fixture, real clicks/drags via Playwright): asc/desc/native cycle with indicators, numeric ordering ($240 after $36), empty-last, indicator traveling with dragged column, sort retained across column reorder, Reset full restore.

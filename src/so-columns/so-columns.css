@@ -49,6 +49,17 @@
     cursor: grabbing
 }
 
+#item_splits[data-suitemate-v3-so-columns-sortable] tr.uir-machine-headerrow td {
+    cursor: pointer
+}
+
+[data-suitemate-v3-so-columns="sort-indicator"] {
+    margin-left: 4px;
+    color: var(--theme-main, #607799);
+    font-weight: 700;
+    user-select: none
+}
+
 .suitemate-v3-so-columns-dragging {
     opacity: .45
 }

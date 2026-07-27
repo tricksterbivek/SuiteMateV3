@@ -10,6 +10,9 @@
   const HEADER_ROW_SELECTOR = "tr.uir-machine-headerrow";
   const DATA_ATTRIBUTE = "data-suitemate-v3-so-columns";
   const NATIVE_INDEX_ATTRIBUTE = "data-suitemate-v3-native-index";
+  const NATIVE_ROW_ATTRIBUTE = "data-suitemate-v3-native-row";
+  const SORTABLE_ATTRIBUTE = "data-suitemate-v3-so-columns-sortable";
+  const DATA_ROW_CLASS = "uir-machine-row";
   const FOREIGN_NODE_SELECTOR = "[data-suitemate-v3-internal-id], [data-suitemate-v3-so-columns]";
   const CLASSES = Object.freeze({
     controls: "suitemate-v3-so-columns-controls",
@@ -160,6 +163,115 @@
     return Array.from(headerRow.cells, readCellLabel);
   }
 
+  const DATE_PATTERN = /^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$/;
+
+  function parseSortValue(text, kind) {
+    const raw = String(text ?? "").trim();
+    if (!raw) {
+      return { empty: true, value: 0 };
+    }
+    if (kind === "number") {
+      const value = Number(raw.replace(/[$,%\s]/g, ""));
+      return Number.isFinite(value) ? { empty: false, value } : { empty: true, value: 0 };
+    }
+    if (kind === "date") {
+      const match = DATE_PATTERN.exec(raw);
+      if (!match) {
+        return { empty: true, value: 0 };
+      }
+      // ponytail: day-first (dd/mm/yyyy) matching this account's locale;
+      // upgrade path is reading the NetSuite date-format preference.
+      const year = Number(match[3].length === 2 ? `20${match[3]}` : match[3]);
+      return { empty: false, value: year * 10000 + Number(match[2]) * 100 + Number(match[1]) };
+    }
+    return { empty: false, value: raw.toLowerCase() };
+  }
+
+  function detectColumnKind(values) {
+    const raw = Array.isArray(values) ? values.map((value) => String(value ?? "").trim()).filter(Boolean) : [];
+    if (!raw.length) {
+      return "text";
+    }
+    const numbers = raw.filter((value) => /\d/.test(value) && Number.isFinite(Number(value.replace(/[$,%\s]/g, "")))).length;
+    const dates = raw.filter((value) => DATE_PATTERN.test(value)).length;
+    if (dates >= raw.length * 0.6) {
+      return "date";
+    }
+    if (numbers >= raw.length * 0.6) {
+      return "number";
+    }
+    return "text";
+  }
+
+  function sortRows(table, columnIndex, direction) {
+    try {
+      const headerRow = table?.querySelector?.(HEADER_ROW_SELECTOR);
+      const headerCount = headerRow?.cells?.length ?? 0;
+      const all = Array.from(table?.rows ?? []);
+      const dataRows = all.filter((row) => String(row?.className ?? "").includes(DATA_ROW_CLASS)
+        && !String(row.className).includes("uir-machine-headerrow")
+        && row.cells?.length === headerCount);
+      if (dataRows.length < 2 || typeof dataRows[0]?.getAttribute !== "function") {
+        return false;
+      }
+      const firstIndex = all.indexOf(dataRows[0]);
+      const lastIndex = all.indexOf(dataRows[dataRows.length - 1]);
+      if (lastIndex - firstIndex + 1 !== dataRows.length) {
+        // ponytail: non-contiguous data rows (expansion sub-rows between lines)
+        // would be orphaned from their parents by sorting; fail closed.
+        return false;
+      }
+      dataRows.forEach((row, index) => {
+        if (row.getAttribute(NATIVE_ROW_ATTRIBUTE) === null) {
+          row.setAttribute(NATIVE_ROW_ATTRIBUTE, String(index));
+        }
+      });
+      const stampOf = (row, fallback) => {
+        const stamp = Number(row.getAttribute(NATIVE_ROW_ATTRIBUTE));
+        return Number.isFinite(stamp) ? stamp : fallback;
+      };
+
+      let ordered;
+      if (direction === "native") {
+        ordered = dataRows.slice().sort((a, b) => stampOf(a, 0) - stampOf(b, 0));
+      } else if (direction === "asc" || direction === "desc") {
+        if (!Number.isInteger(columnIndex) || columnIndex < 0 || columnIndex >= headerCount) {
+          return false;
+        }
+        const kind = detectColumnKind(dataRows.map((row) => readCellLabel(row.cells[columnIndex])));
+        const sign = direction === "desc" ? -1 : 1;
+        ordered = dataRows
+          .map((row, index) => ({
+            row,
+            key: parseSortValue(readCellLabel(row.cells[columnIndex]), kind),
+            tie: stampOf(row, index)
+          }))
+          .sort((a, b) => {
+            if (a.key.empty !== b.key.empty) {
+              return a.key.empty ? 1 : -1;
+            }
+            const cmp = a.key.value < b.key.value ? -1 : a.key.value > b.key.value ? 1 : 0;
+            return cmp !== 0 ? sign * cmp : a.tie - b.tie;
+          })
+          .map((entry) => entry.row);
+      } else {
+        return false;
+      }
+
+      const parent = dataRows[0].parentNode;
+      const anchor = dataRows[dataRows.length - 1].nextSibling ?? null;
+      if (!parent?.insertBefore) {
+        return false;
+      }
+      for (const row of ordered) {
+        parent.insertBefore(row, anchor);
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function captureNativeOrder(table) {
     try {
       const headerRow = table?.querySelector?.(HEADER_ROW_SELECTOR);
@@ -235,6 +347,11 @@
       DATA_ATTRIBUTE,
       CLASSES,
       NATIVE_INDEX_ATTRIBUTE,
+      NATIVE_ROW_ATTRIBUTE,
+      SORTABLE_ATTRIBUTE,
+      parseSortValue,
+      detectColumnKind,
+      sortRows,
       readCellLabel,
       readHeaderLabels,
       captureNativeOrder,

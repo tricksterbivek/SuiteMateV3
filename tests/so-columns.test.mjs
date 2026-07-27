@@ -270,6 +270,95 @@ test("applyOrder fails closed without mutating on mismatched targets", () => {
   assert.deepEqual(rowLabels(table.rows[1]), ["SKU", "2"]);
 });
 
+function createSortableTable(headerLabels, dataRowsValues, trailing = []) {
+  const rows = [];
+  const parent = {
+    insertBefore(row, anchor) {
+      rows.splice(rows.indexOf(row), 1);
+      const to = anchor ? rows.indexOf(anchor) : rows.length;
+      rows.splice(to, 0, row);
+    }
+  };
+  const makeRow = (labels, className) => {
+    const attrs = {};
+    const row = {
+      className,
+      parentNode: parent,
+      cells: labels.map((label) => ({ textContent: label })),
+      getAttribute: (name) => (name in attrs ? attrs[name] : null),
+      setAttribute: (name, value) => { attrs[name] = String(value); }
+    };
+    Object.defineProperty(row, "nextSibling", {
+      get() {
+        const index = rows.indexOf(row);
+        return rows[index + 1] ?? null;
+      }
+    });
+    rows.push(row);
+    return row;
+  };
+  const header = makeRow(headerLabels, "uir-machine-headerrow");
+  const dataRows = dataRowsValues.map((values) => makeRow(values, "uir-machine-row"));
+  const trailingRows = trailing.map((values) => makeRow(values, "uir-machine-summaryrow"));
+  return {
+    table: {
+      rows,
+      querySelector: (selector) => (selector.includes("uir-machine-headerrow") ? header : null)
+    },
+    rows,
+    dataRows,
+    trailingRows
+  };
+}
+
+test("detectColumnKind and parseSortValue handle text, currency and dates", () => {
+  const core = createApi();
+  assert.equal(core.detectColumnKind(["$18.00", "$4.50", "$1,234.00"]), "number");
+  assert.equal(core.detectColumnKind(["13/07/2026", "1/12/2025", "09/01/2026"]), "date");
+  assert.equal(core.detectColumnKind(["SKU-1", "SKU-2", ""]), "text");
+  assert.equal(core.parseSortValue("$1,234.50", "number").value, 1234.5);
+  assert.equal(core.parseSortValue("13/07/2026", "date").value, 20260713);
+  assert.equal(core.parseSortValue("2/1/26", "date").value, 20260102);
+  assert.equal(core.parseSortValue("", "text").empty, true);
+  assert.equal(core.parseSortValue("n/a", "number").empty, true);
+});
+
+test("sortRows sorts asc, desc and native with empties last and summary anchored", () => {
+  const core = createApi();
+  const { table, rows, trailingRows } = createSortableTable(
+    ["Item", "Amount"],
+    [["B", "$500.00"], ["A", "$100.00"], ["C", ""], ["D", "$50.00"]],
+    [["Total", "$650.00"]]
+  );
+  const amounts = () => rows.slice(1).map((row) => row.cells[1].textContent);
+
+  assert.equal(core.sortRows(table, 1, "asc"), true);
+  assert.deepEqual(amounts(), ["$50.00", "$100.00", "$500.00", "", "$650.00"]);
+
+  assert.equal(core.sortRows(table, 1, "desc"), true);
+  assert.deepEqual(amounts(), ["$500.00", "$100.00", "$50.00", "", "$650.00"]);
+  assert.equal(rows[rows.length - 1], trailingRows[0]);
+
+  assert.equal(core.sortRows(table, 0, "asc"), true);
+  assert.deepEqual(rows.slice(1, 5).map((row) => row.cells[0].textContent), ["A", "B", "C", "D"]);
+
+  assert.equal(core.sortRows(table, 0, "native"), true);
+  assert.deepEqual(rows.slice(1, 5).map((row) => row.cells[0].textContent), ["B", "A", "C", "D"]);
+});
+
+test("sortRows fails closed on non-contiguous rows and invalid input", () => {
+  const core = createApi();
+  const broken = createSortableTable(["Item", "Qty"], [["A", "1"], ["B", "2"]]);
+  broken.rows.splice(2, 0, { className: "uir-machine-expansion", cells: [{ textContent: "detail" }] });
+  assert.equal(core.sortRows(broken.table, 1, "asc"), false);
+
+  const ok = createSortableTable(["A", "B"], [["1", "2"], ["3", "4"]]);
+  assert.equal(core.sortRows(ok.table, 9, "asc"), false);
+  assert.equal(core.sortRows(ok.table, 0, "sideways"), false);
+  assert.equal(core.sortRows(null, 0, "asc"), false);
+  assert.deepEqual(ok.rows[1].cells.map((c) => c.textContent), ["1", "2"]);
+});
+
 test("core has no DOM, storage, bridge or network authority", () => {
   assert.doesNotMatch(source, /document\.|chrome\.|fetch\(|XMLHttpRequest|innerHTML|localStorage|sessionStorage/);
 });
