@@ -43,7 +43,7 @@ test("exports stable route and capability constants", () => {
   assert.equal(CAPABILITIES.GLOBAL_THEME, "global-theme");
   assert.equal(CAPABILITIES.INTERNAL_IDS, "internal-ids");
   assert.equal(CAPABILITIES.CSV_EXPORT_RECORD, "csv-export-record");
-  assert.equal(CAPABILITIES.SO_COLUMN_PERSONALIZATION, "so-column-personalization");
+  assert.equal(CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION, "transaction-column-personalization");
   assert.equal(CAPABILITIES.SUITEQL_BRIDGE, "suiteql-bridge");
   assert.equal(CAPABILITIES.SEARCH_QUERY_BRIDGE, "search-query-bridge");
   assert.equal(CAPABILITIES.RECORD_METADATA_BRIDGE, "record-metadata-bridge");
@@ -255,12 +255,16 @@ test("limits CSV Export to saved top-frame records with a numeric ID", () => {
   );
 });
 
-test("limits Sales Order column personalization to top-frame view mode", () => {
+test("limits transaction column personalization to top-frame view mode", () => {
   for (const path of [
     "/app/accounting/transactions/salesord.nl?id=1",
-    "/app/accounting/transactions/salesord.nl?id=42&whence=TRNSALESORD"
+    "/app/accounting/transactions/salesord.nl?id=42&whence=TRNSALESORD",
+    "/app/accounting/transactions/custinvc.nl?id=7",
+    "/app/accounting/transactions/purchord.nl?id=12",
+    "/app/accounting/transactions/estimate.nl?id=3",
+    "/app/accounting/transactions/itemship.nl?id=99"
   ]) {
-    assert.equal(routes.supports(CAPABILITIES.SO_COLUMN_PERSONALIZATION, page(path)), true, path);
+    assert.equal(routes.supports(CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION, page(path)), true, path);
   }
 
   for (const path of [
@@ -268,22 +272,25 @@ test("limits Sales Order column personalization to top-frame view mode", () => {
     "/app/accounting/transactions/salesord.nl?id=1&e=T",
     "/app/accounting/transactions/salesord.nl?id=1&e=F",
     "/app/accounting/transactions/salesord.nl?e=T",
+    "/app/accounting/transactions/custinvc.nl?id=7&e=T",
+    "/app/accounting/transactions/transactionlist.nl",
+    "/app/common/entity/custjob.nl?id=5",
     "/app/common/item/item.nl?id=2",
     `${PATHS.SAVED_SEARCH_RESULTS}?id=1`
   ]) {
-    assert.equal(routes.supports(CAPABILITIES.SO_COLUMN_PERSONALIZATION, page(path)), false, path);
+    assert.equal(routes.supports(CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION, page(path)), false, path);
   }
 
   assert.equal(
     routes.supports(
-      CAPABILITIES.SO_COLUMN_PERSONALIZATION,
+      CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION,
       page("/app/accounting/transactions/salesord.nl?id=1", { isTopFrame: false })
     ),
     false
   );
   assert.equal(
     routes.supports(
-      CAPABILITIES.SO_COLUMN_PERSONALIZATION,
+      CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION,
       routes.createPageContext("https://example.com/app/accounting/transactions/salesord.nl?id=1")
     ),
     false

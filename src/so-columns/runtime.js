@@ -28,7 +28,7 @@
     isTopFrame: topFrame,
     trustedContentScript: true
   });
-  if (!routeApi.supports(routeApi.CAPABILITIES.SO_COLUMN_PERSONALIZATION, pageContext)) {
+  if (!routeApi.supports(routeApi.CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION, pageContext)) {
     return;
   }
 
@@ -39,6 +39,7 @@
   let settingsRevision = 0;
   let scopeKey = null;
   let nativeLabels = null;
+  let capturedTable = null;
   let controlButtons = null;
   let personalizing = false;
   let activeTable = null;
@@ -50,7 +51,13 @@
     globalThis.SuiteMateV3Notifications?.showToast(message, { type });
   }
 
+  function recordType() {
+    const match = /\/([a-z0-9_]+)\.nl$/i.exec(location.pathname);
+    return (match?.[1] ?? "record").toLowerCase();
+  }
+
   function resolveScopeKey() {
+    const type = recordType();
     try {
       const sessionScript = document.querySelector(
         'script[src^="/javascript/sessionstatus/session_status_init.jsp?"]'
@@ -60,14 +67,15 @@
         const companyId = params.get("companyId");
         // The session id param is COMPANY~USER~ROLE~FLAG (e.g. FIXTURE~1~3~N);
         // segment 2 is the NetSuite user id, so preferences follow the user
-        // across roles.
+        // across roles. The record type keeps a separate order per
+        // transaction type.
         const userId = params.get("id")?.split("~")[1];
         if (companyId && userId) {
-          return `${companyId}:${userId}`;
+          return `${companyId}:${userId}:${type}`;
         }
       }
     } catch {}
-    return location.hostname;
+    return `${location.hostname}:${type}`;
   }
 
   function headerCells(table) {
@@ -336,8 +344,11 @@
         exitPersonalize();
         updateControls();
       }
-      nativeLabels = nativeLabels ?? labels;
-      scopeKey = scopeKey ?? resolveScopeKey();
+      if (capturedTable !== table) {
+        capturedTable = table;
+        nativeLabels = labels;
+      }
+      scopeKey = resolveScopeKey();
       ensureControls(table);
       const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
       if (signal.aborted || !isCurrent() || !table.isConnected) {
@@ -364,6 +375,7 @@
     document.querySelectorAll(OWNED_SELECTOR).forEach((node) => node.remove());
     controlButtons = null;
     nativeLabels = null;
+    capturedTable = null;
     scopeKey = null;
   }
 
@@ -381,7 +393,7 @@
   const lifecycleHandle = lifecycleApi.register({
     id: "record.so-columns",
     replace: true,
-    capability: routeApi.CAPABILITIES.SO_COLUMN_PERSONALIZATION,
+    capability: routeApi.CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION,
     startPaused: true,
     observe: {
       childList: true,

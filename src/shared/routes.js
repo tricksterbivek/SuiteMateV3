@@ -7,7 +7,7 @@
     INTERNAL_IDS: "internal-ids",
     CSV_IMPORT_TOOLBAR: "csv-import-toolbar",
     CSV_EXPORT_RECORD: "csv-export-record",
-    SO_COLUMN_PERSONALIZATION: "so-column-personalization",
+    TRANSACTION_COLUMN_PERSONALIZATION: "transaction-column-personalization",
     RECORD_TYPE_BRIDGE: "record-type-bridge",
     RECORD_METADATA_BRIDGE: "record-metadata-bridge",
     SEARCH_QUERY_BRIDGE: "search-query-bridge",
@@ -35,7 +35,8 @@
     IMPORT_ASSISTANT: "/app/setup/assistants/nsimport/importassistant.nl",
     BUNDLE_BUILDER: "/app/setup/assistants/bundlebuilder.nl",
     PDF_TEMPLATE: "/app/common/custom/advancedprint/pdftemplate.nl",
-    SALES_ORDER: "/app/accounting/transactions/salesord.nl"
+    SALES_ORDER: "/app/accounting/transactions/salesord.nl",
+    TRANSACTIONS: "/app/accounting/transactions/"
   });
 
   const ROUTE_IDS = Object.freeze({
@@ -277,9 +278,11 @@
           && /^[1-9]\d*$/.test(getParam(context, "id") ?? "")
           && !context.path.toLowerCase().endsWith("/custlist.nl")
           && !CSV_IMPORT_EXCLUDED_ROUTES.has(context.routeId);
-      case CAPABILITIES.SO_COLUMN_PERSONALIZATION:
+      case CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION:
         return context.isTopFrame
-          && context.path === PATHS.SALES_ORDER
+          && Boolean(context.path)
+          && context.path.startsWith(PATHS.TRANSACTIONS)
+          && context.path.endsWith(".nl")
           && hasParam(context, "id")
           && !hasParam(context, "e");
       case CAPABILITIES.RECORD_TYPE_BRIDGE:

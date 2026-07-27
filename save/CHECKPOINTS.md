@@ -648,3 +648,42 @@ git switch main
 ### Next feature
 
 `FND-03`: Versioned Settings Schema
+
+## Transaction Column Personalization: Milestone 1 (Sales Order baseline)
+
+Status: Automated verification complete; live NetSuite retest pending
+
+Date: 2026-07-27
+
+Commit: d2f7c1a (`feat: Sales Order item column personalization (stable baseline)`)
+
+### Included
+
+- Per-user drag-and-drop column reordering for the Sales Order item sublist in view mode only, behind the default-off `salesOrderColumns` setting (schema v3 migration).
+- Label-based column identity with graceful fallback; native order capture and one-click Reset.
+- `chrome.storage.sync` storage under `suiteMateV3ColumnOrder`, account+user scoped, quota-guarded, newer-schema write protection.
+- Fail-closed guards at every layer: route capability, DOM detection, try/catch on all entry points.
+
+### Verification
+
+- Full `npm test` suite: 171 passing tests, 28 screenshot baselines at 0.000 percent difference.
+- Browser functional pass (served fixture, real Chrome): personalize mode, drag indicators, header+row reorder, persistence, reset, live setting toggle on/off.
+
+## Transaction Column Personalization: Milestone 2 (generalized engine)
+
+Status: Automated verification complete; live NetSuite retest pending
+
+Date: 2026-07-27
+
+### Included
+
+- Capability generalized to `transaction-column-personalization`: any top-frame `/app/accounting/transactions/*.nl` view-mode page (`id` param, no `e` param); the item-sublist DOM guard remains the runtime detector, so no per-type duplication.
+- Storage scope extended to `company:user:recordType` — separate saved order per transaction type.
+- Route-change robustness: pristine-order capture keyed to the table node, scope recomputed per evaluation.
+- Popup label generalized to "Enable Transaction Column Personalization" (setting key unchanged).
+
+### Verification
+
+- Full `npm test` suite green; route tests cover salesord, custinvc, purchord, estimate, itemship positive cases and edit-mode/list/entity negatives.
+- Browser pass across simulated salesord, custinvc and purchord routes: per-type drag, isolated per-type persistence, edit-mode and entity-page fail-closed, saved order re-applied on return.
+- Performance: 500 rows x 20 columns full reversal in ~24ms.
