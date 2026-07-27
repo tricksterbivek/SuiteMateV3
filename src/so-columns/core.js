@@ -9,6 +9,7 @@
   const MAX_LABELS = 100;
   const HEADER_ROW_SELECTOR = "tr.uir-machine-headerrow";
   const DATA_ATTRIBUTE = "data-suitemate-v3-so-columns";
+  const NATIVE_INDEX_ATTRIBUTE = "data-suitemate-v3-native-index";
   const FOREIGN_NODE_SELECTOR = "[data-suitemate-v3-internal-id], [data-suitemate-v3-so-columns]";
   const CLASSES = Object.freeze({
     controls: "suitemate-v3-so-columns-controls",
@@ -159,6 +160,31 @@
     return Array.from(headerRow.cells, readCellLabel);
   }
 
+  function captureNativeOrder(table) {
+    try {
+      const headerRow = table?.querySelector?.(HEADER_ROW_SELECTOR);
+      const cells = headerRow?.cells ? Array.from(headerRow.cells) : [];
+      if (!cells.length || typeof cells[0]?.getAttribute !== "function") {
+        return readHeaderLabels(table);
+      }
+      const stamped = cells.every((cell) => cell.getAttribute(NATIVE_INDEX_ATTRIBUTE) !== null);
+      if (!stamped) {
+        // First touch: record the pristine order in the DOM itself so later
+        // evaluations can never mistake a reordered table for native.
+        // ponytail: a partially stamped table (another tool injecting columns
+        // mid-life) restamps from current order; acceptable ceiling.
+        cells.forEach((cell, index) => cell.setAttribute(NATIVE_INDEX_ATTRIBUTE, String(index)));
+        return cells.map(readCellLabel);
+      }
+      return cells
+        .map((cell) => ({ cell, index: Number(cell.getAttribute(NATIVE_INDEX_ATTRIBUTE)) }))
+        .sort((a, b) => a.index - b.index)
+        .map((entry) => readCellLabel(entry.cell));
+    } catch {
+      return readHeaderLabels(table);
+    }
+  }
+
   function applyOrder(table, targetLabels) {
     try {
       if (!Array.isArray(targetLabels) || targetLabels.length < 2) {
@@ -208,8 +234,10 @@
       HEADER_ROW_SELECTOR,
       DATA_ATTRIBUTE,
       CLASSES,
+      NATIVE_INDEX_ATTRIBUTE,
       readCellLabel,
       readHeaderLabels,
+      captureNativeOrder,
       planOrder,
       applyOrder,
       normalizeStored,

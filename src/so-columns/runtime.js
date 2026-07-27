@@ -39,7 +39,8 @@
   let settingsRevision = 0;
   let scopeKey = null;
   let nativeLabels = null;
-  let capturedTable = null;
+  let capturedScope = null;
+  let savePending = false;
   let controlButtons = null;
   let personalizing = false;
   let activeTable = null;
@@ -344,10 +345,7 @@
         exitPersonalize();
         updateControls();
       }
-      if (capturedTable !== table) {
-        capturedTable = table;
-        nativeLabels = labels;
-      }
+      nativeLabels = core.captureNativeOrder(table);
       scopeKey = resolveScopeKey();
       ensureControls(table);
       const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
@@ -375,7 +373,6 @@
     document.querySelectorAll(OWNED_SELECTOR).forEach((node) => node.remove());
     controlButtons = null;
     nativeLabels = null;
-    capturedTable = null;
     scopeKey = null;
   }
 

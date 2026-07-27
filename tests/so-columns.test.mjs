@@ -22,7 +22,14 @@ function plain(value) {
 function createRow(labels, className = "uir-machine-row") {
   const row = {
     className,
-    cells: labels.map((label) => ({ textContent: label })),
+    cells: labels.map((label) => {
+      const attrs = {};
+      return {
+        textContent: label,
+        getAttribute: (name) => (name in attrs ? attrs[name] : null),
+        setAttribute: (name, value) => { attrs[name] = String(value); }
+      };
+    }),
     appendChild(cell) {
       const index = row.cells.indexOf(cell);
       if (index >= 0) {
@@ -201,6 +208,27 @@ test("readHeaderLabels trims header-cell text and fails closed", () => {
   assert.deepEqual(plain(core.readHeaderLabels(table)), ["Item", "Description", "Quantity"]);
   assert.deepEqual(plain(core.readHeaderLabels(null)), []);
   assert.deepEqual(plain(core.readHeaderLabels({ querySelector: () => null })), []);
+});
+
+test("captureNativeOrder stamps pristine order and survives reorders", () => {
+  const core = createApi();
+  const header = ["Item", "Description", "Quantity", "Rate", "Amount"];
+  const table = createTable(header, [createRow(["SKU", "One", "2", "$1", "$2"])]);
+
+  assert.deepEqual(plain(core.captureNativeOrder(table)), header);
+  assert.equal(table.rows[0].cells[0].getAttribute(core.NATIVE_INDEX_ATTRIBUTE), "0");
+
+  assert.equal(core.applyOrder(table, ["Amount", "Item", "Description", "Quantity", "Rate"]), true);
+  assert.deepEqual(rowLabels(table.rows[0]), ["Amount", "Item", "Description", "Quantity", "Rate"]);
+  assert.deepEqual(plain(core.captureNativeOrder(table)), header);
+
+  assert.equal(core.applyOrder(table, core.captureNativeOrder(table)), true);
+  assert.deepEqual(rowLabels(table.rows[0]), header);
+
+  const bare = {
+    querySelector: () => ({ cells: [{ textContent: " Item " }, { textContent: "Rate" }] })
+  };
+  assert.deepEqual(plain(core.captureNativeOrder(bare)), ["Item", "Rate"]);
 });
 
 test("applyOrder reorders every aligned row and skips colspan rows", () => {

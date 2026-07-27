@@ -651,7 +651,7 @@ git switch main
 
 ## Transaction Column Personalization: Milestone 1 (Sales Order baseline)
 
-Status: Automated verification complete; live NetSuite retest pending
+Status: Complete; superseded by Milestone 3 live verification
 
 Date: 2026-07-27
 
@@ -671,7 +671,7 @@ Commit: d2f7c1a (`feat: Sales Order item column personalization (stable baseline
 
 ## Transaction Column Personalization: Milestone 2 (generalized engine)
 
-Status: Automated verification complete; live NetSuite retest pending
+Status: Complete; superseded by Milestone 3 live verification
 
 Date: 2026-07-27
 
@@ -687,3 +687,20 @@ Date: 2026-07-27
 - Full `npm test` suite green; route tests cover salesord, custinvc, purchord, estimate, itemship positive cases and edit-mode/list/entity negatives.
 - Browser pass across simulated salesord, custinvc and purchord routes: per-type drag, isolated per-type persistence, edit-mode and entity-page fail-closed, saved order re-applied on return.
 - Performance: 500 rows x 20 columns full reversal in ~24ms.
+
+## Transaction Column Personalization: Milestone 3 (live NetSuite hardening)
+
+Status: Live NetSuite verification complete
+
+Date: 2026-07-28
+
+### Included
+
+- Fixes the native-order capture defect found during live production testing: real record pages mutate during load, so deriving the pristine order from the current DOM could capture an already-personalized arrangement, breaking Reset. Header cells are now stamped with their original index (`data-suitemate-v3-native-index`) on first touch and the native order is always reconstructed from the stamps, never from the current visual order. An unstamped table is by definition pristine, so the capture is deterministic across watcher re-evaluations and node clones.
+- Runtime simplification: per-evaluation scope resolution retained; table-identity cache removed in favor of stamps.
+
+### Verification
+
+- Full `npm test` suite: 172 passing tests (new stamp-survival unit test), 28 screenshot baselines at 0.000 percent difference.
+- Live production pass (account 6998262, 45-column Sales Order, real pointer drags via Playwright bridge): native load, drag, persistence across reload, Reset restoring the exact stamped native order, native retained after final reload, zero console errors.
+- Storage forensics (Sync Extension Settings LevelDB) confirmed per-user, per-type scope keys (`company:user:recordType`) in production and correct entry deletion on Reset; pre-existing user personalizations preserved.
