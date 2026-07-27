@@ -147,186 +147,219 @@
     sortDirection = null;
   }
 
-  function handleSortClick(event) {
-    try {
-      if (personalizing) {
-        return;
-      }
-      const table = event.currentTarget;
-      const cell = event.target?.closest?.("td");
-      if (!cell || !cell.parentElement?.matches?.(core.HEADER_ROW_SELECTOR) || !table.contains(cell)) {
-        return;
-      }
-      const next = sortCell === cell
-        ? (sortDirection === "asc" ? "desc" : sortDirection === "desc" ? "native" : "asc")
-        : "asc";
-      if (!core.sortRows(table, cell.cellIndex, next)) {
-        return;
-      }
-      clearSortIndicators();
-      sortCell = next === "native" ? null : cell;
-      sortDirection = next === "native" ? null : next;
-      if (sortCell) {
-        const indicator = document.createElement("span");
-        indicator.setAttribute(core.DATA_ATTRIBUTE, "sort-indicator");
-        indicator.textContent = next === "asc" ? " ↑" : " ↓";
-        sortCell.appendChild(indicator);
-      }
-    } catch {
-      resetSort(document.querySelector(TABLE_SELECTOR));
+  const columnFilters = new WeakMap();
+  let openMenu = null;
+
+  function filterState(cell) {
+    let state = columnFilters.get(cell);
+    if (!state) {
+      state = { queryText: "", selected: new Set(), textAsRowFilter: false };
+      columnFilters.set(cell, state);
+    }
+    return state;
+  }
+
+  function columnQuery(state) {
+    if (!state) {
+      return null;
+    }
+    const parsed = core.parseFilterQuery(state.queryText);
+    const operator = parsed && parsed.op !== "contains" ? parsed : null;
+    // Plain text narrows the value list (Excel semantics); it only becomes a
+    // contains row-filter on columns with too many values for a checkbox list.
+    const contains = state.textAsRowFilter && parsed?.op === "contains" ? parsed : null;
+    const anyOf = state.selected.size ? Array.from(state.selected) : null;
+    if (!operator && !contains && !anyOf) {
+      return null;
+    }
+    return { ...(operator ?? contains ?? {}), ...(anyOf ? { anyOf } : {}) };
+  }
+
+  function updateArrowState(cell) {
+    cell.querySelector(`[${core.DATA_ATTRIBUTE}="menu-toggle"]`)?.classList
+      .toggle("suitemate-v3-so-columns-filter-active", Boolean(columnQuery(columnFilters.get(cell))));
+  }
+
+  function applyColumnFilters(table) {
+    core.applyFilters(table, headerCells(table).map((cell) => columnQuery(columnFilters.get(cell))));
+    for (const cell of headerCells(table)) {
+      updateArrowState(cell);
     }
   }
 
-  const FILTER_ROW_SELECTOR = `tr[${core.DATA_ATTRIBUTE}="filter-row"]`;
-  const FILTER_INPUT_SELECTOR = `[${core.DATA_ATTRIBUTE}="filter-input"]`;
-  const filterSelections = new WeakMap();
-  let openPanel = null;
-
-  function handleFilterInput() {
-    try {
-      const table = document.querySelector(TABLE_SELECTOR);
-      const row = table?.querySelector(FILTER_ROW_SELECTOR);
-      if (!table || !row) {
-        return;
-      }
-      const queries = Array.from(row.cells, (cell) => {
-        const query = core.parseFilterQuery(cell.querySelector(FILTER_INPUT_SELECTOR)?.value);
-        const selected = filterSelections.get(cell);
-        if (selected?.size) {
-          return { ...(query ?? {}), anyOf: Array.from(selected) };
-        }
-        return query;
-      });
-      core.applyFilters(table, queries);
-    } catch {}
+  function unhideAllRows(table) {
+    table?.querySelectorAll?.(`.${core.CLASSES.filtered}`)?.forEach((row) => row.classList.remove(core.CLASSES.filtered));
   }
 
-  function closeFilterPanel() {
-    openPanel?.panel.remove();
-    if (openPanel) {
-      document.removeEventListener("mousedown", openPanel.onOutside, true);
+  function closeColumnMenu() {
+    openMenu?.menu.remove();
+    if (openMenu) {
+      document.removeEventListener("mousedown", openMenu.onOutside, true);
     }
-    openPanel = null;
+    openMenu = null;
   }
 
-  function updateFilterToggleState(cell) {
-    const active = (filterSelections.get(cell)?.size ?? 0) > 0;
-    cell.querySelector(`[${core.DATA_ATTRIBUTE}="filter-toggle"]`)?.classList
-      .toggle("suitemate-v3-so-columns-filter-active", active);
+  function clearAllFilters(table) {
+    closeColumnMenu();
+    for (const cell of headerCells(table)) {
+      columnFilters.delete(cell);
+      updateArrowState(cell);
+    }
+    unhideAllRows(table);
   }
 
-  function toggleFilterPanel(cell) {
-    if (openPanel?.cell === cell) {
-      closeFilterPanel();
+  function setSortDirection(table, cell, direction) {
+    if (!core.sortRows(table, direction === "native" ? -1 : cell.cellIndex, direction)) {
       return;
     }
-    closeFilterPanel();
+    clearSortIndicators();
+    sortCell = direction === "native" ? null : cell;
+    sortDirection = direction === "native" ? null : direction;
+    if (sortCell) {
+      const indicator = document.createElement("span");
+      indicator.setAttribute(core.DATA_ATTRIBUTE, "sort-indicator");
+      indicator.textContent = direction === "asc" ? " ↑" : " ↓";
+      sortCell.insertBefore(indicator, sortCell.querySelector(`[${core.DATA_ATTRIBUTE}="menu-toggle"]`));
+    }
+  }
+
+  function menuItem(label, onClick) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.setAttribute(core.DATA_ATTRIBUTE, "menu-item");
+    button.textContent = label;
+    button.addEventListener("click", onClick);
+    return button;
+  }
+
+  function openColumnMenu(cell) {
+    closeColumnMenu();
     const table = document.querySelector(TABLE_SELECTOR);
-    const values = core.distinctColumnValues(table, cell.cellIndex, 50);
-    if (!values.length) {
+    if (!table) {
       return;
     }
-    const panel = document.createElement("div");
-    panel.setAttribute(core.DATA_ATTRIBUTE, "filter-panel");
-    const selected = filterSelections.get(cell) ?? new Set();
+    const state = filterState(cell);
+    const menu = document.createElement("div");
+    menu.setAttribute(core.DATA_ATTRIBUTE, "column-menu");
+
+    menu.appendChild(menuItem("Sort A to Z", () => { setSortDirection(table, cell, "asc"); closeColumnMenu(); }));
+    menu.appendChild(menuItem("Sort Z to A", () => { setSortDirection(table, cell, "desc"); closeColumnMenu(); }));
+    if (sortCell === cell) {
+      menu.appendChild(menuItem("Clear Sort", () => { setSortDirection(table, cell, "native"); closeColumnMenu(); }));
+    }
+    const divider = document.createElement("div");
+    divider.setAttribute(core.DATA_ATTRIBUTE, "menu-divider");
+    menu.appendChild(divider);
+
+    const values = core.distinctColumnValues(table, cell.cellIndex, 200);
+    state.textAsRowFilter = !values.length;
+
+    const search = document.createElement("input");
+    search.type = "search";
+    search.placeholder = values.length ? "Search (or >100)" : "Filter text (or >100)";
+    search.value = state.queryText;
+    search.setAttribute(core.DATA_ATTRIBUTE, "menu-search");
+    menu.appendChild(search);
+
+    const list = document.createElement("div");
+    list.setAttribute(core.DATA_ATTRIBUTE, "menu-values");
+    const optionRows = [];
     for (const value of values) {
       const label = document.createElement("label");
       const box = document.createElement("input");
       box.type = "checkbox";
-      box.checked = selected.has(value);
+      box.checked = state.selected.has(value);
       box.addEventListener("change", () => {
-        const current = filterSelections.get(cell) ?? new Set();
         if (box.checked) {
-          current.add(value);
+          state.selected.add(value);
         } else {
-          current.delete(value);
+          state.selected.delete(value);
         }
-        filterSelections.set(cell, current);
-        updateFilterToggleState(cell);
-        handleFilterInput();
+        applyColumnFilters(table);
       });
       label.append(box, document.createTextNode(` ${value}`));
-      panel.appendChild(label);
+      optionRows.push({ label, box, value });
+      list.appendChild(label);
     }
-    const clear = document.createElement("button");
-    clear.type = "button";
-    clear.textContent = "Clear";
-    clear.className = core.CLASSES.button;
-    clear.setAttribute(core.DATA_ATTRIBUTE, "filter-panel-clear");
-    clear.addEventListener("click", () => {
-      filterSelections.set(cell, new Set());
-      updateFilterToggleState(cell);
-      closeFilterPanel();
-      handleFilterInput();
+    menu.appendChild(list);
+
+    const narrow = () => {
+      const parsed = core.parseFilterQuery(search.value);
+      const needle = parsed?.op === "contains" ? parsed.value : "";
+      for (const option of optionRows) {
+        option.label.hidden = Boolean(needle) && !option.value.toLowerCase().includes(needle);
+      }
+    };
+    search.addEventListener("input", () => {
+      state.queryText = search.value;
+      narrow();
+      applyColumnFilters(table);
     });
-    panel.appendChild(clear);
-    cell.appendChild(panel);
+    narrow();
+
+    const actions = document.createElement("div");
+    actions.setAttribute(core.DATA_ATTRIBUTE, "menu-actions");
+    if (values.length) {
+      actions.appendChild(menuItem("Select All", () => {
+        for (const option of optionRows) {
+          if (!option.label.hidden) {
+            state.selected.add(option.value);
+            option.box.checked = true;
+          }
+        }
+        applyColumnFilters(table);
+      }));
+    }
+    actions.appendChild(menuItem("Clear Filter", () => {
+      state.selected.clear();
+      state.queryText = "";
+      search.value = "";
+      for (const option of optionRows) {
+        option.box.checked = false;
+      }
+      narrow();
+      applyColumnFilters(table);
+    }));
+    menu.appendChild(actions);
+
+    cell.appendChild(menu);
+    search.focus();
     const onOutside = (event) => {
       if (!cell.contains(event.target)) {
-        closeFilterPanel();
+        closeColumnMenu();
       }
     };
     document.addEventListener("mousedown", onOutside, true);
-    openPanel = { cell, panel, onOutside };
+    openMenu = { cell, menu, onOutside };
   }
 
-  function removeFilters(table) {
-    closeFilterPanel();
-    table?.querySelectorAll?.(`.${core.CLASSES.filtered}`)?.forEach((row) => row.classList.remove(core.CLASSES.filtered));
-    table?.querySelector?.(FILTER_ROW_SELECTOR)?.remove();
-  }
-
-  function buildFilterRow(table) {
-    const headerRow = table.querySelector(core.HEADER_ROW_SELECTOR);
-    if (!headerRow) {
+  function toggleColumnMenu(cell) {
+    if (personalizing) {
       return;
     }
-    const row = document.createElement("tr");
-    row.setAttribute(core.DATA_ATTRIBUTE, "filter-row");
-    headerCells(table).forEach((cell, index) => {
-      const td = document.createElement("td");
-      const input = document.createElement("input");
-      input.type = "search";
-      input.placeholder = "Filter";
-      input.setAttribute(core.DATA_ATTRIBUTE, "filter-input");
-      const values = core.distinctColumnValues(table, index, 20);
-      if (values.length) {
-        const list = document.createElement("datalist");
-        list.id = `suitemate-v3-so-columns-list-${index}`;
-        for (const value of values) {
-          const option = document.createElement("option");
-          option.value = value;
-          list.appendChild(option);
-        }
-        input.setAttribute("list", list.id);
-        td.appendChild(list);
-      }
-      td.appendChild(input);
-      const toggle = document.createElement("button");
-      toggle.type = "button";
-      toggle.textContent = "▾";
-      toggle.title = "Select values";
-      toggle.setAttribute(core.DATA_ATTRIBUTE, "filter-toggle");
-      toggle.addEventListener("click", () => toggleFilterPanel(td));
-      td.appendChild(toggle);
-      row.appendChild(td);
-    });
-    row.addEventListener("input", handleFilterInput);
-    headerRow.parentNode.insertBefore(row, headerRow.nextSibling);
+    if (openMenu?.cell === cell) {
+      closeColumnMenu();
+      return;
+    }
+    openColumnMenu(cell);
   }
 
-  function handleFilterClick() {
-    try {
-      const table = document.querySelector(TABLE_SELECTOR);
-      if (!table) {
-        return;
+  function ensureHeaderMenus(table) {
+    for (const cell of headerCells(table)) {
+      if (!cell.querySelector(`[${core.DATA_ATTRIBUTE}="menu-toggle"]`)) {
+        const arrow = document.createElement("button");
+        arrow.type = "button";
+        arrow.textContent = "▼";
+        arrow.title = "Sort and filter";
+        arrow.setAttribute(core.DATA_ATTRIBUTE, "menu-toggle");
+        arrow.addEventListener("click", (event) => {
+          event.stopPropagation();
+          toggleColumnMenu(cell);
+        });
+        cell.appendChild(arrow);
       }
-      if (table.querySelector(FILTER_ROW_SELECTOR)) {
-        removeFilters(table);
-      } else {
-        buildFilterRow(table);
-      }
-    } catch {}
+      updateArrowState(cell);
+    }
   }
 
   async function saveOrder(labels, message) {
@@ -492,7 +525,7 @@
         core.applyOrder(table, nativeLabels);
       }
       resetSort(table);
-      removeFilters(table);
+      clearAllFilters(table);
       saveOrder(null, "Column order reset.");
       exitPersonalize();
     } catch {}
@@ -518,11 +551,10 @@
     controls.className = core.CLASSES.controls;
     controls.setAttribute(core.DATA_ATTRIBUTE, "controls");
     const personalize = createButton("Personalize", "personalize", handlePersonalizeClick);
-    const filter = createButton("Filter", "filter", handleFilterClick);
     const done = createButton("Done", "done", handleDoneClick);
     const reset = createButton("Reset", "reset", handleResetClick);
-    controls.append(personalize, filter, done, reset);
-    controlButtons = { controls, personalize, filter, done, reset };
+    controls.append(personalize, done, reset);
+    controlButtons = { controls, personalize, done, reset };
     (table.closest(CONTAINER_SELECTOR) ?? table).before(controls);
     updateControls();
   }
@@ -550,8 +582,8 @@
       ensureControls(table);
       if (!table.hasAttribute(core.SORTABLE_ATTRIBUTE)) {
         table.setAttribute(core.SORTABLE_ATTRIBUTE, "");
-        table.addEventListener("click", handleSortClick);
       }
+      ensureHeaderMenus(table);
       const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
       if (signal.aborted || !isCurrent() || !table.isConnected) {
         return false;
@@ -571,11 +603,9 @@
       exitPersonalize();
       const table = document.querySelector(TABLE_SELECTOR);
       resetSort(table);
-      removeFilters(table);
-      if (table?.hasAttribute?.(core.SORTABLE_ATTRIBUTE)) {
-        table.removeAttribute(core.SORTABLE_ATTRIBUTE);
-        table.removeEventListener("click", handleSortClick);
-      }
+      closeColumnMenu();
+      unhideAllRows(table);
+      table?.removeAttribute?.(core.SORTABLE_ATTRIBUTE);
       if (table && nativeLabels) {
         core.applyOrder(table, nativeLabels);
       }

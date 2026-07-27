@@ -771,3 +771,21 @@ Date: 2026-07-28
 - Production Sales Order (45 columns, 45 filter toggles rendered): Item panel listed the real distinct values; selecting two SKUs showed exactly those rows (OR within column); Quantity `>0` text query AND-combined; Amount sort ran on the filtered set with its indicator; selections survived a personalize-mode round trip with the toggle still highlighted; Reset restored all rows, native columns, and removed the filter row and indicator.
 - Real low-cardinality columns confirmed present for the Excel-style use case (e.g. Product Category: Lips/Face).
 - Zero JavaScript errors.
+
+## Transaction Column Personalization: Milestone 7 (Excel-style column menu)
+
+Status: Automated + browser verification complete; live NetSuite retest pending
+
+Date: 2026-07-28
+
+### Included
+
+- Sorting and filtering unified into one Excel-style menu per column: a ▼ arrow on every header opens Sort A to Z / Sort Z to A (plus Clear Sort when that column is sorted), a search box, the distinct-value checkbox list (up to 200, scrollable), Select All (applies to searched subset) and Clear Filter.
+- Excel search semantics: plain text narrows the value list; operator prefixes (> < >= <= =) apply live as a row condition; on columns with too many distinct values for a list, plain text falls back to a live contains row-filter — no capability lost from the previous UI.
+- Removed the separate Filter button, filter row and header click-to-sort; controls strip is back to Personalize/Done/Reset. Filter state is WeakMap-keyed to header cells so it travels with column drags; active columns highlight their arrow; sort indicator sits beside the arrow.
+- Zero core-engine changes — the redesign reuses sortRows/applyFilters/matchesFilter/distinctColumnValues untouched, all vanilla (React evaluated and rejected: it would mount into NetSuite-owned cells, add a dependency and build step for ~150 lines of owned-DOM popover).
+
+### Verification
+
+- Full `npm test`: 180 passing tests unchanged, 28 screenshot baselines at 0.000 percent difference.
+- Browser pass (served fixture, real clicks/typing/drags): menu structure, sort via menu with indicator and auto-close, contextual Clear Sort, multi-select OR, search narrowing, operator filter AND-combining across columns, filters surviving column drag, outside-click close, full Reset; old filter UI absent.

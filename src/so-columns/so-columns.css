@@ -49,10 +49,6 @@
     cursor: grabbing
 }
 
-#item_splits[data-suitemate-v3-so-columns-sortable] tr.uir-machine-headerrow td {
-    cursor: pointer
-}
-
 [data-suitemate-v3-so-columns="sort-indicator"] {
     margin-left: 4px;
     color: var(--theme-main, #607799);
@@ -60,43 +56,42 @@
     user-select: none
 }
 
-tr[data-suitemate-v3-so-columns="filter-row"] td {
-    padding: 2px 4px;
-    position: relative;
-    white-space: nowrap
+#item_splits[data-suitemate-v3-so-columns-sortable] tr.uir-machine-headerrow td {
+    position: relative
 }
 
-[data-suitemate-v3-so-columns="filter-toggle"] {
-    width: 18px;
-    padding: 0;
-    border: 1px solid var(--field-border-color, #c7c7c7);
-    border-radius: var(--suitemate-radius-compact, 4px);
+[data-suitemate-v3-so-columns="menu-toggle"] {
+    margin-left: 4px;
+    padding: 0 3px;
+    border: 0;
     background: transparent;
     color: inherit;
-    font-size: 10px;
-    line-height: 18px;
+    opacity: .55;
+    font-size: 9px;
     cursor: pointer;
     vertical-align: middle
 }
 
+[data-suitemate-v3-so-columns="menu-toggle"]:hover {
+    opacity: 1
+}
+
 .suitemate-v3-so-columns-filter-active {
+    opacity: 1;
     color: var(--theme-main, #607799);
-    border-color: var(--theme-main, #607799);
     font-weight: 700
 }
 
-[data-suitemate-v3-so-columns="filter-panel"] {
+[data-suitemate-v3-so-columns="column-menu"] {
     position: absolute;
     top: 100%;
     left: 0;
     z-index: 1000;
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    min-width: 150px;
-    max-width: 280px;
-    max-height: 240px;
-    overflow: auto;
+    gap: 3px;
+    min-width: 180px;
+    max-width: 300px;
     padding: 6px;
     background: Canvas;
     color: CanvasText;
@@ -104,10 +99,51 @@ tr[data-suitemate-v3-so-columns="filter-row"] td {
     border-radius: var(--suitemate-radius-compact, 4px);
     box-shadow: 0 4px 12px rgb(0 0 0 / .18);
     font-size: 11px;
-    text-align: left
+    font-weight: 400;
+    text-align: left;
+    white-space: nowrap
 }
 
-[data-suitemate-v3-so-columns="filter-panel"] label {
+[data-suitemate-v3-so-columns="menu-item"] {
+    padding: 3px 6px;
+    border: 0;
+    border-radius: var(--suitemate-radius-compact, 4px);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer
+}
+
+[data-suitemate-v3-so-columns="menu-item"]:hover {
+    background: var(--theme-secondary-light-light, rgb(0 0 0 / .07))
+}
+
+[data-suitemate-v3-so-columns="menu-divider"] {
+    height: 1px;
+    margin: 2px 0;
+    background: var(--field-border-color, #c7c7c7)
+}
+
+[data-suitemate-v3-so-columns="menu-search"] {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 3px 6px;
+    border: 1px solid var(--field-border-color, #c7c7c7);
+    border-radius: var(--suitemate-radius-compact, 4px);
+    font-family: var(--normal-font, "Open Sans", Arial, sans-serif);
+    font-size: 11px
+}
+
+[data-suitemate-v3-so-columns="menu-values"] {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 200px;
+    overflow: auto
+}
+
+[data-suitemate-v3-so-columns="menu-values"] label {
     display: flex;
     align-items: center;
     gap: 4px;
@@ -115,15 +151,11 @@ tr[data-suitemate-v3-so-columns="filter-row"] td {
     cursor: pointer
 }
 
-[data-suitemate-v3-so-columns="filter-input"] {
-    width: calc(100% - 24px);
-    min-width: 56px;
-    box-sizing: border-box;
-    padding: 2px 4px;
-    border: 1px solid var(--field-border-color, #c7c7c7);
-    border-radius: var(--suitemate-radius-compact, 4px);
-    font-family: var(--normal-font, "Open Sans", Arial, sans-serif);
-    font-size: 11px
+[data-suitemate-v3-so-columns="menu-actions"] {
+    display: flex;
+    gap: 4px;
+    border-top: 1px solid var(--field-border-color, #c7c7c7);
+    padding-top: 4px
 }
 
 .suitemate-v3-so-columns-filtered {
