@@ -866,3 +866,20 @@ Date: 2026-07-28
 
 - Production Sales Order (45 columns): header cells compute `position: sticky` again (the regression had forced `relative`); the menu arrow renders inline inside `.listheader` on the same line as the title at a compact 28px header row; personalize mode shows the accent banner with filled Done and 25%-opacity inert arrows (menu clicks blocked), and Done restores arrows and menus fully.
 - Zero JavaScript errors.
+
+## Transaction Column Personalization: Milestone 12 (hide/show columns)
+
+Status: Automated + browser verification complete; live NetSuite retest pending
+
+Date: 2026-07-28
+
+### Included
+
+- Hide: a "Hide column" item in each column menu removes the column (header and every aligned row cell) via a display class — label-based identity, display-only, fail-closed.
+- Show: personalize mode reveals hidden columns as 35%-opacity ghosts (still draggable) and lists them in the banner as click-to-restore chips; Reset restores everything.
+- Persistence: storage schema v1 -> v2 with in-place migration — entries grow from bare order arrays to `{order?, hidden?}` objects, per user per transaction type; empty entries are dropped; the newer-schema write guard protects older extension versions in the field; quota eviction covers the whole entry.
+
+### Verification
+
+- Full `npm test`: 183 passing tests (schema migration, withHidden semantics, applyHidden row coverage), 28 screenshot baselines at 0.000 percent difference.
+- Browser pass: hide via menu (5 -> 4 visible columns across header and rows, v2 payload persisted), ghost + chip in personalize mode, chip restore with empty-entry cleanup, sorting with a hidden column present, full Reset.

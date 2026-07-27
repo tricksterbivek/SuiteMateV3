@@ -3,7 +3,7 @@
 
   const VERSION = 1;
   const STORAGE_KEY = "suiteMateV3ColumnOrder";
-  const STORAGE_SCHEMA_VERSION = 1;
+  const STORAGE_SCHEMA_VERSION = 2;
   const MAX_SYNC_ITEM_BYTES = 7800;
   const MAX_LABEL_LENGTH = 200;
   const MAX_LABELS = 100;
@@ -16,6 +16,7 @@
   const FOREIGN_NODE_SELECTOR = "[data-suitemate-v3-internal-id], [data-suitemate-v3-so-columns]";
   const CLASSES = Object.freeze({
     controls: "suitemate-v3-so-columns-controls",
+    colHidden: "suitemate-v3-so-columns-col-hidden",
     button: "suitemate-v3-so-columns-button",
     personalizing: "suitemate-v3-so-columns-personalizing",
     dragging: "suitemate-v3-so-columns-dragging",
@@ -59,33 +60,61 @@
     return labels;
   }
 
+  function normalizeEntry(value) {
+    // Schema v1 entries were bare label arrays (column order only).
+    const candidate = Array.isArray(value) ? { order: value } : value;
+    if (!isPlainObject(candidate)) {
+      return null;
+    }
+    const order = normalizeLabels(candidate.order);
+    const hidden = normalizeLabels(candidate.hidden);
+    if (!order && !hidden) {
+      return null;
+    }
+    return { ...(order ? { order } : {}), ...(hidden ? { hidden } : {}) };
+  }
+
   function normalizeStored(value) {
     const normalized = { schemaVersion: STORAGE_SCHEMA_VERSION, orders: {} };
     if (
       !isPlainObject(value)
-      || value.schemaVersion !== STORAGE_SCHEMA_VERSION
+      || !Number.isSafeInteger(value.schemaVersion)
+      || value.schemaVersion < 1
+      || value.schemaVersion > STORAGE_SCHEMA_VERSION
       || !isPlainObject(value.orders)
     ) {
       return normalized;
     }
-    for (const [scopeKey, labels] of Object.entries(value.orders)) {
+    for (const [scopeKey, entry] of Object.entries(value.orders)) {
       const key = normalizeScopeKey(scopeKey);
-      const normalizedLabels = normalizeLabels(labels);
-      if (key && normalizedLabels) {
-        normalized.orders[key] = normalizedLabels;
+      const normalizedEntry = normalizeEntry(entry);
+      if (key && normalizedEntry) {
+        normalized.orders[key] = normalizedEntry;
       }
     }
     return normalized;
   }
 
-  function withOrder(stored, scopeKey, labels) {
-    if (
-      isPlainObject(stored)
+  function refusesNewerSchema(stored) {
+    // Never rewrite a newer schema synced from another machine (mirrors
+    // settings.js assertStoredVersionIsWritable).
+    return isPlainObject(stored)
       && Number.isSafeInteger(stored.schemaVersion)
-      && stored.schemaVersion > STORAGE_SCHEMA_VERSION
-    ) {
-      // Never rewrite a newer schema synced from another machine (mirrors
-      // settings.js assertStoredVersionIsWritable).
+      && stored.schemaVersion > STORAGE_SCHEMA_VERSION;
+  }
+
+  function evictOverQuota(next, key) {
+    const bytes = new TextEncoder().encode(`${STORAGE_KEY}${JSON.stringify(next)}`).length;
+    if (bytes > MAX_SYNC_ITEM_BYTES) {
+      // ponytail: single-entry eviction — over quota we keep only the entry
+      // being written; one pathological oversize entry can still fail the write.
+      next.orders = key in next.orders ? { [key]: next.orders[key] } : {};
+    }
+    return next;
+  }
+
+  function withOrder(stored, scopeKey, labels) {
+    if (refusesNewerSchema(stored)) {
       return null;
     }
     const next = normalizeStored(stored);
@@ -97,18 +126,60 @@
       delete next.orders[key];
       return next;
     }
-    const normalizedLabels = normalizeLabels(labels);
-    if (!normalizedLabels) {
+    const order = normalizeLabels(labels);
+    if (!order) {
       return null;
     }
-    next.orders[key] = normalizedLabels;
-    const bytes = new TextEncoder().encode(`${STORAGE_KEY}${JSON.stringify(next)}`).length;
-    if (bytes > MAX_SYNC_ITEM_BYTES) {
-      // ponytail: single-order eviction — over quota we keep only the entry being
-      // written; one pathological oversize order can still fail the sync write.
-      next.orders = { [key]: normalizedLabels };
+    next.orders[key] = { ...(next.orders[key] ?? {}), order };
+    return evictOverQuota(next, key);
+  }
+
+  function withHidden(stored, scopeKey, labels) {
+    if (refusesNewerSchema(stored)) {
+      return null;
     }
-    return next;
+    const next = normalizeStored(stored);
+    const key = normalizeScopeKey(scopeKey);
+    if (!key) {
+      return null;
+    }
+    const entry = { ...(next.orders[key] ?? {}) };
+    if (!labels || (Array.isArray(labels) && labels.length === 0)) {
+      delete entry.hidden;
+    } else {
+      const hidden = normalizeLabels(labels);
+      if (!hidden) {
+        return null;
+      }
+      entry.hidden = hidden;
+    }
+    if (!entry.order && !entry.hidden) {
+      delete next.orders[key];
+    } else {
+      next.orders[key] = entry;
+    }
+    return evictOverQuota(next, key);
+  }
+
+  function applyHidden(table, hiddenLabels) {
+    try {
+      const headerCount = table?.querySelector?.(HEADER_ROW_SELECTOR)?.cells?.length ?? 0;
+      if (!headerCount) {
+        return false;
+      }
+      const hidden = new Set(Array.isArray(hiddenLabels) ? hiddenLabels : []);
+      const flags = readHeaderLabels(table).map((label) => hidden.has(label));
+      for (const row of Array.from(table.rows ?? [])) {
+        const cells = Array.from(row.cells ?? []);
+        if (cells.length !== headerCount || typeof cells[0]?.classList?.toggle !== "function") {
+          continue;
+        }
+        cells.forEach((cellNode, index) => cellNode.classList.toggle(CLASSES.colHidden, flags[index]));
+      }
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function planOrder(nativeLabels, savedLabels) {
@@ -458,7 +529,9 @@
       planOrder,
       applyOrder,
       normalizeStored,
-      withOrder
+      withOrder,
+      withHidden,
+      applyHidden
     }),
     configurable: false,
     enumerable: true,

@@ -61,7 +61,7 @@ test("exports a frozen core with the column-order storage contract", () => {
   assert.equal(core.VERSION, 1);
   assert.equal(Object.isFrozen(core), true);
   assert.equal(core.STORAGE_KEY, "suiteMateV3ColumnOrder");
-  assert.equal(core.STORAGE_SCHEMA_VERSION, 1);
+  assert.equal(core.STORAGE_SCHEMA_VERSION, 2);
   assert.equal(core.MAX_SYNC_ITEM_BYTES, 7800);
   assert.equal(core.HEADER_ROW_SELECTOR, "tr.uir-machine-headerrow");
   assert.equal(core.DATA_ATTRIBUTE, "data-suitemate-v3-so-columns");
@@ -100,16 +100,16 @@ test("pins duplicate and empty labels to their native positions", () => {
   );
 });
 
-test("normalizeStored rejects garbage, wrong versions and hostile keys", () => {
+test("normalizeStored rejects garbage, newer versions and hostile keys", () => {
   const core = createApi();
-  const empty = { schemaVersion: 1, orders: {} };
+  const empty = { schemaVersion: 2, orders: {} };
   for (const value of [
     null,
     undefined,
     "orders",
     12,
     ["Item"],
-    { schemaVersion: 2, orders: { a: ["Item"] } },
+    { schemaVersion: 3, orders: { a: ["Item"] } },
     { orders: { a: ["Item"] } },
     { schemaVersion: 1, orders: ["Item"] }
   ]) {
@@ -121,7 +121,7 @@ test("normalizeStored rejects garbage, wrong versions and hostile keys", () => {
   );
   const normalized = core.normalizeStored(hostile);
   assert.deepEqual(Object.keys(normalized.orders), ["safe"]);
-  assert.deepEqual(plain(normalized.orders.safe), ["Item", "Quantity"]);
+  assert.deepEqual(plain(normalized.orders.safe), { order: ["Item", "Quantity"] });
 
   const mixed = {
     schemaVersion: 1,
@@ -137,10 +137,73 @@ test("normalizeStored rejects garbage, wrong versions and hostile keys", () => {
   assert.deepEqual(Object.keys(core.normalizeStored(mixed).orders), ["keep"]);
 });
 
+test("normalizeStored migrates v1 arrays and accepts v2 entries", () => {
+  const core = createApi();
+  const v1 = { schemaVersion: 1, orders: { "123:7:salesord": ["Item", "Quantity"] } };
+  assert.deepEqual(plain(core.normalizeStored(v1)), {
+    schemaVersion: 2,
+    orders: { "123:7:salesord": { order: ["Item", "Quantity"] } }
+  });
+
+  const v2 = {
+    schemaVersion: 2,
+    orders: {
+      a: { order: ["Item"], hidden: ["Rate"] },
+      b: { hidden: ["Location"] },
+      dropMe: { order: "nope" }
+    }
+  };
+  assert.deepEqual(plain(core.normalizeStored(v2)), {
+    schemaVersion: 2,
+    orders: { a: { order: ["Item"], hidden: ["Rate"] }, b: { hidden: ["Location"] } }
+  });
+});
+
+test("withHidden stores, clears and preserves order in the same entry", () => {
+  const core = createApi();
+  const base = core.withOrder(undefined, "123:7", ["Item", "Quantity"]);
+  const withHidden = core.withHidden(base, "123:7", ["Rate"]);
+  assert.deepEqual(plain(withHidden.orders["123:7"]), { order: ["Item", "Quantity"], hidden: ["Rate"] });
+
+  const orderKept = core.withOrder(withHidden, "123:7", ["Quantity", "Item"]);
+  assert.deepEqual(plain(orderKept.orders["123:7"]), { order: ["Quantity", "Item"], hidden: ["Rate"] });
+
+  const cleared = core.withHidden(orderKept, "123:7", []);
+  assert.deepEqual(plain(cleared.orders["123:7"]), { order: ["Quantity", "Item"] });
+
+  const hiddenOnly = core.withHidden(undefined, "123:8", ["Location"]);
+  assert.deepEqual(plain(hiddenOnly.orders["123:8"]), { hidden: ["Location"] });
+  const dropped = core.withHidden(hiddenOnly, "123:8", []);
+  assert.deepEqual(Object.keys(dropped.orders), []);
+
+  assert.equal(core.withHidden(base, "__proto__", ["Item"]), null);
+  assert.equal(core.withHidden(base, "123:7", ["x".repeat(201)]), null);
+  assert.equal(core.withHidden({ schemaVersion: 3, orders: {} }, "123:7", ["Item"]), null);
+});
+
+test("applyHidden hides matching columns in every aligned row and unhides", () => {
+  const core = createApi();
+  const { table, rows, trailingRows } = createSortableTable(
+    ["Item", "Rate", "Amount"],
+    [["SKU", "$1", "$2"], ["SKU2", "$3", "$4"]],
+    [["Total", "$4"]]
+  );
+  const hiddenFlags = (row) => row.cells.map((cell) => cell.classList.contains("suitemate-v3-so-columns-col-hidden"));
+
+  assert.equal(core.applyHidden(table, ["Rate"]), true);
+  assert.deepEqual(hiddenFlags(rows[0]), [false, true, false]);
+  assert.deepEqual(hiddenFlags(rows[1]), [false, true, false]);
+  assert.deepEqual(hiddenFlags(trailingRows[0]), [false, false]);
+
+  assert.equal(core.applyHidden(table, []), true);
+  assert.deepEqual(hiddenFlags(rows[1]), [false, false, false]);
+  assert.equal(core.applyHidden(null, ["Rate"]), false);
+});
+
 test("withOrder writes, deletes and preserves sibling scopes", () => {
   const core = createApi();
   const written = core.withOrder(undefined, "123:7", ["Item", "Quantity"]);
-  assert.deepEqual(plain(written), { schemaVersion: 1, orders: { "123:7": ["Item", "Quantity"] } });
+  assert.deepEqual(plain(written), { schemaVersion: 2, orders: { "123:7": { order: ["Item", "Quantity"] } } });
 
   const both = core.withOrder(written, "123:8", ["Amount", "Rate"]);
   assert.deepEqual(Object.keys(both.orders).sort(), ["123:7", "123:8"]);
@@ -155,7 +218,7 @@ test("withOrder writes, deletes and preserves sibling scopes", () => {
 
 test("withOrder refuses to rewrite a newer storage schema", () => {
   const core = createApi();
-  const future = { schemaVersion: 2, orders: { "123:7": ["Item"] } };
+  const future = { schemaVersion: 3, orders: { "123:7": ["Item"] } };
   assert.equal(core.withOrder(future, "123:7", ["Item", "Quantity"]), null);
   assert.equal(core.withOrder(future, "123:7", null), null);
 });
@@ -199,7 +262,7 @@ test("withOrder evicts sibling scopes when the payload would exceed the sync quo
 
   stored = core.withOrder(stored, "scope-c", bigLabels("Gamma"));
   assert.deepEqual(Object.keys(stored.orders), ["scope-c"]);
-  assert.equal(stored.schemaVersion, 1);
+  assert.equal(stored.schemaVersion, 2);
 });
 
 test("readHeaderLabels trims header-cell text and fails closed", () => {
@@ -285,7 +348,16 @@ function createSortableTable(headerLabels, dataRowsValues, trailing = []) {
     const row = {
       className,
       parentNode: parent,
-      cells: labels.map((label) => ({ textContent: label })),
+      cells: labels.map((label) => {
+        const cellClasses = new Set();
+        return {
+          textContent: label,
+          classList: {
+            toggle: (name, force) => { if (force) { cellClasses.add(name); } else { cellClasses.delete(name); } },
+            contains: (name) => cellClasses.has(name)
+          }
+        };
+      }),
       getAttribute: (name) => (name in attrs ? attrs[name] : null),
       setAttribute: (name, value) => { attrs[name] = String(value); },
       classList: {

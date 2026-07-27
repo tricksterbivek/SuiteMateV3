@@ -49,6 +49,7 @@
   let dropCell = null;
   let sortCell = null;
   let sortDirection = null;
+  let hiddenLabels = new Set();
 
   function showToast(message, type) {
     globalThis.SuiteMateV3Notifications?.showToast(message, { type });
@@ -284,6 +285,13 @@
     if (sortedHere) {
       menu.appendChild(menuItem("✕", "Clear sort", () => { setSortDirection(table, cell, "native"); closeColumnMenu(); }));
     }
+    const columnLabel = cellLabel(cell);
+    if (columnLabel) {
+      menu.appendChild(menuItem("⊖", "Hide column", () => {
+        setColumnHidden(table, columnLabel, true);
+        closeColumnMenu();
+      }));
+    }
 
     menu.appendChild(menuEyebrow("Filter"));
     const values = core.distinctColumnValues(table, cell.cellIndex, 200);
@@ -444,6 +452,57 @@
     }
   }
 
+  async function saveHidden() {
+    try {
+      if (!scopeKey) {
+        return;
+      }
+      const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
+      const next = core.withHidden(stored[core.STORAGE_KEY], scopeKey, Array.from(hiddenLabels));
+      if (!next) {
+        showToast("Column visibility could not be saved.", "warning");
+        return;
+      }
+      await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
+    } catch {
+      showToast("Column visibility could not be saved.", "warning");
+    }
+  }
+
+  function renderHiddenChips() {
+    const wrap = controlButtons?.hiddenChips;
+    if (!wrap) {
+      return;
+    }
+    wrap.textContent = "";
+    for (const label of Array.from(hiddenLabels).sort()) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.setAttribute(core.DATA_ATTRIBUTE, "hidden-chip");
+      chip.title = "Show this column again";
+      chip.textContent = `${label} ✕`;
+      chip.addEventListener("click", () => {
+        setColumnHidden(document.querySelector(TABLE_SELECTOR), label, false);
+      });
+      wrap.appendChild(chip);
+    }
+    wrap.hidden = !personalizing || hiddenLabels.size === 0;
+  }
+
+  function setColumnHidden(table, label, hide) {
+    if (!table || !label) {
+      return;
+    }
+    if (hide) {
+      hiddenLabels.add(label);
+    } else {
+      hiddenLabels.delete(label);
+    }
+    core.applyHidden(table, Array.from(hiddenLabels));
+    renderHiddenChips();
+    saveHidden();
+  }
+
   async function saveOrder(labels, message) {
     try {
       if (!scopeKey) {
@@ -584,6 +643,7 @@
     controlButtons.done.hidden = !personalizing;
     controlButtons.reset.hidden = !personalizing;
     controlButtons.controls.classList.toggle("suitemate-v3-so-columns-mode-active", personalizing);
+    renderHiddenChips();
   }
 
   function handlePersonalizeClick() {
@@ -610,7 +670,9 @@
       }
       resetSort(table);
       clearAllFilters(table);
-      saveOrder(null, "Column order reset.");
+      hiddenLabels = new Set();
+      core.applyHidden(table, []);
+      saveOrder(null, "Column layout reset.");
       exitPersonalize();
     } catch {}
     updateControls();
@@ -639,10 +701,13 @@
     hint.setAttribute(core.DATA_ATTRIBUTE, "mode-hint");
     hint.textContent = "Personalizing — drag column headers to reorder. Click Done to finish.";
     hint.hidden = true;
+    const hiddenChips = document.createElement("span");
+    hiddenChips.setAttribute(core.DATA_ATTRIBUTE, "hidden-chips");
+    hiddenChips.hidden = true;
     const done = createButton("Done", "done", handleDoneClick);
     const reset = createButton("Reset", "reset", handleResetClick);
-    controls.append(personalize, hint, done, reset);
-    controlButtons = { controls, personalize, hint, done, reset };
+    controls.append(personalize, hint, hiddenChips, done, reset);
+    controlButtons = { controls, personalize, hint, hiddenChips, done, reset };
     (table.closest(CONTAINER_SELECTOR) ?? table).before(controls);
     updateControls();
   }
@@ -676,10 +741,13 @@
       if (signal.aborted || !isCurrent() || !table.isConnected) {
         return false;
       }
-      const saved = core.normalizeStored(stored[core.STORAGE_KEY]).orders[scopeKey];
-      if (saved) {
-        core.applyOrder(table, core.planOrder(core.readHeaderLabels(table), saved));
+      const entry = core.normalizeStored(stored[core.STORAGE_KEY]).orders[scopeKey];
+      if (entry?.order) {
+        core.applyOrder(table, core.planOrder(core.readHeaderLabels(table), entry.order));
       }
+      hiddenLabels = new Set(entry?.hidden ?? []);
+      core.applyHidden(table, Array.from(hiddenLabels));
+      renderHiddenChips();
       return !signal.aborted && isCurrent();
     } catch {
       return false;
@@ -693,6 +761,8 @@
       resetSort(table);
       closeColumnMenu();
       unhideAllRows(table);
+      core.applyHidden(table, []);
+      hiddenLabels = new Set();
       table?.removeAttribute?.(core.SORTABLE_ATTRIBUTE);
       if (table && nativeLabels) {
         core.applyOrder(table, nativeLabels);

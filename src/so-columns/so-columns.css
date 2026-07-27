@@ -17,6 +17,39 @@
     vertical-align: middle
 }
 
+.suitemate-v3-so-columns-col-hidden {
+    display: none
+}
+
+.suitemate-v3-so-columns-personalizing .suitemate-v3-so-columns-col-hidden {
+    display: table-cell;
+    opacity: .35
+}
+
+[data-suitemate-v3-so-columns="hidden-chips"] {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px
+}
+
+[data-suitemate-v3-so-columns="hidden-chip"] {
+    padding: 1px 7px;
+    border: 1px solid var(--theme-main, #607799);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--theme-main, #607799);
+    font-family: var(--normal-font, "Open Sans", Arial, sans-serif);
+    font-size: 10.5px;
+    line-height: 16px;
+    cursor: pointer;
+    white-space: nowrap
+}
+
+[data-suitemate-v3-so-columns="hidden-chip"]:hover {
+    background: var(--theme-main, #607799);
+    color: #fff
+}
+
 .suitemate-v3-so-columns-mode-active {
     padding: 4px 8px;
     background: #eef2f7;
