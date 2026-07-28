@@ -1033,76 +1033,17 @@ Tag: `checkpoint-pre-ui-enhancement-2026-07-28` — shipped code byte-identical 
 - Full `npm test` on the checkpoint tree: 186 passing tests, 28 screenshot baselines at 0.000 percent difference.
 - Working tree clean after commit; branch and tag pushed to GitHub.
 
-## UI Enhancement: Task 1 (UI-0 token foundation)
+## Restore: v3.18.1 stable checkpoint (UI enhancement layer rolled back)
 
-Status: Complete; zero visual change proven
-
-Date: 2026-07-28
-
-### Included
-
-- Adds `src/styles/tokens.css`: the full `--sm-*` design-token set derived from `design.md` (accent routed through the role-theme chain with a cobalt fallback, ink ramp, surfaces, semantics, elevation, spacing, type scale). Definitions only — the file paints nothing.
-- Registers the file in the manifest's global CSS bundle (before `netsuite.css`), in the `tests/verify.mjs` expected css array, and in all nine screenshot-fixture pages so the harness renders with tokens live.
-
-### Verification
-
-- Full `npm test`: 186 passing tests, 49 manifest resources verified, 15 V1 style hashes unchanged, and all 28 screenshot baselines at 0.000 percent difference **with tokens.css loaded** — the zero-visual-change pass condition. No baseline was regenerated.
-- Live token-presence sanity (`--sm-primary` computed on the root) rides the UI-1 live pass, since UI-0 is invisible by design and UI-1 requires the same extension reload.
-
-## UI Enhancement: Task 2 (UI-1 pill buttons + cobalt accent)
-
-Status: Implemented and screenshot-verified; live pass pending next extension reload
+Status: Restored and verified
 
 Date: 2026-07-28
 
 ### Included
 
-- Default accent moves from slate `#607799` to design.md cobalt `#0064e0` across every definition site: `netsuite.css` theme-default chain (dark/light arms now derived with `color-mix`), `settings.js` `DEFAULT_ROLE_COLORS.main`, popup CSS/HTML placeholder literals, `so-columns.css` var fallbacks, and the one `dashboard.css` portlet-hover literal. User-saved role colors are untouched and keep overriding.
-- Classic buttons: primary faces (`.pgBntR.pgBntG/.tabBnt .bntBgB`) go flat theme-cobalt with a darkened hover state (hover text corrected to white for contrast); secondary faces get canvas + hairline treatment; button tables switch to `border-collapse: separate` so `--suitemate-radius-pill` (now 100px) clips them into pills; button labels adopt the `--sm-type-button` scale.
-- Redwood `n-w-button`: primary gradient trio flattened to theme cobalt with `--sm-primary-deep` border; secondary flattened to canvas/hairline/ink.
-- Hash re-pins for the two edited pinned files (`netsuite.css`, `dashboard.css`).
+- Owner judged the design.md UI experimentation (UI-0 through the partial UI-4: tokens, cobalt accent, pill buttons, totals card, surface geometry) below the expected quality bar and requested restoration of the stable refactored release. Every tracked file was restored to `checkpoint-pre-ui-enhancement-2026-07-28` (shipped code byte-identical to release v3.18.1); the three files that work added (`tokens.css`, the UI spec and plan) were removed. `design.md` itself remains at the repo root, and the full UI-enhancement history stays reachable in git history (`db4730f..9ad949a`) if it is ever revisited.
 
 ### Verification
 
-- Full `npm test`: 186 passing (the settings-default change broke no expectation — the `#607799` hits in verify.mjs are generator sample inputs, confirmed by audit), 15 style hashes re-pinned and green.
-- 27 of 28 baselines intentionally re-blessed; each reviewed by eye — deltas confined to accent hue, pill geometry, and button typography (record page, script page, Redwood record, toasts, saved-search list all inspected). Re-blessed set verifies at 0.000 percent.
-- `grep 607799 src/` returns zero.
-
-### UI-1 live verification and button-model fix (2026-07-28, reloaded build)
-
-- Live pass on production Sales Order (internal id 16302518, document SO886672, Redwood shell): tokens present on the root; pill mechanics confirmed on real DOM (`border-collapse: separate`, 100px radius, `overflow: clip`, 13px/600/-0.1px labels); saved navy role color correctly wins over the new cobalt default, and removing the custom vars inline proved the default chain falls to cobalt `rgb(0, 100, 224)`; dark-mode flip clean both ways; personalization smoke green (menu opaque white, value list narrowed 2→1 with all 5 table rows pinned, clear restored, Escape closed); zero console errors.
-- Defect caught live and fixed: the shipped UI-1 misread NetSuite's button class model. On real record pages rows are `tr.pgBntG` (standard) with `.pgBntB` marking primaries, and `.pgBntR` does not appear — so the "hovered primary" rule repainted every secondary button `--theme-main-dark` under dark text. Corrected model: `.pgBntB` (and legacy `.pgBntR.pgBntG`/`.pgBntR.tabBnt`) are primary → theme fill, white label, darker hover; bare `.pgBntG` is secondary → canvas + hairline + ink label, soft hover; disabled labels keep native gray. Verified by live style injection at the computed-pixel level (primaries `rgb(0,29,54)` + white, secondaries white + `rgb(28,43,51)` ink + hairline border) before shipping.
-- The fix changes no fixture baseline (fixture DOM carries no `pgBnt*` rows); 186 tests and re-pinned hashes green.
-
-## UI Enhancement: Task 3 (UI-2 totals summary card)
-
-Status: Complete; verified live by style injection on production
-
-Date: 2026-07-28
-
-### Included
-
-- `.totallingtable` becomes a level-0 card: canvas background, `--sm-hairline-soft` border, surface radius, 8px/12px padding. The grand-total row's label adopts subtitle weight via NetSuite's own `totallingtable_total` row class (discovered live — cleaner than a `:has()` probe); values were already bold via the existing `.inputtotalling` rule, and the themed navy caption header stays as-is.
-- List-page `#totalRow` cells tokenize their light arm from `#e5e5e5` to soft-cloud `#f1f4f7` (dark arm unchanged).
-
-### Verification
-
-- Live on production SO 16302518 via injected preview: computed white card, `rgb(231,235,239)` hairline, 8px/12px padding, Total label emphasized; element screenshot confirms the design (navy Summary header over a clean hairline card). Totals machinery is shared across transaction types.
-- Full `npm test` 186 passing; hash re-pinned. Screenshot fixtures contain no totals table, so all 28 baselines verify unchanged at 0.000 percent — no re-bless needed.
-
-## UI Enhancement: Task 4 (UI-3 sublist surfaces + tokenized personalization UI)
-
-Status: Complete; injection-previewed live, native verification rides the UI-8 sweep
-
-Date: 2026-07-28
-
-### Included
-
-- Table vars tokenized (legacy branch only): `--table-border-color` light arm `#ebebeb` → `#e7ebef`, `--table-header-bg-color` light arm `#e5e5e5` → soft-cloud `#f1f4f7`. The yellow row-hover stays — deep NetSuite muscle memory (owner's conservative rule). Redwood branch untouched.
-- Geometry: `--suitemate-radius-surface` 5px → 12px (the spec's pre-approved conservative value); inputs split off the surface token onto `--suitemate-radius-control`, and control retunes 3px → 8px here rather than UI-5 so inputs move 5→8px in one hop instead of 5→3→8 (plan deviation, recorded).
-- so-columns UI: neutrals aligned to token values (`#f1f4f7` surfaces, `#c9d1d9`/`#e7ebef` hairlines, steel/stone/slate/ink text ramp), control buttons become pills (100px, 12px padding), menu shadow adopts elevation-2. The floating menu keeps its literal-plus-`.isDarkMode` mechanism — `light-dark()`-carrying tokens stay banned there (Milestone 8 lesson).
-
-### Verification
-
-- Full `npm test` 186 passing; hash re-pinned; 22 baselines intentionally re-blessed (8px inputs, 12px surfaces, header tint) and reviewed — no layout drift; re-blessed set verifies at 0.000 percent.
-- Live injection preview on production SO: Personalize pill at 100px, menu opaque white with elevation-2 shadow in light and opaque `rgb(62,63,66)` in dark (computed pixels), header `position: sticky` intact. Menu narrowing smoke passed earlier this session; runtime untouched this task. Full cross-type native pass happens at UI-8 after reload.
+- `git diff checkpoint-pre-ui-enhancement-2026-07-28` empty — the tree is byte-identical to the rollback point.
+- Full `npm test`: 186 passing tests; all 28 restored screenshot baselines verify at 0.000 percent; 15 V1 style hashes green.

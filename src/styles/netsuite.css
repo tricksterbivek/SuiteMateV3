@@ -46,8 +46,8 @@ html:not(.ext-f).isRedwood {
 }
 
 html:not(.ext-f) {
-    --theme-default-main: light-dark(#0064e0, color-mix(in srgb, #0064e0, #000 20%));
-    --theme-default-main-light: light-dark(color-mix(in srgb, #0064e0, #fff 40%), #0064e0);
+    --theme-default-main: light-dark(#607799, rgb(76.3373493976, 94.6265060241, 121.6626506024));
+    --theme-default-main-light: light-dark(rgb(125.9638554217, 145.3614457831, 174.0361445783), #607799);
     --theme-default-secondary: light-dark(#dee1e7, rgb(186.48, 189, 194.04));
     --theme-default-secondary-light: light-dark(#e0e6ef, rgb(188.16, 193.2, 200.76));
     --theme-default-secondary-light-light: light-dark(oklch(from #e0e6ef calc(l + 4) c h), oklch(from rgb(188.16, 193.2, 200.76) calc(l + 4) c h));
@@ -70,8 +70,8 @@ html:not(.ext-f) {
 }
 
 html:not(.ext-f):not(.isRedwood) {
-    --table-border-color: light-dark(#e7ebef, var(--dark-3));
-    --table-header-bg-color: light-dark(#f1f4f7, var(--dark-3));
+    --table-border-color: light-dark(#ebebeb, var(--dark-3));
+    --table-header-bg-color: light-dark(#e5e5e5, var(--dark-3));
     --row-odd-bg-color: light-dark(#fafafa, var(--dark-2));
     --row-even-bg-color: light-dark(#fff, var(--dark-1));
     --row-hover-bg-color: light-dark(rgb(254.3, 254.3, 166.6), rgb(55.946, 55.946, 36.652));
@@ -587,33 +587,18 @@ html:not(.ext-f) #preview-btn>svg>path {
     fill: #fff
 }
 
-html:not(.ext-f) .uir-button :is(.pgBntB, .pgBntR.pgBntG, .pgBntR.tabBnt) .bntBgB {
-    background: var(--theme-main) !important;
-    border-color: var(--theme-main) !important
+html:not(.ext-f) .uir-button .pgBntR:is(.pgBntG, .tabBnt) .bntBgB {
+    background: #d76c31 !important;
+    border-color: #d76c31 !important
 }
 
-html:not(.ext-f) .uir-button :is(.pgBntB, .pgBntR.pgBntG, .pgBntR.tabBnt) .bntBgB:hover {
-    background: var(--theme-main-dark) !important;
-    border-color: var(--theme-main-dark) !important
+html:not(.ext-f) .uir-button .pgBntR:is(.pgBntG, .tabBnt) input[type=button] {
+    color: #fff !important
 }
 
-html:not(.ext-f) .uir-button :is(.pgBntB, .pgBntR.pgBntG, .pgBntR.tabBnt) .bntBgB input:is([type=button], [type=submit]) {
-    color: #fff !important;
-    fill: #fff !important
-}
-
-html:not(.ext-f) .uir-button .pgBntG:not(.pgBntB):not(.pgBntR) .bntBgB {
-    background: var(--sm-canvas) !important;
-    border: 1px solid var(--sm-hairline) !important
-}
-
-html:not(.ext-f) .uir-button .pgBntG:not(.pgBntB):not(.pgBntR) .bntBgB:hover {
-    background: var(--sm-surface-soft) !important
-}
-
-html:not(.ext-f) .uir-button .pgBntG:not(.pgBntB):not(.pgBntR) .bntBgB input:is([type=button], [type=submit]):not(:disabled) {
-    color: var(--sm-ink) !important;
-    fill: var(--sm-ink) !important
+html:not(.ext-f) .uir-button :is(.pgBntG, .tabBnt):not(.pgBntB):not(.pgBntR) .bntBgB:hover input:is([type=button], [type=submit]) {
+    color: #000 !important;
+    fill: #000 !important
 }
 
 html:not(.ext-f) .machineButtonRow input[type=button] {
@@ -633,17 +618,8 @@ html:not(.ext-f) #tdbody_menu_print>div>img {
     left: 2px !important
 }
 
-html:not(.ext-f) :is(.uir-button, .machBnt, .uir-multibutton) {
-    border-collapse: separate;
-    border-spacing: 0;
-    border-radius: var(--suitemate-radius-pill);
-    overflow: clip
-}
-
-html:not(.ext-f) :is(.uir-button, .machBnt) input:is([type=button], [type=submit]) {
-    font-size: var(--sm-type-button-size);
-    font-weight: var(--sm-type-button-weight);
-    letter-spacing: var(--sm-type-body-spacing)
+html:not(.ext-f) :is(.uir-button, .machBnt) {
+    border-collapse: collapse
 }
 
 html:not(.ext-f) :is(.uir-button, .machBnt) td {
@@ -764,28 +740,28 @@ html:not(.ext-f) .n-w-button:is(.style-standalone, .style-embedded).n-w-button--
 }
 
 html:not(.ext-f) .n-w-button:is(.style-standalone, .style-embedded).n-w-button--type-default.n-w-button--hierarchy-primary {
-    border-color: var(--sm-primary-deep)
+    border-color: #125ab2
 }
 
 html:not(.ext-f) .n-w-button:is(.style-standalone, .style-embedded).n-w-button--type-default.n-w-button--hierarchy-primary:not(.n-widget--suspended) {
-    background: var(--theme-main)
+    background: linear-gradient(to bottom, #4c9dff 2%, #187bf2 100%)
 }
 
 html:not(.ext-f) .n-w-button:is(.style-standalone, .style-embedded).n-w-button--type-default.n-w-button--hierarchy-primary:hover {
-    background: var(--theme-main-dark)
+    background: #1467cc
 }
 
 html:not(.ext-f) .n-w-button:is(.style-standalone, .style-embedded).n-w-button--type-default.n-w-button--hierarchy-secondary {
-    border-color: var(--sm-hairline)
+    border-color: #b2b2b2
 }
 
 html:not(.ext-f) .n-w-button:is(.style-standalone, .style-embedded).n-w-button--type-default.n-w-button--hierarchy-secondary:not(.n-widget--suspended) {
-    background: var(--sm-canvas);
-    color: var(--sm-ink)
+    background: linear-gradient(to bottom, #fafafa 0%, #e5e5e5 100%);
+    color: #333
 }
 
 html:not(.ext-f) .n-w-button:is(.style-standalone, .style-embedded).n-w-button--type-default.n-w-button--hierarchy-secondary:hover {
-    background: var(--sm-surface-soft)
+    background: #e5e5e5
 }
 
 html:not(.ext-f) :is(.uir-header-buttons, .uir-secondary-buttons) {
@@ -2541,23 +2517,12 @@ html:not(.ext-f) #totalRow {
 }
 
 html:not(.ext-f) #totalRow>.uir-list-row-cell {
-    background: light-dark(#f1f4f7, var(--dark-3)) !important;
+    background: light-dark(#e5e5e5, var(--dark-3)) !important;
     border-top: 0 !important
 }
 
 html:not(.ext-f) #totalRow>.uir-list-row-cell:first-child {
     white-space: nowrap
-}
-
-html:not(.ext-f) .totallingtable {
-    background: var(--sm-canvas);
-    border: 1px solid var(--sm-hairline-soft);
-    border-radius: var(--suitemate-radius-surface);
-    padding: var(--sm-space-2) var(--sm-space-3)
-}
-
-html:not(.ext-f) .totallingtable .totallingtable_total .uir-label-span {
-    font-weight: var(--sm-type-subtitle-weight)
 }
 
 html:not(.ext-f) .code-formatted-container {

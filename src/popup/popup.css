@@ -49,9 +49,9 @@ header {
 
 .tool-card .primary-action {
   width: 100%;
-  border-color: #0064e0;
+  border-color: #607799;
   padding-block: 8px;
-  background: #0064e0;
+  background: #607799;
   color: #fff;
   font-weight: 600;
 }
@@ -128,7 +128,7 @@ small {
 input[type="checkbox"] {
   width: 18px;
   height: 18px;
-  accent-color: #0064e0;
+  accent-color: #607799;
 }
 
 fieldset {
@@ -148,7 +148,7 @@ fieldset label {
 }
 
 fieldset input {
-  accent-color: #0064e0;
+  accent-color: #607799;
 }
 
 .theme-card {
@@ -226,7 +226,7 @@ fieldset input {
 }
 
 .settings-transfer textarea:focus {
-  border-color: #0064e0;
+  border-color: #607799;
   outline: 2px solid rgb(96 119 153 / 18%);
   outline-offset: 0;
 }
@@ -272,7 +272,7 @@ fieldset input {
 }
 
 .theme-state.customized {
-  background: #0064e0;
+  background: #607799;
   color: #fff;
 }
 
@@ -323,7 +323,7 @@ fieldset input {
 }
 
 .color-picker-trigger:hover:not(:disabled) {
-  border-color: #0064e0;
+  border-color: #607799;
   background: #fff;
 }
 
@@ -486,7 +486,7 @@ button.material-swatch:focus-visible {
   height: 16px;
   margin: 0;
   cursor: pointer;
-  accent-color: #0064e0;
+  accent-color: #607799;
 }
 
 .hue-control input[type="range"] {
@@ -577,9 +577,9 @@ button.material-swatch:focus-visible {
 
 .picker-done {
   justify-self: stretch;
-  border-color: #0064e0;
+  border-color: #607799;
   padding-block: 8px;
-  background: #0064e0;
+  background: #607799;
   color: #fff;
   font-weight: 600;
 }
@@ -608,7 +608,7 @@ button {
 }
 
 button:hover {
-  border-color: #0064e0;
+  border-color: #607799;
   background: #f7f9fc;
 }
 
