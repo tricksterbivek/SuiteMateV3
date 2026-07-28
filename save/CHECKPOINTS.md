@@ -960,3 +960,20 @@ Date: 2026-07-28
 - Verified on production Sales Order, Purchase Order and Item Fulfillment records: header dividers with clean body rows, hover highlight, edge-drag resizing flipping to fixed layout, modal search narrowing only the value list with table rows pinned while typing, and Reset clearing widths and layout on every type. A zero-line Item Fulfillment exercised the empty-table path gracefully (menu opens, no values, nothing breaks).
 - Fix from the pass: live NetSuite collapsed borders render ~2px over the style width, and re-measuring rects on each drag would accumulate the offset per resize; drag math now starts from the applied style width when present (fixture-verified; live on next reload).
 - Zero JavaScript errors.
+
+## Transaction Column Personalization: Milestone 17 (menu value-list narrowing visual fix)
+
+Status: Automated + browser verification complete; live confirmation pending extension reload
+
+Date: 2026-07-28
+
+### Included
+
+- Fixes the defect behind the Milestone 16 complaint: the search box set the `hidden` attribute on value-list labels, but their `display: flex` styling silently defeats `[hidden]` — the same defect class as the Milestone 11 button bug, unreachable by its guard because these labels carry no data attribute. One CSS rule extends the guard to `menu-values label[hidden]`.
+- Verification-methodology correction recorded: prior checks read the `.hidden` property instead of computed display, passing while pixels never changed. Menu verifications now assert at the computed-display level.
+
+### Verification
+
+- Full `npm test`: 185 passing tests, 28 screenshot baselines at 0.000 percent difference.
+- Fixture pass at pixel level: per-keystroke narrowing ("S" -> 5 including TEST001's contains match, "SKU" -> the 4 SKU values), rows pinned, backspace restoring all values.
+- Live pass in the tricksterbivek profile with the one-rule fix injected over the stale extension CSS: production Sales Order value list narrowed 5 -> 1 in computed pixels with rows pinned; Purchase Order values all legitimately matched the probe (uniform MCW prefix). Native confirmation after next extension reload.

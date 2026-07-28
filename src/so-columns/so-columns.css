@@ -5,7 +5,8 @@
    - the dragged cell carries .suitemate-v3-so-columns-dragging
    - the hovered target cell carries .suitemate-v3-so-columns-drop-target */
 
-[data-suitemate-v3-so-columns][hidden] {
+[data-suitemate-v3-so-columns][hidden],
+[data-suitemate-v3-so-columns="menu-values"] label[hidden] {
     display: none !important
 }
 
