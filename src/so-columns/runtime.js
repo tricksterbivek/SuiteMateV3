@@ -157,7 +157,7 @@
   function filterState(cell) {
     let state = columnFilters.get(cell);
     if (!state) {
-      state = { queryText: "", selected: new Set() };
+      state = { queryText: "", selected: new Set(), textAsRowFilter: false };
       columnFilters.set(cell, state);
     }
     return state;
@@ -167,14 +167,16 @@
     if (!state) {
       return null;
     }
-    // Typed text filters rows live (Excel search feel): contains for plain
-    // text, comparison for > < >= <= = prefixes; checkbox selections AND in.
     const parsed = core.parseFilterQuery(state.queryText);
+    const operator = parsed && parsed.op !== "contains" ? parsed : null;
+    // Plain text narrows the value list (Excel semantics); it only becomes a
+    // contains row-filter on columns with too many values for a checkbox list.
+    const contains = state.textAsRowFilter && parsed?.op === "contains" ? parsed : null;
     const anyOf = state.selected.size ? Array.from(state.selected) : null;
-    if (!parsed && !anyOf) {
+    if (!operator && !contains && !anyOf) {
       return null;
     }
-    return { ...(parsed ?? {}), ...(anyOf ? { anyOf } : {}) };
+    return { ...(operator ?? contains ?? {}), ...(anyOf ? { anyOf } : {}) };
   }
 
   function updateArrowState(cell) {
@@ -296,17 +298,18 @@
 
     menu.appendChild(menuEyebrow("Filter"));
     const values = core.distinctColumnValues(table, cell.cellIndex, 200);
+    state.textAsRowFilter = !values.length;
 
     const search = document.createElement("input");
     search.type = "search";
-    search.placeholder = "Search";
+    search.placeholder = values.length ? "Search values" : "Type to filter";
     search.value = state.queryText;
     search.setAttribute(core.DATA_ATTRIBUTE, "menu-search");
     menu.appendChild(search);
 
     const hint = document.createElement("div");
     hint.setAttribute(core.DATA_ATTRIBUTE, "menu-hint");
-    hint.textContent = "Filters rows as you type · > < = for numbers";
+    hint.textContent = "Use > < = for numbers";
     menu.appendChild(hint);
 
     const optionRows = [];

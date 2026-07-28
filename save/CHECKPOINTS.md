@@ -938,3 +938,19 @@ Date: 2026-07-28
 
 - Full `npm test`: 185 passing tests, 28 screenshot baselines at 0.000 percent difference.
 - Browser pass mirroring the spec examples: per-keystroke row filtering ("SKU00" -> SKU001/2/3; "sydney" -> Sydney Warehouse/Sydney DC), active-filter arrow while typing, multi-select persisting after search clear, operator + text filters AND-combined across columns, sorting on the filtered set, 3.6ms per keystroke against a 306-row table, full Reset.
+
+## Transaction Column Personalization: Milestone 16 (modal-scoped filter search)
+
+Status: Automated + browser verification complete; live NetSuite retest pending
+
+Date: 2026-07-28
+
+### Included
+
+- Requirement clarified: typing in the column menu's search box narrows only the checkbox value list inside the menu (live, case-insensitive contains); table rows change only when filter values are selected — exactly Excel's dropdown behavior. This supersedes Milestone 15's live row filtering, restored via a surgical revert of that runtime change.
+- Retained: checkbox multi-select applying live, numeric operator filtering (> < >= <= =) as live row conditions, the high-cardinality fallback (columns with more than 200 distinct values have no checkbox list, so typed text filters rows there and the menu says so), cross-column AND, Clear filter, and all personalization features.
+
+### Verification
+
+- Full `npm test`: 185 passing tests, 28 screenshot baselines at 0.000 percent difference.
+- Browser pass: typing "SKU" narrowed the modal list with row count pinned; rows changed only on selection (7 -> 2); clearing the search preserved the applied filter and restored the list; Clear filter restored all rows. Identical behavior verified across simulated custinvc, purchord, itemship, vendbill, trnfrord and itemrcpt routes — no Sales Order-specific logic.
