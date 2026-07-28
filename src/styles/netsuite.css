@@ -587,28 +587,33 @@ html:not(.ext-f) #preview-btn>svg>path {
     fill: #fff
 }
 
-html:not(.ext-f) .uir-button .pgBntR:is(.pgBntG, .tabBnt) .bntBgB {
+html:not(.ext-f) .uir-button :is(.pgBntB, .pgBntR.pgBntG, .pgBntR.tabBnt) .bntBgB {
     background: var(--theme-main) !important;
     border-color: var(--theme-main) !important
 }
 
-html:not(.ext-f) .uir-button :is(.pgBntG, .tabBnt):not(.pgBntB):not(.pgBntR) .bntBgB {
+html:not(.ext-f) .uir-button :is(.pgBntB, .pgBntR.pgBntG, .pgBntR.tabBnt) .bntBgB:hover {
     background: var(--theme-main-dark) !important;
     border-color: var(--theme-main-dark) !important
 }
 
-html:not(.ext-f) .uir-button .pgBntR:not(.pgBntG):not(.tabBnt):not(.pgBntB) :is(.bntBgB, .bntBg) {
+html:not(.ext-f) .uir-button :is(.pgBntB, .pgBntR.pgBntG, .pgBntR.tabBnt) .bntBgB input:is([type=button], [type=submit]) {
+    color: #fff !important;
+    fill: #fff !important
+}
+
+html:not(.ext-f) .uir-button .pgBntG:not(.pgBntB):not(.pgBntR) .bntBgB {
     background: var(--sm-canvas) !important;
     border: 1px solid var(--sm-hairline) !important
 }
 
-html:not(.ext-f) .uir-button .pgBntR:is(.pgBntG, .tabBnt) input[type=button] {
-    color: #fff !important
+html:not(.ext-f) .uir-button .pgBntG:not(.pgBntB):not(.pgBntR) .bntBgB:hover {
+    background: var(--sm-surface-soft) !important
 }
 
-html:not(.ext-f) .uir-button :is(.pgBntG, .tabBnt):not(.pgBntB):not(.pgBntR) .bntBgB:hover input:is([type=button], [type=submit]) {
-    color: #fff !important;
-    fill: #fff !important
+html:not(.ext-f) .uir-button .pgBntG:not(.pgBntB):not(.pgBntR) .bntBgB input:is([type=button], [type=submit]):not(:disabled) {
+    color: var(--sm-ink) !important;
+    fill: var(--sm-ink) !important
 }
 
 html:not(.ext-f) .machineButtonRow input[type=button] {
