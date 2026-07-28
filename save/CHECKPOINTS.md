@@ -1048,3 +1048,22 @@ Date: 2026-07-28
 
 - Full `npm test`: 186 passing tests, 49 manifest resources verified, 15 V1 style hashes unchanged, and all 28 screenshot baselines at 0.000 percent difference **with tokens.css loaded** — the zero-visual-change pass condition. No baseline was regenerated.
 - Live token-presence sanity (`--sm-primary` computed on the root) rides the UI-1 live pass, since UI-0 is invisible by design and UI-1 requires the same extension reload.
+
+## UI Enhancement: Task 2 (UI-1 pill buttons + cobalt accent)
+
+Status: Implemented and screenshot-verified; live pass pending next extension reload
+
+Date: 2026-07-28
+
+### Included
+
+- Default accent moves from slate `#607799` to design.md cobalt `#0064e0` across every definition site: `netsuite.css` theme-default chain (dark/light arms now derived with `color-mix`), `settings.js` `DEFAULT_ROLE_COLORS.main`, popup CSS/HTML placeholder literals, `so-columns.css` var fallbacks, and the one `dashboard.css` portlet-hover literal. User-saved role colors are untouched and keep overriding.
+- Classic buttons: primary faces (`.pgBntR.pgBntG/.tabBnt .bntBgB`) go flat theme-cobalt with a darkened hover state (hover text corrected to white for contrast); secondary faces get canvas + hairline treatment; button tables switch to `border-collapse: separate` so `--suitemate-radius-pill` (now 100px) clips them into pills; button labels adopt the `--sm-type-button` scale.
+- Redwood `n-w-button`: primary gradient trio flattened to theme cobalt with `--sm-primary-deep` border; secondary flattened to canvas/hairline/ink.
+- Hash re-pins for the two edited pinned files (`netsuite.css`, `dashboard.css`).
+
+### Verification
+
+- Full `npm test`: 186 passing (the settings-default change broke no expectation — the `#607799` hits in verify.mjs are generator sample inputs, confirmed by audit), 15 style hashes re-pinned and green.
+- 27 of 28 baselines intentionally re-blessed; each reviewed by eye — deltas confined to accent hue, pill geometry, and button typography (record page, script page, Redwood record, toasts, saved-search list all inspected). Re-blessed set verifies at 0.000 percent.
+- `grep 607799 src/` returns zero.

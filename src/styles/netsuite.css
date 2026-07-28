@@ -46,8 +46,8 @@ html:not(.ext-f).isRedwood {
 }
 
 html:not(.ext-f) {
-    --theme-default-main: light-dark(#607799, rgb(76.3373493976, 94.6265060241, 121.6626506024));
-    --theme-default-main-light: light-dark(rgb(125.9638554217, 145.3614457831, 174.0361445783), #607799);
+    --theme-default-main: light-dark(#0064e0, color-mix(in srgb, #0064e0, #000 20%));
+    --theme-default-main-light: light-dark(color-mix(in srgb, #0064e0, #fff 40%), #0064e0);
     --theme-default-secondary: light-dark(#dee1e7, rgb(186.48, 189, 194.04));
     --theme-default-secondary-light: light-dark(#e0e6ef, rgb(188.16, 193.2, 200.76));
     --theme-default-secondary-light-light: light-dark(oklch(from #e0e6ef calc(l + 4) c h), oklch(from rgb(188.16, 193.2, 200.76) calc(l + 4) c h));
@@ -588,8 +588,18 @@ html:not(.ext-f) #preview-btn>svg>path {
 }
 
 html:not(.ext-f) .uir-button .pgBntR:is(.pgBntG, .tabBnt) .bntBgB {
-    background: #d76c31 !important;
-    border-color: #d76c31 !important
+    background: var(--theme-main) !important;
+    border-color: var(--theme-main) !important
+}
+
+html:not(.ext-f) .uir-button :is(.pgBntG, .tabBnt):not(.pgBntB):not(.pgBntR) .bntBgB {
+    background: var(--theme-main-dark) !important;
+    border-color: var(--theme-main-dark) !important
+}
+
+html:not(.ext-f) .uir-button .pgBntR:not(.pgBntG):not(.tabBnt):not(.pgBntB) :is(.bntBgB, .bntBg) {
+    background: var(--sm-canvas) !important;
+    border: 1px solid var(--sm-hairline) !important
 }
 
 html:not(.ext-f) .uir-button .pgBntR:is(.pgBntG, .tabBnt) input[type=button] {
@@ -597,8 +607,8 @@ html:not(.ext-f) .uir-button .pgBntR:is(.pgBntG, .tabBnt) input[type=button] {
 }
 
 html:not(.ext-f) .uir-button :is(.pgBntG, .tabBnt):not(.pgBntB):not(.pgBntR) .bntBgB:hover input:is([type=button], [type=submit]) {
-    color: #000 !important;
-    fill: #000 !important
+    color: #fff !important;
+    fill: #fff !important
 }
 
 html:not(.ext-f) .machineButtonRow input[type=button] {
@@ -618,8 +628,17 @@ html:not(.ext-f) #tdbody_menu_print>div>img {
     left: 2px !important
 }
 
-html:not(.ext-f) :is(.uir-button, .machBnt) {
-    border-collapse: collapse
+html:not(.ext-f) :is(.uir-button, .machBnt, .uir-multibutton) {
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: var(--suitemate-radius-pill);
+    overflow: clip
+}
+
+html:not(.ext-f) :is(.uir-button, .machBnt) input:is([type=button], [type=submit]) {
+    font-size: var(--sm-type-button-size);
+    font-weight: var(--sm-type-button-weight);
+    letter-spacing: var(--sm-type-body-spacing)
 }
 
 html:not(.ext-f) :is(.uir-button, .machBnt) td {
@@ -740,28 +759,28 @@ html:not(.ext-f) .n-w-button:is(.style-standalone, .style-embedded).n-w-button--
 }
 
 html:not(.ext-f) .n-w-button:is(.style-standalone, .style-embedded).n-w-button--type-default.n-w-button--hierarchy-primary {
-    border-color: #125ab2
+    border-color: var(--sm-primary-deep)
 }
 
 html:not(.ext-f) .n-w-button:is(.style-standalone, .style-embedded).n-w-button--type-default.n-w-button--hierarchy-primary:not(.n-widget--suspended) {
-    background: linear-gradient(to bottom, #4c9dff 2%, #187bf2 100%)
+    background: var(--theme-main)
 }
 
 html:not(.ext-f) .n-w-button:is(.style-standalone, .style-embedded).n-w-button--type-default.n-w-button--hierarchy-primary:hover {
-    background: #1467cc
+    background: var(--theme-main-dark)
 }
 
 html:not(.ext-f) .n-w-button:is(.style-standalone, .style-embedded).n-w-button--type-default.n-w-button--hierarchy-secondary {
-    border-color: #b2b2b2
+    border-color: var(--sm-hairline)
 }
 
 html:not(.ext-f) .n-w-button:is(.style-standalone, .style-embedded).n-w-button--type-default.n-w-button--hierarchy-secondary:not(.n-widget--suspended) {
-    background: linear-gradient(to bottom, #fafafa 0%, #e5e5e5 100%);
-    color: #333
+    background: var(--sm-canvas);
+    color: var(--sm-ink)
 }
 
 html:not(.ext-f) .n-w-button:is(.style-standalone, .style-embedded).n-w-button--type-default.n-w-button--hierarchy-secondary:hover {
-    background: #e5e5e5
+    background: var(--sm-surface-soft)
 }
 
 html:not(.ext-f) :is(.uir-header-buttons, .uir-secondary-buttons) {

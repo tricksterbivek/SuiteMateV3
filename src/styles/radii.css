@@ -4,7 +4,7 @@ html:not(.ext-f) {
     --suitemate-radius-surface: 5px;
     --suitemate-radius-overlay: 8px;
     --suitemate-radius-dialog: 10px;
-    --suitemate-radius-pill: 20px;
+    --suitemate-radius-pill: 100px;
     --nsn-uif-redwood-border-rounded-corners: var(--suitemate-radius-surface);
     --nsn-uif-refreshed-border-radius-rounded: var(--suitemate-radius-control);
     --nsn-uif-refreshed-border-radius-rounded-large: var(--suitemate-radius-dialog);
