@@ -50,6 +50,7 @@
   let hiddenLabels = new Set();
   let columnWidths = {};
   let resizing = null;
+  let filtersSaveTimer = null;
   const RESIZE_EDGE_PX = 5;
 
   function showToast(message, type) {
@@ -210,6 +211,10 @@
   }
 
   function clearAllFilters(table) {
+    // Cancel any pending debounced write so it cannot resurrect state that
+    // Reset's whole-entry delete is about to remove.
+    clearTimeout(filtersSaveTimer);
+    filtersSaveTimer = null;
     closeColumnMenu();
     for (const cell of headerCells(table)) {
       columnFilters.delete(cell);
@@ -286,10 +291,10 @@
 
     menu.appendChild(menuEyebrow("Sort"));
     const sortedHere = sortCell === cell;
-    menu.appendChild(menuItem("↑", "Sort A to Z", () => { setSortDirection(table, cell, "asc"); closeColumnMenu(); }, sortedHere && sortDirection === "asc"));
-    menu.appendChild(menuItem("↓", "Sort Z to A", () => { setSortDirection(table, cell, "desc"); closeColumnMenu(); }, sortedHere && sortDirection === "desc"));
+    menu.appendChild(menuItem("↑", "Sort A to Z", () => { setSortDirection(table, cell, "asc"); saveSort(); closeColumnMenu(); }, sortedHere && sortDirection === "asc"));
+    menu.appendChild(menuItem("↓", "Sort Z to A", () => { setSortDirection(table, cell, "desc"); saveSort(); closeColumnMenu(); }, sortedHere && sortDirection === "desc"));
     if (sortedHere) {
-      menu.appendChild(menuItem("✕", "Clear sort", () => { setSortDirection(table, cell, "native"); closeColumnMenu(); }));
+      menu.appendChild(menuItem("✕", "Clear sort", () => { setSortDirection(table, cell, "native"); saveSort(); closeColumnMenu(); }));
     }
     const columnLabel = cellLabel(cell);
     if (columnLabel) {
@@ -332,6 +337,7 @@
             state.selected.delete(value);
           }
           applyColumnFilters(table);
+          saveFilters();
         });
         const text = document.createElement("span");
         text.textContent = value;
@@ -358,6 +364,7 @@
       state.queryText = search.value;
       narrow();
       applyColumnFilters(table);
+      scheduleFiltersSave();
     });
     narrow();
 
@@ -375,6 +382,7 @@
           }
         }
         applyColumnFilters(table);
+        saveFilters();
       }));
     }
     footer.appendChild(menuItem("✕", "Clear filter", () => {
@@ -386,6 +394,7 @@
       }
       narrow();
       applyColumnFilters(table);
+      saveFilters();
     }));
     menu.appendChild(footer);
 
@@ -482,6 +491,76 @@
     } catch {
       showToast("Column widths could not be saved.", "warning");
     }
+  }
+
+  // ===== Sort and filter persistence =====
+  function serializeFilters(table) {
+    const filters = {};
+    for (const cell of headerCells(table)) {
+      const state = columnFilters.get(cell);
+      const label = cellLabel(cell);
+      if (!state || !label) {
+        continue;
+      }
+      const anyOf = state.selected.size ? Array.from(state.selected) : null;
+      const q = state.queryText.trim();
+      if (!anyOf && !q) {
+        continue;
+      }
+      filters[label] = { ...(anyOf ? { anyOf } : {}), ...(q ? { q } : {}) };
+    }
+    return Object.keys(filters).length ? filters : null;
+  }
+
+  async function saveSort() {
+    try {
+      if (!scopeKey) {
+        return;
+      }
+      const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
+      const sort = sortCell && sortDirection ? { label: cellLabel(sortCell), dir: sortDirection } : null;
+      const next = core.withSort(stored[core.STORAGE_KEY], scopeKey, sort?.label ? sort : null);
+      if (!next) {
+        showToast("Sort preference could not be saved.", "warning");
+        return;
+      }
+      await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
+    } catch {
+      showToast("Sort preference could not be saved.", "warning");
+    }
+  }
+
+  async function saveFilters() {
+    try {
+      if (!scopeKey) {
+        return;
+      }
+      const table = document.querySelector(TABLE_SELECTOR);
+      const filters = table ? serializeFilters(table) : null;
+      const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
+      const next = core.withFilters(stored[core.STORAGE_KEY], scopeKey, filters);
+      if (!next) {
+        showToast("Filters could not be saved.", "warning");
+        return;
+      }
+      await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
+      const overCap = filters && (Object.keys(filters).length > core.MAX_FILTER_COLUMNS
+        || Object.values(filters).some((filter) => (filter.anyOf?.length ?? 0) > core.MAX_FILTER_VALUES));
+      if (overCap) {
+        showToast("Some filters were too large to save and will last this session only.", "warning");
+      }
+    } catch {
+      showToast("Filters could not be saved.", "warning");
+    }
+  }
+
+  function scheduleFiltersSave() {
+    // Query keystrokes debounce: chrome.storage.sync throttles writes per minute.
+    clearTimeout(filtersSaveTimer);
+    filtersSaveTimer = setTimeout(() => {
+      filtersSaveTimer = null;
+      saveFilters();
+    }, 800);
   }
 
   function resizeEdgeCell(cells, event) {
