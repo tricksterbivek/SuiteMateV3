@@ -73,6 +73,12 @@ body.suitemate-v3-so-columns-resizing * {
     color: #fff
 }
 
+html.isDarkMode [data-suitemate-v3-so-columns="hidden-chip"],
+html.isDarkMode [data-suitemate-v3-so-columns="view-chip"] {
+    border-color: var(--theme-main-light, #607799);
+    color: var(--theme-main-light, #607799)
+}
+
 .suitemate-v3-so-columns-mode-active {
     padding: 4px 8px;
     background: #eef2f7;

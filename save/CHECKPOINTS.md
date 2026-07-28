@@ -1047,3 +1047,24 @@ Date: 2026-07-28
 
 - `git diff checkpoint-pre-ui-enhancement-2026-07-28` empty — the tree is byte-identical to the rollback point.
 - Full `npm test`: 186 passing tests; all 28 restored screenshot baselines verify at 0.000 percent; 15 V1 style hashes green.
+
+## Persisted Sort & Filter: Milestone 20
+
+Status: Complete; live-verified across three transaction types 2026-07-28
+
+Date: 2026-07-28
+
+Spec: `docs/superpowers/specs/2026-07-28-persisted-sort-filter-design.md` · Plan: `docs/superpowers/plans/2026-07-28-persisted-sort-filter.md`
+
+### Included
+
+- Storage schema v3 in `suiteMateV3ColumnOrder`: per-scope entries gain `sort {label, dir}` and `filters {[label]: {anyOf?, q?}}` beside order/hidden/widths. Fail-closed normalizers with caps (8 filter columns, 50 values, 100-char queries); v2 passes through; older builds refuse v3 writes; the shared empty-entry check spans all five fields.
+- Save triggers at every sort/filter mutation point, with query keystrokes debounced 800ms for the sync write throttle and Reset cancelling pending debounces. The fixture round-trip caught back-to-back saves clobbering each other's read-modify-write — all five storage savers now serialize through one promise queue (the shipped three shared the latent race).
+- Auto-reapply in the install chain after widths: label-matched sort via the shipped `sortRows`, filter-state rebuild with `textAsRowFilter` re-derived from live cardinality, silent skip for vanished labels.
+- Active-view chip in the control bar (`Amount ↑ · 2 filters ✕`): reflects active state including over-cap session-only filters, one click clears sort+filters in a single composed storage write, layout fields untouched. Dark-mode contrast rule added for both chip kinds (pre-existing hidden-chip quirk fixed alongside).
+
+### Verification
+
+- Full `npm test`: 190 passing (4 new core suites; 8 schema-version expectations updated as declared consequences of the bump); 28 screenshot baselines untouched at 0.000 percent.
+- Fixture round-trip on the served sales-order page: interact → captured storage carries both fields → cold reload with seeded storage → rows re-sorted and filtered at computed level, indicator and active-arrow rendered, restore wrote nothing back; chip clear emptied the entry.
+- Live on production after reload: SO 16302518 — sort asc + two-value OR filter, real page reload auto-reapplied (2 of 5 rows, `Item ↑ · 1 filter ✕`, indicator, active arrow), chip clear restored native with the saved column layout intact; Item Fulfillment 14953684 — 16 `uir-list-row-tr` rows, 1-of-16 filter persisted through reload, chip clear restored; PO 16295656 (empty scope) — full destructive cycle, Reset cleared sort+filters+layout and nothing resurrected after reload. Zero SuiteMate console errors (only NetSuite's own SuitePhone CSP notice).
