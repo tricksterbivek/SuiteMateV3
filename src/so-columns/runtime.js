@@ -194,6 +194,7 @@
       updateArrowState(cell);
     }
     updateMenuStatus();
+    renderViewChip();
   }
 
   function unhideAllRows(table) {
@@ -241,6 +242,7 @@
         sortCell.appendChild(indicator);
       }
     }
+    renderViewChip();
   }
 
   function menuItem(glyph, label, onClick, active) {
@@ -681,6 +683,52 @@
     });
   }
 
+  function renderViewChip() {
+    const chip = controlButtons?.viewChip;
+    if (!chip) {
+      return;
+    }
+    const table = document.querySelector(TABLE_SELECTOR);
+    const filterCount = table
+      ? headerCells(table).filter((cell) => columnQuery(columnFilters.get(cell))).length
+      : 0;
+    const parts = [];
+    if (sortCell && sortDirection) {
+      parts.push(`${cellLabel(sortCell)} ${sortDirection === "asc" ? "↑" : "↓"}`);
+    }
+    if (filterCount) {
+      parts.push(`${filterCount} filter${filterCount === 1 ? "" : "s"}`);
+    }
+    chip.textContent = parts.length ? `${parts.join(" · ")} ✕` : "";
+    chip.hidden = parts.length === 0;
+  }
+
+  async function clearViewState() {
+    try {
+      const table = document.querySelector(TABLE_SELECTOR);
+      clearTimeout(filtersSaveTimer);
+      filtersSaveTimer = null;
+      resetSort(table);
+      clearAllFilters(table);
+      renderViewChip();
+      if (!scopeKey) {
+        return;
+      }
+      await enqueueSave(async () => {
+        const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
+        const afterSort = core.withSort(stored[core.STORAGE_KEY], scopeKey, null);
+        const next = afterSort && core.withFilters(afterSort, scopeKey, null);
+        if (!next) {
+          showToast("Saved view could not be cleared.", "warning");
+          return;
+        }
+        await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
+      });
+    } catch {
+      showToast("Saved view could not be cleared.", "warning");
+    }
+  }
+
   function renderHiddenChips() {
     const wrap = controlButtons?.hiddenChips;
     if (!wrap) {
@@ -893,6 +941,7 @@
       columnWidths = {};
       core.applyWidths(table, null);
       saveOrder(null, "Column layout reset.");
+      renderViewChip();
       exitPersonalize();
     } catch {}
     updateControls();
@@ -924,10 +973,16 @@
     const hiddenChips = document.createElement("span");
     hiddenChips.setAttribute(core.DATA_ATTRIBUTE, "hidden-chips");
     hiddenChips.hidden = true;
+    const viewChip = document.createElement("button");
+    viewChip.type = "button";
+    viewChip.setAttribute(core.DATA_ATTRIBUTE, "view-chip");
+    viewChip.title = "Clear saved sort and filters";
+    viewChip.hidden = true;
+    viewChip.addEventListener("click", clearViewState);
     const done = createButton("Done", "done", handleDoneClick);
     const reset = createButton("Reset", "reset", handleResetClick);
-    controls.append(personalize, hint, hiddenChips, done, reset);
-    controlButtons = { controls, personalize, hint, hiddenChips, done, reset };
+    controls.append(personalize, hint, hiddenChips, viewChip, done, reset);
+    controlButtons = { controls, personalize, hint, hiddenChips, viewChip, done, reset };
     (table.closest(CONTAINER_SELECTOR) ?? table).before(controls);
     updateControls();
   }
@@ -999,6 +1054,7 @@
         }
       }
       renderHiddenChips();
+      renderViewChip();
       return !signal.aborted && isCurrent();
     } catch {
       return false;

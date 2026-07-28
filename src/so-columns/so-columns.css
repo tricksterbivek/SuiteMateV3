@@ -53,7 +53,8 @@ body.suitemate-v3-so-columns-resizing * {
     gap: 4px
 }
 
-[data-suitemate-v3-so-columns="hidden-chip"] {
+[data-suitemate-v3-so-columns="hidden-chip"],
+[data-suitemate-v3-so-columns="view-chip"] {
     padding: 1px 7px;
     border: 1px solid var(--theme-main, #607799);
     border-radius: 999px;
@@ -66,7 +67,8 @@ body.suitemate-v3-so-columns-resizing * {
     white-space: nowrap
 }
 
-[data-suitemate-v3-so-columns="hidden-chip"]:hover {
+[data-suitemate-v3-so-columns="hidden-chip"]:hover,
+[data-suitemate-v3-so-columns="view-chip"]:hover {
     background: var(--theme-main, #607799);
     color: #fff
 }
