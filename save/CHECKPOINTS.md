@@ -891,7 +891,7 @@ Date: 2026-07-28
 
 ## Transaction Column Personalization: Milestone 13 (column width adjustment)
 
-Status: Automated + browser verification complete; live NetSuite retest pending
+Status: Complete; live NetSuite verification passed 2026-07-28
 
 Date: 2026-07-28
 
@@ -908,7 +908,7 @@ Date: 2026-07-28
 
 ## Transaction Column Personalization: Milestone 14 (resize handle discoverability)
 
-Status: Automated + browser verification complete; live NetSuite retest pending
+Status: Complete; live NetSuite verification passed 2026-07-28
 
 Date: 2026-07-28
 
@@ -941,7 +941,7 @@ Date: 2026-07-28
 
 ## Transaction Column Personalization: Milestone 16 (modal-scoped filter search)
 
-Status: Automated + browser verification complete; live NetSuite retest pending
+Status: Complete; live NetSuite verification passed 2026-07-28
 
 Date: 2026-07-28
 
@@ -954,3 +954,9 @@ Date: 2026-07-28
 
 - Full `npm test`: 185 passing tests, 28 screenshot baselines at 0.000 percent difference.
 - Browser pass: typing "SKU" narrowed the modal list with row count pinned; rows changed only on selection (7 -> 2); clearing the search preserved the applied filter and restored the list; Clear filter restored all rows. Identical behavior verified across simulated custinvc, purchord, itemship, vendbill, trnfrord and itemrcpt routes — no Sales Order-specific logic.
+
+### Milestones 13, 14 and 16 combined live verification (2026-07-28)
+
+- Verified on production Sales Order, Purchase Order and Item Fulfillment records: header dividers with clean body rows, hover highlight, edge-drag resizing flipping to fixed layout, modal search narrowing only the value list with table rows pinned while typing, and Reset clearing widths and layout on every type. A zero-line Item Fulfillment exercised the empty-table path gracefully (menu opens, no values, nothing breaks).
+- Fix from the pass: live NetSuite collapsed borders render ~2px over the style width, and re-measuring rects on each drag would accumulate the offset per resize; drag math now starts from the applied style width when present (fixture-verified; live on next reload).
+- Zero JavaScript errors.

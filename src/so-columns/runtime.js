@@ -546,7 +546,15 @@
       event.preventDefault();
       event.stopPropagation();
       closeColumnMenu();
-      resizing = { table, label, startX: event.clientX, startWidth: cell.getBoundingClientRect().width };
+      // Prefer the applied style width: live NetSuite collapsed borders render
+      // ~2px over the style value, and re-measuring rects would accumulate it.
+      const styleWidth = Number.parseInt(cell.style?.width ?? "", 10);
+      resizing = {
+        table,
+        label,
+        startX: event.clientX,
+        startWidth: Number.isFinite(styleWidth) ? styleWidth : cell.getBoundingClientRect().width
+      };
       document.body.classList.add("suitemate-v3-so-columns-resizing");
       document.addEventListener("pointermove", handleResizeMove, true);
       document.addEventListener("pointerup", handleResizeUp, true);
