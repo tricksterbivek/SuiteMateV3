@@ -1032,3 +1032,19 @@ Tag: `checkpoint-pre-ui-enhancement-2026-07-28` — shipped code byte-identical 
 
 - Full `npm test` on the checkpoint tree: 186 passing tests, 28 screenshot baselines at 0.000 percent difference.
 - Working tree clean after commit; branch and tag pushed to GitHub.
+
+## UI Enhancement: Task 1 (UI-0 token foundation)
+
+Status: Complete; zero visual change proven
+
+Date: 2026-07-28
+
+### Included
+
+- Adds `src/styles/tokens.css`: the full `--sm-*` design-token set derived from `design.md` (accent routed through the role-theme chain with a cobalt fallback, ink ramp, surfaces, semantics, elevation, spacing, type scale). Definitions only — the file paints nothing.
+- Registers the file in the manifest's global CSS bundle (before `netsuite.css`), in the `tests/verify.mjs` expected css array, and in all nine screenshot-fixture pages so the harness renders with tokens live.
+
+### Verification
+
+- Full `npm test`: 186 passing tests, 49 manifest resources verified, 15 V1 style hashes unchanged, and all 28 screenshot baselines at 0.000 percent difference **with tokens.css loaded** — the zero-visual-change pass condition. No baseline was regenerated.
+- Live token-presence sanity (`--sm-primary` computed on the root) rides the UI-1 live pass, since UI-0 is invisible by design and UI-1 requires the same extension reload.

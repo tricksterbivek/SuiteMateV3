@@ -30,6 +30,7 @@ assert.equal(globalThemeContentScript.all_frames, true);
 assert.deepEqual(globalThemeContentScript.css, [
   "src/styles/font.css",
   "src/styles/code.css",
+  "src/styles/tokens.css",
   "src/styles/netsuite.css",
   "src/styles/radii.css",
   "src/styles/v3-compat.css",
