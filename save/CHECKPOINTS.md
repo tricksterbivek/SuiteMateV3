@@ -1015,3 +1015,20 @@ Date: 2026-07-28
 - Item Fulfillment (16 list-style rows): the filter menu lists all 16 values natively with narrowing and pinned rows — the list-row fix confirmed on the shipped build.
 - Purchase Order: full destructive cycle — drag reorder, hide, edge-drag resize (146px + fixed layout), Reset restoring everything with clean storage. An initial composite-probe resize miss was diagnosed as a stale-rect test artifact; isolated verification passed.
 - User's real saved layouts untouched (destructive checks confined to an empty-scope record). Zero JavaScript errors.
+
+## Checkpoint: UI enhancement baseline (design.md landed)
+
+Status: Stable rollback point tagged before UI experimentation
+
+Date: 2026-07-28
+
+Tag: `checkpoint-pre-ui-enhancement-2026-07-28` — shipped code byte-identical to release v3.18.1; this commit adds documentation only.
+
+### Included
+
+- Lands `design.md`, the owner-supplied design-language specification (token system for color, typography, spacing, radius, elevation and components) that will govern the upcoming UI enhancement layer. No source, manifest or test changes.
+
+### Verification
+
+- Full `npm test` on the checkpoint tree: 186 passing tests, 28 screenshot baselines at 0.000 percent difference.
+- Working tree clean after commit; branch and tag pushed to GitHub.
