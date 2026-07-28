@@ -1,7 +1,7 @@
 html:not(.ext-f) {
-    --suitemate-radius-control: 3px;
+    --suitemate-radius-control: 8px;
     --suitemate-radius-compact: 4px;
-    --suitemate-radius-surface: 5px;
+    --suitemate-radius-surface: 12px;
     --suitemate-radius-overlay: 8px;
     --suitemate-radius-dialog: 10px;
     --suitemate-radius-pill: 100px;
@@ -68,7 +68,7 @@ html:not(.ext-f) :is(
     .uir-select-input-container,
     .uir-select-input-container>input
 ) {
-    border-radius: var(--suitemate-radius-surface) !important
+    border-radius: var(--suitemate-radius-control) !important
 }
 
 html:not(.ext-f) :is(.uir-popup, .uir-menu, .page-title-menu .ns-menu, .n-w-window[data-role=contextmenu]) {

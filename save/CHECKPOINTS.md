@@ -1089,3 +1089,20 @@ Date: 2026-07-28
 
 - Live on production SO 16302518 via injected preview: computed white card, `rgb(231,235,239)` hairline, 8px/12px padding, Total label emphasized; element screenshot confirms the design (navy Summary header over a clean hairline card). Totals machinery is shared across transaction types.
 - Full `npm test` 186 passing; hash re-pinned. Screenshot fixtures contain no totals table, so all 28 baselines verify unchanged at 0.000 percent — no re-bless needed.
+
+## UI Enhancement: Task 4 (UI-3 sublist surfaces + tokenized personalization UI)
+
+Status: Complete; injection-previewed live, native verification rides the UI-8 sweep
+
+Date: 2026-07-28
+
+### Included
+
+- Table vars tokenized (legacy branch only): `--table-border-color` light arm `#ebebeb` → `#e7ebef`, `--table-header-bg-color` light arm `#e5e5e5` → soft-cloud `#f1f4f7`. The yellow row-hover stays — deep NetSuite muscle memory (owner's conservative rule). Redwood branch untouched.
+- Geometry: `--suitemate-radius-surface` 5px → 12px (the spec's pre-approved conservative value); inputs split off the surface token onto `--suitemate-radius-control`, and control retunes 3px → 8px here rather than UI-5 so inputs move 5→8px in one hop instead of 5→3→8 (plan deviation, recorded).
+- so-columns UI: neutrals aligned to token values (`#f1f4f7` surfaces, `#c9d1d9`/`#e7ebef` hairlines, steel/stone/slate/ink text ramp), control buttons become pills (100px, 12px padding), menu shadow adopts elevation-2. The floating menu keeps its literal-plus-`.isDarkMode` mechanism — `light-dark()`-carrying tokens stay banned there (Milestone 8 lesson).
+
+### Verification
+
+- Full `npm test` 186 passing; hash re-pinned; 22 baselines intentionally re-blessed (8px inputs, 12px surfaces, header tint) and reviewed — no layout drift; re-blessed set verifies at 0.000 percent.
+- Live injection preview on production SO: Personalize pill at 100px, menu opaque white with elevation-2 shadow in light and opaque `rgb(62,63,66)` in dark (computed pixels), header `position: sticky` intact. Menu narrowing smoke passed earlier this session; runtime untouched this task. Full cross-type native pass happens at UI-8 after reload.

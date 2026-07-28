@@ -70,8 +70,8 @@ html:not(.ext-f) {
 }
 
 html:not(.ext-f):not(.isRedwood) {
-    --table-border-color: light-dark(#ebebeb, var(--dark-3));
-    --table-header-bg-color: light-dark(#e5e5e5, var(--dark-3));
+    --table-border-color: light-dark(#e7ebef, var(--dark-3));
+    --table-header-bg-color: light-dark(#f1f4f7, var(--dark-3));
     --row-odd-bg-color: light-dark(#fafafa, var(--dark-2));
     --row-even-bg-color: light-dark(#fff, var(--dark-1));
     --row-hover-bg-color: light-dark(rgb(254.3, 254.3, 166.6), rgb(55.946, 55.946, 36.652));
