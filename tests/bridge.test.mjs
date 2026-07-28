@@ -572,6 +572,33 @@ test("validates bounded CSV Export response metadata", () => {
     ).error.code,
     "INVALID_BRIDGE_RESPONSE"
   );
+
+  const viewSuccess = bridge.createSuccessResponse(
+    expected.requestId,
+    expected.command,
+    {
+      filename: "salesord-1-view.csv",
+      recordType: "salesord",
+      sublistId: "",
+      mode: "exportView",
+      rowCount: 0,
+      columnCount: 4
+    }
+  );
+  assert.equal(
+    plain(bridge.toCommandResult(bridge.normalizeResponse(viewSuccess, expected))).mode,
+    "exportView"
+  );
+  assert.equal(
+    bridge.normalizeResponse(
+      {
+        ...viewSuccess,
+        data: { ...viewSuccess.data, mode: "viewExport" }
+      },
+      expected
+    ).error.code,
+    "INVALID_BRIDGE_RESPONSE"
+  );
 });
 
 test("client request validates the response and forwards no extra fields", async () => {

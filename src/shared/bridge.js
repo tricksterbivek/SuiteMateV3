@@ -639,7 +639,7 @@
       || value.recordType.length > 200
       || typeof value.sublistId !== "string"
       || value.sublistId.length > 100
-      || !["export", "template"].includes(value.mode)
+      || !["export", "template", "exportView"].includes(value.mode)
       || !Number.isSafeInteger(value.rowCount)
       || value.rowCount < 0
       || (value.mode === "template" && value.rowCount !== 0)
