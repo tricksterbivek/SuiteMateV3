@@ -515,10 +515,21 @@
   }
 
   function runViewExport() {
+    const params = new globalScope.URLSearchParams(globalScope.location.search);
+    if (params.has("e")) {
+      // Edit-mode machines render input widgets whose text does not match the
+      // screen; the view snapshot is only truthful in view mode.
+      const error = new Error("Export view is available in view mode only.");
+      error.code = "VIEW_EXPORT_EDIT_MODE";
+      throw error;
+    }
     const table = globalScope.document?.querySelector?.("#item_splits");
     const snapshot = table
       ? core.readViewSnapshot(table, (element) =>
-          globalScope.getComputedStyle(element).display === "none")
+          globalScope.getComputedStyle(element).display === "none"
+          // Personalize mode ghosts hidden columns (visible at low opacity);
+          // they are still hidden for export purposes.
+          || Boolean(element.classList?.contains("suitemate-v3-so-columns-col-hidden")))
       : null;
     if (!snapshot || snapshot.headers.length === 0) {
       const error = new Error("This page has no item grid to export.");
@@ -528,7 +539,7 @@
     const recordType = String(
       /\/([a-z0-9_]+)\.nl$/i.exec(globalScope.location.pathname)?.[1] ?? "record"
     ).toLowerCase();
-    const recordId = new globalScope.URLSearchParams(globalScope.location.search).get("id") ?? "view";
+    const recordId = params.get("id") ?? "view";
     const filename = core.createFilename(`${recordType}-${recordId}-view`);
     downloadCsv(core.serializeCsv([snapshot.headers, ...snapshot.rows]), filename);
     return Object.freeze({

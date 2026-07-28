@@ -247,10 +247,17 @@
       return null;
     }
     const used = new Map();
+    const taken = new Set();
     const headers = labels.map((label) => {
-      const count = (used.get(label) ?? 0) + 1;
+      let count = used.get(label) ?? 0;
+      let candidate;
+      do {
+        count += 1;
+        candidate = count === 1 ? label : `${label} ${count}`;
+      } while (taken.has(candidate));
       used.set(label, count);
-      return count === 1 ? label : `${label} ${count}`;
+      taken.add(candidate);
+      return candidate;
     });
     const rows = [];
     for (const row of Array.from(table.querySelectorAll?.("tr.uir-machine-row, tr.uir-list-row-tr") ?? [])) {

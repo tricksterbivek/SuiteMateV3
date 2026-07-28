@@ -1088,3 +1088,12 @@ Spec: `docs/superpowers/specs/2026-07-28-export-view-csv-design.md` · Built via
 - Full `npm test`: 193 passing (view-snapshot suite, exportView mode acceptance in core details and bridge response, mapping pin); 28 screenshot baselines untouched at 0.000 percent; command-registry parity and csv source-purity gates green.
 - Fixture proof on the served sales-order page against the real personalized grid (sorted desc, one column hidden, filtered to one row): snapshot exported exactly `Item,Description,Quantity,Amount` + the single visible row, CRLF-joined, with header decorations stripped despite being live in the DOM.
 - Live on production: owner confirmed the Export view download working after the response-validator fix. Recon and 4-lens adversarial review ran as ultracode workflows; any late-arriving confirmed review findings will be triaged as follow-up.
+
+### Milestone 21 adversarial-review hardening (2026-07-28, v3.19.1)
+
+- The ultracode review fan-out (4 lenses, 12 raw findings, each adversarially verified — several by mutation testing) landed after the v3.19.0 release with three real defects beyond the already-fixed response validator, all now fixed: an edit-mode guard (`?e=` pages rendered input machinery as junk or a headers-only CSV under a success toast; Export view now refuses with "Export view is available in view mode only."); ghosted hidden columns during Personalize mode leaked past the computed-display test (the snapshot predicate now also treats `col-hidden` as hidden); and the header dedupe could emit colliding names for literal duplicates like `Qty, Qty, Qty 2` (now collision-proof).
+- The review's test-coverage findings are closed: a main-world round-trip test drives the real `exportView` dispatch end to end (formula protection asserted in the downloaded bytes, ghost exclusion, edit-mode and missing-grid errors), plus dedupe-collision, zero-row result acceptance, and menu-wiring source pins.
+
+### Verification
+
+- Full `npm test`: 197 passing; 28 screenshot baselines untouched at 0.000 percent.
