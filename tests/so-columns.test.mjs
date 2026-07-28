@@ -61,7 +61,7 @@ test("exports a frozen core with the column-order storage contract", () => {
   assert.equal(core.VERSION, 1);
   assert.equal(Object.isFrozen(core), true);
   assert.equal(core.STORAGE_KEY, "suiteMateV3ColumnOrder");
-  assert.equal(core.STORAGE_SCHEMA_VERSION, 2);
+  assert.equal(core.STORAGE_SCHEMA_VERSION, 3);
   assert.equal(core.MAX_SYNC_ITEM_BYTES, 7800);
   assert.equal(core.HEADER_ROW_SELECTOR, "tr.uir-machine-headerrow");
   assert.equal(core.DATA_ATTRIBUTE, "data-suitemate-v3-so-columns");
@@ -102,14 +102,14 @@ test("pins duplicate and empty labels to their native positions", () => {
 
 test("normalizeStored rejects garbage, newer versions and hostile keys", () => {
   const core = createApi();
-  const empty = { schemaVersion: 2, orders: {} };
+  const empty = { schemaVersion: 3, orders: {} };
   for (const value of [
     null,
     undefined,
     "orders",
     12,
     ["Item"],
-    { schemaVersion: 3, orders: { a: ["Item"] } },
+    { schemaVersion: 4, orders: { a: ["Item"] } },
     { orders: { a: ["Item"] } },
     { schemaVersion: 1, orders: ["Item"] }
   ]) {
@@ -141,7 +141,7 @@ test("normalizeStored migrates v1 arrays and accepts v2 entries", () => {
   const core = createApi();
   const v1 = { schemaVersion: 1, orders: { "123:7:salesord": ["Item", "Quantity"] } };
   assert.deepEqual(plain(core.normalizeStored(v1)), {
-    schemaVersion: 2,
+    schemaVersion: 3,
     orders: { "123:7:salesord": { order: ["Item", "Quantity"] } }
   });
 
@@ -154,7 +154,7 @@ test("normalizeStored migrates v1 arrays and accepts v2 entries", () => {
     }
   };
   assert.deepEqual(plain(core.normalizeStored(v2)), {
-    schemaVersion: 2,
+    schemaVersion: 3,
     orders: { a: { order: ["Item"], hidden: ["Rate"] }, b: { hidden: ["Location"] } }
   });
 });
@@ -178,7 +178,7 @@ test("withHidden stores, clears and preserves order in the same entry", () => {
 
   assert.equal(core.withHidden(base, "__proto__", ["Item"]), null);
   assert.equal(core.withHidden(base, "123:7", ["x".repeat(201)]), null);
-  assert.equal(core.withHidden({ schemaVersion: 3, orders: {} }, "123:7", ["Item"]), null);
+  assert.equal(core.withHidden({ schemaVersion: 4, orders: {} }, "123:7", ["Item"]), null);
 });
 
 test("withWidths stores clamped widths, merges with the entry and clears", () => {
@@ -200,7 +200,70 @@ test("withWidths stores clamped widths, merges with the entry and clears", () =>
   const hostile = core.withWidths(undefined, "123:9", JSON.parse('{"__proto__":100,"Item":"wide","Rate":90}'));
   assert.deepEqual(plain(hostile.orders["123:9"]), { widths: { Rate: 90 } });
   assert.equal(core.withWidths(undefined, "123:9", { Item: "wide" }), null);
-  assert.equal(core.withWidths({ schemaVersion: 3, orders: {} }, "123:7", { Item: 100 }), null);
+  assert.equal(core.withWidths({ schemaVersion: 4, orders: {} }, "123:7", { Item: 100 }), null);
+});
+
+test("withSort stores, merges, clears and fails closed", () => {
+  const core = createApi();
+  const withSort = core.withSort(undefined, "123:7", { label: "Amount", dir: "desc" });
+  assert.deepEqual(plain(withSort), {
+    schemaVersion: 3,
+    orders: { "123:7": { sort: { label: "Amount", dir: "desc" } } }
+  });
+  const merged = core.withSort({ schemaVersion: 2, orders: { "123:7": { order: ["Item", "Amount"] } } }, "123:7", { label: "Item", dir: "asc" });
+  assert.deepEqual(plain(merged.orders["123:7"]), { order: ["Item", "Amount"], sort: { label: "Item", dir: "asc" } });
+  const cleared = core.withSort(withSort, "123:7", null);
+  assert.deepEqual(plain(cleared.orders), {});
+  assert.equal(core.withSort(undefined, "123:7", { label: "Amount", dir: "sideways" }), null);
+  assert.equal(core.withSort(undefined, "123:7", { label: "", dir: "asc" }), null);
+  assert.equal(core.withSort({ schemaVersion: 4, orders: {} }, "123:7", { label: "A", dir: "asc" }), null);
+});
+
+test("withFilters normalizes, caps and clears", () => {
+  const core = createApi();
+  const stored = core.withFilters(undefined, "123:7", {
+    Location: { anyOf: ["Sydney", "Melbourne"] },
+    Amount: { q: "> 100" }
+  });
+  assert.deepEqual(plain(stored), {
+    schemaVersion: 3,
+    orders: { "123:7": { filters: { Location: { anyOf: ["Sydney", "Melbourne"] }, Amount: { q: "> 100" } } } }
+  });
+  const nine = Object.fromEntries(Array.from({ length: 9 }, (_, i) => [`Col${i}`, { q: String(i) }]));
+  assert.equal(Object.keys(plain(core.withFilters(undefined, "123:7", nine).orders["123:7"].filters)).length, 8);
+  const fatValues = { Item: { anyOf: Array.from({ length: 51 }, (_, i) => `V${i}`) } };
+  assert.equal(plain(core.withFilters(undefined, "123:7", fatValues).orders["123:7"].filters.Item.anyOf).length, 50);
+  const hostile = core.withFilters(undefined, "123:7", JSON.parse(`{
+    "__proto__": { "q": "x" },
+    "Ok": { "anyOf": ["a", 7, ""], "q": "${"x".repeat(101)}" },
+    "Bad": { "anyOf": [] }
+  }`));
+  assert.deepEqual(plain(hostile.orders["123:7"].filters), { Ok: { anyOf: ["a"], q: "x".repeat(100) } });
+  assert.deepEqual(plain(core.withFilters(stored, "123:7", null).orders), {});
+  assert.equal(core.withFilters(undefined, "123:7", { Only: { note: true } }), null);
+});
+
+test("schema v2 passes through under v3 and v4 is refused", () => {
+  const core = createApi();
+  const v2 = { schemaVersion: 2, orders: { "123:7": { order: ["A", "B"], widths: { A: 120 } } } };
+  assert.deepEqual(plain(core.normalizeStored(v2)), {
+    schemaVersion: 3,
+    orders: { "123:7": { order: ["A", "B"], widths: { A: 120 } } }
+  });
+  const entrySurvives = core.normalizeStored({ schemaVersion: 3, orders: { "9:9": { sort: { label: "Qty", dir: "asc" } } } });
+  assert.deepEqual(plain(entrySurvives.orders["9:9"]), { sort: { label: "Qty", dir: "asc" } });
+  assert.equal(core.withWidths({ schemaVersion: 4, orders: {} }, "123:7", { A: 100 }), null);
+  assert.deepEqual(plain(core.normalizeStored({ schemaVersion: 4, orders: { a: { order: ["x"] } } }).orders), {});
+});
+
+test("clearing the last field deletes the whole entry across all writers", () => {
+  const core = createApi();
+  let stored = core.withSort(undefined, "123:7", { label: "A", dir: "asc" });
+  stored = core.withFilters(stored, "123:7", { A: { q: "1" } });
+  stored = core.withSort(stored, "123:7", null);
+  assert.deepEqual(Object.keys(plain(stored.orders)), ["123:7"]);
+  stored = core.withFilters(stored, "123:7", null);
+  assert.deepEqual(plain(stored.orders), {});
 });
 
 test("applyWidths freezes visible columns, honors stored widths and clears", () => {
@@ -244,7 +307,7 @@ test("applyHidden hides matching columns in every aligned row and unhides", () =
 test("withOrder writes, deletes and preserves sibling scopes", () => {
   const core = createApi();
   const written = core.withOrder(undefined, "123:7", ["Item", "Quantity"]);
-  assert.deepEqual(plain(written), { schemaVersion: 2, orders: { "123:7": { order: ["Item", "Quantity"] } } });
+  assert.deepEqual(plain(written), { schemaVersion: 3, orders: { "123:7": { order: ["Item", "Quantity"] } } });
 
   const both = core.withOrder(written, "123:8", ["Amount", "Rate"]);
   assert.deepEqual(Object.keys(both.orders).sort(), ["123:7", "123:8"]);
@@ -259,7 +322,7 @@ test("withOrder writes, deletes and preserves sibling scopes", () => {
 
 test("withOrder refuses to rewrite a newer storage schema", () => {
   const core = createApi();
-  const future = { schemaVersion: 3, orders: { "123:7": ["Item"] } };
+  const future = { schemaVersion: 4, orders: { "123:7": ["Item"] } };
   assert.equal(core.withOrder(future, "123:7", ["Item", "Quantity"]), null);
   assert.equal(core.withOrder(future, "123:7", null), null);
 });
@@ -303,7 +366,7 @@ test("withOrder evicts sibling scopes when the payload would exceed the sync quo
 
   stored = core.withOrder(stored, "scope-c", bigLabels("Gamma"));
   assert.deepEqual(Object.keys(stored.orders), ["scope-c"]);
-  assert.equal(stored.schemaVersion, 2);
+  assert.equal(stored.schemaVersion, 3);
 });
 
 test("readHeaderLabels trims header-cell text and fails closed", () => {

@@ -3,10 +3,13 @@
 
   const VERSION = 1;
   const STORAGE_KEY = "suiteMateV3ColumnOrder";
-  const STORAGE_SCHEMA_VERSION = 2;
+  const STORAGE_SCHEMA_VERSION = 3;
   const MAX_SYNC_ITEM_BYTES = 7800;
   const MAX_LABEL_LENGTH = 200;
   const MAX_LABELS = 100;
+  const MAX_FILTER_COLUMNS = 8;
+  const MAX_FILTER_VALUES = 50;
+  const MAX_QUERY_LENGTH = 100;
   const MIN_COLUMN_WIDTH = 30;
   const MAX_COLUMN_WIDTH = 1000;
   const HEADER_ROW_SELECTOR = "tr.uir-machine-headerrow";
@@ -84,6 +87,49 @@
     return Object.keys(widths).length && Object.keys(widths).length <= MAX_LABELS ? widths : null;
   }
 
+  function normalizeSort(value) {
+    if (!isPlainObject(value)
+      || typeof value.label !== "string"
+      || !value.label
+      || value.label.length > MAX_LABEL_LENGTH
+      || !["asc", "desc"].includes(value.dir)) {
+      return null;
+    }
+    return { label: value.label, dir: value.dir };
+  }
+
+  function normalizeFilters(value) {
+    if (!isPlainObject(value)) {
+      return null;
+    }
+    const filters = {};
+    for (const [label, candidate] of Object.entries(value)) {
+      if (Object.keys(filters).length >= MAX_FILTER_COLUMNS) {
+        break;
+      }
+      if (!label || label.length > MAX_LABEL_LENGTH
+        || ["__proto__", "constructor", "prototype"].includes(label)
+        || !isPlainObject(candidate)) {
+        continue;
+      }
+      const anyOf = Array.isArray(candidate.anyOf)
+        ? candidate.anyOf
+          .filter((entry) => typeof entry === "string" && entry && entry.length <= MAX_LABEL_LENGTH)
+          .slice(0, MAX_FILTER_VALUES)
+        : [];
+      const q = typeof candidate.q === "string" ? candidate.q.trim().slice(0, MAX_QUERY_LENGTH) : "";
+      if (!anyOf.length && !q) {
+        continue;
+      }
+      filters[label] = { ...(anyOf.length ? { anyOf } : {}), ...(q ? { q } : {}) };
+    }
+    return Object.keys(filters).length ? filters : null;
+  }
+
+  function entryIsEmpty(entry) {
+    return !entry.order && !entry.hidden && !entry.widths && !entry.sort && !entry.filters;
+  }
+
   function normalizeEntry(value) {
     // Schema v1 entries were bare label arrays (column order only).
     const candidate = Array.isArray(value) ? { order: value } : value;
@@ -93,13 +139,17 @@
     const order = normalizeLabels(candidate.order);
     const hidden = normalizeLabels(candidate.hidden);
     const widths = normalizeWidths(candidate.widths);
-    if (!order && !hidden && !widths) {
+    const sort = normalizeSort(candidate.sort);
+    const filters = normalizeFilters(candidate.filters);
+    if (!order && !hidden && !widths && !sort && !filters) {
       return null;
     }
     return {
       ...(order ? { order } : {}),
       ...(hidden ? { hidden } : {}),
-      ...(widths ? { widths } : {})
+      ...(widths ? { widths } : {}),
+      ...(sort ? { sort } : {}),
+      ...(filters ? { filters } : {})
     };
   }
 
@@ -182,7 +232,7 @@
       }
       entry.hidden = hidden;
     }
-    if (!entry.order && !entry.hidden && !entry.widths) {
+    if (entryIsEmpty(entry)) {
       delete next.orders[key];
     } else {
       next.orders[key] = entry;
@@ -209,7 +259,61 @@
       }
       entry.widths = normalized;
     }
-    if (!entry.order && !entry.hidden && !entry.widths) {
+    if (entryIsEmpty(entry)) {
+      delete next.orders[key];
+    } else {
+      next.orders[key] = entry;
+    }
+    return evictOverQuota(next, key);
+  }
+
+  function withSort(stored, scopeKey, sort) {
+    if (refusesNewerSchema(stored)) {
+      return null;
+    }
+    const next = normalizeStored(stored);
+    const key = normalizeScopeKey(scopeKey);
+    if (!key) {
+      return null;
+    }
+    const entry = { ...(next.orders[key] ?? {}) };
+    if (sort === null || sort === undefined) {
+      delete entry.sort;
+    } else {
+      const normalized = normalizeSort(sort);
+      if (!normalized) {
+        return null;
+      }
+      entry.sort = normalized;
+    }
+    if (entryIsEmpty(entry)) {
+      delete next.orders[key];
+    } else {
+      next.orders[key] = entry;
+    }
+    return evictOverQuota(next, key);
+  }
+
+  function withFilters(stored, scopeKey, filters) {
+    if (refusesNewerSchema(stored)) {
+      return null;
+    }
+    const next = normalizeStored(stored);
+    const key = normalizeScopeKey(scopeKey);
+    if (!key) {
+      return null;
+    }
+    const entry = { ...(next.orders[key] ?? {}) };
+    if (!filters || !Object.keys(filters).length) {
+      delete entry.filters;
+    } else {
+      const normalized = normalizeFilters(filters);
+      if (!normalized) {
+        return null;
+      }
+      entry.filters = normalized;
+    }
+    if (entryIsEmpty(entry)) {
       delete next.orders[key];
     } else {
       next.orders[key] = entry;
@@ -646,9 +750,14 @@
       planOrder,
       applyOrder,
       normalizeStored,
+      normalizeFilters,
       withOrder,
       withHidden,
       withWidths,
+      withSort,
+      withFilters,
+      MAX_FILTER_COLUMNS,
+      MAX_FILTER_VALUES,
       applyHidden,
       applyWidths,
       MIN_COLUMN_WIDTH,
