@@ -2541,12 +2541,23 @@ html:not(.ext-f) #totalRow {
 }
 
 html:not(.ext-f) #totalRow>.uir-list-row-cell {
-    background: light-dark(#e5e5e5, var(--dark-3)) !important;
+    background: light-dark(#f1f4f7, var(--dark-3)) !important;
     border-top: 0 !important
 }
 
 html:not(.ext-f) #totalRow>.uir-list-row-cell:first-child {
     white-space: nowrap
+}
+
+html:not(.ext-f) .totallingtable {
+    background: var(--sm-canvas);
+    border: 1px solid var(--sm-hairline-soft);
+    border-radius: var(--suitemate-radius-surface);
+    padding: var(--sm-space-2) var(--sm-space-3)
+}
+
+html:not(.ext-f) .totallingtable .totallingtable_total .uir-label-span {
+    font-weight: var(--sm-type-subtitle-weight)
 }
 
 html:not(.ext-f) .code-formatted-container {

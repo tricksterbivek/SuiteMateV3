@@ -1873,7 +1873,7 @@ await access(resolve(root, "save/SUITEMATE_V1_MASTER_FEATURE_INVENTORY.md"));
 const expectedStyleHashes = {
   "src/styles/font.css": "ecc7a99f6b820ee9290ab4a3ca2ff1ea4829c1a539c0d42becb19a3d5ea446cf",
   "src/styles/code.css": "e5607100c7432fd7028176ce74c4c999e181108861ea6b992ed3058d92d0d698",
-  "src/styles/netsuite.css": "60234089909017ad9bd0200cdfe2e9f5223d83ec2526a7e199fbe9a04a06a36c",
+  "src/styles/netsuite.css": "b7b24b40fc43bf1f42af8abad4292689345f121ecdd2a75bcc7d7c6c7dee2379",
   "src/styles/pages/bundlebuilder.css": "bb9cae83f75b192d0a913233a33b6a8e557df656f7251a6e48e3105532e9f8fa",
   "src/styles/pages/codeeditor.css": "b58efb6517cfc13ca04cb621bdf269599ad9d6a589f38dee268743dda60f84df",
   "src/styles/pages/dashboard.css": "b6a5d9bccca078b1570fedb687cb00dc2b6f90e75bf98d1d0b34f346debd3383",

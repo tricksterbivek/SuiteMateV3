@@ -1073,3 +1073,19 @@ Date: 2026-07-28
 - Live pass on production Sales Order (internal id 16302518, document SO886672, Redwood shell): tokens present on the root; pill mechanics confirmed on real DOM (`border-collapse: separate`, 100px radius, `overflow: clip`, 13px/600/-0.1px labels); saved navy role color correctly wins over the new cobalt default, and removing the custom vars inline proved the default chain falls to cobalt `rgb(0, 100, 224)`; dark-mode flip clean both ways; personalization smoke green (menu opaque white, value list narrowed 2→1 with all 5 table rows pinned, clear restored, Escape closed); zero console errors.
 - Defect caught live and fixed: the shipped UI-1 misread NetSuite's button class model. On real record pages rows are `tr.pgBntG` (standard) with `.pgBntB` marking primaries, and `.pgBntR` does not appear — so the "hovered primary" rule repainted every secondary button `--theme-main-dark` under dark text. Corrected model: `.pgBntB` (and legacy `.pgBntR.pgBntG`/`.pgBntR.tabBnt`) are primary → theme fill, white label, darker hover; bare `.pgBntG` is secondary → canvas + hairline + ink label, soft hover; disabled labels keep native gray. Verified by live style injection at the computed-pixel level (primaries `rgb(0,29,54)` + white, secondaries white + `rgb(28,43,51)` ink + hairline border) before shipping.
 - The fix changes no fixture baseline (fixture DOM carries no `pgBnt*` rows); 186 tests and re-pinned hashes green.
+
+## UI Enhancement: Task 3 (UI-2 totals summary card)
+
+Status: Complete; verified live by style injection on production
+
+Date: 2026-07-28
+
+### Included
+
+- `.totallingtable` becomes a level-0 card: canvas background, `--sm-hairline-soft` border, surface radius, 8px/12px padding. The grand-total row's label adopts subtitle weight via NetSuite's own `totallingtable_total` row class (discovered live — cleaner than a `:has()` probe); values were already bold via the existing `.inputtotalling` rule, and the themed navy caption header stays as-is.
+- List-page `#totalRow` cells tokenize their light arm from `#e5e5e5` to soft-cloud `#f1f4f7` (dark arm unchanged).
+
+### Verification
+
+- Live on production SO 16302518 via injected preview: computed white card, `rgb(231,235,239)` hairline, 8px/12px padding, Total label emphasized; element screenshot confirms the design (navy Summary header over a clean hairline card). Totals machinery is shared across transaction types.
+- Full `npm test` 186 passing; hash re-pinned. Screenshot fixtures contain no totals table, so all 28 baselines verify unchanged at 0.000 percent — no re-bless needed.
