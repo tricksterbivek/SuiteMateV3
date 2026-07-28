@@ -51,6 +51,7 @@
   const csvImportCommand = commandApi.IDS.RECORD_CSV_IMPORT;
   const csvExportCommand = commandApi.IDS.RECORD_CSV_EXPORT;
   const csvTemplateCommand = commandApi.IDS.RECORD_CSV_TEMPLATE;
+  const csvExportViewCommand = commandApi.IDS.RECORD_CSV_EXPORT_VIEW;
   const commandScope = commandApi.createScope(commandApi.SURFACES.RECORD, {
     getContext: () => ({
       pageContext: routeApi.createPageContext(globalScope.location, {
@@ -166,6 +167,12 @@
       "#",
       "csv-utils-template"
     );
+    const exportViewOption = createChildItem(
+      "Export view",
+      csvExportViewCommand,
+      "#",
+      "csv-utils-export-view"
+    );
 
     trigger.addEventListener("click", (event) => {
       event.preventDefault();
@@ -219,11 +226,22 @@
         globalScope.console?.error("SuiteMate V3 CSV Template runtime is unavailable.");
       }
     });
+    exportViewOption.link.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setMenuOpen(parentItem, trigger, false);
+      const exportRuntime = globalScope[CSV_EXPORT_RUNTIME_KEY];
+      const result = exportRuntime?.invoke("exportView");
+      if (!result) {
+        globalScope.console?.error("SuiteMate V3 CSV Export View runtime is unavailable.");
+      }
+    });
 
     dropdown.append(
       exportOption.item,
       importOption.item,
-      templateOption.item
+      templateOption.item,
+      exportViewOption.item
     );
     parentItem.append(trigger, dropdown);
     menu.append(parentItem);

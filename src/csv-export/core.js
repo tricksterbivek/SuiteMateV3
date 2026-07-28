@@ -207,6 +207,65 @@
     }));
   }
 
+  // ===== View snapshot (Export view reads the personalized grid DOM) =====
+  const VIEW_FOREIGN_NODE_SELECTOR = "[data-suitemate-v3-so-columns], [data-suitemate-v3-internal-id]";
+
+  function readViewCellLabel(cell) {
+    if (!cell) {
+      return "";
+    }
+    if (typeof cell.querySelector === "function" && !cell.querySelector(VIEW_FOREIGN_NODE_SELECTOR)) {
+      return String(cell.textContent ?? "").trim();
+    }
+    if (typeof cell.cloneNode === "function") {
+      const clone = cell.cloneNode(true);
+      clone.querySelectorAll?.(VIEW_FOREIGN_NODE_SELECTOR)?.forEach((node) => node.remove());
+      return String(clone.textContent ?? "").trim();
+    }
+    return String(cell.textContent ?? "").trim();
+  }
+
+  function readViewSnapshot(table, isHidden) {
+    if (typeof isHidden !== "function") {
+      return null;
+    }
+    const headerRow = table?.querySelector?.("tr.uir-machine-headerrow");
+    const headerCells = Array.from(headerRow?.cells ?? []);
+    if (!headerCells.length) {
+      return null;
+    }
+    const keptIndexes = [];
+    const labels = [];
+    headerCells.forEach((cell, index) => {
+      if (isHidden(cell)) {
+        return;
+      }
+      keptIndexes.push(index);
+      labels.push(readViewCellLabel(cell) || `Column ${index + 1}`);
+    });
+    if (!keptIndexes.length) {
+      return null;
+    }
+    const used = new Map();
+    const headers = labels.map((label) => {
+      const count = (used.get(label) ?? 0) + 1;
+      used.set(label, count);
+      return count === 1 ? label : `${label} ${count}`;
+    });
+    const rows = [];
+    for (const row of Array.from(table.querySelectorAll?.("tr.uir-machine-row, tr.uir-list-row-tr") ?? [])) {
+      if (isHidden(row)) {
+        continue;
+      }
+      const cells = Array.from(row.cells ?? []);
+      if (cells.length !== headerCells.length) {
+        continue;
+      }
+      rows.push(Object.freeze(keptIndexes.map((index) => String(cells[index]?.textContent ?? "").trim())));
+    }
+    return Object.freeze({ headers: Object.freeze(headers), rows: Object.freeze(rows) });
+  }
+
   function sanitizeFilenamePart(value, fallback = "netsuite-record") {
     function sanitize(valueToSanitize) {
       return safeValueToText(valueToSanitize)
@@ -258,7 +317,7 @@
       return null;
     }
     const mode = value.mode ?? "export";
-    if (!["export", "template"].includes(mode)) {
+    if (!["export", "template", "exportView"].includes(mode)) {
       return null;
     }
     return Object.freeze({
@@ -289,7 +348,7 @@
       });
     }
 
-    if (!["export", "template"].includes(value.mode)) {
+    if (!["export", "template", "exportView"].includes(value.mode)) {
       return null;
     }
     const rowCount = Number(value.rowCount);
@@ -326,6 +385,7 @@
     serializeCsv,
     removeEmptyColumns,
     makeUniqueHeaders,
+    readViewSnapshot,
     sanitizeFilenamePart,
     createFilename,
     createTemplateFilename,

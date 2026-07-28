@@ -602,3 +602,82 @@ test("the core keeps record values out of extension storage and network APIs", (
     /chrome\.storage|localStorage|sessionStorage|fetch\(|XMLHttpRequest|innerHTML/
   );
 });
+
+test("readViewSnapshot exports visible columns and rows exactly as shown", () => {
+  const core = createCore();
+  const hidden = (element) => element.hidden === true;
+  const cell = (textContent, options = {}) => ({
+    textContent,
+    hidden: options.hidden === true,
+    querySelector: () => null
+  });
+  const row = (cells, options = {}) => ({
+    cells,
+    hidden: options.hidden === true
+  });
+  const headerCells = [cell("Item"), cell("Qty"), cell("Rate", { hidden: true }), cell("Qty")];
+  const dataRows = [
+    row([cell("SKU-2"), cell("5"), cell("$1"), cell("B")]),
+    row([cell("SKU-1"), cell("2"), cell("$2"), cell("A")], { hidden: true }),
+    row([cell("machinery"), cell("x")]),
+    row([cell("SKU-3"), cell(" 7 "), cell("$3"), cell("C")])
+  ];
+  const table = {
+    querySelector: (selector) => (selector.includes("headerrow") ? { cells: headerCells } : null),
+    querySelectorAll: (selector) => (selector.includes("uir-machine-row") ? dataRows : [])
+  };
+
+  const snapshot = core.readViewSnapshot(table, hidden);
+  assert.deepEqual(plain(snapshot.headers), ["Item", "Qty", "Qty 2"]);
+  assert.deepEqual(plain(snapshot.rows), [
+    ["SKU-2", "5", "B"],
+    ["SKU-3", "7", "C"]
+  ]);
+
+  const badge = { removed: false, remove() { this.removed = true; } };
+  const decorated = {
+    textContent: "Item▼",
+    querySelector: (selector) => (selector.includes("data-suitemate-v3") ? badge : null),
+    cloneNode: () => ({
+      querySelectorAll: (selector) => (selector.includes("data-suitemate-v3") ? [badge] : []),
+      get textContent() {
+        return badge.removed ? " Item " : "Item▼";
+      }
+    })
+  };
+  const decoratedTable = {
+    querySelector: (selector) => (selector.includes("headerrow") ? { cells: [decorated] } : null),
+    querySelectorAll: () => []
+  };
+  assert.deepEqual(plain(core.readViewSnapshot(decoratedTable, hidden).headers), ["Item"]);
+
+  assert.equal(core.readViewSnapshot(null, hidden), null);
+  assert.equal(core.readViewSnapshot(table, "not a function"), null);
+  const allHidden = {
+    querySelector: () => ({ cells: [cell("Item", { hidden: true })] }),
+    querySelectorAll: () => []
+  };
+  assert.equal(core.readViewSnapshot(allHidden, hidden), null);
+});
+
+test("request and result details accept the exportView mode", () => {
+  const core = createCore();
+  const requestId = "csv-12345678";
+  assert.deepEqual(
+    plain(core.normalizeRequestDetail({ requestId, mode: "exportView" })),
+    { requestId, mode: "exportView" }
+  );
+  const result = core.normalizeResultDetail({
+    ok: true,
+    requestId,
+    filename: "salesord-1-view.csv",
+    recordType: "salesord",
+    sublistId: "",
+    mode: "exportView",
+    rowCount: 2,
+    columnCount: 3
+  }, requestId);
+  assert.equal(result.mode, "exportView");
+  assert.equal(result.rowCount, 2);
+  assert.equal(result.filename, "salesord-1-view.csv");
+});

@@ -303,6 +303,7 @@ assert.equal(commandApi.IDS.POPUP_OPEN_SUITEQL, "popup.open-suiteql");
 assert.equal(commandApi.IDS.RECORD_CSV_IMPORT, "record.csv-import");
 assert.equal(commandApi.IDS.RECORD_CSV_EXPORT, "record.csv-export");
 assert.equal(commandApi.IDS.RECORD_CSV_TEMPLATE, "record.csv-template");
+assert.equal(commandApi.IDS.RECORD_CSV_EXPORT_VIEW, "record.csv-export-view");
 assert.equal(commandApi.IDS.SETTINGS_EXPORT_BACKUP, "settings.export-backup");
 assert.equal(commandApi.IDS.SETTINGS_IMPORT_BACKUP, "settings.import-backup");
 assert.equal(Object.isFrozen(commandApi.DEFINITIONS), true);

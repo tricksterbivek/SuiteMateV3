@@ -514,6 +514,33 @@
     });
   }
 
+  function runViewExport() {
+    const table = globalScope.document?.querySelector?.("#item_splits");
+    const snapshot = table
+      ? core.readViewSnapshot(table, (element) =>
+          globalScope.getComputedStyle(element).display === "none")
+      : null;
+    if (!snapshot || snapshot.headers.length === 0) {
+      const error = new Error("This page has no item grid to export.");
+      error.code = "NO_VIEW_GRID";
+      throw error;
+    }
+    const recordType = String(
+      /\/([a-z0-9_]+)\.nl$/i.exec(globalScope.location.pathname)?.[1] ?? "record"
+    ).toLowerCase();
+    const recordId = new globalScope.URLSearchParams(globalScope.location.search).get("id") ?? "view";
+    const filename = core.createFilename(`${recordType}-${recordId}-view`);
+    downloadCsv(core.serializeCsv([snapshot.headers, ...snapshot.rows]), filename);
+    return Object.freeze({
+      filename,
+      recordType,
+      sublistId: "",
+      mode: "exportView",
+      rowCount: snapshot.rows.length,
+      columnCount: snapshot.headers.length
+    });
+  }
+
   function normalizeError(error) {
     return Object.freeze({
       code: String(error?.code || error?.name || "CSV_EXPORT_FAILED").slice(0, 100),
@@ -580,6 +607,15 @@
 
     activeRequestId = request.requestId;
     try {
+      if (request.mode === "exportView") {
+        // The view export reads the rendered grid; it needs no SuiteScript.
+        dispatchResult({
+          ok: true,
+          requestId: request.requestId,
+          ...runViewExport()
+        });
+        return;
+      }
       const { recordModule, currentRecordModule } = await loadSuiteScriptModules();
       const result = await runExport(
         recordModule,

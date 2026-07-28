@@ -137,11 +137,11 @@
       return invalid;
     }
     const mode = value.mode ?? "export";
-    return ["export", "template"].includes(mode)
+    return ["export", "template", "exportView"].includes(mode)
       ? validationSuccess({ mode })
       : validationFailure(
           "INVALID_CSV_EXPORT_MODE",
-          "CSV Export mode must be export or template."
+          "CSV Export mode must be export, template or exportView."
         );
   }
 

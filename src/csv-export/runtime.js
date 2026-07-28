@@ -47,6 +47,7 @@
 
   const exportCommand = commandApi.IDS.RECORD_CSV_EXPORT;
   const templateCommand = commandApi.IDS.RECORD_CSV_TEMPLATE;
+  const viewCommand = commandApi.IDS.RECORD_CSV_EXPORT_VIEW;
   const commandScope = commandApi.createScope(commandApi.SURFACES.RECORD, {
     getContext: () => ({
       pageContext: routeApi.createPageContext(globalScope.location, {
@@ -78,6 +79,11 @@
   }
 
   function setBusy(mode, busy) {
+    if (mode === "exportView") {
+      // The view export is invoked from the CSV Utils menu, which closes on
+      // click; relabeling the record-menu Export action would mislead.
+      return;
+    }
     const link = findActionLink(mode);
     if (!link) {
       return;
@@ -94,6 +100,13 @@
 
   function showExportResult(result) {
     if (result.ok) {
+      if (result.mode === "exportView") {
+        showStatus(
+          `Exported ${result.rowCount} visible row${result.rowCount === 1 ? "" : "s"} to ${result.filename}.`,
+          "success"
+        );
+        return;
+      }
       if (result.mode === "template") {
         showStatus(
           `Downloaded ${result.columnCount}-column template to ${result.filename}.`,
@@ -140,17 +153,24 @@
   commandScope.register(templateCommand, {
     run: () => beginExport("template")
   });
+  commandScope.register(viewCommand, {
+    run: () => beginExport("exportView")
+  });
+
+  function commandForMode(mode) {
+    if (mode === "template") {
+      return templateCommand;
+    }
+    return mode === "exportView" ? viewCommand : exportCommand;
+  }
 
   const runtimeApi = Object.freeze({
     VERSION: 3,
     isAvailable(mode = "export") {
-      return commandScope.isAvailable(
-        mode === "template" ? templateCommand : exportCommand
-      );
+      return commandScope.isAvailable(commandForMode(mode));
     },
     invoke(mode = "export") {
-      const command = mode === "template" ? templateCommand : exportCommand;
-      return commandScope.invoke(command, {}, {
+      return commandScope.invoke(commandForMode(mode), {}, {
         source: commandApi.SOURCES.LINK
       });
     }
