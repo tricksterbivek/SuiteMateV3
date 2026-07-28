@@ -1068,3 +1068,23 @@ Spec: `docs/superpowers/specs/2026-07-28-persisted-sort-filter-design.md` · Pla
 - Full `npm test`: 190 passing (4 new core suites; 8 schema-version expectations updated as declared consequences of the bump); 28 screenshot baselines untouched at 0.000 percent.
 - Fixture round-trip on the served sales-order page: interact → captured storage carries both fields → cold reload with seeded storage → rows re-sorted and filtered at computed level, indicator and active-arrow rendered, restore wrote nothing back; chip clear emptied the entry.
 - Live on production after reload: SO 16302518 — sort asc + two-value OR filter, real page reload auto-reapplied (2 of 5 rows, `Item ↑ · 1 filter ✕`, indicator, active arrow), chip clear restored native with the saved column layout intact; Item Fulfillment 14953684 — 16 `uir-list-row-tr` rows, 1-of-16 filter persisted through reload, chip clear restored; PO 16295656 (empty scope) — full destructive cycle, Reset cleared sort+filters+layout and nothing resurrected after reload. Zero SuiteMate console errors (only NetSuite's own SuitePhone CSP notice).
+
+## Export View CSV: Milestone 21
+
+Status: Complete; owner-confirmed working live 2026-07-28
+
+Date: 2026-07-28
+
+Spec: `docs/superpowers/specs/2026-07-28-export-view-csv-design.md` · Built via ultracode recon + adversarial-review workflows.
+
+### Included
+
+- CSV Utils gains **Export view**: downloads the `#item_splits` grid exactly as shown — visible columns in current order, visible rows in current (sorted/filtered) order, display text as rendered. New `record.csv-export-view` command flows through the existing registry/bridge as a third mode (`exportView`) beside export/template; the main-world handler needs no SuiteScript (pure DOM snapshot) and reuses `downloadCsv`, `serializeCsv` (formula protection + CRLF + BOM) and filename sanitization verbatim. `core.readViewSnapshot(table, isHidden)` clone-strips SuiteMate-injected arrows/indicators/badges from header labels, dedupes duplicate labels, and skips machinery rows with mismatched cell counts. Filename: `<recordtype>-<id>-view.csv`.
+- Mode whitelists extended in all four validators: bridge request, bridge response, core request detail, core result detail. The fourth (response metadata) was caught by the owner's first live click — the full menu→command→bridge→main-world→snapshot path executed and only that gate rejected; fixed with a bridge test covering acceptance (including legitimate zero-row headers-only exports) and unknown-mode rejection.
+- A source-pin test locks the runtime's mode→command mapping after a transient regression was caught during final re-verification.
+
+### Verification
+
+- Full `npm test`: 193 passing (view-snapshot suite, exportView mode acceptance in core details and bridge response, mapping pin); 28 screenshot baselines untouched at 0.000 percent; command-registry parity and csv source-purity gates green.
+- Fixture proof on the served sales-order page against the real personalized grid (sorted desc, one column hidden, filtered to one row): snapshot exported exactly `Item,Description,Quantity,Amount` + the single visible row, CRLF-joined, with header decorations stripped despite being live in the DOM.
+- Live on production: owner confirmed the Export view download working after the response-validator fix. Recon and 4-lens adversarial review ran as ultracode workflows; any late-arriving confirmed review findings will be triaged as follow-up.

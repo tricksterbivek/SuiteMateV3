@@ -681,3 +681,9 @@ test("request and result details accept the exportView mode", () => {
   assert.equal(result.rowCount, 2);
   assert.equal(result.filename, "salesord-1-view.csv");
 });
+
+test("the runtime maps every mode to its own command", async () => {
+  const runtimeSource = await readFile(resolve(root, "src/csv-export/runtime.js"), "utf8");
+  assert.match(runtimeSource, /mode === "exportView" \? viewCommand : exportCommand/);
+  assert.match(runtimeSource, /run: \(\) => beginExport\("exportView"\)/);
+});
