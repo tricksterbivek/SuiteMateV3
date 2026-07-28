@@ -905,3 +905,20 @@ Date: 2026-07-28
 
 - Full `npm test`: 185 passing tests (withWidths clamp/merge/clear/hostile-keys, applyWidths freeze/hidden-exclusion/clear), 28 screenshot baselines at 0.000 percent difference.
 - Browser pass: edge-hover cursor class, +60px drag grew the column exactly 60px and -120px shrank it exactly 120px (below content width), v2 widths payload persisted, width traveled with a column drag, Reset cleared styles, layout and storage.
+
+## Transaction Column Personalization: Milestone 14 (resize handle discoverability)
+
+Status: Automated + browser verification complete; live NetSuite retest pending
+
+Date: 2026-07-28
+
+### Included
+
+- Every header cell shows a faint vertical divider at its right edge (inset box-shadow — zero layout shift, zero border width-math, sticky-safe); hovering the draggable zone intensifies it to a 3px theme-colored bar alongside the col-resize cursor. Header-only by design: data rows carry no vertical lines.
+- Dark-mode divider variant via `html.isDarkMode`; the affordance disappears entirely when the feature is off (gated on the sortable attribute).
+- Fix found during verification: the hover highlight class lingered into personalize mode from the last-hovered edge; mode entry now clears it.
+
+### Verification
+
+- Full `npm test`: 185 passing tests, 28 screenshot baselines at 0.000 percent difference.
+- Browser pass: dividers on header cells with body cells clean (computed box-shadow none), hover highlight + col-resize cursor, resize functional through the new affordance, highlight cleared on personalize entry. Screenshot reviewed.

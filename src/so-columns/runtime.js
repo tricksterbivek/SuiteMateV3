@@ -705,6 +705,7 @@
     }
     personalizing = true;
     activeTable = table;
+    headerCells(table).forEach((cell) => cell.classList.remove("suitemate-v3-so-columns-resize-edge"));
     table.classList.add(core.CLASSES.personalizing);
     for (const cell of headerCells(table)) {
       if (isMovable(labels, cellLabel(cell))) {

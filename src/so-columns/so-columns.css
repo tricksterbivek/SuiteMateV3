@@ -22,11 +22,17 @@
 }
 
 #item_splits[data-suitemate-v3-so-columns-sortable] tr.uir-machine-headerrow td {
-    box-sizing: border-box
+    box-sizing: border-box;
+    box-shadow: inset -1px 0 0 rgb(0 0 0 / .14)
+}
+
+html.isDarkMode #item_splits[data-suitemate-v3-so-columns-sortable] tr.uir-machine-headerrow td {
+    box-shadow: inset -1px 0 0 rgb(255 255 255 / .16)
 }
 
 .suitemate-v3-so-columns-resize-edge {
-    cursor: col-resize !important
+    cursor: col-resize !important;
+    box-shadow: inset -3px 0 0 var(--theme-main, #607799) !important
 }
 
 body.suitemate-v3-so-columns-resizing,
