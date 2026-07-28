@@ -922,3 +922,19 @@ Date: 2026-07-28
 
 - Full `npm test`: 185 passing tests, 28 screenshot baselines at 0.000 percent difference.
 - Browser pass: dividers on header cells with body cells clean (computed box-shadow none), hover highlight + col-resize cursor, resize functional through the new affordance, highlight cleared on personalize entry. Screenshot reviewed.
+
+## Transaction Column Personalization: Milestone 15 (Excel-style live search filtering)
+
+Status: Automated + browser verification complete; live NetSuite retest pending
+
+Date: 2026-07-28
+
+### Included
+
+- Typing in a column menu's search box now filters table rows live on every keystroke (case-insensitive contains), on every column — previously plain text only narrowed the checkbox list except on high-cardinality columns, so rows required a checkbox action to move. The value list still narrows in lockstep, checkbox multi-select still ORs within the column and persists after the search is cleared (the Excel search-then-select flow), numeric operator filtering is untouched, and everything continues to AND across columns.
+- Implementation is a removed gate plus copy updates in the existing vanilla layer (the core contains path already existed); React was evaluated and rejected as adding a dependency to delete one conditional. Menu hint now reads "Filters rows as you type · > < = for numbers".
+
+### Verification
+
+- Full `npm test`: 185 passing tests, 28 screenshot baselines at 0.000 percent difference.
+- Browser pass mirroring the spec examples: per-keystroke row filtering ("SKU00" -> SKU001/2/3; "sydney" -> Sydney Warehouse/Sydney DC), active-filter arrow while typing, multi-select persisting after search clear, operator + text filters AND-combined across columns, sorting on the filtered set, 3.6ms per keystroke against a 306-row table, full Reset.
