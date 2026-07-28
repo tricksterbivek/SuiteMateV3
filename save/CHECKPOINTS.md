@@ -963,7 +963,7 @@ Date: 2026-07-28
 
 ## Transaction Column Personalization: Milestone 17 (menu value-list narrowing visual fix)
 
-Status: Automated + browser verification complete; live confirmation pending extension reload
+Status: Complete; confirmed working by user on live NetSuite 2026-07-28
 
 Date: 2026-07-28
 
@@ -977,3 +977,18 @@ Date: 2026-07-28
 - Full `npm test`: 185 passing tests, 28 screenshot baselines at 0.000 percent difference.
 - Fixture pass at pixel level: per-keystroke narrowing ("S" -> 5 including TEST001's contains match, "SKU" -> the 4 SKU values), rows pinned, backspace restoring all values.
 - Live pass in the tricksterbivek profile with the one-rule fix injected over the stale extension CSS: production Sales Order value list narrowed 5 -> 1 in computed pixels with rows pinned; Purchase Order values all legitimately matched the probe (uniform MCW prefix). Native confirmation after next extension reload.
+
+## Transaction Column Personalization: Milestone 18 (list-style sublist rows)
+
+Status: Complete; confirmed working by user across transaction types 2026-07-28
+
+Date: 2026-07-28
+
+### Included
+
+- Root cause of the empty Item Fulfillment filter menu: some transaction types render sublist data rows as `uir-list-row-tr` (odd/even) instead of `uir-machine-row` — evidenced by a live 16-row fulfillment the shared row predicate matched zero rows on, silently disabling values, sorting, filtering and hiding for those types. The predicate now accepts both row families via one shared `isDataRow` (used by filters, distinct values, sorting and hiding) and an exported `DATA_ROW_SELECTOR` for the runtime's status counts.
+
+### Verification
+
+- Full `npm test`: 186 passing tests including new list-row coverage (distinct values, filter, sort, hide on `uir-list-row-tr` rows), 28 screenshot baselines at 0.000 percent difference.
+- User-confirmed working on live NetSuite across transaction types.

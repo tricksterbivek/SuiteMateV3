@@ -264,7 +264,7 @@
       return;
     }
     const table = document.querySelector(TABLE_SELECTOR);
-    const rows = table ? Array.from(table.querySelectorAll("tr.uir-machine-row")) : [];
+    const rows = table ? Array.from(table.querySelectorAll(core.DATA_ROW_SELECTOR)) : [];
     const shown = rows.filter((row) => !row.classList.contains(core.CLASSES.filtered)).length;
     openMenu.status.textContent = shown === rows.length
       ? `${rows.length} items`

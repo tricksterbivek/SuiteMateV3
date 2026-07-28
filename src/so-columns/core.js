@@ -14,7 +14,10 @@
   const NATIVE_INDEX_ATTRIBUTE = "data-suitemate-v3-native-index";
   const NATIVE_ROW_ATTRIBUTE = "data-suitemate-v3-native-row";
   const SORTABLE_ATTRIBUTE = "data-suitemate-v3-so-columns-sortable";
-  const DATA_ROW_CLASS = "uir-machine-row";
+  // Transaction sublists render data rows as uir-machine-row (e.g. Sales
+  // Orders) or uir-list-row-tr (e.g. Item Fulfillments).
+  const DATA_ROW_CLASSES = Object.freeze(["uir-machine-row", "uir-list-row-tr"]);
+  const DATA_ROW_SELECTOR = "tr.uir-machine-row, tr.uir-list-row-tr";
   const FOREIGN_NODE_SELECTOR = "[data-suitemate-v3-internal-id], [data-suitemate-v3-so-columns]";
   const CLASSES = Object.freeze({
     controls: "suitemate-v3-so-columns-controls",
@@ -377,9 +380,7 @@
       const headerRow = table?.querySelector?.(HEADER_ROW_SELECTOR);
       const headerCount = headerRow?.cells?.length ?? 0;
       const all = Array.from(table?.rows ?? []);
-      const dataRows = all.filter((row) => String(row?.className ?? "").includes(DATA_ROW_CLASS)
-        && !String(row.className).includes("uir-machine-headerrow")
-        && row.cells?.length === headerCount);
+      const dataRows = all.filter((row) => isDataRow(row, headerCount));
       if (dataRows.length < 2 || typeof dataRows[0]?.getAttribute !== "function") {
         return false;
       }
@@ -442,8 +443,9 @@
   }
 
   function isDataRow(row, headerCount) {
-    return String(row?.className ?? "").includes(DATA_ROW_CLASS)
-      && !String(row.className).includes("uir-machine-headerrow")
+    const name = String(row?.className ?? "");
+    return !name.includes("uir-machine-headerrow")
+      && DATA_ROW_CLASSES.some((cls) => name.includes(cls))
       && row.cells?.length === headerCount;
   }
 
@@ -608,6 +610,7 @@
       MAX_LABEL_LENGTH,
       MAX_LABELS,
       HEADER_ROW_SELECTOR,
+      DATA_ROW_SELECTOR,
       DATA_ATTRIBUTE,
       CLASSES,
       NATIVE_INDEX_ATTRIBUTE,

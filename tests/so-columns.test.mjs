@@ -374,7 +374,7 @@ test("applyOrder fails closed without mutating on mismatched targets", () => {
   assert.deepEqual(rowLabels(table.rows[1]), ["SKU", "2"]);
 });
 
-function createSortableTable(headerLabels, dataRowsValues, trailing = []) {
+function createSortableTable(headerLabels, dataRowsValues, trailing = [], rowClass = "uir-machine-row") {
   const rows = [];
   const parent = {
     insertBefore(row, anchor) {
@@ -419,7 +419,7 @@ function createSortableTable(headerLabels, dataRowsValues, trailing = []) {
     return row;
   };
   const header = makeRow(headerLabels, "uir-machine-headerrow");
-  const dataRows = dataRowsValues.map((values) => makeRow(values, "uir-machine-row"));
+  const dataRows = dataRowsValues.map((values) => makeRow(values, rowClass));
   const trailingRows = trailing.map((values) => makeRow(values, "uir-machine-summaryrow"));
   return {
     table: {
@@ -559,6 +559,27 @@ test("distinctColumnValues lists unique values and respects the cap", () => {
   assert.deepEqual(plain(core.distinctColumnValues(table, 0, 20)), ["Melbourne", "Sydney"]);
   assert.deepEqual(plain(core.distinctColumnValues(table, 0, 1)), []);
   assert.deepEqual(plain(core.distinctColumnValues(null, 0, 5)), []);
+});
+
+test("list-style rows (Item Fulfillment) sort, filter, hide and list values", () => {
+  const core = createApi();
+  const { table, rows, dataRows } = createSortableTable(
+    ["Item", "Location"],
+    [["MCW200", "Sydney"], ["MCW100", "Melbourne"], ["ABC300", "Sydney"]],
+    [],
+    "uir-list-row-tr uir-list-row-odd"
+  );
+  assert.deepEqual(plain(core.distinctColumnValues(table, 1, 20)), ["Melbourne", "Sydney"]);
+
+  assert.equal(core.applyFilters(table, [null, { anyOf: ["Sydney"] }]), true);
+  assert.deepEqual(dataRows.map((row) => row.classList.contains("suitemate-v3-so-columns-filtered")), [false, true, false]);
+  core.applyFilters(table, [null, null]);
+
+  assert.equal(core.sortRows(table, 0, "asc"), true);
+  assert.deepEqual(rows.slice(1).map((row) => row.cells[0].textContent), ["ABC300", "MCW100", "MCW200"]);
+
+  assert.equal(core.applyHidden(table, ["Location"]), true);
+  assert.equal(dataRows[0].cells[1].classList.contains("suitemate-v3-so-columns-col-hidden"), true);
 });
 
 test("core has no DOM, storage, bridge or network authority", () => {
