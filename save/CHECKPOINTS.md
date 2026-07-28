@@ -1008,3 +1008,10 @@ Date: 2026-07-28
 
 - Full `npm test` after every step group: 186 passing tests, 28 screenshot baselines at 0.000 percent difference throughout.
 - Final browser gate over every feature: drag reorder + persistence, hide/show with ghost and chip, resize with fixed-layout flip and stored widths, sorting asc with empties last and clear-sort, menu search narrowing only the value list with rows pinned, checkbox styling byte-identical after the CSS selector removal, multi-select with live status, Escape close, full Reset with empty storage.
+
+### Milestone 19 live verification of the refactored build (2026-07-28, v3.18.1 loaded)
+
+- Sales Order (45 columns): menu values, pixel-level search narrowing with rows pinned, sort asc + clear — all identical.
+- Item Fulfillment (16 list-style rows): the filter menu lists all 16 values natively with narrowing and pinned rows — the list-row fix confirmed on the shipped build.
+- Purchase Order: full destructive cycle — drag reorder, hide, edge-drag resize (146px + fixed layout), Reset restoring everything with clean storage. An initial composite-probe resize miss was diagnosed as a stale-rect test artifact; isolated verification passed.
+- User's real saved layouts untouched (destructive checks confined to an empty-scope record). Zero JavaScript errors.
