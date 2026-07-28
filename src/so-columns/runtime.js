@@ -472,28 +472,38 @@
     core.applyWidths(table, Object.keys(columnWidths).length ? columnWidths : null);
   }
 
-  async function saveWidths() {
-    try {
-      if (!scopeKey) {
-        return;
-      }
-      const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
-      const next = core.withWidths(
-        stored[core.STORAGE_KEY],
-        scopeKey,
-        Object.keys(columnWidths).length ? columnWidths : null
-      );
-      if (!next) {
+  function saveWidths() {
+    return enqueueSave(async () => {
+      try {
+        if (!scopeKey) {
+          return;
+        }
+        const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
+        const next = core.withWidths(
+          stored[core.STORAGE_KEY],
+          scopeKey,
+          Object.keys(columnWidths).length ? columnWidths : null
+        );
+        if (!next) {
+          showToast("Column widths could not be saved.", "warning");
+          return;
+        }
+        await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
+      } catch {
         showToast("Column widths could not be saved.", "warning");
-        return;
       }
-      await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
-    } catch {
-      showToast("Column widths could not be saved.", "warning");
-    }
+    });
   }
 
   // ===== Sort and filter persistence =====
+  // Storage writes are read-modify-write pairs; two in flight can clobber
+  // each other's fields. One queue serializes every save.
+  let saveQueue = Promise.resolve();
+  function enqueueSave(operation) {
+    saveQueue = saveQueue.then(operation, operation);
+    return saveQueue;
+  }
+
   function serializeFilters(table) {
     const filters = {};
     for (const cell of headerCells(table)) {
@@ -512,25 +522,28 @@
     return Object.keys(filters).length ? filters : null;
   }
 
-  async function saveSort() {
-    try {
-      if (!scopeKey) {
-        return;
-      }
-      const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
-      const sort = sortCell && sortDirection ? { label: cellLabel(sortCell), dir: sortDirection } : null;
-      const next = core.withSort(stored[core.STORAGE_KEY], scopeKey, sort?.label ? sort : null);
-      if (!next) {
+  function saveSort() {
+    return enqueueSave(async () => {
+      try {
+        if (!scopeKey) {
+          return;
+        }
+        const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
+        const sort = sortCell && sortDirection ? { label: cellLabel(sortCell), dir: sortDirection } : null;
+        const next = core.withSort(stored[core.STORAGE_KEY], scopeKey, sort?.label ? sort : null);
+        if (!next) {
+          showToast("Sort preference could not be saved.", "warning");
+          return;
+        }
+        await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
+      } catch {
         showToast("Sort preference could not be saved.", "warning");
-        return;
       }
-      await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
-    } catch {
-      showToast("Sort preference could not be saved.", "warning");
-    }
+    });
   }
 
-  async function saveFilters() {
+  function saveFilters() {
+    return enqueueSave(async () => {
     try {
       if (!scopeKey) {
         return;
@@ -552,6 +565,7 @@
     } catch {
       showToast("Filters could not be saved.", "warning");
     }
+    });
   }
 
   function scheduleFiltersSave() {
@@ -648,21 +662,23 @@
   }
 
   // ===== Hide and show columns =====
-  async function saveHidden() {
-    try {
-      if (!scopeKey) {
-        return;
-      }
-      const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
-      const next = core.withHidden(stored[core.STORAGE_KEY], scopeKey, Array.from(hiddenLabels));
-      if (!next) {
+  function saveHidden() {
+    return enqueueSave(async () => {
+      try {
+        if (!scopeKey) {
+          return;
+        }
+        const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
+        const next = core.withHidden(stored[core.STORAGE_KEY], scopeKey, Array.from(hiddenLabels));
+        if (!next) {
+          showToast("Column visibility could not be saved.", "warning");
+          return;
+        }
+        await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
+      } catch {
         showToast("Column visibility could not be saved.", "warning");
-        return;
       }
-      await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
-    } catch {
-      showToast("Column visibility could not be saved.", "warning");
-    }
+    });
   }
 
   function renderHiddenChips() {
@@ -701,22 +717,24 @@
   }
 
   // ===== Order persistence =====
-  async function saveOrder(labels, message) {
-    try {
-      if (!scopeKey) {
-        return;
-      }
-      const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
-      const next = core.withOrder(stored[core.STORAGE_KEY], scopeKey, labels);
-      if (!next) {
+  function saveOrder(labels, message) {
+    return enqueueSave(async () => {
+      try {
+        if (!scopeKey) {
+          return;
+        }
+        const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
+        const next = core.withOrder(stored[core.STORAGE_KEY], scopeKey, labels);
+        if (!next) {
+          showToast("Column order could not be saved.", "warning");
+          return;
+        }
+        await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
+        showToast(message, "success");
+      } catch {
         showToast("Column order could not be saved.", "warning");
-        return;
       }
-      await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
-      showToast(message, "success");
-    } catch {
-      showToast("Column order could not be saved.", "warning");
-    }
+    });
   }
 
   function handleDragStart(event) {
@@ -954,6 +972,32 @@
       core.applyHidden(table, Array.from(hiddenLabels));
       columnWidths = { ...(entry?.widths ?? {}) };
       applyCurrentWidths(table);
+      const findCell = (label) => headerCells(table).find((cell) => cellLabel(cell) === label) ?? null;
+      if (entry?.sort) {
+        const sortTarget = findCell(entry.sort.label);
+        if (sortTarget) {
+          setSortDirection(table, sortTarget, entry.sort.dir);
+        }
+      }
+      if (entry?.filters) {
+        let restored = false;
+        for (const [label, filter] of Object.entries(entry.filters)) {
+          const cell = findCell(label);
+          if (!cell) {
+            continue;
+          }
+          const state = filterState(cell);
+          state.queryText = filter.q ?? "";
+          state.selected = new Set(filter.anyOf ?? []);
+          // Not stored: a property of current column cardinality (spec §2).
+          state.textAsRowFilter = Boolean(filter.q)
+            && !core.distinctColumnValues(table, cell.cellIndex, 200).length;
+          restored = true;
+        }
+        if (restored) {
+          applyColumnFilters(table);
+        }
+      }
       renderHiddenChips();
       return !signal.aborted && isCurrent();
     } catch {
