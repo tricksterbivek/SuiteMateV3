@@ -50,6 +50,9 @@
   let sortCell = null;
   let sortDirection = null;
   let hiddenLabels = new Set();
+  let columnWidths = {};
+  let resizing = null;
+  const RESIZE_EDGE_PX = 5;
 
   function showToast(message, type) {
     globalThis.SuiteMateV3Notifications?.showToast(message, { type });
@@ -452,6 +455,106 @@
     }
   }
 
+  function applyCurrentWidths(table) {
+    core.applyWidths(table, Object.keys(columnWidths).length ? columnWidths : null);
+  }
+
+  async function saveWidths() {
+    try {
+      if (!scopeKey) {
+        return;
+      }
+      const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
+      const next = core.withWidths(
+        stored[core.STORAGE_KEY],
+        scopeKey,
+        Object.keys(columnWidths).length ? columnWidths : null
+      );
+      if (!next) {
+        showToast("Column widths could not be saved.", "warning");
+        return;
+      }
+      await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
+    } catch {
+      showToast("Column widths could not be saved.", "warning");
+    }
+  }
+
+  function resizeEdgeCell(table, event) {
+    for (const cell of headerCells(table)) {
+      if (cell.classList.contains(core.CLASSES.colHidden)) {
+        continue;
+      }
+      const rect = cell.getBoundingClientRect();
+      if (Math.abs(event.clientX - rect.right) <= RESIZE_EDGE_PX
+        && event.clientY >= rect.top && event.clientY <= rect.bottom) {
+        return cell;
+      }
+    }
+    return null;
+  }
+
+  function handleResizeHover(event) {
+    try {
+      if (personalizing || resizing) {
+        return;
+      }
+      const table = event.currentTarget;
+      const edgeCell = resizeEdgeCell(table, event);
+      for (const cell of headerCells(table)) {
+        cell.classList.toggle("suitemate-v3-so-columns-resize-edge", cell === edgeCell);
+      }
+    } catch {}
+  }
+
+  function handleResizeMove(event) {
+    try {
+      if (!resizing) {
+        return;
+      }
+      const width = Math.min(
+        core.MAX_COLUMN_WIDTH,
+        Math.max(core.MIN_COLUMN_WIDTH, Math.round(resizing.startWidth + event.clientX - resizing.startX))
+      );
+      columnWidths = { ...columnWidths, [resizing.label]: width };
+      core.applyWidths(resizing.table, columnWidths);
+    } catch {}
+  }
+
+  function handleResizeUp() {
+    if (!resizing) {
+      return;
+    }
+    resizing = null;
+    document.body.classList.remove("suitemate-v3-so-columns-resizing");
+    document.removeEventListener("pointermove", handleResizeMove, true);
+    document.removeEventListener("pointerup", handleResizeUp, true);
+    saveWidths();
+  }
+
+  function handleResizeDown(event) {
+    try {
+      if (personalizing || event.button !== 0) {
+        return;
+      }
+      const table = event.currentTarget;
+      const cell = resizeEdgeCell(table, event);
+      const label = cell ? cellLabel(cell) : "";
+      if (!cell || !label) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      closeColumnMenu();
+      resizing = { table, label, startX: event.clientX, startWidth: cell.getBoundingClientRect().width };
+      document.body.classList.add("suitemate-v3-so-columns-resizing");
+      document.addEventListener("pointermove", handleResizeMove, true);
+      document.addEventListener("pointerup", handleResizeUp, true);
+    } catch {
+      handleResizeUp();
+    }
+  }
+
   async function saveHidden() {
     try {
       if (!scopeKey) {
@@ -499,6 +602,7 @@
       hiddenLabels.delete(label);
     }
     core.applyHidden(table, Array.from(hiddenLabels));
+    applyCurrentWidths(table);
     renderHiddenChips();
     saveHidden();
   }
@@ -672,6 +776,8 @@
       clearAllFilters(table);
       hiddenLabels = new Set();
       core.applyHidden(table, []);
+      columnWidths = {};
+      core.applyWidths(table, null);
       saveOrder(null, "Column layout reset.");
       exitPersonalize();
     } catch {}
@@ -735,6 +841,8 @@
       ensureControls(table);
       if (!table.hasAttribute(core.SORTABLE_ATTRIBUTE)) {
         table.setAttribute(core.SORTABLE_ATTRIBUTE, "");
+        table.addEventListener("pointermove", handleResizeHover);
+        table.addEventListener("pointerdown", handleResizeDown);
       }
       ensureHeaderMenus(table);
       const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
@@ -747,6 +855,8 @@
       }
       hiddenLabels = new Set(entry?.hidden ?? []);
       core.applyHidden(table, Array.from(hiddenLabels));
+      columnWidths = { ...(entry?.widths ?? {}) };
+      applyCurrentWidths(table);
       renderHiddenChips();
       return !signal.aborted && isCurrent();
     } catch {
@@ -763,6 +873,14 @@
       unhideAllRows(table);
       core.applyHidden(table, []);
       hiddenLabels = new Set();
+      handleResizeUp();
+      core.applyWidths(table, null);
+      columnWidths = {};
+      if (table) {
+        table.removeEventListener("pointermove", handleResizeHover);
+        table.removeEventListener("pointerdown", handleResizeDown);
+        headerCells(table).forEach((cell) => cell.classList.remove("suitemate-v3-so-columns-resize-edge"));
+      }
       table?.removeAttribute?.(core.SORTABLE_ATTRIBUTE);
       if (table && nativeLabels) {
         core.applyOrder(table, nativeLabels);

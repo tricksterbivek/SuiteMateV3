@@ -7,6 +7,8 @@
   const MAX_SYNC_ITEM_BYTES = 7800;
   const MAX_LABEL_LENGTH = 200;
   const MAX_LABELS = 100;
+  const MIN_COLUMN_WIDTH = 30;
+  const MAX_COLUMN_WIDTH = 1000;
   const HEADER_ROW_SELECTOR = "tr.uir-machine-headerrow";
   const DATA_ATTRIBUTE = "data-suitemate-v3-so-columns";
   const NATIVE_INDEX_ATTRIBUTE = "data-suitemate-v3-native-index";
@@ -60,6 +62,24 @@
     return labels;
   }
 
+  function normalizeWidths(value) {
+    if (!isPlainObject(value)) {
+      return null;
+    }
+    const widths = {};
+    for (const [label, width] of Object.entries(value)) {
+      if (!label || label.length > MAX_LABEL_LENGTH || ["__proto__", "constructor", "prototype"].includes(label)) {
+        continue;
+      }
+      const pixels = Number(width);
+      if (!Number.isFinite(pixels)) {
+        continue;
+      }
+      widths[label] = Math.round(Math.min(MAX_COLUMN_WIDTH, Math.max(MIN_COLUMN_WIDTH, pixels)));
+    }
+    return Object.keys(widths).length && Object.keys(widths).length <= MAX_LABELS ? widths : null;
+  }
+
   function normalizeEntry(value) {
     // Schema v1 entries were bare label arrays (column order only).
     const candidate = Array.isArray(value) ? { order: value } : value;
@@ -68,10 +88,15 @@
     }
     const order = normalizeLabels(candidate.order);
     const hidden = normalizeLabels(candidate.hidden);
-    if (!order && !hidden) {
+    const widths = normalizeWidths(candidate.widths);
+    if (!order && !hidden && !widths) {
       return null;
     }
-    return { ...(order ? { order } : {}), ...(hidden ? { hidden } : {}) };
+    return {
+      ...(order ? { order } : {}),
+      ...(hidden ? { hidden } : {}),
+      ...(widths ? { widths } : {})
+    };
   }
 
   function normalizeStored(value) {
@@ -153,12 +178,84 @@
       }
       entry.hidden = hidden;
     }
-    if (!entry.order && !entry.hidden) {
+    if (!entry.order && !entry.hidden && !entry.widths) {
       delete next.orders[key];
     } else {
       next.orders[key] = entry;
     }
     return evictOverQuota(next, key);
+  }
+
+  function withWidths(stored, scopeKey, widths) {
+    if (refusesNewerSchema(stored)) {
+      return null;
+    }
+    const next = normalizeStored(stored);
+    const key = normalizeScopeKey(scopeKey);
+    if (!key) {
+      return null;
+    }
+    const entry = { ...(next.orders[key] ?? {}) };
+    if (!widths || !Object.keys(widths).length) {
+      delete entry.widths;
+    } else {
+      const normalized = normalizeWidths(widths);
+      if (!normalized) {
+        return null;
+      }
+      entry.widths = normalized;
+    }
+    if (!entry.order && !entry.hidden && !entry.widths) {
+      delete next.orders[key];
+    } else {
+      next.orders[key] = entry;
+    }
+    return evictOverQuota(next, key);
+  }
+
+  function applyWidths(table, widths) {
+    try {
+      const headerRow = table?.querySelector?.(HEADER_ROW_SELECTOR);
+      if (!headerRow?.cells) {
+        return false;
+      }
+      const cells = Array.from(headerRow.cells);
+      const active = widths && Object.keys(widths).length > 0;
+      if (!active) {
+        for (const cell of cells) {
+          if (cell.style) {
+            cell.style.width = "";
+          }
+        }
+        if (table.style) {
+          table.style.tableLayout = "";
+          table.style.width = "";
+        }
+        return true;
+      }
+      // Freeze every visible column (stored width or current rendered width)
+      // so flipping to table-layout: fixed is pixel-identical, then the
+      // resized column obeys exactly; body cells follow the header row.
+      let total = 0;
+      for (const cell of cells) {
+        if (cell.classList?.contains?.(CLASSES.colHidden)) {
+          continue;
+        }
+        const label = readCellLabel(cell);
+        const target = Math.round(widths[label] ?? cell.getBoundingClientRect?.().width ?? 0);
+        if (target > 0 && cell.style) {
+          cell.style.width = `${target}px`;
+          total += target;
+        }
+      }
+      if (table.style) {
+        table.style.tableLayout = "fixed";
+        table.style.width = total > 0 ? `${total}px` : "";
+      }
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function applyHidden(table, hiddenLabels) {
@@ -531,7 +628,11 @@
       normalizeStored,
       withOrder,
       withHidden,
-      applyHidden
+      withWidths,
+      applyHidden,
+      applyWidths,
+      MIN_COLUMN_WIDTH,
+      MAX_COLUMN_WIDTH
     }),
     configurable: false,
     enumerable: true,

@@ -21,6 +21,20 @@
     display: none
 }
 
+#item_splits[data-suitemate-v3-so-columns-sortable] tr.uir-machine-headerrow td {
+    box-sizing: border-box
+}
+
+.suitemate-v3-so-columns-resize-edge {
+    cursor: col-resize !important
+}
+
+body.suitemate-v3-so-columns-resizing,
+body.suitemate-v3-so-columns-resizing * {
+    cursor: col-resize !important;
+    user-select: none !important
+}
+
 .suitemate-v3-so-columns-personalizing .suitemate-v3-so-columns-col-hidden {
     display: table-cell;
     opacity: .35

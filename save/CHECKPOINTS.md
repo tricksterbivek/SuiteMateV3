@@ -888,3 +888,20 @@ Date: 2026-07-28
 
 - Production Sales Order (45 columns): "Hide column" removed Committed across header and rows (45 -> 44 visible); the hidden state survived a full page reload (schema-v2 sync storage round-trip); personalize mode showed the 35%-opacity ghost and the "Committed" restore chip; chip click restored all 45 columns and the restore itself persisted through a final reload with clean storage.
 - Zero JavaScript errors.
+
+## Transaction Column Personalization: Milestone 13 (column width adjustment)
+
+Status: Automated + browser verification complete; live NetSuite retest pending
+
+Date: 2026-07-28
+
+### Included
+
+- Excel-style edge-drag resizing in normal mode: pointer edge-detection within 5px of a header cell's right boundary (col-resize cursor, no handle elements, no positioning on NetSuite cells), live width updates while dragging, 30-1000px clamp, resize disabled during personalize mode so the two drags never conflict.
+- Seamless fixed-layout flip: on first resize every visible column is frozen at its current rendered width before switching the table to `table-layout: fixed` (pixel-identical at the flip), after which resized columns obey exactly and can shrink below natural content width; border-box sizing on header cells makes drag deltas pixel-exact; clearing widths restores native auto layout.
+- Persistence: widths join the schema-v2 entry as `{order?, hidden?, widths?}` keyed by label (no schema bump needed pre-release); widths ride on header cells through drag reordering, survive hide/show re-application, and Reset clears them with the rest of the entry.
+
+### Verification
+
+- Full `npm test`: 185 passing tests (withWidths clamp/merge/clear/hostile-keys, applyWidths freeze/hidden-exclusion/clear), 28 screenshot baselines at 0.000 percent difference.
+- Browser pass: edge-hover cursor class, +60px drag grew the column exactly 60px and -120px shrank it exactly 120px (below content width), v2 widths payload persisted, width traveled with a column drag, Reset cleared styles, layout and storage.

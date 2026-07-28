@@ -181,6 +181,47 @@ test("withHidden stores, clears and preserves order in the same entry", () => {
   assert.equal(core.withHidden({ schemaVersion: 3, orders: {} }, "123:7", ["Item"]), null);
 });
 
+test("withWidths stores clamped widths, merges with the entry and clears", () => {
+  const core = createApi();
+  const base = core.withOrder(undefined, "123:7", ["Item", "Rate"]);
+  const withWidths = core.withWidths(base, "123:7", { Item: 250.6, Rate: 5, Amount: 5000 });
+  assert.deepEqual(plain(withWidths.orders["123:7"]), {
+    order: ["Item", "Rate"],
+    widths: { Item: 251, Rate: 30, Amount: 1000 }
+  });
+
+  const cleared = core.withWidths(withWidths, "123:7", null);
+  assert.deepEqual(plain(cleared.orders["123:7"]), { order: ["Item", "Rate"] });
+
+  const widthsOnly = core.withWidths(undefined, "123:8", { Location: 120 });
+  assert.deepEqual(plain(widthsOnly.orders["123:8"]), { widths: { Location: 120 } });
+  assert.deepEqual(Object.keys(core.withWidths(widthsOnly, "123:8", {}).orders), []);
+
+  const hostile = core.withWidths(undefined, "123:9", JSON.parse('{"__proto__":100,"Item":"wide","Rate":90}'));
+  assert.deepEqual(plain(hostile.orders["123:9"]), { widths: { Rate: 90 } });
+  assert.equal(core.withWidths(undefined, "123:9", { Item: "wide" }), null);
+  assert.equal(core.withWidths({ schemaVersion: 3, orders: {} }, "123:7", { Item: 100 }), null);
+});
+
+test("applyWidths freezes visible columns, honors stored widths and clears", () => {
+  const core = createApi();
+  const { table, header } = createSortableTable(["Item", "Rate", "Amount"], [["SKU", "$1", "$2"]]);
+  header.cells[1].classList.toggle("suitemate-v3-so-columns-col-hidden", true);
+
+  assert.equal(core.applyWidths(table, { Item: 200 }), true);
+  assert.equal(header.cells[0].style.width, "200px");
+  assert.equal(header.cells[1].style.width, undefined);
+  assert.equal(header.cells[2].style.width, "80px");
+  assert.equal(table.style.tableLayout, "fixed");
+  assert.equal(table.style.width, "280px");
+
+  assert.equal(core.applyWidths(table, null), true);
+  assert.equal(header.cells[0].style.width, "");
+  assert.equal(table.style.tableLayout, "");
+  assert.equal(table.style.width, "");
+  assert.equal(core.applyWidths(null, { Item: 100 }), false);
+});
+
 test("applyHidden hides matching columns in every aligned row and unhides", () => {
   const core = createApi();
   const { table, rows, trailingRows } = createSortableTable(
@@ -352,6 +393,8 @@ function createSortableTable(headerLabels, dataRowsValues, trailing = []) {
         const cellClasses = new Set();
         return {
           textContent: label,
+          style: {},
+          getBoundingClientRect: () => ({ width: 80 }),
           classList: {
             toggle: (name, force) => { if (force) { cellClasses.add(name); } else { cellClasses.delete(name); } },
             contains: (name) => cellClasses.has(name)
@@ -381,9 +424,11 @@ function createSortableTable(headerLabels, dataRowsValues, trailing = []) {
   return {
     table: {
       rows,
+      style: {},
       querySelector: (selector) => (selector.includes("uir-machine-headerrow") ? header : null)
     },
     rows,
+    header,
     dataRows,
     trailingRows
   };
