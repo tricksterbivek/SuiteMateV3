@@ -992,3 +992,19 @@ Date: 2026-07-28
 
 - Full `npm test`: 186 passing tests including new list-row coverage (distinct values, filter, sort, hide on `uir-list-row-tr` rows), 28 screenshot baselines at 0.000 percent difference.
 - User-confirmed working on live NetSuite across transaction types.
+
+## Transaction Column Personalization: Milestone 19 (zero-behavior-change refactor)
+
+Status: Complete; all seven approved steps applied and verified 2026-07-28
+
+Date: 2026-07-28
+
+### Included
+
+- Applied the owner-approved refactor plan (8 screened candidates in 7 steps, ~53 LoC): deleted two dead module variables; hoisted headerCells() in the pointermove/filter hot paths; single-read of the sorted column's labels in sortRows; comment-only section banners in both files (no code moved, banner text constrained to the test suite's source-scan rules); a readCellLabel fast path that skips clone-and-strip when a cell provably contains no injected nodes; one shared cleanNumber helper replacing four hand-copied numeric-clean expressions; one provably subsumed CSS selector removed.
+- Ponytail debt ledger: 4 markers in core.js (quota single-entry eviction, day-first dates, non-contiguous-row sort refusal, partial-stamp restamp) — 3 without upgrade triggers, recorded for future milestone decisions.
+
+### Verification
+
+- Full `npm test` after every step group: 186 passing tests, 28 screenshot baselines at 0.000 percent difference throughout.
+- Final browser gate over every feature: drag reorder + persistence, hide/show with ghost and chip, resize with fixed-layout flip and stored widths, sorting asc with empties last and clear-sort, menu search narrowing only the value list with rows pinned, checkbox styling byte-identical after the CSS selector removal, multi-select with live status, Escape close, full Reset with empty storage.

@@ -33,6 +33,7 @@
     return;
   }
 
+  // ===== Storage schema: validation, normalization and writers =====
   function isPlainObject(value) {
     return Boolean(
       value
@@ -216,6 +217,7 @@
     return evictOverQuota(next, key);
   }
 
+  // ===== Table cells: widths and visibility (DOM layer) =====
   function applyWidths(table, widths) {
     try {
       const headerRow = table?.querySelector?.(HEADER_ROW_SELECTOR);
@@ -282,6 +284,7 @@
     }
   }
 
+  // ===== Order planning by label =====
   function planOrder(nativeLabels, savedLabels) {
     const native = Array.isArray(nativeLabels)
       ? nativeLabels.map((label) => typeof label === "string" ? label : "")
@@ -312,8 +315,12 @@
     return target;
   }
 
+  // ===== Label reads: foreign injected nodes excluded =====
   function readCellLabel(cell) {
     try {
+      if (typeof cell?.querySelector === "function" && !cell.querySelector(FOREIGN_NODE_SELECTOR)) {
+        return String(cell.textContent ?? "").trim();
+      }
       const clone = cell?.cloneNode?.(true);
       if (clone?.querySelectorAll) {
         // Internal IDs (and any future SuiteMate feature) may inject badge nodes
@@ -335,7 +342,13 @@
     return Array.from(headerRow.cells, readCellLabel);
   }
 
+  // ===== Sorting: value parsing, kind detection, row ordering =====
   const DATE_PATTERN = /^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$/;
+  const NUMERIC_NOISE_PATTERN = /[$,%\s]/g;
+
+  function cleanNumber(text) {
+    return Number(text.replace(NUMERIC_NOISE_PATTERN, ""));
+  }
 
   function parseSortValue(text, kind) {
     const raw = String(text ?? "").trim();
@@ -343,7 +356,7 @@
       return { empty: true, value: 0 };
     }
     if (kind === "number") {
-      const value = Number(raw.replace(/[$,%\s]/g, ""));
+      const value = cleanNumber(raw);
       return Number.isFinite(value) ? { empty: false, value } : { empty: true, value: 0 };
     }
     if (kind === "date") {
@@ -364,7 +377,7 @@
     if (!raw.length) {
       return "text";
     }
-    const numbers = raw.filter((value) => /\d/.test(value) && Number.isFinite(Number(value.replace(/[$,%\s]/g, "")))).length;
+    const numbers = raw.filter((value) => /\d/.test(value) && Number.isFinite(cleanNumber(value))).length;
     const dates = raw.filter((value) => DATE_PATTERN.test(value)).length;
     if (dates >= raw.length * 0.6) {
       return "date";
@@ -408,12 +421,13 @@
         if (!Number.isInteger(columnIndex) || columnIndex < 0 || columnIndex >= headerCount) {
           return false;
         }
-        const kind = detectColumnKind(dataRows.map((row) => readCellLabel(row.cells[columnIndex])));
+        const labels = dataRows.map((row) => readCellLabel(row.cells[columnIndex]));
+        const kind = detectColumnKind(labels);
         const sign = direction === "desc" ? -1 : 1;
         ordered = dataRows
           .map((row, index) => ({
             row,
-            key: parseSortValue(readCellLabel(row.cells[columnIndex]), kind),
+            key: parseSortValue(labels[index], kind),
             tie: stampOf(row, index)
           }))
           .sort((a, b) => {
@@ -442,6 +456,7 @@
     }
   }
 
+  // ===== Filtering: row matching, queries, distinct values =====
   function isDataRow(row, headerCount) {
     const name = String(row?.className ?? "");
     return !name.includes("uir-machine-headerrow")
@@ -456,7 +471,7 @@
     }
     const match = /^(>=|<=|>|<|=)\s*(.+)$/.exec(text);
     if (match) {
-      const value = Number(match[2].replace(/[$,%\s]/g, ""));
+      const value = cleanNumber(match[2]);
       if (Number.isFinite(value)) {
         return { op: match[1], value };
       }
@@ -478,7 +493,7 @@
     if (query.op === "contains") {
       return raw.toLowerCase().includes(query.value);
     }
-    const value = Number(raw.replace(/[$,%\s]/g, ""));
+    const value = cleanNumber(raw);
     if (!Number.isFinite(value)) {
       return false;
     }
@@ -538,6 +553,7 @@
     }
   }
 
+  // ===== Native order capture and column apply =====
   function captureNativeOrder(table) {
     try {
       const headerRow = table?.querySelector?.(HEADER_ROW_SELECTOR);
@@ -601,6 +617,7 @@
     }
   }
 
+  // ===== Frozen export surface =====
   Object.defineProperty(globalScope, "SuiteMateV3SoColumnsCore", {
     value: Object.freeze({
       VERSION,

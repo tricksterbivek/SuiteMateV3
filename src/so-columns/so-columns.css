@@ -328,7 +328,6 @@ html.isDarkMode [data-suitemate-v3-so-columns="mode-hint"] {
     text-overflow: ellipsis
 }
 
-[data-suitemate-v3-so-columns="menu-values"] input,
 [data-suitemate-v3-so-columns="column-menu"] input[type="checkbox"] {
     margin: 0;
     accent-color: var(--theme-main, #607799)

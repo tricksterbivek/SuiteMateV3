@@ -39,8 +39,6 @@
   let settingsRevision = 0;
   let scopeKey = null;
   let nativeLabels = null;
-  let capturedScope = null;
-  let savePending = false;
   let controlButtons = null;
   let personalizing = false;
   let activeTable = null;
@@ -58,6 +56,7 @@
     globalThis.SuiteMateV3Notifications?.showToast(message, { type });
   }
 
+  // ===== Scope and record identity =====
   function recordType() {
     const match = /\/([a-z0-9_]+)\.nl$/i.exec(location.pathname);
     return (match?.[1] ?? "record").toLowerCase();
@@ -85,6 +84,7 @@
     return `${location.hostname}:${type}`;
   }
 
+  // ===== Header helpers and drag personalization =====
   function headerCells(table) {
     return Array.from(table?.querySelector?.(core.HEADER_ROW_SELECTOR)?.cells ?? []);
   }
@@ -138,6 +138,7 @@
     return next;
   }
 
+  // ===== Sorting state and indicators =====
   function clearSortIndicators() {
     document.querySelectorAll(`[${core.DATA_ATTRIBUTE}="sort-indicator"]`).forEach((node) => node.remove());
   }
@@ -151,6 +152,7 @@
     sortDirection = null;
   }
 
+  // ===== Column menu, search and filters =====
   const columnFilters = new WeakMap();
   let openMenu = null;
 
@@ -185,8 +187,9 @@
   }
 
   function applyColumnFilters(table) {
-    core.applyFilters(table, headerCells(table).map((cell) => columnQuery(columnFilters.get(cell))));
-    for (const cell of headerCells(table)) {
+    const cells = headerCells(table);
+    core.applyFilters(table, cells.map((cell) => columnQuery(columnFilters.get(cell))));
+    for (const cell of cells) {
       updateArrowState(cell);
     }
     updateMenuStatus();
@@ -455,6 +458,7 @@
     }
   }
 
+  // ===== Width persistence and edge resizing =====
   function applyCurrentWidths(table) {
     core.applyWidths(table, Object.keys(columnWidths).length ? columnWidths : null);
   }
@@ -480,8 +484,8 @@
     }
   }
 
-  function resizeEdgeCell(table, event) {
-    for (const cell of headerCells(table)) {
+  function resizeEdgeCell(cells, event) {
+    for (const cell of cells) {
       if (cell.classList.contains(core.CLASSES.colHidden)) {
         continue;
       }
@@ -500,8 +504,9 @@
         return;
       }
       const table = event.currentTarget;
-      const edgeCell = resizeEdgeCell(table, event);
-      for (const cell of headerCells(table)) {
+      const cells = headerCells(table);
+      const edgeCell = resizeEdgeCell(cells, event);
+      for (const cell of cells) {
         cell.classList.toggle("suitemate-v3-so-columns-resize-edge", cell === edgeCell);
       }
     } catch {}
@@ -538,7 +543,7 @@
         return;
       }
       const table = event.currentTarget;
-      const cell = resizeEdgeCell(table, event);
+      const cell = resizeEdgeCell(headerCells(table), event);
       const label = cell ? cellLabel(cell) : "";
       if (!cell || !label) {
         return;
@@ -563,6 +568,7 @@
     }
   }
 
+  // ===== Hide and show columns =====
   async function saveHidden() {
     try {
       if (!scopeKey) {
@@ -615,6 +621,7 @@
     saveHidden();
   }
 
+  // ===== Order persistence =====
   async function saveOrder(labels, message) {
     try {
       if (!scopeKey) {
@@ -703,6 +710,7 @@
     clearDragState();
   }
 
+  // ===== Personalize mode and controls =====
   function enterPersonalize(table) {
     if (personalizing || !table) {
       return;
@@ -827,6 +835,7 @@
     updateControls();
   }
 
+  // ===== Lifecycle and settings wiring =====
   async function installSoColumns({ signal, isCurrent }) {
     try {
       if (signal.aborted || !isCurrent()) {
