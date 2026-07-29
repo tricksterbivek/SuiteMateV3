@@ -1097,3 +1097,4 @@ Spec: `docs/superpowers/specs/2026-07-28-export-view-csv-design.md` · Built via
 ### Verification
 
 - Full `npm test`: 197 passing; 28 screenshot baselines untouched at 0.000 percent.
+- Owner confirmed the v3.19.1 build working live after reload (2026-07-29).
