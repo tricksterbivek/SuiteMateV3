@@ -48,13 +48,15 @@ assert.deepEqual(globalThemeContentScript.js, [
   "src/internal-ids/core.js",
   "src/csv-export/core.js",
   "src/so-columns/core.js",
+  "src/tab-title/core.js",
   "src/runtime/theme-runtime.js",
   "src/runtime/notification-runtime.js",
   "src/record-actions/core.js",
   "src/internal-ids/runtime.js",
   "src/record-actions/csv-import.js",
   "src/csv-export/runtime.js",
-  "src/so-columns/runtime.js"
+  "src/so-columns/runtime.js",
+  "src/tab-title/runtime.js"
 ]);
 assert.equal(
   globalThemeContentScript.js.includes("src/shared/permissions.js"),
@@ -937,20 +939,22 @@ runInNewContext(utilitySource, settingsSandbox);
 runInNewContext(settingsSource, settingsSandbox);
 const settingsApi = settingsSandbox.SuiteMateV3Settings;
 assert.equal(settingsApi.THEME_PREVIEW_MESSAGE, "SUITEMATE_V3_PREVIEW_ROLE_THEME");
-assert.equal(settingsApi.SCHEMA_VERSION, 3);
+assert.equal(settingsApi.SCHEMA_VERSION, 4);
 assert.equal(settingsApi.DEFAULTS.schemaVersion, settingsApi.SCHEMA_VERSION);
 assert.equal(settingsApi.DEFAULTS.squareCorners, false);
 assert.equal(settingsApi.DEFAULTS.showInternalIds, false);
 assert.equal(settingsApi.DEFAULTS.salesOrderColumns, false);
+assert.equal(settingsApi.DEFAULTS.smartTabTitles, false);
 assert.deepEqual(
   JSON.parse(JSON.stringify(settingsApi.validateForStorage({ mode: "dark" }))),
   {
-    schemaVersion: 3,
+    schemaVersion: 4,
     enabled: true,
     mode: "dark",
     squareCorners: false,
     showInternalIds: false,
     salesOrderColumns: false,
+    smartTabTitles: false,
     roleThemes: {}
   }
 );

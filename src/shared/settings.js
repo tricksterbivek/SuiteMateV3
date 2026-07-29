@@ -6,7 +6,7 @@
     return;
   }
   const STORAGE_KEY = "suiteMateV3Style";
-  const SCHEMA_VERSION = 3;
+  const SCHEMA_VERSION = 4;
   const LEGACY_SCHEMA_VERSION = 0;
   const MAX_SYNC_ITEM_BYTES = 7800;
   const INVALID_VERSION_CODE = "INVALID_SETTINGS_VERSION";
@@ -33,6 +33,7 @@
     squareCorners: false,
     showInternalIds: false,
     salesOrderColumns: false,
+    smartTabTitles: false,
     roleThemes: Object.freeze({})
   });
 
@@ -127,6 +128,7 @@
       squareCorners: candidate.squareCorners === true,
       showInternalIds: candidate.showInternalIds === true,
       salesOrderColumns: candidate.salesOrderColumns === true,
+      smartTabTitles: candidate.smartTabTitles === true,
       roleThemes: normalizeRoleThemes(candidate.roleThemes)
     };
   }
@@ -151,6 +153,13 @@
         ...value,
         schemaVersion: 3,
         salesOrderColumns: value.salesOrderColumns === true
+      };
+    },
+    3(value) {
+      return {
+        ...value,
+        schemaVersion: 4,
+        smartTabTitles: value.smartTabTitles === true
       };
     }
   });

@@ -197,6 +197,7 @@ function createPopupDocument() {
   const squareCorners = add("squareCorners", "input");
   const showInternalIds = add("showInternalIds", "input");
   const salesOrderColumns = add("salesOrderColumns", "input");
+  const smartTabTitles = add("smartTabTitles", "input");
   const light = add("mode-light", "input");
   light.value = "light";
   light.checked = true;
@@ -210,6 +211,7 @@ function createPopupDocument() {
     squareCorners,
     showInternalIds,
     salesOrderColumns,
+    smartTabTitles,
     ...modes,
     add("mainColor", "input", ["role-color"]),
     add("secondaryColor", "input", ["role-color"]),
@@ -311,12 +313,13 @@ function clone(value) {
 async function createPopupHarness(options = {}) {
   const dom = createPopupDocument();
   const initialSettings = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     enabled: true,
     mode: "light",
     squareCorners: false,
     showInternalIds: false,
     salesOrderColumns: false,
+    smartTabTitles: false,
     roleThemes: {
       "role-1": {
         name: "Fixture Role",
@@ -528,12 +531,13 @@ test("popup exports, confirms and atomically imports a validated settings backup
   assert.equal(harness.element("status").textContent, "Settings backup copied");
 
   const importedSettings = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     enabled: false,
     mode: "dark",
     squareCorners: true,
     showInternalIds: true,
     salesOrderColumns: true,
+    smartTabTitles: true,
     roleThemes: {
       "role-2": {
         name: "Imported Role",
@@ -591,12 +595,13 @@ test("popup rolls back its in-memory import when Chrome storage rejects the over
   const harness = await createPopupHarness();
   const backupData = harness.element("settingsBackupData");
   backupData.value = harness.transferApi.create({
-    schemaVersion: 3,
+    schemaVersion: 4,
     enabled: false,
     mode: "dark",
     squareCorners: true,
     showInternalIds: true,
     salesOrderColumns: true,
+    smartTabTitles: true,
     roleThemes: {}
   }, { exportedAt: "2026-07-22T01:02:03.456Z" });
   backupData.dispatch("input");

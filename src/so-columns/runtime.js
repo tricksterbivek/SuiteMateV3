@@ -981,7 +981,9 @@
     viewChip.addEventListener("click", clearViewState);
     const done = createButton("Done", "done", handleDoneClick);
     const reset = createButton("Reset", "reset", handleResetClick);
-    controls.append(personalize, hint, hiddenChips, viewChip, done, reset);
+    // Actions before the chip list: the chips are unbounded and wrap onto
+    // extra rows, so Done/Reset must sit on the first row to stay reachable.
+    controls.append(personalize, viewChip, hint, done, reset, hiddenChips);
     controlButtons = { controls, personalize, hint, hiddenChips, viewChip, done, reset };
     (table.closest(CONTAINER_SELECTOR) ?? table).before(controls);
     updateControls();

@@ -59,13 +59,15 @@
         "src/internal-ids/core.js",
         "src/csv-export/core.js",
         "src/so-columns/core.js",
+        "src/tab-title/core.js",
         "src/runtime/theme-runtime.js",
         "src/runtime/notification-runtime.js",
         "src/record-actions/core.js",
         "src/internal-ids/runtime.js",
         "src/record-actions/csv-import.js",
         "src/csv-export/runtime.js",
-        "src/so-columns/runtime.js"
+        "src/so-columns/runtime.js",
+        "src/tab-title/runtime.js"
       ],
       "run_at": "document_start",
       "all_frames": true

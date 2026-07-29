@@ -102,6 +102,7 @@ test("imports a canonical schema 1 backup through the current settings migration
     squareCorners: true,
     showInternalIds: false,
     salesOrderColumns: false,
+    smartTabTitles: false,
     roleThemes: legacySettings.roleThemes
   });
 });
@@ -136,6 +137,7 @@ test("imports a canonical schema 2 backup through the current settings migration
     squareCorners: true,
     showInternalIds: true,
     salesOrderColumns: false,
+    smartTabTitles: false,
     roleThemes: legacySettings.roleThemes
   });
 });

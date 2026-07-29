@@ -12,6 +12,9 @@
 
 .suitemate-v3-so-columns-controls {
     display: inline-flex;
+    flex-wrap: wrap;
+    max-width: 100%;
+    box-sizing: border-box;
     align-items: center;
     gap: 6px;
     margin: 0 0 4px 6px;
@@ -49,6 +52,8 @@ body.suitemate-v3-so-columns-resizing * {
 
 [data-suitemate-v3-so-columns="hidden-chips"] {
     display: inline-flex;
+    flex-wrap: wrap;
+    min-width: 0;
     align-items: center;
     gap: 4px
 }
