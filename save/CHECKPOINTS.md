@@ -1098,3 +1098,33 @@ Spec: `docs/superpowers/specs/2026-07-28-export-view-csv-design.md` · Built via
 
 - Full `npm test`: 197 passing; 28 screenshot baselines untouched at 0.000 percent.
 - Owner confirmed the v3.19.1 build working live after reload (2026-07-29).
+
+## Personalize Controls Overflow: Milestone 22
+
+Status: Complete; live-verified at both scales 2026-07-30
+
+Date: 2026-07-30
+
+### Included
+
+- Fixes the owner-reported UX defect where many hidden-column chips pushed Done/Reset off-screen with no way to scroll to them. Root cause: a single non-wrapping inline-flex controls row with the unbounded chip list ordered before the actions. Fix: actions-first child order (Personalize, view chip, hint, Done, Reset, then chips) plus `flex-wrap: wrap` and `max-width: 100%` containment on the bar and the chip list — chips flow onto extra rows below while the actions stay on row one. No sticky positioning, nothing NetSuite-owned touched.
+
+### Verification
+
+- Live on the 44-column PO 16295656 (empty scope): 29 hidden-column chips wrapped the bar to 84px across rows, bounded 37–1874px inside a 1920px viewport with zero horizontal page scroll; Done and Reset measured reachable on the first row and the last chip inside the viewport; Reset restored a clean 24px single-row bar, zero chips, zero hidden headers, empty storage. Small case (2 chips) stayed single-row. Item Fulfillment (list-row family) renders the wrapped bar and enters/exits Personalize cleanly. Zero console errors.
+- Full `npm test` green at implementation time; screenshot baselines untouched (fixture pages render the controls only when the setting is on).
+
+## Smart Tab Titles: Milestone 23
+
+Status: Complete; live-verified across four record shapes 2026-07-30
+
+Date: 2026-07-30
+
+### Included
+
+- New opt-in "Smart tab titles" popup toggle (settings schema v3→v4 with pass-through migration): on ~29 record types the browser tab reads `SO · SO886672 · 754 Online Sales - MCoBeauty, Inc. · Billed` instead of NetSuite's generic title. `src/tab-title/core.js` (pure: path-token map, clone-stripped header read excluding SuiteMate badges and the status pill, ALL-CAPS status humanizing, 60-char entity truncation, fewer-than-two-parts keeps the native title) plus a thin settings-gated runtime that restores the original title when toggled off. ponytail: fixed format; a user-configurable template is the named upgrade path.
+
+### Verification
+
+- Full `npm test`: 202 passing (5 new core tests; settings v4 expectations updated across settings, transfer, popup-race and verify suites); 28 baselines at 0.000 percent.
+- Live with the toggle enabled: Sales Order `SO · SO886672 · … · Billed` (correctly reflecting the record's status change since the prior day), Item Fulfillment `IF · IF773083 · 133 Big W #133 Parkes · Shipped`, Purchase Order `PO · PO6139 · Shanghai Xiafei Cosmetics Company Ltd · Pending Receipt`, Customer `CUST · 133 Big W #133 Parkes` (entity shape, no document number). Zero console errors. The toggle-off restore path is unit-covered and mirrors the shipped settings-reaction pattern; the popup itself is unreachable from the automation bridge, so that single click remains owner-verifiable.
