@@ -1180,3 +1180,10 @@ Date: 2026-07-31
 
 - Full `npm test` 212 passing; 28 baselines untouched.
 - Fixture round-trip re-proven at the review's exact failure scenario: stored sections `[Classification, Phantom Section]` + reload → replay collapsed Classification with ZERO storage writes; a user collapse then produced exactly one write and `Phantom Section` survived the merge. Earlier fixture pass (hide/ghost/chips/reset) and the live pass on SO 16302518 (154 fields, hide + native collapse + reload auto-reapply + chip unhide + Reset; PO negative; coexistence with grid personalization, tab titles; zero SuiteMate console errors) all recorded.
+
+### Personal Form Views: Milestone 24d (final live verification, shipped build)
+
+- The toggle-on-while-open path — the review's missing-observer finding — proved itself live: flipping the settings installed both form-views and the grid on an already-open Sales Order with no refresh.
+- Full cycle on the shipped build: Personalize Form with ghosts and real-label chips, hide + native section collapse ("Ship Central - Other Party Billing"), real page reload auto-reapplied everything, chip un-hide surgical. The owner's own experimentation (two hidden fields from their earlier session) survived the toggle-off/on churn intact — the merge-on-save fix working as designed — so the pass ended by restoring their exact saved view rather than Reset.
+- A non-install red herring was root-caused by storage forensics: both feature toggles had been switched off in stored settings (a popup save around the extension reload), not a code fault — the full-parity fixture had already exonerated the build.
+- Coexistence green (45 grid arrows, smart tab titles); zero SuiteMate console errors throughout.
