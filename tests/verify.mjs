@@ -36,7 +36,8 @@ assert.deepEqual(globalThemeContentScript.css, [
   "src/styles/notifications.css",
   "src/internal-ids/internal-ids.css",
   "src/record-actions/csv-import.css",
-  "src/so-columns/so-columns.css"
+  "src/so-columns/so-columns.css",
+  "src/form-views/form-views.css"
 ]);
 assert.deepEqual(globalThemeContentScript.js, [
   "src/shared/utilities.js",
@@ -49,6 +50,7 @@ assert.deepEqual(globalThemeContentScript.js, [
   "src/csv-export/core.js",
   "src/so-columns/core.js",
   "src/tab-title/core.js",
+  "src/form-views/core.js",
   "src/runtime/theme-runtime.js",
   "src/runtime/notification-runtime.js",
   "src/record-actions/core.js",
@@ -56,7 +58,8 @@ assert.deepEqual(globalThemeContentScript.js, [
   "src/record-actions/csv-import.js",
   "src/csv-export/runtime.js",
   "src/so-columns/runtime.js",
-  "src/tab-title/runtime.js"
+  "src/tab-title/runtime.js",
+  "src/form-views/runtime.js"
 ]);
 assert.equal(
   globalThemeContentScript.js.includes("src/shared/permissions.js"),
@@ -939,22 +942,24 @@ runInNewContext(utilitySource, settingsSandbox);
 runInNewContext(settingsSource, settingsSandbox);
 const settingsApi = settingsSandbox.SuiteMateV3Settings;
 assert.equal(settingsApi.THEME_PREVIEW_MESSAGE, "SUITEMATE_V3_PREVIEW_ROLE_THEME");
-assert.equal(settingsApi.SCHEMA_VERSION, 4);
+assert.equal(settingsApi.SCHEMA_VERSION, 5);
 assert.equal(settingsApi.DEFAULTS.schemaVersion, settingsApi.SCHEMA_VERSION);
 assert.equal(settingsApi.DEFAULTS.squareCorners, false);
 assert.equal(settingsApi.DEFAULTS.showInternalIds, false);
 assert.equal(settingsApi.DEFAULTS.salesOrderColumns, false);
 assert.equal(settingsApi.DEFAULTS.smartTabTitles, false);
+assert.equal(settingsApi.DEFAULTS.formViews, false);
 assert.deepEqual(
   JSON.parse(JSON.stringify(settingsApi.validateForStorage({ mode: "dark" }))),
   {
-    schemaVersion: 4,
+    schemaVersion: 5,
     enabled: true,
     mode: "dark",
     squareCorners: false,
     showInternalIds: false,
     salesOrderColumns: false,
     smartTabTitles: false,
+    formViews: false,
     roleThemes: {}
   }
 );

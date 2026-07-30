@@ -12,9 +12,11 @@
     mode: ["light", "dark", "system"].includes(params.get("mode")) ? params.get("mode") : "light",
     squareCorners: params.get("squareCorners") === "true",
     showInternalIds: params.get("showInternalIds") === "true",
-    salesOrderColumns: params.get("salesOrderColumns") === "true"
+    salesOrderColumns: params.get("salesOrderColumns") === "true",
+    formViews: params.get("formViews") === "true"
   };
   let columnOrders;
+  let formViews;
   const roleKey = params.get("roleKey");
   const main = params.get("mainColor");
   const secondary = params.get("secondaryColor");
@@ -207,10 +209,24 @@
           if (key === "suiteMateV3ColumnOrder") {
             return { [key]: columnOrders };
           }
+          if (key === "suiteMateV3FormViews") {
+            return { [key]: formViews };
+          }
           return { [key]: settings };
         },
         async set(value) {
           const [key, nextSettings] = Object.entries(value)[0];
+          if (key === "suiteMateV3FormViews") {
+            const previousViews = formViews;
+            formViews = nextSettings;
+            document.documentElement.dataset.formViewsWrites = String(
+              Number(document.documentElement.dataset.formViewsWrites ?? 0) + 1
+            );
+            for (const listener of listeners) {
+              listener({ [key]: { oldValue: previousViews, newValue: formViews } }, "sync");
+            }
+            return;
+          }
           if (key === "suiteMateV3ColumnOrder") {
             const previousOrders = columnOrders;
             columnOrders = nextSettings;
@@ -298,6 +314,9 @@
     },
     get columnOrders() {
       return columnOrders;
+    },
+    get formViews() {
+      return formViews;
     },
     previewMessages,
     suiteqlMessages,

@@ -1145,3 +1145,20 @@ Spec: `docs/superpowers/specs/2026-07-30-personal-form-views-design.md` · Built
 ### Verification
 
 - 8 new vm-harness tests green (frozen contract, writers, hostile input, quota eviction, identity helpers, visibility application); full `npm test` 210 passing with the file wired into checks and the test list; 28 baselines untouched.
+
+## Personal Form Views: Milestone 24b (runtime, UX and wiring)
+
+Status: Complete; suite-verified, fixture functional pass and adversarial review next
+
+Date: 2026-07-30
+
+### Included
+
+- `src/form-views/runtime.js` + `form-views.css`: Personalize Form mode on Sales Order view pages — per-field ⊖ affordances mounted inside `.uir-label` (internal-ids precedent), ghosts at reduced opacity while personalizing, actions-first wrapped chip bar (M22 lesson), Done/Reset, serialized saves, auto-reapply on load. Section collapse replays NetSuite's NATIVE collapsible (records `aria-expanded` after native clicks, re-clicks titles on load) instead of inventing a second mechanism. Field finder = the live-proven `[data-walkthrough^="Field:"]` hook with sublist/filter containment exclusion; wrapper-level hide class carries `!important` (third sighting of the display-defeats-hidden defect class). Lifecycle-registered under the new `FORM_VIEWS` capability (salesord + id + view mode + top frame), `startPaused`, opt-in via the new "Personal form views" toggle.
+- Settings schema v4→v5 with the full ripple, plus two pre-existing gaps fixed en route: `settings-transfer` legacy key lists never learned v3/v4 (v4 backups failed restore with NON_CANONICAL — now table-driven through v4 with a direct acceptance test), and the tab-title files were absent from `verify.mjs` extension-source coverage.
+- Coexistence hardening: all three sibling `FOREIGN_NODE_SELECTOR` lists (so-columns, csv-export view snapshot, tab-title) now exclude `[data-suitemate-v3-form-views]` nodes.
+- Fixture upgraded with a realistic classic form: `.uir-field-wrapper` divs carrying `data-field-name`/`data-walkthrough`/`.uir-label` across two collapsible field groups, plus a fixture-native collapse script emulating NetSuite's handler; chrome-stub seeds `formViews` and serves the `suiteMateV3FormViews` key with write counters.
+
+### Verification
+
+- Full `npm test`: 212 passing (routes capability tests, settings v5 across four suites, transfer legacy acceptance, form-views core); 28 screenshot baselines untouched at 0.000 percent (feature is default-off and startPaused — the M22 precedent).

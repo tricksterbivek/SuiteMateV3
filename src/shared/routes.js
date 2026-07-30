@@ -16,7 +16,8 @@
     IMPORT_ASSISTANT_FETCH_BRIDGE: "import-assistant-fetch-bridge",
     SUITEQL_CONSOLE: "suiteql-console",
     SUITEQL_BRIDGE: "suiteql-bridge",
-    SUITEQL_LAUNCH: "suiteql-launch"
+    SUITEQL_LAUNCH: "suiteql-launch",
+    FORM_VIEWS: "form-views"
   });
 
   const PATHS = Object.freeze({
@@ -283,6 +284,13 @@
           && Boolean(context.path)
           && context.path.startsWith(PATHS.TRANSACTIONS)
           && context.path.endsWith(".nl")
+          && hasParam(context, "id")
+          && !hasParam(context, "e");
+      case CAPABILITIES.FORM_VIEWS:
+        // Sales Orders only for the MVP; generalize by widening this rule.
+        return context.isTopFrame
+          && Boolean(context.path)
+          && context.path.toLowerCase() === PATHS.SALES_ORDER
           && hasParam(context, "id")
           && !hasParam(context, "e");
       case CAPABILITIES.RECORD_TYPE_BRIDGE:

@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="../../src/styles/notifications.css">
     <link rel="stylesheet" href="../../src/record-actions/csv-import.css">
     <link rel="stylesheet" href="../../src/so-columns/so-columns.css">
+    <link rel="stylesheet" href="../../src/form-views/form-views.css">
     <link rel="stylesheet" href="netSuiteFixture.css">
     <script src="chrome-stub.js"></script>
     <script>
@@ -29,9 +30,11 @@
     <script src="../../src/record-actions/core.js"></script>
     <script src="../../src/csv-export/core.js"></script>
     <script src="../../src/so-columns/core.js"></script>
+    <script src="../../src/form-views/core.js"></script>
     <script src="../../src/record-actions/csv-import.js"></script>
     <script src="../../src/csv-export/runtime.js"></script>
     <script src="../../src/so-columns/runtime.js"></script>
+    <script src="../../src/form-views/runtime.js"></script>
     <style>
       .fixture-form {
         width: 100%;
@@ -102,9 +105,9 @@
       <table class="fixture-form">
         <tbody>
           <tr><td id="fg_fieldGroup_1" class="fgroup_title uir-field-group uir-field-group--collapsible" role="button" aria-expanded="true"><div class="fgroup_title uir-field-group-title"><span class="uir-field-group--collapsible-icon"></span>Primary Information</div></td></tr>
-          <tr><td><div class="fixture-group-fields"><span>Order #<br><strong>SO10428</strong></span><span>Customer<br><strong>Sample Customer</strong></span><span>Date<br><strong>13/07/2026</strong></span></div></td></tr>
+          <tr><td><div class="fixture-group-fields"><div class="uir-field-wrapper" data-field-name="tranid" data-walkthrough="Field:tranid" data-nsps-label="Order #"><span class="uir-label"><span class="uir-label-span smalltextnolink">Order #</span></span><span class="uir-field inputreadonly">SO10428</span></div><div class="uir-field-wrapper" data-field-name="entity" data-walkthrough="Field:entity" data-nsps-label="Customer"><span class="uir-label"><span class="uir-label-span smalltextnolink">Customer</span></span><span class="uir-field inputreadonly">Sample Customer</span></div><div class="uir-field-wrapper" data-field-name="trandate" data-walkthrough="Field:trandate" data-nsps-label="Date"><span class="uir-label"><span class="uir-label-span smalltextnolink">Date</span></span><span class="uir-field inputreadonly">13/07/2026</span></div></div></td></tr>
           <tr><td id="fg_fieldGroup_2" class="fgroup_title uir-field-group uir-field-group--collapsible" role="button" aria-expanded="true"><div class="fgroup_title uir-field-group-title"><span class="uir-field-group--collapsible-icon"></span>Classification</div></td></tr>
-          <tr><td><div class="fixture-group-fields"><span>Subsidiary<br><strong>Australia</strong></span><span>Business Type<br><strong>Sales</strong></span><span>Location<br><strong>Sydney</strong></span></div></td></tr>
+          <tr><td><div class="fixture-group-fields"><div class="uir-field-wrapper" data-field-name="subsidiary" data-walkthrough="Field:subsidiary" data-nsps-label="Subsidiary"><span class="uir-label"><span class="uir-label-span smalltextnolink">Subsidiary</span></span><span class="uir-field inputreadonly">Australia</span></div><div class="uir-field-wrapper" data-walkthrough="Field:custbody_biztype" data-nsps-label="Business Type"><span class="uir-label"><span class="uir-label-span smalltextnolink">Business Type</span></span><span class="uir-field inputreadonly">Sales</span></div><div class="uir-field-wrapper" data-field-name="location" data-walkthrough="Field:location" data-nsps-label="Location"><span class="uir-label"><span class="uir-label-span smalltextnolink">Location</span></span><span class="uir-field inputreadonly">Sydney</span></div></div></td></tr>
         </tbody>
       </table>
 
@@ -122,5 +125,18 @@
         </table>
       </section>
     </main>
+    <script>
+      for (const title of document.querySelectorAll("td.uir-field-group--collapsible[role=button]")) {
+        title.addEventListener("click", () => {
+          const expanded = title.getAttribute("aria-expanded") === "true";
+          title.setAttribute("aria-expanded", String(!expanded));
+          let row = title.closest("tr")?.nextElementSibling;
+          while (row && !row.querySelector("td.fgroup_title")) {
+            row.style.display = expanded ? "none" : "";
+            row = row.nextElementSibling;
+          }
+        });
+      }
+    </script>
   </body>
 </html>

@@ -112,13 +112,16 @@
       throw transferError("SETTINGS_VERSION_MISMATCH", "The backup settings version does not match its metadata.");
     }
 
-    const legacySchemaKeys = {
-      1: ["schemaVersion", "enabled", "mode", "squareCorners", "roleThemes"],
-      2: ["schemaVersion", "enabled", "mode", "squareCorners", "showInternalIds", "roleThemes"]
+    const legacySchemaFields = {
+      1: ["enabled", "mode", "squareCorners", "roleThemes"],
+      2: ["enabled", "mode", "squareCorners", "showInternalIds", "roleThemes"],
+      3: ["enabled", "mode", "squareCorners", "showInternalIds", "salesOrderColumns", "roleThemes"],
+      4: ["enabled", "mode", "squareCorners", "showInternalIds", "salesOrderColumns", "smartTabTitles", "roleThemes"]
     };
+    const legacyFields = legacySchemaFields[declaredSchemaVersion];
     if (
       declaredSchemaVersion < settingsApi.SCHEMA_VERSION
-      && !hasOnlyKeys(value, legacySchemaKeys[declaredSchemaVersion] ?? [])
+      && !hasOnlyKeys(value, legacyFields ? ["schemaVersion", ...legacyFields] : [])
     ) {
       throw transferError(
         "NON_CANONICAL_BACKUP_SETTINGS",
@@ -138,24 +141,12 @@
       }
       throw transferError("INVALID_BACKUP_SETTINGS", "The settings backup contains invalid settings data.");
     }
-    const comparable = declaredSchemaVersion === 1
+    const comparable = declaredSchemaVersion < settingsApi.SCHEMA_VERSION && legacyFields
       ? {
-          schemaVersion: 1,
-          enabled: normalized.enabled,
-          mode: normalized.mode,
-          squareCorners: normalized.squareCorners,
-          roleThemes: normalized.roleThemes
+          schemaVersion: declaredSchemaVersion,
+          ...Object.fromEntries(legacyFields.map((field) => [field, normalized[field]]))
         }
-      : declaredSchemaVersion === 2
-        ? {
-            schemaVersion: 2,
-            enabled: normalized.enabled,
-            mode: normalized.mode,
-            squareCorners: normalized.squareCorners,
-            showInternalIds: normalized.showInternalIds,
-            roleThemes: normalized.roleThemes
-          }
-        : normalized;
+      : normalized;
     if (!jsonEquivalent(value, comparable)) {
       throw transferError(
         "NON_CANONICAL_BACKUP_SETTINGS",

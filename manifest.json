@@ -47,7 +47,8 @@
         "src/styles/notifications.css",
         "src/internal-ids/internal-ids.css",
         "src/record-actions/csv-import.css",
-        "src/so-columns/so-columns.css"
+        "src/so-columns/so-columns.css",
+        "src/form-views/form-views.css"
       ],
       "js": [
         "src/shared/utilities.js",
@@ -60,6 +61,7 @@
         "src/csv-export/core.js",
         "src/so-columns/core.js",
         "src/tab-title/core.js",
+        "src/form-views/core.js",
         "src/runtime/theme-runtime.js",
         "src/runtime/notification-runtime.js",
         "src/record-actions/core.js",
@@ -67,7 +69,8 @@
         "src/record-actions/csv-import.js",
         "src/csv-export/runtime.js",
         "src/so-columns/runtime.js",
-        "src/tab-title/runtime.js"
+        "src/tab-title/runtime.js",
+        "src/form-views/runtime.js"
       ],
       "run_at": "document_start",
       "all_frames": true

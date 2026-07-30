@@ -21,7 +21,7 @@
   // Orders) or uir-list-row-tr (e.g. Item Fulfillments).
   const DATA_ROW_CLASSES = Object.freeze(["uir-machine-row", "uir-list-row-tr"]);
   const DATA_ROW_SELECTOR = "tr.uir-machine-row, tr.uir-list-row-tr";
-  const FOREIGN_NODE_SELECTOR = "[data-suitemate-v3-internal-id], [data-suitemate-v3-so-columns]";
+  const FOREIGN_NODE_SELECTOR = "[data-suitemate-v3-internal-id], [data-suitemate-v3-so-columns], [data-suitemate-v3-form-views]";
   const CLASSES = Object.freeze({
     controls: "suitemate-v3-so-columns-controls",
     colHidden: "suitemate-v3-so-columns-col-hidden",

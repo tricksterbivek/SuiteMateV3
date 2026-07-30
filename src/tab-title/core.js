@@ -2,7 +2,7 @@
   "use strict";
 
   const VERSION = 1;
-  const FOREIGN_NODE_SELECTOR = "[data-suitemate-v3-internal-id], [data-suitemate-v3-so-columns]";
+  const FOREIGN_NODE_SELECTOR = "[data-suitemate-v3-internal-id], [data-suitemate-v3-so-columns], [data-suitemate-v3-form-views]";
   const HEADLINE_SELECTOR = ".uir-page-title-secondline";
   const STATUS_SELECTOR = ".uir-record-status";
   const MAX_ENTITY_LENGTH = 60;

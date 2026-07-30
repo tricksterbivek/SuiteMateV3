@@ -103,6 +103,7 @@ test("imports a canonical schema 1 backup through the current settings migration
     showInternalIds: false,
     salesOrderColumns: false,
     smartTabTitles: false,
+    formViews: false,
     roleThemes: legacySettings.roleThemes
   });
 });
@@ -138,6 +139,7 @@ test("imports a canonical schema 2 backup through the current settings migration
     showInternalIds: true,
     salesOrderColumns: false,
     smartTabTitles: false,
+    formViews: false,
     roleThemes: legacySettings.roleThemes
   });
 });
@@ -234,4 +236,45 @@ test("rejects oversized settings both before export and after decoding", () => {
 
 test("transfer core has no storage, network or DOM authority", () => {
   assert.doesNotMatch(transferSource, /chrome\.|fetch\(|XMLHttpRequest|document\.|localStorage|sessionStorage/);
+});
+
+test("parses schema 3 and 4 backups (legacy-fields fix shipped with formViews)", () => {
+  const { settings, transfer } = createHarness();
+  const exportedAt = "2026-07-30T01:02:03.456Z";
+  const v4 = {
+    schemaVersion: 4,
+    enabled: true,
+    mode: "dark",
+    squareCorners: false,
+    showInternalIds: true,
+    salesOrderColumns: true,
+    smartTabTitles: true,
+    roleThemes: {}
+  };
+  const parsed4 = transfer.parse(transfer.create(v4, { exportedAt }));
+  assert.deepEqual(plain(parsed4.settings), {
+    schemaVersion: settings.SCHEMA_VERSION,
+    enabled: true,
+    mode: "dark",
+    squareCorners: false,
+    showInternalIds: true,
+    salesOrderColumns: true,
+    smartTabTitles: true,
+    formViews: false,
+    roleThemes: {}
+  });
+
+  const v3 = {
+    schemaVersion: 3,
+    enabled: true,
+    mode: "light",
+    squareCorners: true,
+    showInternalIds: false,
+    salesOrderColumns: false,
+    roleThemes: {}
+  };
+  const parsed3 = transfer.parse(transfer.create(v3, { exportedAt }));
+  assert.equal(parsed3.settings.schemaVersion, settings.SCHEMA_VERSION);
+  assert.equal(parsed3.settings.smartTabTitles, false);
+  assert.equal(parsed3.settings.formViews, false);
 });

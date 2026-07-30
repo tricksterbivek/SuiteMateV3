@@ -44,6 +44,7 @@ test("exports stable route and capability constants", () => {
   assert.equal(CAPABILITIES.INTERNAL_IDS, "internal-ids");
   assert.equal(CAPABILITIES.CSV_EXPORT_RECORD, "csv-export-record");
   assert.equal(CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION, "transaction-column-personalization");
+  assert.equal(CAPABILITIES.FORM_VIEWS, "form-views");
   assert.equal(CAPABILITIES.SUITEQL_BRIDGE, "suiteql-bridge");
   assert.equal(CAPABILITIES.SEARCH_QUERY_BRIDGE, "search-query-bridge");
   assert.equal(CAPABILITIES.RECORD_METADATA_BRIDGE, "record-metadata-bridge");
@@ -292,6 +293,35 @@ test("limits transaction column personalization to top-frame view mode", () => {
     routes.supports(
       CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION,
       routes.createPageContext("https://example.com/app/accounting/transactions/salesord.nl?id=1")
+    ),
+    false
+  );
+});
+
+test("limits form views to top-frame Sales Order view mode", () => {
+  for (const path of [
+    "/app/accounting/transactions/salesord.nl?id=1",
+    "/app/accounting/transactions/salesord.nl?id=42&whence=TRNSALESORD"
+  ]) {
+    assert.equal(routes.supports(CAPABILITIES.FORM_VIEWS, page(path)), true, path);
+  }
+
+  for (const path of [
+    "/app/accounting/transactions/salesord.nl",
+    "/app/accounting/transactions/salesord.nl?id=1&e=T",
+    "/app/accounting/transactions/salesord.nl?e=T",
+    "/app/accounting/transactions/custinvc.nl?id=7",
+    "/app/accounting/transactions/purchord.nl?id=12",
+    "/app/accounting/transactions/itemship.nl?id=99",
+    "/app/common/entity/custjob.nl?id=5"
+  ]) {
+    assert.equal(routes.supports(CAPABILITIES.FORM_VIEWS, page(path)), false, path);
+  }
+
+  assert.equal(
+    routes.supports(
+      CAPABILITIES.FORM_VIEWS,
+      page("/app/accounting/transactions/salesord.nl?id=1", { isTopFrame: false })
     ),
     false
   );

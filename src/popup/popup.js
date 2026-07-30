@@ -18,6 +18,7 @@
   const showInternalIdsInput = document.querySelector("#showInternalIds");
   const salesOrderColumnsInput = document.querySelector("#salesOrderColumns");
   const smartTabTitlesInput = document.querySelector("#smartTabTitles");
+  const formViewsInput = document.querySelector("#formViews");
   const roleTheme = document.querySelector("#roleTheme");
   const roleContextLabel = document.querySelector("#roleContext");
   const themeState = document.querySelector("#themeState");
@@ -412,6 +413,7 @@
     showInternalIdsInput.checked = currentSettings.showInternalIds;
     salesOrderColumnsInput.checked = currentSettings.salesOrderColumns;
     smartTabTitlesInput.checked = currentSettings.smartTabTitles;
+    formViewsInput.checked = currentSettings.formViews;
     document.querySelector(`input[name="mode"][value="${currentSettings.mode}"]`).checked = true;
     form.dataset.settingsLocked = String(settingsLocked);
     form.setAttribute("aria-disabled", String(settingsLocked || settingsTransferBusy || !currentSettings.enabled));
@@ -420,6 +422,7 @@
     showInternalIdsInput.disabled = settingsLocked || settingsTransferBusy;
     salesOrderColumnsInput.disabled = settingsLocked || settingsTransferBusy;
     smartTabTitlesInput.disabled = settingsLocked || settingsTransferBusy;
+    formViewsInput.disabled = settingsLocked || settingsTransferBusy;
     resetButton.disabled = settingsLocked || settingsTransferBusy;
 
     for (const input of form.querySelectorAll('fieldset input, #squareCorners')) {
@@ -437,7 +440,8 @@
       squareCorners: squareCornersInput.checked,
       showInternalIds: showInternalIdsInput.checked,
       salesOrderColumns: salesOrderColumnsInput.checked,
-      smartTabTitles: smartTabTitlesInput.checked
+      smartTabTitles: smartTabTitlesInput.checked,
+      formViews: formViewsInput.checked
     };
   }
 
