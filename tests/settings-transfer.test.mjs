@@ -238,9 +238,18 @@ test("transfer core has no storage, network or DOM authority", () => {
   assert.doesNotMatch(transferSource, /chrome\.|fetch\(|XMLHttpRequest|document\.|localStorage|sessionStorage/);
 });
 
-test("parses schema 3 and 4 backups (legacy-fields fix shipped with formViews)", () => {
+test("parses hand-built schema 3 and 4 backups through the legacy branch", () => {
   const { settings, transfer } = createHarness();
-  const exportedAt = "2026-07-30T01:02:03.456Z";
+  const encodeEnvelope = (envelope) =>
+    `${transfer.PREFIX}${Buffer.from(JSON.stringify(envelope), "utf8").toString("base64")}`;
+  const envelope = (schemaVersion, backupSettings) => ({
+    format: "suitemate-v3-settings",
+    formatVersion: 1,
+    exportedAt: "2026-07-30T01:02:03.456Z",
+    settingsSchemaVersion: schemaVersion,
+    settings: backupSettings
+  });
+
   const v4 = {
     schemaVersion: 4,
     enabled: true,
@@ -251,7 +260,7 @@ test("parses schema 3 and 4 backups (legacy-fields fix shipped with formViews)",
     smartTabTitles: true,
     roleThemes: {}
   };
-  const parsed4 = transfer.parse(transfer.create(v4, { exportedAt }));
+  const parsed4 = transfer.parse(encodeEnvelope(envelope(4, v4)));
   assert.deepEqual(plain(parsed4.settings), {
     schemaVersion: settings.SCHEMA_VERSION,
     enabled: true,
@@ -273,8 +282,17 @@ test("parses schema 3 and 4 backups (legacy-fields fix shipped with formViews)",
     salesOrderColumns: false,
     roleThemes: {}
   };
-  const parsed3 = transfer.parse(transfer.create(v3, { exportedAt }));
+  const parsed3 = transfer.parse(encodeEnvelope(envelope(3, v3)));
   assert.equal(parsed3.settings.schemaVersion, settings.SCHEMA_VERSION);
   assert.equal(parsed3.settings.smartTabTitles, false);
   assert.equal(parsed3.settings.formViews, false);
+
+  expectCode(
+    () => transfer.parse(encodeEnvelope(envelope(4, { ...v4, junk: true }))),
+    "NON_CANONICAL_BACKUP_SETTINGS"
+  );
+  expectCode(
+    () => transfer.parse(encodeEnvelope(envelope(4, { ...v4, formViews: false }))),
+    "NON_CANONICAL_BACKUP_SETTINGS"
+  );
 });

@@ -188,7 +188,7 @@
     if (typeof walkthrough === "string" && walkthrough.startsWith(WALKTHROUGH_FIELD_PREFIX)) {
       const parsed = walkthrough.slice(WALKTHROUGH_FIELD_PREFIX.length);
       if (FIELD_NAME_PATTERN.test(parsed)) {
-        return parsed.toLowerCase();
+        return parsed;
       }
     }
     return "";

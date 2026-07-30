@@ -1162,3 +1162,21 @@ Date: 2026-07-30
 ### Verification
 
 - Full `npm test`: 212 passing (routes capability tests, settings v5 across four suites, transfer legacy acceptance, form-views core); 28 screenshot baselines untouched at 0.000 percent (feature is default-off and startPaused — the M22 precedent).
+
+## Personal Form Views: Milestone 24c (adversarial review + fixture verification)
+
+Status: Complete; confirmed findings fixed and re-proven
+
+Date: 2026-07-31
+
+### Included
+
+- The Opus 5 review fan-out (4 lenses, 22 agents, refutation-verified with in-Chrome and Node mutation experiments) confirmed three real defects, all fixed:
+  1. **Collapse-replay self-save data loss** (three lenses converged): load-time replay clicks re-entered our own capture listener, wholesale-rewriting the stored section list from whichever form variant was open — sections from other Sales Order forms were silently deleted, one sync write per section per load. Fixed twice over: a synchronous suppression flag makes replay write nothing, and user-gesture saves now MERGE (stored sections absent from the current page survive).
+  2. **Missing observer**: the lifecycle registration had no `observe`, so the zero-wrapper bail never retried, late-rendered wrappers stayed unmanaged, and toggling the setting on an open page did nothing until refresh (matches the live symptom). Now observes childList/subtree with a relevance filter excluding SuiteMate-owned and internal-ids nodes.
+  3. **Transfer test theater** (reviewer catch on my own test): `transfer.create()` migrates before enveloping, so the v3/v4 acceptance test never reached the legacy branch. Replaced with hand-built v3/v4 envelopes that drive it genuinely, plus two NON_CANONICAL negatives.
+
+### Verification
+
+- Full `npm test` 212 passing; 28 baselines untouched.
+- Fixture round-trip re-proven at the review's exact failure scenario: stored sections `[Classification, Phantom Section]` + reload → replay collapsed Classification with ZERO storage writes; a user collapse then produced exactly one write and `Phantom Section` survived the merge. Earlier fixture pass (hide/ghost/chips/reset) and the live pass on SO 16302518 (154 fields, hide + native collapse + reload auto-reapply + chip unhide + Reset; PO negative; coexistence with grid personalization, tab titles; zero SuiteMate console errors) all recorded.

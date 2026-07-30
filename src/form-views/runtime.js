@@ -41,6 +41,7 @@
   let hiddenFields = new Set();
   let controlButtons = null;
   let collapseListener = null;
+  let replayingCollapse = false;
 
   function showToast(message, type) {
     globalThis.SuiteMateV3Notifications?.showToast(message, { type });
@@ -123,10 +124,20 @@
     });
   }
 
+  function sectionTitleKey(title) {
+    return core.sectionKey(title.querySelector("div.fgroup_title") ?? title);
+  }
+
+  function pageSectionKeys() {
+    return [...document.querySelectorAll(COLLAPSIBLE_TITLE_SELECTOR)]
+      .map(sectionTitleKey)
+      .filter(Boolean);
+  }
+
   function collapsedSectionKeys() {
     return [...document.querySelectorAll(COLLAPSIBLE_TITLE_SELECTOR)]
       .filter((title) => title.getAttribute("aria-expanded") === "false")
-      .map((title) => core.sectionKey(title.querySelector("div.fgroup_title") ?? title))
+      .map(sectionTitleKey)
       .filter(Boolean);
   }
 
@@ -137,7 +148,16 @@
           return;
         }
         const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
-        const next = core.withCollapsedSections(stored[core.STORAGE_KEY], scopeKey, collapsedSectionKeys());
+        // Merge, don't replace: Sales Order forms vary per record, so stored
+        // sections that this page does not render must survive the write.
+        const entry = core.normalizeStored(stored[core.STORAGE_KEY]).views[scopeKey];
+        const onThisPage = new Set(pageSectionKeys());
+        const offPage = (entry?.collapsedSections ?? []).filter((section) => !onThisPage.has(section));
+        const next = core.withCollapsedSections(
+          stored[core.STORAGE_KEY],
+          scopeKey,
+          [...offPage, ...collapsedSectionKeys()]
+        );
         if (!next) {
           showToast("Collapsed sections could not be saved.", "warning");
           return;
@@ -152,13 +172,21 @@
   // ===== Section collapse: replay NetSuite's native collapsible =====
   function applyCollapsedSections(sections) {
     const wanted = new Set(sections ?? []);
-    for (const title of document.querySelectorAll(COLLAPSIBLE_TITLE_SELECTOR)) {
-      const key = core.sectionKey(title.querySelector("div.fgroup_title") ?? title);
-      if (key && wanted.has(key) && title.getAttribute("aria-expanded") === "true") {
-        try {
-          title.click();
-        } catch {}
+    // The replay clicks dispatch through our own capture listener; the flag
+    // keeps a load-time reapply from re-entering the save path (the review
+    // caught this shrinking stored views on every page load).
+    replayingCollapse = true;
+    try {
+      for (const title of document.querySelectorAll(COLLAPSIBLE_TITLE_SELECTOR)) {
+        const key = sectionTitleKey(title);
+        if (key && wanted.has(key) && title.getAttribute("aria-expanded") === "true") {
+          try {
+            title.click();
+          } catch {}
+        }
       }
+    } finally {
+      replayingCollapse = false;
     }
   }
 
@@ -167,7 +195,7 @@
       return;
     }
     collapseListener = (event) => {
-      if (!event.target?.closest?.(COLLAPSIBLE_TITLE_SELECTOR)) {
+      if (replayingCollapse || !event.target?.closest?.(COLLAPSIBLE_TITLE_SELECTOR)) {
         return;
       }
       // NetSuite's own handler flips aria-expanded after this click; read the
@@ -400,11 +428,33 @@
     scopeKey = null;
   }
 
+  function nodeRelevant(node) {
+    if (
+      node?.nodeType !== 1
+      || node.matches?.(OWNED_SELECTOR)
+      || node.closest?.(OWNED_SELECTOR)
+      || node.matches?.("[data-suitemate-v3-internal-id]")
+    ) {
+      return false;
+    }
+    return node.matches?.(core.FIELD_WRAPPER_SELECTOR)
+      || Boolean(node.querySelector?.(core.FIELD_WRAPPER_SELECTOR));
+  }
+
+  function containsRelevantMutation(records) {
+    return records.some((record) => [...record.addedNodes].some(nodeRelevant));
+  }
+
   const lifecycleHandle = lifecycleApi.register({
     id: "record.form-views",
     replace: true,
     capability: routeApi.CAPABILITIES.FORM_VIEWS,
     startPaused: true,
+    observe: {
+      childList: true,
+      subtree: true
+    },
+    relevant: containsRelevantMutation,
     evaluate: installFormViews,
     cleanup: removeFormViews
   });
