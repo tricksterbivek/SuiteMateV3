@@ -1128,3 +1128,20 @@ Date: 2026-07-30
 
 - Full `npm test`: 202 passing (5 new core tests; settings v4 expectations updated across settings, transfer, popup-race and verify suites); 28 baselines at 0.000 percent.
 - Live with the toggle enabled: Sales Order `SO · SO886672 · … · Billed` (correctly reflecting the record's status change since the prior day), Item Fulfillment `IF · IF773083 · 133 Big W #133 Parkes · Shipped`, Purchase Order `PO · PO6139 · Shanghai Xiafei Cosmetics Company Ltd · Pending Receipt`, Customer `CUST · 133 Big W #133 Parkes` (entity shape, no document number). Zero console errors. The toggle-off restore path is unit-covered and mirrors the shipped settings-reaction pattern; the popup itself is unreachable from the automation bridge, so that single click remains owner-verifiable.
+
+## Personal Form Views: Milestone 24a (core + storage)
+
+Status: Complete; unit-verified
+
+Date: 2026-07-30
+
+Spec: `docs/superpowers/specs/2026-07-30-personal-form-views-design.md` · Built via Opus 5 ultracode recon (4 mappers: form DOM, reuse surface, wiring ripple, risk screen).
+
+### Included
+
+- `src/form-views/core.js`: the `suiteMateV3FormViews` v1 store under the full house doctrine — fail-closed normalizers (field names lowercased/deduped/charset-checked, section titles trimmed/deduped), `withHiddenFields`/`withCollapsedSections` writers with null-on-rejection, newer-schema refusal, 7,800-byte quota guard with single-entry eviction, empty-entry deletion — plus identity helpers: `fieldKey` (prefers `data-field-name`, falls back to parsing the live-proven `data-walkthrough="Field:…"` hook), clone-stripping `sectionKey`, and `applyFieldVisibility`.
+- Recon-driven decisions recorded: hide class applies at wrapper level with an `!important` guard (the third instance of the M11/M17 display-defeats-hidden defect class); section collapse will replay NetSuite's native collapsible machinery rather than invent a second one; sublist/filter wrappers are excluded territory.
+
+### Verification
+
+- 8 new vm-harness tests green (frozen contract, writers, hostile input, quota eviction, identity helpers, visibility application); full `npm test` 210 passing with the file wired into checks and the test list; 28 baselines untouched.
