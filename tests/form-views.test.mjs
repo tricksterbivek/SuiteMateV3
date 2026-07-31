@@ -420,6 +420,68 @@ test("applySectionOrder never moves across width classes and fails closed on dup
     ["Primary Information", "Primary Information", "Billing Address", "Billing Information", "Ship Central"]);
 });
 
+test("applyFieldOrder reorders rows within a column, packed pair travels as one row", () => {
+  const core = createApi();
+  const { root, columnKeys } = buildFormStub();
+  const group = core.sectionSlots(root)[0].groupTable;
+  assert.equal(core.applyFieldOrder(group, null), false);
+  assert.equal(core.applyFieldOrder(group, ["entity", "tranid", "otherrefnum", "trandate"]), true);
+  assert.deepEqual(plain(columnKeys(group)), [["entity", "tranid"], ["otherrefnum", "trandate"]]);
+  const before = totalAppends(root);
+  core.applyFieldOrder(group, ["entity", "tranid", "otherrefnum", "trandate"]);
+  assert.equal(totalAppends(root), before);
+});
+
+test("applyFieldOrder never moves a key across columns and skips unkeyable columns", () => {
+  const core = createApi();
+  const { root, columnKeys } = buildFormStub();
+  const group = core.sectionSlots(root)[0].groupTable;
+  core.applyFieldOrder(group, ["trandate", "tranid", "entity"]);
+  assert.deepEqual(plain(columnKeys(group)), [["tranid", "entity"], ["trandate", "otherrefnum"]]);
+  const broken = buildFormStub({ unkeyedRowInColumn: 1 });
+  const g2 = core.sectionSlots(broken.root)[0].groupTable;
+  const before = totalAppends(broken.root);
+  core.applyFieldOrder(g2, ["entity", "tranid"]);
+  assert.equal(totalAppends(broken.root), before);
+});
+
+test("fieldOrderDelta null at native, flat keys when moved, self-cleans on move-back", () => {
+  const core = createApi();
+  const { root } = buildFormStub();
+  const group = core.sectionSlots(root)[0].groupTable;
+  assert.equal(core.fieldOrderDelta(group), null);
+  core.applyFieldOrder(group, ["entity", "tranid"]);
+  assert.deepEqual(plain(core.fieldOrderDelta(group)), ["entity", "tranid", "trandate", "otherrefnum"]);
+  core.applyFieldOrder(group, null);
+  assert.equal(core.fieldOrderDelta(group), null);
+});
+
+test("nodeRelevant excludes owned nodes, internal-id badges and our stamped moves", () => {
+  const core = createApi();
+  const wrapperish = {
+    nodeType: 1,
+    matches: (selector) => selector === core.FIELD_WRAPPER_SELECTOR,
+    closest: () => null,
+    getAttribute: () => null,
+    querySelector: () => null
+  };
+  assert.equal(core.nodeRelevant(wrapperish), true);
+  const stamped = { ...wrapperish, getAttribute: (name) => name === core.NATIVE_INDEX_ATTRIBUTE ? "3" : null };
+  assert.equal(core.nodeRelevant(stamped), false);
+  const owned = { ...wrapperish, matches: (selector) => selector === `[${core.DATA_ATTRIBUTE}]` };
+  assert.equal(core.nodeRelevant(owned), false);
+  const container = { ...wrapperish, matches: () => false, querySelector: (selector) => selector === core.FIELD_WRAPPER_SELECTOR ? {} : null };
+  assert.equal(core.nodeRelevant(container), true);
+  assert.equal(core.nodeRelevant({ nodeType: 3 }), false);
+});
+
+test("drag classes are exported for the runtime", () => {
+  const core = createApi();
+  assert.equal(core.CLASSES.dragging, "suitemate-v3-form-views-dragging");
+  assert.equal(core.CLASSES.dropTarget, "suitemate-v3-form-views-drop-target");
+  assert.equal(core.CLASSES.dropTargetSide, "suitemate-v3-form-views-drop-target-side");
+});
+
 test("applyFieldVisibility toggles the hide class from the stored set", () => {
   const core = createApi();
   const wrapper = (name) => {

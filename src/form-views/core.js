@@ -20,9 +20,14 @@
   const EXCLUDED_CONTAINER_SELECTOR = "#item_splits, .uir_list_filter_bar, .uir-filters-body";
   const NATIVE_INDEX_ATTRIBUTE = "data-suitemate-v3-form-views-native-index";
   const SECTION_TITLE_SELECTOR = "td.fgroup_title";
+  const FIELD_ROW_SELECTOR = "tr.uir-field-wrapper-cell";
+  const FIELD_COLUMN_SELECTOR = ":scope > tbody > tr.uir-fieldgroup-content > td > table.table_fields";
   const CLASSES = Object.freeze({
     hiddenField: "suitemate-v3-form-views-hidden-field",
-    personalizing: "suitemate-v3-form-views-personalizing"
+    personalizing: "suitemate-v3-form-views-personalizing",
+    dragging: "suitemate-v3-form-views-dragging",
+    dropTarget: "suitemate-v3-form-views-drop-target",
+    dropTargetSide: "suitemate-v3-form-views-drop-target-side"
   });
 
   if (globalScope.SuiteMateV3FormViewsCore?.VERSION === VERSION) {
@@ -413,6 +418,103 @@
     }
   }
 
+  // ===== Field topology: per-column rows, stamping, apply and delta =====
+  function columnTables(groupTable) {
+    return [...(groupTable?.querySelectorAll?.(FIELD_COLUMN_SELECTOR) ?? [])];
+  }
+
+  function columnRows(columnTable) {
+    const rows = [...(columnTable?.querySelectorAll?.(":scope > tbody > tr") ?? [])];
+    if (!rows.length || !rows.every((row) => row.matches?.(FIELD_ROW_SELECTOR))) {
+      return null; // mixed row kinds: reordering a subset would sink the rest, fail closed
+    }
+    const keyed = rows.map((row) => ({ row, key: fieldKey(row.querySelector?.(FIELD_WRAPPER_SELECTOR)) }));
+    const keys = keyed.map((entry) => entry.key);
+    return keys.every(Boolean) && new Set(keys).size === keys.length ? keyed : null;
+  }
+
+  function captureNativeFields(keyed) {
+    const stamped = keyed.every((entry) => entry.row.getAttribute(NATIVE_INDEX_ATTRIBUTE) !== null);
+    if (!stamped) {
+      keyed.forEach((entry, index) => entry.row.setAttribute(NATIVE_INDEX_ATTRIBUTE, String(index)));
+    }
+  }
+
+  function applyFieldOrder(groupTable, storedList) {
+    try {
+      let applied = false;
+      for (const columnTable of columnTables(groupTable)) {
+        const keyed = columnRows(columnTable);
+        if (!keyed || keyed.length < 2) {
+          continue;
+        }
+        captureNativeFields(keyed);
+        const nativeKeys = keyed
+          .slice()
+          .sort((a, b) =>
+            Number(a.row.getAttribute(NATIVE_INDEX_ATTRIBUTE)) - Number(b.row.getAttribute(NATIVE_INDEX_ATTRIBUTE)))
+          .map((entry) => entry.key);
+        const target = planOrder(nativeKeys, Array.isArray(storedList) ? storedList : []);
+        const currentKeys = keyed.map((entry) => entry.key);
+        if (currentKeys.join(" ") === target.join(" ")) {
+          continue; // identity: zero DOM writes
+        }
+        const rowByKey = new Map(keyed.map((entry) => [entry.key, entry.row]));
+        const tbody = columnTable.querySelector(":scope > tbody");
+        for (const key of target) {
+          const row = rowByKey.get(key);
+          if (row && tbody) {
+            tbody.appendChild(row);
+          }
+        }
+        applied = true;
+      }
+      return applied;
+    } catch {
+      return false;
+    }
+  }
+
+  function fieldOrderDelta(groupTable) {
+    try {
+      const keys = [];
+      let moved = false;
+      for (const columnTable of columnTables(groupTable)) {
+        const keyed = columnRows(columnTable);
+        if (!keyed) {
+          continue;
+        }
+        captureNativeFields(keyed);
+        const stamps = keyed.map((entry) => Number(entry.row.getAttribute(NATIVE_INDEX_ATTRIBUTE)));
+        if (stamps.some((value, index) => index > 0 && stamps[index - 1] > value)) {
+          moved = true;
+        }
+        keys.push(...keyed.map((entry) => entry.key));
+      }
+      return moved && keys.length ? keys : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // ===== Observer relevance (unit-testable; runtime feeds MutationRecords) =====
+  function nodeRelevant(node) {
+    if (
+      node?.nodeType !== 1
+      || node.matches?.(`[${DATA_ATTRIBUTE}]`)
+      || node.closest?.(`[${DATA_ATTRIBUTE}]`)
+      || node.matches?.("[data-suitemate-v3-internal-id]")
+      || node.getAttribute?.(NATIVE_INDEX_ATTRIBUTE) !== null
+    ) {
+      // Stamped nodes are exactly what our own reorders move; excluding them
+      // (plus identity early-returns in the apply helpers) keeps our own
+      // mutations from re-triggering the lifecycle evaluate in a loop.
+      return false;
+    }
+    return node.matches?.(FIELD_WRAPPER_SELECTOR)
+      || Boolean(node.querySelector?.(FIELD_WRAPPER_SELECTOR));
+  }
+
   function applyFieldVisibility(wrappers, hiddenSet) {
     if (!Array.isArray(wrappers) && !wrappers?.length && !wrappers?.[Symbol.iterator]) {
       return 0;
@@ -455,6 +557,9 @@
       sectionPartitions,
       applySectionOrder,
       sectionOrderDelta,
+      applyFieldOrder,
+      fieldOrderDelta,
+      nodeRelevant,
       fieldKey,
       sectionKey,
       applyFieldVisibility
