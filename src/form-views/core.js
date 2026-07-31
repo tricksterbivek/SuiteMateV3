@@ -18,6 +18,8 @@
   // the runtime's containment check, not this selector.
   const FIELD_WRAPPER_SELECTOR = '[data-walkthrough^="Field:"]';
   const EXCLUDED_CONTAINER_SELECTOR = "#item_splits, .uir_list_filter_bar, .uir-filters-body";
+  const NATIVE_INDEX_ATTRIBUTE = "data-suitemate-v3-form-views-native-index";
+  const SECTION_TITLE_SELECTOR = "td.fgroup_title";
   const CLASSES = Object.freeze({
     hiddenField: "suitemate-v3-form-views-hidden-field",
     personalizing: "suitemate-v3-form-views-personalizing"
@@ -298,6 +300,119 @@
     return text.length > MAX_SECTION_LENGTH ? "" : text;
   }
 
+  // ===== Section topology: slots, native stamping, apply and delta =====
+  function sectionTitleKey(title) {
+    return sectionKey(title?.querySelector?.("div.fgroup_title") ?? title);
+  }
+
+  function sectionSlots(root) {
+    const slots = [];
+    for (const title of root?.querySelectorAll?.(SECTION_TITLE_SELECTOR) ?? []) {
+      const groupTable = title.closest?.("table");
+      const slotTd = groupTable?.parentElement;
+      const slotRow = slotTd?.parentElement;
+      const layoutTable = slotTd?.closest?.("table");
+      if (!groupTable || slotTd?.tagName !== "TD" || slotRow?.tagName !== "TR" || !layoutTable) {
+        continue;
+      }
+      slots.push({
+        title,
+        groupTable,
+        slotTd,
+        layoutTable,
+        classKey: `${slotTd.colSpan ?? 1}:${(slotRow.children ?? []).length}`
+      });
+    }
+    return slots;
+  }
+
+  function sectionPartitions(root) {
+    const byTable = new Map();
+    for (const slot of sectionSlots(root)) {
+      let byClass = byTable.get(slot.layoutTable);
+      if (!byClass) {
+        byClass = new Map();
+        byTable.set(slot.layoutTable, byClass);
+      }
+      const list = byClass.get(slot.classKey) ?? [];
+      list.push(slot);
+      byClass.set(slot.classKey, list);
+    }
+    return [...byTable.values()].flatMap((byClass) => [...byClass.values()]);
+  }
+
+  function captureNativeSections(slots) {
+    const stamped = slots.every((slot) =>
+      slot.slotTd.getAttribute(NATIVE_INDEX_ATTRIBUTE) !== null
+      && slot.groupTable.getAttribute(NATIVE_INDEX_ATTRIBUTE) !== null);
+    if (!stamped) {
+      // ponytail: partial stamping restamps from current order (so-columns
+      // ceiling); acceptable because we always stamp before any move.
+      slots.forEach((slot, index) => {
+        slot.slotTd.setAttribute(NATIVE_INDEX_ATTRIBUTE, String(index));
+        slot.groupTable.setAttribute(NATIVE_INDEX_ATTRIBUTE, String(index));
+      });
+    }
+  }
+
+  function applySectionOrder(root, storedOrder) {
+    try {
+      const partitions = sectionPartitions(root);
+      if (!partitions.length) {
+        return false;
+      }
+      captureNativeSections(partitions.flat());
+      for (const partition of partitions) {
+        if (partition.length < 2) {
+          continue;
+        }
+        const currentTitles = partition.map((slot) => sectionTitleKey(slot.title));
+        if (new Set(currentTitles).size !== currentTitles.length) {
+          continue; // duplicate titles: identity is ambiguous, fail closed
+        }
+        const nativeTitles = partition
+          .slice()
+          .sort((a, b) =>
+            Number(a.groupTable.getAttribute(NATIVE_INDEX_ATTRIBUTE))
+            - Number(b.groupTable.getAttribute(NATIVE_INDEX_ATTRIBUTE)))
+          .map((slot) => sectionTitleKey(slot.title));
+        const target = planOrder(nativeTitles, Array.isArray(storedOrder) ? storedOrder : []);
+        if (currentTitles.join(" ") === target.join(" ")) {
+          continue; // identity: zero DOM writes, the observer has nothing to see
+        }
+        const tableByTitle = new Map(partition.map((slot) => [sectionTitleKey(slot.title), slot.groupTable]));
+        partition.forEach((slot, index) => {
+          const desired = tableByTitle.get(target[index]);
+          if (desired && desired.parentElement !== slot.slotTd) {
+            slot.slotTd.appendChild(desired);
+          }
+        });
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function sectionOrderDelta(root) {
+    try {
+      const slots = sectionSlots(root);
+      if (!slots.length) {
+        return null;
+      }
+      captureNativeSections(slots);
+      const moved = slots.some((slot) =>
+        slot.groupTable.getAttribute(NATIVE_INDEX_ATTRIBUTE) !== slot.slotTd.getAttribute(NATIVE_INDEX_ATTRIBUTE));
+      if (!moved) {
+        return null;
+      }
+      const titles = slots.map((slot) => sectionTitleKey(slot.title)).filter(Boolean);
+      return titles.length ? titles : null;
+    } catch {
+      return null;
+    }
+  }
+
   function applyFieldVisibility(wrappers, hiddenSet) {
     if (!Array.isArray(wrappers) && !wrappers?.length && !wrappers?.[Symbol.iterator]) {
       return 0;
@@ -334,6 +449,12 @@
       withFieldOrder,
       planOrder,
       moveLabel,
+      NATIVE_INDEX_ATTRIBUTE,
+      sectionTitleKey,
+      sectionSlots,
+      sectionPartitions,
+      applySectionOrder,
+      sectionOrderDelta,
       fieldKey,
       sectionKey,
       applyFieldVisibility

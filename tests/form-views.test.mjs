@@ -199,6 +199,227 @@ test("sectionKey clone-strips injected nodes and collapses whitespace", () => {
   assert.equal(core.sectionKey(null), "");
 });
 
+// ===== Stub DOM harness for the section/field topology helpers =====
+function stubMatches(node, selector) {
+  if (selector.startsWith("[")) {
+    const parsed = selector.match(/^\[([\w-]+)(?:\^="([^"]*)")?\]$/);
+    if (!parsed) {
+      return false;
+    }
+    const value = node.attributes?.[parsed[1]];
+    return parsed[2] === undefined ? value != null : typeof value === "string" && value.startsWith(parsed[2]);
+  }
+  const [tagPart, ...classes] = selector.split(".");
+  if (tagPart && node.tagName !== tagPart.toUpperCase()) {
+    return false;
+  }
+  return classes.every((cls) => String(node.className ?? "").split(/\s+/).includes(cls));
+}
+
+function el(tag, props = {}, children = []) {
+  const node = {
+    tagName: tag.toUpperCase(),
+    className: props.cls ?? "",
+    colSpan: props.colspan ?? 1,
+    text: props.text ?? "",
+    attributes: { ...(props.attrs ?? {}) },
+    children: [],
+    parentElement: null,
+    appendCount: 0,
+    nodeType: 1,
+    get textContent() {
+      return this.text + this.children.map((child) => child.textContent).join("");
+    },
+    getAttribute(name) {
+      return this.attributes[name] ?? null;
+    },
+    setAttribute(name, value) {
+      this.attributes[name] = String(value);
+    },
+    removeAttribute(name) {
+      delete this.attributes[name];
+    },
+    matches(selector) {
+      return stubMatches(this, selector);
+    },
+    closest(selector) {
+      let current = this;
+      while (current) {
+        if (stubMatches(current, selector)) {
+          return current;
+        }
+        current = current.parentElement;
+      }
+      return null;
+    },
+    appendChild(child) {
+      this.appendCount += 1;
+      const from = child.parentElement;
+      if (from) {
+        from.children.splice(from.children.indexOf(child), 1);
+      }
+      child.parentElement = this;
+      this.children.push(child);
+      return child;
+    },
+    cloneNode() {
+      return { textContent: this.textContent, querySelectorAll: () => [] };
+    },
+    querySelector(selector) {
+      return this.querySelectorAll(selector)[0] ?? null;
+    },
+    querySelectorAll(selector) {
+      if (selector.startsWith(":scope")) {
+        let level = [this];
+        for (const part of selector.split(" > ").slice(1)) {
+          level = level.flatMap((parent) => parent.children.filter((child) => stubMatches(child, part)));
+        }
+        return level;
+      }
+      const out = [];
+      const walk = (parent) => {
+        for (const child of parent.children) {
+          if (stubMatches(child, selector)) {
+            out.push(child);
+          }
+          walk(child);
+        }
+      };
+      walk(this);
+      return out;
+    }
+  };
+  for (const child of children) {
+    child.parentElement = node;
+    node.children.push(child);
+  }
+  return node;
+}
+
+function totalAppends(root) {
+  let sum = root.appendCount;
+  const walk = (parent) => {
+    for (const child of parent.children) {
+      sum += child.appendCount;
+      walk(child);
+    }
+  };
+  walk(root);
+  return sum;
+}
+
+function stubWrapper(name) {
+  return el("div", { cls: "uir-field-wrapper", attrs: { "data-field-name": name, "data-walkthrough": `Field:${name}` }, text: name });
+}
+
+function stubFieldRow(wrappers) {
+  return el("tr", { cls: "uir-field-wrapper-cell" }, [el("td", {}, wrappers)]);
+}
+
+function stubColumn(rows) {
+  return el("table", { cls: "table_fields" }, [el("tbody", {}, rows)]);
+}
+
+function stubGroup(title, columns, { collapsible = false } = {}) {
+  return el("table", {}, [el("tbody", {}, [
+    el("tr", {}, [el("td", { cls: `fgroup_title uir-field-group${collapsible ? " uir-field-group--collapsible" : ""}`, colspan: 3 }, [
+      el("div", { cls: "fgroup_title uir-field-group-title", text: title })
+    ])]),
+    el("tr", { cls: "uir-fieldgroup-content uir-field-group-content" }, columns.map((column) => el("td", {}, [column])))
+  ])]);
+}
+
+function buildFormStub({ duplicateTitle = false, unkeyedRowInColumn = -1 } = {}) {
+  const primaryRows = [
+    stubFieldRow([stubWrapper("tranid"), stubWrapper("custbody_issue")]),
+    stubFieldRow([stubWrapper("entity")])
+  ];
+  if (unkeyedRowInColumn === 1) {
+    primaryRows.push(stubFieldRow([])); // wrapper-less row makes the column unkeyable
+  }
+  const primaryColumn1 = stubColumn(primaryRows);
+  const primaryColumn2 = stubColumn([
+    stubFieldRow([stubWrapper("trandate")]),
+    stubFieldRow([stubWrapper("otherrefnum")])
+  ]);
+  const layoutA = el("table", {}, [el("tbody", {}, [
+    el("tr", {}, [el("td", { colspan: 3 }, [stubGroup("Primary Information", [primaryColumn1, primaryColumn2], { collapsible: true })])]),
+    el("tr", {}, [el("td", { colspan: 3 }, [stubGroup(duplicateTitle ? "Primary Information" : "Classification", [
+      stubColumn([stubFieldRow([stubWrapper("subsidiary")]), stubFieldRow([stubWrapper("location")])])
+    ], { collapsible: true })])]),
+    el("tr", {}, [el("td", { cls: "uir-table-fields-wrapper", colspan: 1 }, [stubWrapper("memo")])])
+  ])]);
+  const layoutB = el("table", {}, [el("tbody", {}, [
+    el("tr", {}, [
+      el("td", { colspan: 1 }, [stubGroup("Billing Information", [stubColumn([stubFieldRow([stubWrapper("terms")])])])]),
+      el("td", { colspan: 1 }, [stubGroup("Billing Address", [stubColumn([stubFieldRow([stubWrapper("billaddress")])])])]),
+      el("td", { colspan: 1 }, [el("table", {}, [el("tbody", {}, [])])])
+    ]),
+    el("tr", {}, [el("td", { colspan: 3 }, [stubGroup("Ship Central", [stubColumn([stubFieldRow([stubWrapper("custbody_third_party")])])])])])
+  ])]);
+  const root = el("body", {}, [layoutA, layoutB]);
+  const keyApi = createApi();
+  const columnKeys = (groupTable) =>
+    [...groupTable.querySelectorAll(":scope > tbody > tr.uir-fieldgroup-content > td > table.table_fields")]
+      .map((column) => column.querySelectorAll(":scope > tbody > tr")
+        .map((row) => keyApi.fieldKey(row.querySelector('[data-walkthrough^="Field:"]'))));
+  return { root, columnKeys };
+}
+
+test("sectionSlots finds slots, skips ungrouped wrappers, partitions by table and class", () => {
+  const core = createApi();
+  const { root } = buildFormStub();
+  const slots = core.sectionSlots(root);
+  assert.deepEqual(plain(slots.map((slot) => core.sectionTitleKey(slot.title))),
+    ["Primary Information", "Classification", "Billing Information", "Billing Address", "Ship Central"]);
+  const partitions = core.sectionPartitions(root).map((partition) => plain(partition.map((slot) => core.sectionTitleKey(slot.title))));
+  assert.deepEqual(plain(partitions), [
+    ["Primary Information", "Classification"],
+    ["Billing Information", "Billing Address"],
+    ["Ship Central"]
+  ]);
+});
+
+test("applySectionOrder stamps natives, permutes within class, and is identity-stable", () => {
+  const core = createApi();
+  const { root } = buildFormStub();
+  assert.equal(core.applySectionOrder(root, null), true);
+  assert.equal(totalAppends(root), 0);
+  // planOrder only permutes among labels present in the saved list, so a pair
+  // swap needs BOTH members saved — this mirrors real saves (full flat list).
+  assert.equal(core.applySectionOrder(root, ["Classification", "Primary Information", "Billing Address", "Billing Information"]), true);
+  assert.deepEqual(plain(core.sectionSlots(root).map((slot) => core.sectionTitleKey(slot.title))),
+    ["Classification", "Primary Information", "Billing Address", "Billing Information", "Ship Central"]);
+  const before = totalAppends(root);
+  core.applySectionOrder(root, ["Classification", "Primary Information", "Billing Address", "Billing Information"]);
+  assert.equal(totalAppends(root), before);
+});
+
+test("sectionOrderDelta is null at native, lists titles when moved, self-cleans on move-back", () => {
+  const core = createApi();
+  const { root } = buildFormStub();
+  assert.equal(core.sectionOrderDelta(root), null);
+  core.applySectionOrder(root, ["Classification", "Primary Information"]);
+  assert.deepEqual(plain(core.sectionOrderDelta(root)),
+    ["Classification", "Primary Information", "Billing Information", "Billing Address", "Ship Central"]);
+  core.applySectionOrder(root, null);
+  assert.equal(core.sectionOrderDelta(root), null);
+});
+
+test("applySectionOrder never moves across width classes and fails closed on duplicate titles", () => {
+  const core = createApi();
+  const { root } = buildFormStub();
+  core.applySectionOrder(root, ["Ship Central", "Billing Information", "Primary Information"]);
+  assert.deepEqual(plain(core.sectionSlots(root).map((slot) => core.sectionTitleKey(slot.title))),
+    ["Primary Information", "Classification", "Billing Information", "Billing Address", "Ship Central"]);
+  const dup = buildFormStub({ duplicateTitle: true });
+  const before = totalAppends(dup.root);
+  core.applySectionOrder(dup.root, ["Primary Information", "Billing Address", "Billing Information"]);
+  assert.equal(totalAppends(dup.root), before + 2); // billing still swaps; duplicate-title partition skipped
+  assert.deepEqual(plain(core.sectionSlots(dup.root).map((slot) => core.sectionTitleKey(slot.title))),
+    ["Primary Information", "Primary Information", "Billing Address", "Billing Information", "Ship Central"]);
+});
+
 test("applyFieldVisibility toggles the hide class from the stored set", () => {
   const core = createApi();
   const wrapper = (name) => {
