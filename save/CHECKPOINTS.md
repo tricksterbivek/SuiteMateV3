@@ -1219,3 +1219,19 @@ Date: 2026-07-31
 
 - Full `npm test` green (sales-order.html has no screenshot baseline; the verify.mjs source pins on main_form/baserecordtype/Actions toolbar are untouched).
 - In-browser: `sectionSlots` finds exactly the 7 groups (ungrouped memo row excluded), `sectionPartitions` yields the four expected partitions (main pair | shipping pair | Ship Central solo | billing pair), collapse click flips aria-expanded and hides/restores the content row.
+
+## Form Layout Builder: Phase C (section reorder runtime)
+
+Status: Complete
+Date: 2026-07-31
+
+### Included
+
+- Personalize mode grows section reorder: a `⠿` grip (button, draggable, click-swallowed so `role=button` titles never collapse from a grip click) mounts inside `div.fgroup_title` for every slot in a movable partition — Ship Central, alone in its width class, gets none. Five document-level drag listeners attach on mode enter and detach on exit; drop targets are same-partition slot TDs resolved via the native-index stamp, with an axis-aware insertion bar (top edge for stacked slots, leading edge for side-by-side pairs). Field-drag handler stubs are in place for Phase D.
+- `Alt+Arrow` on a focused grip drives the exact drop code path (`moveLabel` over the flat page titles → `applySectionOrder` → `saveOrders`), then restores focus after the appendChild blur.
+- `saveOrders` writes delta-only with merge: off-page stored titles survive, on-page delta replaces, everything-native deletes the key; per-section `fieldOrder` keys ride the same write. `justDropped` guards the capture-phase collapse listener. Install pipeline applies stored orders between the storage read and visibility/collapse replay; Reset and disable both restore native order (disable also strips all stamps).
+- Runtime's `nodeRelevant` deleted in favour of the core export (with the stamped-move exclusion); hint copy now names all three gestures.
+
+### Verification
+
+- Full `npm test` green. Fixture round-trip on the rebuilt topology, chrome-stub write counter as the loop probe: personalize shows 6 grips (no Ship Central); Alt+ArrowDown moved Primary below Classification with exactly ONE storage write, stable after 500 ms (no observer self-trigger); stored `sectionOrder` is the full flat 7-title list; toggle-off restored native order, removed every stamp and control; toggle-on reapplied the stored order during install with ZERO writes; moving back deleted the entry entirely (delta self-clean). A natively-collapsed section moved while staying collapsed (aria + hidden row intact, `collapsedSections` + `sectionOrder` coexisting), and teardown self-cleaned to a null entry. Reset restores native + expands + clears in one chained write (plus M24's pre-existing benign expand-click collapse-save no-op).
