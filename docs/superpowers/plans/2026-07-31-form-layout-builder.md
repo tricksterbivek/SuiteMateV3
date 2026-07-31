@@ -251,7 +251,7 @@ git commit -m "feat: form-views storage schema v2 with section and field order"
 ```js
 test("planOrder matches so-columns semantics for section and field lists", () => {
   const core = createApi();
-  assert.deepEqual(core.planOrder(["A", "B", "C"], ["C", "A"]), ["C", "A", "B"]);
+  assert.deepEqual(core.planOrder(["A", "B", "C"], ["C", "A"]), ["C", "B", "A"]);
   assert.deepEqual(core.planOrder(["A", "B", "C"], []), ["A", "B", "C"]);
   assert.deepEqual(core.planOrder(["A", "B", "C"], ["Z", "B"]), ["A", "B", "C"]);
   assert.deepEqual(core.planOrder(["A", "B", "A"], ["A", "B"]), ["A", "B", "A"]);

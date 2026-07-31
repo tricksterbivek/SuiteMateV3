@@ -149,6 +149,25 @@ test("normalizeStored keeps order keys and drops hostile order shapes", () => {
   });
 });
 
+test("planOrder matches so-columns semantics for section and field lists", () => {
+  const core = createApi();
+  // Matched saved labels fill the matched natives' POSITIONS in saved order;
+  // unmatched natives (B) keep their slots.
+  assert.deepEqual(core.planOrder(["A", "B", "C"], ["C", "A"]), ["C", "B", "A"]);
+  assert.deepEqual(core.planOrder(["A", "B", "C"], []), ["A", "B", "C"]);
+  assert.deepEqual(core.planOrder(["A", "B", "C"], ["Z", "B"]), ["A", "B", "C"]);
+  assert.deepEqual(core.planOrder(["A", "B", "A"], ["A", "B"]), ["A", "B", "A"]);
+  assert.deepEqual(core.planOrder(["A", "B", "C"], ["B", "B", "A"]), ["B", "A", "C"]);
+});
+
+test("moveLabel splices one label next to another and fails closed", () => {
+  const core = createApi();
+  assert.deepEqual(core.moveLabel(["A", "B", "C"], "A", "C"), ["B", "C", "A"]);
+  assert.deepEqual(core.moveLabel(["A", "B", "C"], "C", "A"), ["C", "A", "B"]);
+  assert.equal(core.moveLabel(["A", "B"], "A", "A"), null);
+  assert.equal(core.moveLabel(["A", "B"], "Z", "A"), null);
+});
+
 test("evictOverQuota fails loudly when the written entry alone exceeds quota", () => {
   const core = createApi();
   const fat = Array.from({ length: 199 }, (_, i) => `f_${i}_${"x".repeat(60)}`);

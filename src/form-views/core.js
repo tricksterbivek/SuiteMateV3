@@ -219,6 +219,49 @@
     return withField(stored, scopeKey, "fieldOrder", orders, normalizeFieldOrder);
   }
 
+  // ===== Order planning (copied from so-columns core/runtime — each core is
+  // vm-sandboxed alone, so cross-core reuse is impossible by doctrine) =====
+  function planOrder(nativeLabels, savedLabels) {
+    const native = Array.isArray(nativeLabels)
+      ? nativeLabels.map((label) => typeof label === "string" ? label : "")
+      : [];
+    const counts = new Map();
+    for (const label of native) {
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    }
+
+    const matched = [];
+    const matchedSet = new Set();
+    const saved = Array.isArray(savedLabels) ? savedLabels : [];
+    for (const label of saved) {
+      if (typeof label === "string" && label && counts.get(label) === 1 && !matchedSet.has(label)) {
+        matchedSet.add(label);
+        matched.push(label);
+      }
+    }
+
+    const target = native.slice();
+    let matchedIndex = 0;
+    for (let index = 0; index < target.length; index += 1) {
+      if (matchedSet.has(target[index])) {
+        target[index] = matched[matchedIndex];
+        matchedIndex += 1;
+      }
+    }
+    return target;
+  }
+
+  function moveLabel(labels, fromLabel, toLabel) {
+    const from = labels.indexOf(fromLabel);
+    const to = labels.indexOf(toLabel);
+    if (from < 0 || to < 0 || from === to) {
+      return null;
+    }
+    const next = labels.slice();
+    next.splice(to, 0, next.splice(from, 1)[0]);
+    return next;
+  }
+
   // ===== Field and section identity (DOM-thin, stub-testable) =====
   function fieldKey(wrapper) {
     if (!wrapper) {
@@ -289,6 +332,8 @@
       withCollapsedSections,
       withSectionOrder,
       withFieldOrder,
+      planOrder,
+      moveLabel,
       fieldKey,
       sectionKey,
       applyFieldVisibility
