@@ -1204,3 +1204,18 @@ Date: 2026-07-31
 ### Verification
 
 - 24/24 form-views unit tests (11 new this phase) on a purpose-built stub-DOM harness that counts every appendChild; full `npm test` green including 28 baselines at 0.000%.
+
+## Form Layout Builder: Phase B (fixture rebuilt to live topology)
+
+Status: Complete
+Date: 2026-07-31
+
+### Included
+
+- `tests/fixtures/sales-order.html` form area rebuilt from the flat two-group table to the live-probed structure: `#detail_table_lay` with two collapsible colspan-3 groups (Primary Information with two `table_fields` columns and a packed tranid+custbody_issue row; Classification) plus the ungrouped `uir-table-fields-wrapper` row; `shipping_div` with the narrow pair + empty spacer cell + colspan-3 Ship Central; `billingtab_div` pair. 15 field wrappers across 7 groups, real `tr.uir-field-wrapper-cell` rows, real `tr_fg_*` content-row ids.
+- The existing collapse-emulation script needed zero changes (title→content adjacency is preserved inside each group table).
+
+### Verification
+
+- Full `npm test` green (sales-order.html has no screenshot baseline; the verify.mjs source pins on main_form/baserecordtype/Actions toolbar are untouched).
+- In-browser: `sectionSlots` finds exactly the 7 groups (ungrouped memo row excluded), `sectionPartitions` yields the four expected partitions (main pair | shipping pair | Ship Central solo | billing pair), collapse click flips aria-expanded and hides/restores the content row.
