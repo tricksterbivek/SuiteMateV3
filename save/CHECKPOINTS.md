@@ -1211,3 +1211,17 @@ Date: 2026-07-31
 ```json
 {"schemaVersion":2,"views":{"6998262:2462:salesord":{"fieldOrder":{"Account Information":["exchangerate","currency"],"Primary Information":["entity","trandate","tranid","otherrefnum","memo","custbody_gwp_not_selected","custbody_shopify_order_number"]}}}}
 ```
+
+## Rollback shipped: v3.21.1 released, layout builder parked on its branch
+
+Status: Complete
+Date: 2026-07-31
+
+### Included
+
+- GitHub release v3.21.1 published (https://github.com/tricksterbivek/SuiteMateV3/releases/tag/v3.21.1), tagged on main at dbda986: the classic Personal Form Views experience (hide/show fields, persistent section collapse, Sales Orders only) plus the schema-2 storage-compat fix, with the drag-and-drop layout builder deferred intact on `feature/form-layout-builder` (v3.22.0 state, adversarially reviewed and live-verified before deferral). Both refs pushed to origin.
+- The rollback itself is documented two entries up: byte-identical restore of the v3.21.0 tree via forward revert (no history rewrite), one surgical compat constant, and the post-rollback forensics addendum with the owner's recovered fieldOrder experiment.
+
+### Verification
+
+- End-to-end on the released build against production SO 16302518: hide a field → real page reload → still hidden → chip unhide → storage clean; the schema-2 container written by the builder reads through correctly. Full `npm test` at 213 passing, 28 baselines at 0.000%. Owner declined re-hiding the two pre-builder fields (their own Resets had cleared them); fixture server shut down.
