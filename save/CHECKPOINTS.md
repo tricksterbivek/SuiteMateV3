@@ -1201,3 +1201,13 @@ Date: 2026-07-31
 ### Verification
 
 - New unit test drives the exact live shape: a schema-2 entry carrying hiddenFields + sectionOrder + fieldOrder reads through with hiddenFields intact and order keys dropped; writes stay on container 2. Full `npm test` green (213 tests, 28 baselines at 0.000%).
+
+
+### Addendum (post-rollback forensics, 2026-07-31)
+
+- LevelDB history showed the owner had been exercising the layout builder themselves after the live pass (field reorders across four groups, section moves, collapses, two Resets — the Resets are what cleared their earlier two hidden fields, before the rollback). The restored v3.21.1 build read the schema-2 container correctly; there was simply nothing hidden left to apply.
+- The rollback verification's hide/unhide write then hit the documented compat ceiling and dropped the owner's final builder experiment for the touched scope. Recovered verbatim from the storage log for when `feature/form-layout-builder` resumes:
+
+```json
+{"schemaVersion":2,"views":{"6998262:2462:salesord":{"fieldOrder":{"Account Information":["exchangerate","currency"],"Primary Information":["entity","trandate","tranid","otherrefnum","memo","custbody_gwp_not_selected","custbody_shopify_order_number"]}}}}
+```
