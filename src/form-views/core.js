@@ -346,6 +346,54 @@
     return [...byTable.values()].flatMap((byClass) => [...byClass.values()]);
   }
 
+  function sectionTitlesUnique(root) {
+    const titles = sectionSlots(root).map((slot) => sectionTitleKey(slot.title)).filter(Boolean);
+    return new Set(titles).size === titles.length;
+  }
+
+  // Position-preserving order merge: the on-page block is replaced in place
+  // inside the previously stored list (off-page labels keep their relative
+  // positions instead of being hoisted to the front), and off-page overflow
+  // is dropped oldest-first so a long-lived scope can never brick saving.
+  function mergeOrderList(previous, onPage, delta, max) {
+    const prev = Array.isArray(previous) ? previous : [];
+    const fresh = Array.isArray(delta) ? delta : [];
+    const merged = [];
+    let inserted = false;
+    for (const label of prev) {
+      if (onPage?.has?.(label)) {
+        if (!inserted && fresh.length) {
+          merged.push(...fresh);
+          inserted = true;
+        }
+      } else if (!merged.includes(label)) {
+        merged.push(label);
+      }
+    }
+    if (!inserted && fresh.length) {
+      merged.push(...fresh);
+    }
+    while (merged.length > max) {
+      const index = merged.findIndex((label) => !fresh.includes(label));
+      if (index < 0) {
+        return null; // ponytail: a delta alone over max clears the key
+      }
+      merged.splice(index, 1);
+    }
+    return merged.length ? merged : null;
+  }
+
+  function groupFieldKeys(groupTable) {
+    const keys = [];
+    for (const columnTable of columnTables(groupTable)) {
+      const keyed = columnRows(columnTable);
+      if (keyed) {
+        keys.push(...keyed.map((entry) => entry.key));
+      }
+    }
+    return keys;
+  }
+
   function captureNativeSections(slots) {
     const stamped = slots.every((slot) =>
       slot.slotTd.getAttribute(NATIVE_INDEX_ATTRIBUTE) !== null
@@ -363,7 +411,10 @@
   function applySectionOrder(root, storedOrder) {
     try {
       const partitions = sectionPartitions(root);
-      if (!partitions.length) {
+      if (!partitions.length || !sectionTitlesUnique(root)) {
+        // Title text is the identity for storage, planning and drop targets;
+        // ANY page-wide duplicate makes it ambiguous, so reorder fails closed
+        // (the review proved cross-partition duplicates corrupt sibling panels).
         return false;
       }
       captureNativeSections(partitions.flat());
@@ -372,9 +423,6 @@
           continue;
         }
         const currentTitles = partition.map((slot) => sectionTitleKey(slot.title));
-        if (new Set(currentTitles).size !== currentTitles.length) {
-          continue; // duplicate titles: identity is ambiguous, fail closed
-        }
         const nativeTitles = partition
           .slice()
           .sort((a, b) =>
@@ -402,7 +450,7 @@
   function sectionOrderDelta(root) {
     try {
       const slots = sectionSlots(root);
-      if (!slots.length) {
+      if (!slots.length || !sectionTitlesUnique(root)) {
         return null;
       }
       captureNativeSections(slots);
@@ -555,6 +603,9 @@
       sectionTitleKey,
       sectionSlots,
       sectionPartitions,
+      sectionTitlesUnique,
+      mergeOrderList,
+      groupFieldKeys,
       applySectionOrder,
       sectionOrderDelta,
       applyFieldOrder,

@@ -174,7 +174,14 @@
   }
 
   // ===== Layout order: apply stored, save deltas (merge-on-save) =====
+  let savePending = 0;
+
   function applyStoredOrders(entry) {
+    if (personalizing || savePending > 0 || !core.sectionTitlesUnique(document)) {
+      // Never rewind a user's in-progress edits or race a queued save with a
+      // stale storage read (review finding); duplicate titles disable reorder.
+      return;
+    }
     core.applySectionOrder(document, entry?.sectionOrder ?? null);
     for (const slot of core.sectionSlots(document)) {
       const title = core.sectionTitleKey(slot.title);
@@ -183,30 +190,41 @@
   }
 
   function saveOrders() {
+    savePending += 1;
     return enqueueSave(async () => {
       try {
-        if (!scopeKey) {
+        if (!scopeKey || !core.sectionTitlesUnique(document)) {
           return;
         }
         const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
         const entry = core.normalizeStored(stored[core.STORAGE_KEY]).views[scopeKey];
-        // Merge, don't replace: order data for sections this form variant does
-        // not render must survive the write (collapse-save precedent).
+        // Merge, don't replace: order data for sections and fields this form
+        // variant does not render keeps its stored position (review findings:
+        // prepending hoisted other variants' sections; deleting a key on a
+        // null delta destroyed layouts that only exist on other records).
         const slots = core.sectionSlots(document);
         const onPage = new Set(slots.map((slot) => core.sectionTitleKey(slot.title)).filter(Boolean));
-        const offPage = (entry?.sectionOrder ?? []).filter((title) => !onPage.has(title));
-        const delta = core.sectionOrderDelta(document);
-        const sections = [...offPage, ...(delta ?? [])];
-        let next = core.withSectionOrder(stored[core.STORAGE_KEY], scopeKey, sections.length ? sections : null);
+        const sections = core.mergeOrderList(
+          entry?.sectionOrder,
+          onPage,
+          core.sectionOrderDelta(document),
+          core.MAX_SECTIONS
+        );
+        let next = core.withSectionOrder(stored[core.STORAGE_KEY], scopeKey, sections);
         const orders = { ...(entry?.fieldOrder ?? {}) };
         for (const slot of slots) {
           const title = core.sectionTitleKey(slot.title);
           if (!title) {
             continue;
           }
-          const fieldDelta = core.fieldOrderDelta(slot.groupTable);
-          if (fieldDelta) {
-            orders[title] = fieldDelta;
+          const merged = core.mergeOrderList(
+            orders[title],
+            new Set(core.groupFieldKeys(slot.groupTable)),
+            core.fieldOrderDelta(slot.groupTable),
+            core.MAX_FIELD_NAMES
+          );
+          if (merged) {
+            orders[title] = merged;
           } else {
             delete orders[title];
           }
@@ -219,6 +237,8 @@
         await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
       } catch {
         showToast("Form layout could not be saved.", "warning");
+      } finally {
+        savePending -= 1;
       }
     });
   }
@@ -300,6 +320,9 @@
   }
 
   function ensureSectionGrips() {
+    if (!core.sectionTitlesUnique(document)) {
+      return; // ambiguous identity: no reorder affordances at all
+    }
     for (const slot of reorderableSlots()) {
       const mount = slot.title.querySelector("div.fgroup_title");
       if (!mount || mount.querySelector(`[${core.DATA_ATTRIBUTE}="section-grip"]`)) {
@@ -461,6 +484,9 @@
   }
 
   function ensureFieldDragSources() {
+    if (!core.sectionTitlesUnique(document)) {
+      return; // fieldOrder is keyed by section title; ambiguity disables it too
+    }
     for (const wrapper of fieldWrappers()) {
       wrapper.draggable = true;
       wrapper.tabIndex = 0;
@@ -687,6 +713,7 @@
       for (const slot of core.sectionSlots(document)) {
         core.applyFieldOrder(slot.groupTable, null);
       }
+      savePending += 1;
       enqueueSave(async () => {
         try {
           if (!scopeKey) {
@@ -705,6 +732,8 @@
           showToast("Form view reset.", "success");
         } catch {
           showToast("Form view could not be reset.", "warning");
+        } finally {
+          savePending -= 1;
         }
       });
       exitPersonalize();

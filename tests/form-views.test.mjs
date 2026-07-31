@@ -329,7 +329,7 @@ function stubGroup(title, columns, { collapsible = false } = {}) {
   ])]);
 }
 
-function buildFormStub({ duplicateTitle = false, unkeyedRowInColumn = -1 } = {}) {
+function buildFormStub({ duplicateTitle = false, crossPanelDuplicate = false, unkeyedRowInColumn = -1 } = {}) {
   const primaryRows = [
     stubFieldRow([stubWrapper("tranid"), stubWrapper("custbody_issue")]),
     stubFieldRow([stubWrapper("entity")])
@@ -351,7 +351,7 @@ function buildFormStub({ duplicateTitle = false, unkeyedRowInColumn = -1 } = {})
   ])]);
   const layoutB = el("table", {}, [el("tbody", {}, [
     el("tr", {}, [
-      el("td", { colspan: 1 }, [stubGroup("Billing Information", [stubColumn([stubFieldRow([stubWrapper("terms")])])])]),
+      el("td", { colspan: 1 }, [stubGroup(crossPanelDuplicate ? "Primary Information" : "Billing Information", [stubColumn([stubFieldRow([stubWrapper("terms")])])])]),
       el("td", { colspan: 1 }, [stubGroup("Billing Address", [stubColumn([stubFieldRow([stubWrapper("billaddress")])])])]),
       el("td", { colspan: 1 }, [el("table", {}, [el("tbody", {}, [])])])
     ]),
@@ -412,12 +412,60 @@ test("applySectionOrder never moves across width classes and fails closed on dup
   core.applySectionOrder(root, ["Ship Central", "Billing Information", "Primary Information"]);
   assert.deepEqual(plain(core.sectionSlots(root).map((slot) => core.sectionTitleKey(slot.title))),
     ["Primary Information", "Classification", "Billing Information", "Billing Address", "Ship Central"]);
+  // ANY page-wide duplicate title disables reorder entirely (fail closed):
+  // the review proved a title duplicated across partitions corrupts sibling
+  // panels through planOrder, moveLabel targeting and fieldOrder keying.
   const dup = buildFormStub({ duplicateTitle: true });
+  assert.equal(core.sectionTitlesUnique(dup.root), false);
   const before = totalAppends(dup.root);
-  core.applySectionOrder(dup.root, ["Primary Information", "Billing Address", "Billing Information"]);
-  assert.equal(totalAppends(dup.root), before + 2); // billing still swaps; duplicate-title partition skipped
-  assert.deepEqual(plain(core.sectionSlots(dup.root).map((slot) => core.sectionTitleKey(slot.title))),
-    ["Primary Information", "Primary Information", "Billing Address", "Billing Information", "Ship Central"]);
+  assert.equal(core.applySectionOrder(dup.root, ["Primary Information", "Billing Address", "Billing Information"]), false);
+  assert.equal(totalAppends(dup.root), before);
+  assert.equal(core.sectionOrderDelta(dup.root), null);
+  const crossPanel = buildFormStub({ crossPanelDuplicate: true });
+  assert.equal(core.sectionTitlesUnique(crossPanel.root), false);
+  const beforeCross = totalAppends(crossPanel.root);
+  assert.equal(core.applySectionOrder(crossPanel.root, ["Classification", "Primary Information"]), false);
+  assert.equal(totalAppends(crossPanel.root), beforeCross);
+  assert.equal(core.sectionTitlesUnique(buildFormStub().root), true);
+});
+
+test("mergeOrderList keeps off-page positions, self-cleans, and trims overflow", () => {
+  const core = createApi();
+  // on-page block replaced in place: off-page D stays behind the block
+  assert.deepEqual(
+    plain(core.mergeOrderList(["A", "B", "D"], new Set(["A", "B"]), ["B", "A"], 50)),
+    ["B", "A", "D"]
+  );
+  // off-page ahead of the block stays ahead (no hoisting either way)
+  assert.deepEqual(
+    plain(core.mergeOrderList(["D", "A", "B"], new Set(["A", "B"]), ["B", "A"], 50)),
+    ["D", "B", "A"]
+  );
+  // null delta keeps other-variant labels and drops this page's (self-clean)
+  assert.deepEqual(
+    plain(core.mergeOrderList(["A", "D", "B"], new Set(["A", "B"]), null, 50)),
+    ["D"]
+  );
+  assert.equal(core.mergeOrderList(["A", "B"], new Set(["A", "B"]), null, 50), null);
+  // no previous list: delta stands alone
+  assert.deepEqual(plain(core.mergeOrderList(undefined, new Set(["A"]), ["A"], 50)), ["A"]);
+  // overflow trims off-page labels oldest-first, never the fresh delta
+  assert.deepEqual(
+    plain(core.mergeOrderList(["X", "Y", "A"], new Set(["A"]), ["A"], 2)),
+    ["Y", "A"]
+  );
+  // a delta alone over max clears the key instead of bricking the write
+  assert.equal(core.mergeOrderList([], new Set(["A", "B", "C"]), ["A", "B", "C"], 2), null);
+});
+
+test("groupFieldKeys lists a group's keyable rows across columns", () => {
+  const core = createApi();
+  const { root } = buildFormStub();
+  const group = core.sectionSlots(root)[0].groupTable;
+  assert.deepEqual(plain(core.groupFieldKeys(group)), ["tranid", "entity", "trandate", "otherrefnum"]);
+  const broken = buildFormStub({ unkeyedRowInColumn: 1 });
+  const g2 = core.sectionSlots(broken.root)[0].groupTable;
+  assert.deepEqual(plain(core.groupFieldKeys(g2)), ["trandate", "otherrefnum"]); // unkeyable column contributes nothing
 });
 
 test("applyFieldOrder reorders rows within a column, packed pair travels as one row", () => {
