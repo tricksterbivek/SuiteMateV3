@@ -1187,3 +1187,20 @@ Date: 2026-07-31
 - Full cycle on the shipped build: Personalize Form with ghosts and real-label chips, hide + native section collapse ("Ship Central - Other Party Billing"), real page reload auto-reapplied everything, chip un-hide surgical. The owner's own experimentation (two hidden fields from their earlier session) survived the toggle-off/on churn intact — the merge-on-save fix working as designed — so the pass ended by restoring their exact saved view rather than Reset.
 - A non-install red herring was root-caused by storage forensics: both feature toggles had been switched off in stored settings (a popup save around the extension reload), not a code fault — the full-parity fixture had already exonerated the build.
 - Coexistence green (45 grid arrows, smart tab titles); zero SuiteMate console errors throughout.
+
+## Form Layout Builder: Phase A (storage v2 + pure order helpers)
+
+Status: Complete
+Date: 2026-07-31
+
+### Included
+
+- `suiteMateV3FormViews` schema v2: optional `sectionOrder` (flat title list) and `fieldOrder` (per-section flat row-key lists), delta-only by design; v1 entries read through with no migration code. Three hardening fixes the new keys exposed: `entryIsEmpty` learned the order keys (an order-only entry no longer dies on an unrelated clear), `withField` clears on empty objects, and `evictOverQuota` returns null when even the single surviving entry exceeds the 7800-byte guard (loud failure instead of a doomed 8192-byte write).
+- `planOrder` + `moveLabel` copied verbatim from so-columns (vm sandbox doctrine); `moveLabel` gains its first unit coverage.
+- Section slot model: `sectionSlots`/`sectionPartitions` (partitioned by layout table × width class, straight from the live-probed four-panel SO topology), first-touch native stamping on slot TDs + group tables, `applySectionOrder` (whole-table appendChild moves, duplicate-title partitions fail closed, identity applies perform zero DOM writes), `sectionOrderDelta` (null at native — self-cleaning storage).
+- Field column model: per-column `tr.uir-field-wrapper-cell` rows keyed by first wrapper, packed pairs move as one row, unkeyable/mixed columns skipped fail-closed, `applyFieldOrder`/`fieldOrderDelta` with the same identity/zero-write guarantees.
+- `nodeRelevant` moved into core and extended with the stamped-node exclusion — the deterministic half of the observer self-trigger guard (identity early-returns are the other half).
+
+### Verification
+
+- 24/24 form-views unit tests (11 new this phase) on a purpose-built stub-DOM harness that counts every appendChild; full `npm test` green including 28 baselines at 0.000%.
