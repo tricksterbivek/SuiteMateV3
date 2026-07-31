@@ -1249,3 +1249,24 @@ Date: 2026-07-31
 ### Verification
 
 - Full `npm test` green. Fixture round-trip: hide entity then Alt+ArrowDown on tranid — the packed tranid+custbody_issue row moved below entity as one unit (same TD), column 2 untouched, exactly one write per action and stable after 500 ms; storage held `hiddenFields` + `fieldOrder["Primary Information"]` side by side. Synthetic drag: cross-column dragover rejected (no marker), same-column accepted (insertion bar), dragend cleared all state. Toggle-off restored native order and unhid entity; toggle-on reapplied order and hid entity in its new position with zero install writes; Alt+ArrowUp back self-cleaned `fieldOrder` while `hiddenFields` survived.
+
+## Form Layout Builder: Milestone 25 (v3.22.0, live-verified + adversarially reviewed)
+
+Status: Complete
+Date: 2026-07-31
+
+### Included
+
+- The full layout-builder arc shipped: drag-and-drop section reorder (same-panel, same-width-class; Ship Central immovable by class), within-column field reorder (packed pairs travel as one row), Alt+Arrow keyboard parity through the identical code path, delta-only schema-v2 persistence with position-preserving cross-variant merge, and native restore on Reset/disable.
+- A 52-agent adversarial Opus review (4 finders, two refutation verifiers per finding, several with real vm experiments) confirmed 8 of 24 findings; all fixed in b386f10:
+  1. **Duplicate section titles across partitions** corrupted sibling panels through planOrder/moveLabel/fieldOrder keying — now a page-wide title-uniqueness gate disables reorder entirely (fail closed) in core apply/delta AND runtime affordances.
+  2. **fieldOrder erased by variant records** (fatal): a section rendering native or unkeyable on this record deleted the stored layout other records depend on — replaced with `mergeOrderList`, which keeps other-variant keys and self-cleans only when this page fully accounts for the stored list.
+  3. **Off-page prepend hoisted other variants' sections** to the front of their partitions — the merge now replaces the on-page block in place, preserving off-page relative positions.
+  4. **Unbounded off-page accumulation** could pass MAX_SECTIONS and permanently brick saving — the merge trims off-page overflow oldest-first and clears the key rather than nulling the write.
+  5. **Save/re-apply race**: a lifecycle re-evaluate mid-save could rewind a just-completed drag with the stale stored entry — `applyStoredOrders` now skips while personalizing or while any save is pending.
+  Plus a self-caught hardening: identity joins use a null separator so spaced titles cannot collide.
+
+### Verification
+
+- 26/26 form-views unit tests; full `npm test` green with 28 baselines at 0.000%; fixture round-trips re-proven on the merge-based save (moves persist; an injected "Phantom Section" and its field order survive a foreign save; the reverted page's key self-cleans).
+- Live on SO 16302518 (view mode, owner's real scope, Reset never pressed): fresh build installed with the owner's two hidden fields applied and 45 grid arrows + smart tab title coexisting; personalize showed exactly 10 grips (Ship Central excluded), real-label chips, grab cursors, neutralized link anchors; three moves (Sales Information above Delivery Instructions, Billing pair swap, trandate above ghosted entity) applied instantly and survived a REAL page reload; the Billing subtab showed the swapped pair after a native tab switch; keyboard teardown restored native, a second reload proved the storage self-cleaned back to the owner's exact hiddenFields-only entry; zero console errors across both loads.
