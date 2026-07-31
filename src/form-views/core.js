@@ -456,7 +456,7 @@
           .map((entry) => entry.key);
         const target = planOrder(nativeKeys, Array.isArray(storedList) ? storedList : []);
         const currentKeys = keyed.map((entry) => entry.key);
-        if (currentKeys.join(" ") === target.join(" ")) {
+        if (currentKeys.join("\u0000") === target.join("\u0000")) {
           continue; // identity: zero DOM writes
         }
         const rowByKey = new Map(keyed.map((entry) => [entry.key, entry.row]));
