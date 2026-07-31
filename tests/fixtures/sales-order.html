@@ -36,21 +36,23 @@
     <script src="../../src/so-columns/runtime.js"></script>
     <script src="../../src/form-views/runtime.js"></script>
     <style>
-      .fixture-form {
+      #detail_table_lay {
         width: 100%;
-        border-collapse: separate;
-        border-spacing: 0 18px;
       }
 
-      .fixture-form > tbody > tr > td {
-        padding: 0;
+      #detail_table_lay > tbody > tr > td {
+        padding: 0 0 14px;
       }
 
-      .fixture-group-fields {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(180px, 1fr));
-        gap: 24px;
-        padding: 12px 8px 20px;
+      #shipping_div > table,
+      #billingtab_div > table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .table_fields td {
+        padding: 3px 24px 3px 0;
+        vertical-align: top;
       }
 
       .uir-field-group-title {
@@ -102,18 +104,115 @@
         </div>
       </div>
 
-      <table class="fixture-form">
+      <table id="detail_table_lay" class="uir-tab-fields" cellspacing="0">
         <tbody>
-          <tr><td id="fg_fieldGroup_1" class="fgroup_title uir-field-group uir-field-group--collapsible" role="button" aria-expanded="true"><div class="fgroup_title uir-field-group-title"><span class="uir-field-group--collapsible-icon"></span>Primary Information</div></td></tr>
-          <tr><td><div class="fixture-group-fields"><div class="uir-field-wrapper" data-field-name="tranid" data-walkthrough="Field:tranid" data-nsps-label="Order #"><span class="uir-label"><span class="uir-label-span smalltextnolink">Order #</span></span><span class="uir-field inputreadonly">SO10428</span></div><div class="uir-field-wrapper" data-field-name="entity" data-walkthrough="Field:entity" data-nsps-label="Customer"><span class="uir-label"><span class="uir-label-span smalltextnolink">Customer</span></span><span class="uir-field inputreadonly">Sample Customer</span></div><div class="uir-field-wrapper" data-field-name="trandate" data-walkthrough="Field:trandate" data-nsps-label="Date"><span class="uir-label"><span class="uir-label-span smalltextnolink">Date</span></span><span class="uir-field inputreadonly">13/07/2026</span></div></div></td></tr>
-          <tr><td id="fg_fieldGroup_2" class="fgroup_title uir-field-group uir-field-group--collapsible" role="button" aria-expanded="true"><div class="fgroup_title uir-field-group-title"><span class="uir-field-group--collapsible-icon"></span>Classification</div></td></tr>
-          <tr><td><div class="fixture-group-fields"><div class="uir-field-wrapper" data-field-name="subsidiary" data-walkthrough="Field:subsidiary" data-nsps-label="Subsidiary"><span class="uir-label"><span class="uir-label-span smalltextnolink">Subsidiary</span></span><span class="uir-field inputreadonly">Australia</span></div><div class="uir-field-wrapper" data-walkthrough="Field:custbody_biztype" data-nsps-label="Business Type"><span class="uir-label"><span class="uir-label-span smalltextnolink">Business Type</span></span><span class="uir-field inputreadonly">Sales</span></div><div class="uir-field-wrapper" data-field-name="location" data-walkthrough="Field:location" data-nsps-label="Location"><span class="uir-label"><span class="uir-label-span smalltextnolink">Location</span></span><span class="uir-field inputreadonly">Sydney</span></div></div></td></tr>
+          <tr><td colspan="3">
+            <table width="100%"><tbody>
+              <tr><td id="fg_fieldGroup_1" class="fgroup_title uir-field-group uir-field-group--collapsible" role="button" aria-expanded="true"><div class="fgroup_title uir-field-group-title"><span class="uir-field-group--collapsible-icon"></span>Primary Information</div></td></tr>
+              <tr id="tr_fg_fieldGroup_1" class="uir-fieldgroup-content uir-field-group-content">
+                <td><table class="table_fields"><tbody>
+                  <tr class="uir-field-wrapper-cell"><td>
+                    <div class="uir-field-wrapper" data-field-name="tranid" data-walkthrough="Field:tranid" data-nsps-label="Order #"><span class="uir-label"><span class="uir-label-span smalltextnolink">Order #</span></span><span class="uir-field inputreadonly">SO10428</span></div>
+                    <div class="uir-field-wrapper" data-field-name="custbody_issue" data-walkthrough="Field:custbody_issue" data-nsps-label="Issue"><span class="uir-label"><span class="uir-label-span smalltextnolink">Issue</span></span><span class="uir-field inputreadonly">None</span></div>
+                  </td></tr>
+                  <tr class="uir-field-wrapper-cell"><td><div class="uir-field-wrapper" data-field-name="entity" data-walkthrough="Field:entity" data-nsps-label="Customer"><span class="uir-label"><span class="uir-label-span smalltextnolink">Customer</span></span><span class="uir-field inputreadonly">Sample Customer</span></div></td></tr>
+                </tbody></table></td>
+                <td><table class="table_fields"><tbody>
+                  <tr class="uir-field-wrapper-cell"><td><div class="uir-field-wrapper" data-field-name="trandate" data-walkthrough="Field:trandate" data-nsps-label="Date"><span class="uir-label"><span class="uir-label-span smalltextnolink">Date</span></span><span class="uir-field inputreadonly">13/07/2026</span></div></td></tr>
+                  <tr class="uir-field-wrapper-cell"><td><div class="uir-field-wrapper" data-field-name="otherrefnum" data-walkthrough="Field:otherrefnum" data-nsps-label="PO #"><span class="uir-label"><span class="uir-label-span smalltextnolink">PO #</span></span><span class="uir-field inputreadonly">PO-2211</span></div></td></tr>
+                </tbody></table></td>
+              </tr>
+            </tbody></table>
+          </td></tr>
+          <tr><td colspan="3">
+            <table width="100%"><tbody>
+              <tr><td id="fg_fieldGroup_2" class="fgroup_title uir-field-group uir-field-group--collapsible" role="button" aria-expanded="true"><div class="fgroup_title uir-field-group-title"><span class="uir-field-group--collapsible-icon"></span>Classification</div></td></tr>
+              <tr id="tr_fg_fieldGroup_2" class="uir-fieldgroup-content uir-field-group-content">
+                <td><table class="table_fields"><tbody>
+                  <tr class="uir-field-wrapper-cell"><td><div class="uir-field-wrapper" data-field-name="subsidiary" data-walkthrough="Field:subsidiary" data-nsps-label="Subsidiary"><span class="uir-label"><span class="uir-label-span smalltextnolink">Subsidiary</span></span><span class="uir-field inputreadonly">Australia</span></div></td></tr>
+                  <tr class="uir-field-wrapper-cell"><td><div class="uir-field-wrapper" data-walkthrough="Field:custbody_biztype" data-nsps-label="Business Type"><span class="uir-label"><span class="uir-label-span smalltextnolink">Business Type</span></span><span class="uir-field inputreadonly">Sales</span></div></td></tr>
+                  <tr class="uir-field-wrapper-cell"><td><div class="uir-field-wrapper" data-field-name="location" data-walkthrough="Field:location" data-nsps-label="Location"><span class="uir-label"><span class="uir-label-span smalltextnolink">Location</span></span><span class="uir-field inputreadonly">Sydney</span></div></td></tr>
+                </tbody></table></td>
+              </tr>
+            </tbody></table>
+          </td></tr>
+          <tr>
+            <td width="33%" class="uir-table-fields-wrapper"><div class="uir-field-wrapper" data-field-name="memo" data-walkthrough="Field:memo" data-nsps-label="Memo"><span class="uir-label"><span class="uir-label-span smalltextnolink">Memo</span></span><span class="uir-field inputreadonly">Ungrouped memo</span></div></td>
+            <td width="33%" class="uir-table-fields-wrapper"></td>
+            <td width="33%" class="uir-table-fields-wrapper"></td>
+          </tr>
         </tbody>
       </table>
 
       <nav class="uir-tabs uir-tab-list-tabs" aria-label="Record tabs">
         <span id="itemslnk" class="formtabon"><a id="itemstxt" class="formtabtext formtabtexton" href="#items">Items</a></span><span class="formtaboff"><a class="formtabtext" href="#shipping">Shipping</a></span><span class="formtaboff"><a class="formtabtext" href="#billing">Billing</a></span>
       </nav>
+
+      <div id="shipping_div">
+        <table><tbody>
+          <tr>
+            <td>
+              <table width="100%"><tbody>
+                <tr><td id="fg_fieldGroup_10" class="fgroup_title uir-field-group"><div class="fgroup_title uir-field-group-title">Shipping Information</div></td></tr>
+                <tr id="tr_fg_fieldGroup_10" class="uir-fieldgroup-content uir-field-group-content">
+                  <td><table class="table_fields"><tbody>
+                    <tr class="uir-field-wrapper-cell"><td><div class="uir-field-wrapper" data-field-name="shipdate" data-walkthrough="Field:shipdate" data-nsps-label="Ship Date"><span class="uir-label"><span class="uir-label-span smalltextnolink">Ship Date</span></span><span class="uir-field inputreadonly">15/07/2026</span></div></td></tr>
+                    <tr class="uir-field-wrapper-cell"><td><div class="uir-field-wrapper" data-field-name="shipmethod" data-walkthrough="Field:shipmethod" data-nsps-label="Ship Via"><span class="uir-label"><span class="uir-label-span smalltextnolink">Ship Via</span></span><span class="uir-field inputreadonly">Road Freight</span></div></td></tr>
+                  </tbody></table></td>
+                </tr>
+              </tbody></table>
+            </td>
+            <td>
+              <table width="100%"><tbody>
+                <tr><td id="fg_fieldGroup_11" class="fgroup_title uir-field-group"><div class="fgroup_title uir-field-group-title">Shipping Address</div></td></tr>
+                <tr id="tr_fg_fieldGroup_11" class="uir-fieldgroup-content uir-field-group-content">
+                  <td><table class="table_fields"><tbody>
+                    <tr class="uir-field-wrapper-cell"><td><div class="uir-field-wrapper" data-field-name="shipaddress" data-walkthrough="Field:shipaddress" data-nsps-label="Ship To"><span class="uir-label"><span class="uir-label-span smalltextnolink">Ship To</span></span><span class="uir-field inputreadonly">1 Sample St, Sydney</span></div></td></tr>
+                  </tbody></table></td>
+                </tr>
+              </tbody></table>
+            </td>
+            <td><table cellspacing="0" cellpadding="0"> </table></td>
+          </tr>
+          <tr><td colspan="3">
+            <table width="100%"><tbody>
+              <tr><td id="fg_shipcentral" class="fgroup_title uir-field-group"><div class="fgroup_title uir-field-group-title">Ship Central - Other Party Billing</div></td></tr>
+              <tr id="tr_fg_shipcentral" class="uir-fieldgroup-content uir-field-group-content">
+                <td><table class="table_fields"><tbody>
+                  <tr class="uir-field-wrapper-cell"><td><div class="uir-field-wrapper" data-field-name="custbody_third_party_acct" data-walkthrough="Field:custbody_third_party_acct" data-nsps-label="3P Account"><span class="uir-label"><span class="uir-label-span smalltextnolink">3P Account</span></span><span class="uir-field inputreadonly">—</span></div></td></tr>
+                </tbody></table></td>
+              </tr>
+            </tbody></table>
+          </td></tr>
+        </tbody></table>
+      </div>
+
+      <div id="billingtab_div">
+        <table><tbody>
+          <tr>
+            <td>
+              <table width="100%"><tbody>
+                <tr><td id="fg_fieldGroup_20" class="fgroup_title uir-field-group"><div class="fgroup_title uir-field-group-title">Billing Information</div></td></tr>
+                <tr id="tr_fg_fieldGroup_20" class="uir-fieldgroup-content uir-field-group-content">
+                  <td><table class="table_fields"><tbody>
+                    <tr class="uir-field-wrapper-cell"><td><div class="uir-field-wrapper" data-field-name="terms" data-walkthrough="Field:terms" data-nsps-label="Terms"><span class="uir-label"><span class="uir-label-span smalltextnolink">Terms</span></span><span class="uir-field inputreadonly">Net 30</span></div></td></tr>
+                  </tbody></table></td>
+                </tr>
+              </tbody></table>
+            </td>
+            <td>
+              <table width="100%"><tbody>
+                <tr><td id="fg_fieldGroup_21" class="fgroup_title uir-field-group"><div class="fgroup_title uir-field-group-title">Billing Address</div></td></tr>
+                <tr id="tr_fg_fieldGroup_21" class="uir-fieldgroup-content uir-field-group-content">
+                  <td><table class="table_fields"><tbody>
+                    <tr class="uir-field-wrapper-cell"><td><div class="uir-field-wrapper" data-field-name="billaddress" data-walkthrough="Field:billaddress" data-nsps-label="Bill To"><span class="uir-label"><span class="uir-label-span smalltextnolink">Bill To</span></span><span class="uir-field inputreadonly">1 Sample St, Sydney</span></div></td></tr>
+                  </tbody></table></td>
+                </tr>
+              </tbody></table>
+            </td>
+          </tr>
+        </tbody></table>
+      </div>
 
       <section id="items" class="uir-machine-table-container">
         <table id="item_splits" class="uir-machine-table">
