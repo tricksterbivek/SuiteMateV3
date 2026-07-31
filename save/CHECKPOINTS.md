@@ -1235,3 +1235,17 @@ Date: 2026-07-31
 ### Verification
 
 - Full `npm test` green. Fixture round-trip on the rebuilt topology, chrome-stub write counter as the loop probe: personalize shows 6 grips (no Ship Central); Alt+ArrowDown moved Primary below Classification with exactly ONE storage write, stable after 500 ms (no observer self-trigger); stored `sectionOrder` is the full flat 7-title list; toggle-off restored native order, removed every stamp and control; toggle-on reapplied the stored order during install with ZERO writes; moving back deleted the entry entirely (delta self-clean). A natively-collapsed section moved while staying collapsed (aria + hidden row intact, `collapsedSections` + `sectionOrder` coexisting), and teardown self-cleaned to a null entry. Reset restores native + expands + clears in one chained write (plus M24's pre-existing benign expand-click collapse-save no-op).
+
+## Form Layout Builder: Phase D (within-column field reorder)
+
+Status: Complete
+Date: 2026-07-31
+
+### Included
+
+- In personalize mode every managed field wrapper becomes a drag source (`draggable`, `tabindex=0`, grab cursor via the body-scoped personalizing class) with descendant anchors stamped `draggable=false` for the mode's duration. The Phase C drag skeleton's field stubs are now real: drops resolve source and target to their `tr.uir-field-wrapper-cell` rows and accept only same-column targets — cross-column and cross-group targets never `preventDefault`, so the OS no-drop cursor explains itself. A drop splices the column's key list (`moveLabel`), rebuilds the group's flat list with every other column's current order preserved, and routes through `applyFieldOrder` → `saveOrders`.
+- `Alt+ArrowUp/Down` on a focused wrapper drives the identical code path and re-focuses the wrapper after the row move. Ghosted (hidden) fields stay draggable and remain valid targets.
+
+### Verification
+
+- Full `npm test` green. Fixture round-trip: hide entity then Alt+ArrowDown on tranid — the packed tranid+custbody_issue row moved below entity as one unit (same TD), column 2 untouched, exactly one write per action and stable after 500 ms; storage held `hiddenFields` + `fieldOrder["Primary Information"]` side by side. Synthetic drag: cross-column dragover rejected (no marker), same-column accepted (insertion bar), dragend cleared all state. Toggle-off restored native order and unhid entity; toggle-on reapplied order and hid entity in its new position with zero install writes; Alt+ArrowUp back self-cleaned `fieldOrder` while `hiddenFields` survived.
