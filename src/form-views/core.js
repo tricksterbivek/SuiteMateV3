@@ -3,7 +3,13 @@
 
   const VERSION = 1;
   const STORAGE_KEY = "suiteMateV3FormViews";
-  const STORAGE_SCHEMA_VERSION = 1;
+  // 2, not 1: the deferred layout builder (feature/form-layout-builder) wrote
+  // schema-2 containers into live storage; refusing them would silently stop
+  // hidden fields from applying and block saves. normalizeEntry keeps only
+  // the keys this build understands, so schema-2 entries read through cleanly.
+  // ponytail: a save from this build drops that branch's order keys for the
+  // touched scope; acceptable while the builder lives on its dev branch.
+  const STORAGE_SCHEMA_VERSION = 2;
   const MAX_SYNC_ITEM_BYTES = 7800;
   const MAX_FIELD_NAMES = 200;
   const MAX_FIELD_NAME_LENGTH = 100;

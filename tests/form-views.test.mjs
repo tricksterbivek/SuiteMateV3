@@ -23,7 +23,7 @@ test("exports a frozen versioned form-views core", () => {
   const core = createApi();
   assert.equal(core.VERSION, 1);
   assert.equal(core.STORAGE_KEY, "suiteMateV3FormViews");
-  assert.equal(core.STORAGE_SCHEMA_VERSION, 1);
+  assert.equal(core.STORAGE_SCHEMA_VERSION, 2);
   assert.equal(Object.isFrozen(core), true);
   assert.equal(Object.isFrozen(core.CLASSES), true);
 });
@@ -32,7 +32,7 @@ test("withHiddenFields stores, dedupes, lowercases, clears and fails closed", ()
   const core = createApi();
   const stored = core.withHiddenFields(undefined, "123:7:salesord", ["Memo", "custbody_route", "memo"]);
   assert.deepEqual(plain(stored), {
-    schemaVersion: 1,
+    schemaVersion: 2,
     views: { "123:7:salesord": { hiddenFields: ["memo", "custbody_route"] } }
   });
   const cleared = core.withHiddenFields(stored, "123:7:salesord", []);
@@ -40,7 +40,7 @@ test("withHiddenFields stores, dedupes, lowercases, clears and fails closed", ()
   assert.equal(core.withHiddenFields(undefined, "123:7:salesord", ["bad name with spaces"]), null);
   assert.equal(core.withHiddenFields(undefined, "123:7:salesord", [""]), null);
   assert.equal(core.withHiddenFields(undefined, "__proto__", ["memo"]), null);
-  assert.equal(core.withHiddenFields({ schemaVersion: 2, views: {} }, "123:7:salesord", ["memo"]), null);
+  assert.equal(core.withHiddenFields({ schemaVersion: 3, views: {} }, "123:7:salesord", ["memo"]), null);
 });
 
 test("withCollapsedSections trims, dedupes and coexists with hidden fields", () => {
@@ -63,15 +63,15 @@ test("withCollapsedSections trims, dedupes and coexists with hidden fields", () 
 
 test("normalizeStored rejects garbage, newer schema and hostile keys", () => {
   const core = createApi();
-  const empty = { schemaVersion: 1, views: {} };
-  for (const value of [null, "views", 9, { schemaVersion: 2, views: { a: { hiddenFields: ["x"] } } }, { views: {} }]) {
+  const empty = { schemaVersion: 2, views: {} };
+  for (const value of [null, "views", 9, { schemaVersion: 3, views: { a: { hiddenFields: ["x"] } } }, { views: {} }]) {
     assert.deepEqual(plain(core.normalizeStored(value)), empty);
   }
   const hostile = JSON.parse(
     '{"schemaVersion":1,"views":{"__proto__":{"hiddenFields":["memo"]},"":{"hiddenFields":["memo"]},"ok:1:salesord":{"hiddenFields":["memo"],"junk":true}}}'
   );
   assert.deepEqual(plain(core.normalizeStored(hostile)), {
-    schemaVersion: 1,
+    schemaVersion: 2,
     views: { "ok:1:salesord": { hiddenFields: ["memo"] } }
   });
 });
@@ -82,7 +82,28 @@ test("quota eviction keeps only the entry being written", () => {
   let stored = core.withHiddenFields(undefined, "scope-a", fat("aaa"));
   stored = core.withHiddenFields(stored, "scope-b", fat("bbb"));
   assert.deepEqual(Object.keys(plain(stored.views)), ["scope-b"]);
-  assert.equal(stored.schemaVersion, 1);
+  assert.equal(stored.schemaVersion, 2);
+});
+
+test("schema-2 containers from the deferred layout builder read through", () => {
+  const core = createApi();
+  const fromBranch = {
+    schemaVersion: 2,
+    views: {
+      "6998262:2462:salesord": {
+        hiddenFields: ["custbody_shopify_order_number", "entity"],
+        sectionOrder: ["Sales Information", "Primary Information"],
+        fieldOrder: { "Primary Information": ["entity", "tranid"] }
+      }
+    }
+  };
+  assert.deepEqual(plain(core.normalizeStored(fromBranch)), {
+    schemaVersion: 2,
+    views: { "6998262:2462:salesord": { hiddenFields: ["custbody_shopify_order_number", "entity"] } }
+  });
+  const written = core.withHiddenFields(fromBranch, "6998262:2462:salesord", ["memo"]);
+  assert.equal(written.schemaVersion, 2);
+  assert.deepEqual(plain(written.views["6998262:2462:salesord"]), { hiddenFields: ["memo"] });
 });
 
 test("fieldKey prefers data-field-name and falls back to the walkthrough hook", () => {

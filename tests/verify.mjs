@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8
 
 assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.name, "SuiteMate V3");
-assert.equal(manifest.version, "3.21.0");
+assert.equal(manifest.version, "3.21.1");
 assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
 assert.equal(
   Object.hasOwn(manifest, "optional_permissions"),

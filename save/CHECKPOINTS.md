@@ -1187,3 +1187,17 @@ Date: 2026-07-31
 - Full cycle on the shipped build: Personalize Form with ghosts and real-label chips, hide + native section collapse ("Ship Central - Other Party Billing"), real page reload auto-reapplied everything, chip un-hide surgical. The owner's own experimentation (two hidden fields from their earlier session) survived the toggle-off/on churn intact — the merge-on-save fix working as designed — so the pass ended by restoring their exact saved view rather than Reset.
 - A non-install red herring was root-caused by storage forensics: both feature toggles had been switched off in stored settings (a popup save around the extension reload), not a code fault — the full-parity fixture had already exonerated the build.
 - Coexistence green (45 grid arrows, smart tab titles); zero SuiteMate console errors throughout.
+
+## Personal Form Views restored; Form Layout Builder deferred (v3.21.1)
+
+Status: Complete
+Date: 2026-07-31
+
+### Included
+
+- The complete drag-and-drop layout builder (spec, plan, phases A-D, adversarial-review fixes, live verification — v3.22.0 state at 0a04764) is preserved on the `feature/form-layout-builder` branch for a future major release, per the owner's direction.
+- `main` restored byte-identical to the v3.21.0 tree (verified with `git diff 58b139d --quiet`) via a forward revert commit — no history rewrite — then patched with exactly one behavioral change: form-views `STORAGE_SCHEMA_VERSION` accepts/writes the schema-2 container. The layout-builder live tests left the owner's real storage on a schema-2 container (all order keys self-cleaned; the entry is hiddenFields-only), and the untouched v1 code would have refused it — silently dropping their two hidden fields on read and blocking every save. `normalizeEntry` keeps only the keys this build understands, so schema-2 entries read through cleanly; a save from this build drops branch-only order keys for the touched scope (accepted while the builder lives on its branch, noted in a ponytail comment).
+
+### Verification
+
+- New unit test drives the exact live shape: a schema-2 entry carrying hiddenFields + sectionOrder + fieldOrder reads through with hiddenFields intact and order keys dropped; writes stay on container 2. Full `npm test` green (213 tests, 28 baselines at 0.000%).
