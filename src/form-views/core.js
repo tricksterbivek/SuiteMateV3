@@ -1,9 +1,9 @@
 (function defineSuiteMateV3FormViewsCore(globalScope) {
   "use strict";
 
-  const VERSION = 1;
+  const VERSION = 2;
   const STORAGE_KEY = "suiteMateV3FormViews";
-  const STORAGE_SCHEMA_VERSION = 1;
+  const STORAGE_SCHEMA_VERSION = 2;
   const MAX_SYNC_ITEM_BYTES = 7800;
   const MAX_FIELD_NAMES = 200;
   const MAX_FIELD_NAME_LENGTH = 100;
@@ -83,8 +83,32 @@
     return sections.length ? sections : null;
   }
 
+  function normalizeFieldOrder(value) {
+    if (!isPlainObject(value)) {
+      return null;
+    }
+    const orders = {};
+    let count = 0;
+    for (const [section, names] of Object.entries(value)) {
+      const validKey = typeof section === "string"
+        && section.length > 0
+        && section.length <= MAX_SECTION_LENGTH
+        && section.trim() === section
+        && !["__proto__", "constructor", "prototype"].includes(section);
+      const normalized = normalizeFieldNames(names);
+      // Skip-bad-key, not fail-closed: one hostile section must not void the
+      // rest (so-columns normalizeFilters precedent).
+      if (!validKey || !normalized || count >= MAX_SECTIONS) {
+        continue;
+      }
+      orders[section] = normalized;
+      count += 1;
+    }
+    return count ? orders : null;
+  }
+
   function entryIsEmpty(entry) {
-    return !entry.hiddenFields && !entry.collapsedSections;
+    return !entry.hiddenFields && !entry.collapsedSections && !entry.sectionOrder && !entry.fieldOrder;
   }
 
   function normalizeEntry(value) {
@@ -93,12 +117,16 @@
     }
     const hiddenFields = normalizeFieldNames(value.hiddenFields);
     const collapsedSections = normalizeSections(value.collapsedSections);
-    if (!hiddenFields && !collapsedSections) {
+    const sectionOrder = normalizeSections(value.sectionOrder);
+    const fieldOrder = normalizeFieldOrder(value.fieldOrder);
+    if (!hiddenFields && !collapsedSections && !sectionOrder && !fieldOrder) {
       return null;
     }
     return {
       ...(hiddenFields ? { hiddenFields } : {}),
-      ...(collapsedSections ? { collapsedSections } : {})
+      ...(collapsedSections ? { collapsedSections } : {}),
+      ...(sectionOrder ? { sectionOrder } : {}),
+      ...(fieldOrder ? { fieldOrder } : {})
     };
   }
 
@@ -131,11 +159,15 @@
   }
 
   function evictOverQuota(next, key) {
-    const bytes = new TextEncoder().encode(`${STORAGE_KEY}${JSON.stringify(next)}`).length;
-    if (bytes > MAX_SYNC_ITEM_BYTES) {
+    const bytes = (value) => new TextEncoder().encode(`${STORAGE_KEY}${JSON.stringify(value)}`).length;
+    if (bytes(next) > MAX_SYNC_ITEM_BYTES) {
       // ponytail: single-entry eviction — over quota we keep only the entry
-      // being written; one pathological oversize entry can still fail the write.
+      // being written; if even that entry is over budget, fail loudly (Chrome
+      // hard-fails at 8192 and a silent partial write corrupts).
       next.views = key in next.views ? { [key]: next.views[key] } : {};
+      if (bytes(next) > MAX_SYNC_ITEM_BYTES) {
+        return null;
+      }
     }
     return next;
   }
@@ -150,7 +182,11 @@
       return null;
     }
     const entry = { ...(next.views[key] ?? {}) };
-    if (!values || (Array.isArray(values) && values.length === 0)) {
+    if (
+      !values
+      || (Array.isArray(values) && values.length === 0)
+      || (isPlainObject(values) && Object.keys(values).length === 0)
+    ) {
       delete entry[fieldName];
     } else {
       const normalized = normalizeValues(values);
@@ -173,6 +209,14 @@
 
   function withCollapsedSections(stored, scopeKey, sections) {
     return withField(stored, scopeKey, "collapsedSections", sections, normalizeSections);
+  }
+
+  function withSectionOrder(stored, scopeKey, sections) {
+    return withField(stored, scopeKey, "sectionOrder", sections, normalizeSections);
+  }
+
+  function withFieldOrder(stored, scopeKey, orders) {
+    return withField(stored, scopeKey, "fieldOrder", orders, normalizeFieldOrder);
   }
 
   // ===== Field and section identity (DOM-thin, stub-testable) =====
@@ -243,6 +287,8 @@
       normalizeStored,
       withHiddenFields,
       withCollapsedSections,
+      withSectionOrder,
+      withFieldOrder,
       fieldKey,
       sectionKey,
       applyFieldVisibility
