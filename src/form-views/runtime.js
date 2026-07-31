@@ -366,10 +366,121 @@
       : null;
   }
 
-  // ponytail: filled by the field-reorder task
-  function handleFieldDragStart() {}
-  function handleFieldDragOver() {}
-  function handleFieldDrop() {}
+  function fieldRowOf(node) {
+    const wrapper = node?.closest?.(core.FIELD_WRAPPER_SELECTOR);
+    if (!wrapper || wrapper.closest(core.EXCLUDED_CONTAINER_SELECTOR) || wrapper.closest(OWNED_SELECTOR)) {
+      return null;
+    }
+    const row = wrapper.closest("tr.uir-field-wrapper-cell");
+    const columnTable = row?.closest?.("table.table_fields");
+    const groupTable = columnTable?.closest?.(`table[${core.NATIVE_INDEX_ATTRIBUTE}]`);
+    const key = row ? core.fieldKey(row.querySelector(core.FIELD_WRAPPER_SELECTOR)) : "";
+    return row && columnTable && groupTable && key ? { row, columnTable, groupTable, key } : null;
+  }
+
+  function columnKeysOf(columnTable) {
+    return [...columnTable.querySelectorAll(":scope > tbody > tr.uir-field-wrapper-cell")]
+      .map((row) => core.fieldKey(row.querySelector(core.FIELD_WRAPPER_SELECTOR)));
+  }
+
+  function groupKeysWith(groupTable, columnTable, columnKeys) {
+    const keys = [];
+    for (const column of groupTable.querySelectorAll(":scope > tbody > tr.uir-fieldgroup-content > td > table.table_fields")) {
+      keys.push(...(column === columnTable ? columnKeys : columnKeysOf(column)));
+    }
+    return keys;
+  }
+
+  function handleFieldDragStart(event) {
+    const source = fieldRowOf(event.target);
+    if (!source) {
+      return;
+    }
+    dragField = source;
+    source.row.classList.add(core.CLASSES.dragging);
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", source.key);
+    }
+  }
+
+  function handleFieldDragOver(event) {
+    if (!dragField) {
+      return;
+    }
+    const target = fieldRowOf(event.target);
+    if (!target || target.columnTable !== dragField.columnTable || target.row === dragField.row) {
+      setDropNode(null, false);
+      return; // other columns and groups never preventDefault -> OS no-drop cursor
+    }
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "move";
+    }
+    setDropNode(target.row, false);
+  }
+
+  function handleFieldDrop(event) {
+    if (!dragField || !dropNode) {
+      clearDragState();
+      return;
+    }
+    event.preventDefault();
+    const targetKey = core.fieldKey(dropNode.querySelector?.(core.FIELD_WRAPPER_SELECTOR));
+    const { columnTable, groupTable, key } = dragField;
+    clearDragState();
+    const nextColumn = core.moveLabel(columnKeysOf(columnTable), key, targetKey);
+    if (nextColumn && core.applyFieldOrder(groupTable, groupKeysWith(groupTable, columnTable, nextColumn))) {
+      markJustDropped();
+      saveOrders();
+    }
+  }
+
+  function handleFieldKeydown(event) {
+    if (!event.altKey || !["ArrowUp", "ArrowDown"].includes(event.key)) {
+      return;
+    }
+    const source = fieldRowOf(event.target);
+    if (!source) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const keys = columnKeysOf(source.columnTable);
+    const index = keys.indexOf(source.key) + (event.key === "ArrowDown" ? 1 : -1);
+    if (index < 0 || index >= keys.length) {
+      return;
+    }
+    const nextColumn = core.moveLabel(keys, source.key, keys[index]);
+    if (nextColumn && core.applyFieldOrder(source.groupTable, groupKeysWith(source.groupTable, source.columnTable, nextColumn))) {
+      markJustDropped();
+      saveOrders();
+      const wrapper = source.row.querySelector(core.FIELD_WRAPPER_SELECTOR);
+      wrapper?.focus?.(); // the row move blurred it
+    }
+  }
+
+  function ensureFieldDragSources() {
+    for (const wrapper of fieldWrappers()) {
+      wrapper.draggable = true;
+      wrapper.tabIndex = 0;
+      wrapper.addEventListener("keydown", handleFieldKeydown);
+      for (const anchor of wrapper.querySelectorAll("a")) {
+        anchor.setAttribute("draggable", "false"); // link fields must not hijack the drag
+      }
+    }
+  }
+
+  function removeFieldDragSources() {
+    for (const wrapper of document.querySelectorAll(core.FIELD_WRAPPER_SELECTOR)) {
+      wrapper.removeAttribute("draggable");
+      wrapper.removeAttribute("tabindex");
+      wrapper.removeEventListener("keydown", handleFieldKeydown);
+      for (const anchor of wrapper.querySelectorAll("a")) {
+        anchor.removeAttribute("draggable");
+      }
+    }
+  }
 
   function handleDragStart(event) {
     try {
@@ -539,6 +650,7 @@
     document.body.classList.add(core.CLASSES.personalizing);
     ensureAffordances();
     ensureSectionGrips();
+    ensureFieldDragSources();
     for (const [type, listener] of DRAG_LISTENERS) {
       document.addEventListener(type, listener);
     }
@@ -554,6 +666,7 @@
       document.removeEventListener(type, listener);
     }
     removeSectionGrips();
+    removeFieldDragSources();
     removeAffordances();
     applyVisibility();
     updateControls();
