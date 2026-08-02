@@ -258,6 +258,28 @@ test("writers merge, delete empty entries and evict over quota", () => {
   assert.deepEqual(Object.keys(plain(evicted.grids)), ["scope0"]);
 });
 
+test("quota eviction spares other scopes on a clearing write and refuses an oversized entry", () => {
+  const core = createApi();
+  const size = (value) => new TextEncoder().encode(`${core.STORAGE_KEY}${JSON.stringify(value)}`).length;
+  // A clearing write only ever shrinks the container, so eviction must not run:
+  // evicting here would destroy every other scope's layout on a single delete.
+  const crowded = { schemaVersion: 1, grids: {} };
+  for (let index = 0; index < 187; index += 1) {
+    crowded.grids[`scope${index}`] = { order: ["item", "quantity", "rate"] };
+  }
+  assert.equal(size(crowded) > core.MAX_SYNC_ITEM_BYTES, true);
+  const cleared = core.withOrder(crowded, "scope5", null);
+  assert.equal("scope5" in cleared.grids, false);
+  assert.equal(Object.keys(cleared.grids).length, 186);
+  assert.deepEqual(plain(cleared.grids.scope0), { order: ["item", "quantity", "rate"] });
+  assert.deepEqual(plain(cleared.grids.scope186), { order: ["item", "quantity", "rate"] });
+  // An entry that alone exceeds the cap is refused through the same channel as
+  // every other writer failure, never returned as a success storage would reject.
+  const oversized = Array.from({ length: 100 }, (_, index) => String(index).padEnd(200, "c"));
+  assert.equal(core.withOrder(undefined, "1:2:salesord:edit", oversized), null);
+  assert.equal(core.withHidden(undefined, "1:2:salesord:edit", oversized), null);
+});
+
 test("core has no DOM, storage, bridge or network authority", () => {
   assert.doesNotMatch(source, /document\.|chrome\.|fetch\(|XMLHttpRequest|innerHTML|localStorage|sessionStorage/);
   assert.doesNotMatch(source, /suiteMateV3ColumnOrder/);

@@ -161,15 +161,23 @@
       && stored.schemaVersion > STORAGE_SCHEMA_VERSION;
   }
 
+  function measureBytes(value) {
+    return new TextEncoder().encode(`${STORAGE_KEY}${JSON.stringify(value)}`).length;
+  }
+
   function evictOverQuota(next, key) {
-    const bytes = new TextEncoder().encode(`${STORAGE_KEY}${JSON.stringify(next)}`).length;
-    if (bytes > MAX_SYNC_ITEM_BYTES) {
-      // Single-entry eviction, scoped to this feature's own container: the
-      // blast radius of a quota event stops at other Edit Mode scopes and can
-      // never reach a View Mode layout (spec H2).
-      next.grids = key in next.grids ? { [key]: next.grids[key] } : {};
+    if (measureBytes(next) <= MAX_SYNC_ITEM_BYTES) {
+      return next;
     }
-    return next;
+    // Single-entry eviction, scoped to this feature's own container: the
+    // blast radius of a quota event stops at other Edit Mode scopes and can
+    // never reach a View Mode layout (spec H2). Only ever reached for a write
+    // that just set grids[key], so the entry is always present.
+    next.grids = { [key]: next.grids[key] };
+    // Re-measure: an entry that alone exceeds the cap is refused through the
+    // same channel as every other writer failure, never handed back as a
+    // success the storage layer would then reject.
+    return measureBytes(next) <= MAX_SYNC_ITEM_BYTES ? next : null;
   }
 
   function writeField(stored, scopeKey, field, value, normalizer) {
@@ -195,10 +203,12 @@
       entry[field] = normalized;
     }
     if (entryIsEmpty(entry)) {
+      // A clearing write only ever shrinks the container, so eviction can never
+      // be needed here — and running it would destroy every other scope.
       delete next.grids[key];
-    } else {
-      next.grids[key] = entry;
+      return next;
     }
+    next.grids[key] = entry;
     return evictOverQuota(next, key);
   }
 
