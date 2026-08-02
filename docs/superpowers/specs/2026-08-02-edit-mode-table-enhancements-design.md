@@ -295,6 +295,31 @@ missingValuePenalty = -4 when a sampled row renders non-empty text for this colu
 
 The maximum-score monotonic alignment is computed by a backward DP over `(labelIndex, candidateIndex)` that also **counts** optimal alignments. Sampled rows are the closed, numbered `{machine}_row_{n}` data rows, indexed **by their own line number** so that skipping an open line leaves a hole rather than shifting every later row against `{machine}data`; open and focused rows are excluded because their cells hold widgets, not text.
 
+**Precondition P-MONO, and it is load-bearing.** The correlator emits only *strictly increasing* subsequences of `{machine}fields` order. It is therefore correct only while
+
+> **P-MONO** — the machine's rendered column order is a monotone subsequence of its `{machine}fields` order.
+
+P-MONO holds on the probed form: the 43 rendered columns map to strictly increasing field indices (0/1, 3, 5, 6, 7, 8, 9, 11/12, …, 76/77). It is believed structural — NetSuite appears to generate the field list and the column layout from the same form column list — but that is **one form's evidence and it cannot be verified from the DOM**, because verifying it would require the mapping the correlator is trying to produce.
+
+Violating P-MONO does **not** degrade gracefully. Measured against the live payload, re-deriving the axis from a permuted rendering is *never* right:
+
+| Rendering perturbation | correct | declines | **mis-keys** |
+|---|---|---|---|
+| all 903 pairwise column transpositions | 0 (0 %) | 619 (69 %) | **284 (31 %)** |
+| all 1 806 single-column moves — the M4 gesture | 0 (0 %) | 1 002 (55 %) | **804 (45 %)** |
+
+A mis-key is silent: `readColumnIds` returns 43 plausible, unique, well-formed internal ids that are attached to the wrong columns, so widths and hidden sets land on the wrong fields and are persisted that way. This is the one failure mode in the whole design that is not fail-closed, so it is closed by construction instead:
+
+**Axis pinning — the derivation is native-order-only, derived once, and never re-derived under our own permutation.**
+
+1. **Derive only from a native-order DOM.** The runtime attempts derivation only when it has applied no column order. Immediately after any repaint the machine regenerates in native order (H5), which is exactly when re-derivation is safe.
+2. **Pin it.** The derived axis is held in runtime module state for the mounted machine and survives repaints, which DOM stamps do not.
+3. **Refuse to re-derive while permuted.** While a non-native order is applied, the pinned axis is reused verbatim and `readColumnIds` is not called. Because the table above shows re-derivation under permutation is *never* correct, refusing it costs nothing and removes the entire mis-key class our own feature could cause.
+4. **Change-detect, never swap.** A fresh derivation on a native DOM that differs from the pin means the machine's own layout changed underneath us (a form switch, a role change, a different record shape). The pin is cleared and the feature **declines** — it never silently adopts the new axis, because the stored entry is keyed to the old one.
+5. **Teardown clears both** the pin and the applied-order state.
+
+The residual — a *custom form* whose native layout order is not machine order — is undetectable and is recorded as **U6**.
+
 **Worked evidence — the first 12 visible columns of SO `16342809`** (produced by the shipped algorithm from the payload, not by hand; the full 43 follow):
 
 | vis | header label | `itemfields` index | derived column id | affinity | row-1 cell | row-1 raw value | value corroborates |
@@ -334,9 +359,16 @@ All 43 match the labels-and-machine-order ground truth, the optimum is unique, a
 | Width out of range | fewer than 2 or more than `MAX_COLUMN_IDS = 100` labels |
 | **Correlation ambiguous** | more than one maximum-score alignment — measured, not estimated |
 | Output invalid | fewer ids than labels, any id failing `normalizeColumnId`, or duplicate ids |
+| **Axis changed under the pin** | a fresh native-DOM derivation differs from the pinned axis — pin cleared, decline; never a silent swap |
 | Any throw | caught; `[]` |
 
+One condition is deliberately **not** a gate on `readColumnIds` but a rule on its *caller*: **P-MONO cannot be checked, so it is never tested — it is guaranteed.** While a non-native order is applied the runtime does not call `readColumnIds` at all; it reuses the pinned axis. A caller that re-derives mid-permutation is a defect, not a degraded mode.
+
 Measured behaviour of the ambiguity gate against the live payload: labels **and** values → 1 optimum (mounts); labels only, no data rows → 56 optima (declines); labels replaced by opaque strings, simulating an unrecognised locale → about 6.4 × 10^12 optima (declines). The feature therefore fails closed on a non-English form rather than guessing, and **requires at least one closed, numbered data line**: an Edit Mode sales order with no existing lines declines to mount. Both are accepted limitations, disclosed here.
+
+**Frozen contract.** `readColumnIds(table)` keeps its signature and its `[]`-on-failure contract. The contract grows from **37 names to 50** by exactly thirteen additions, and no others: constants `FIELD_DELIMITER`, `LINE_DELIMITER`, `OPTION_DELIMITER`, `HEADER_LABEL_SELECTOR`, `MAX_MACHINE_FIELDS`, `MAX_SAMPLE_ROWS`; functions `parseMachineFieldData`, `readMachineFieldData`, `collapseDisplayTwins`, `readHeaderLabels`, `readSampleRowTexts`, `labelAffinity`, `correlateColumnIds`. The axis pin and the applied-order state live in `runtime.js` module scope and are **not** exported.
+
+**Header label node — unverified structure, tolerated either way.** The only live evidence is that header cells carry text and no ids (`probe-transcripts.md:19`); whether the text sits in a `div.listheader` wrapper was **not probed**. `readHeaderLabels` therefore reads `cell.querySelector(HEADER_LABEL_SELECTOR) ?? cell`, so a wrapper and bare text both work, and `HEADER_LABEL_SELECTOR` is an optimisation rather than a requirement. The M1.5 live pass records which shape the machine actually uses.
 
 **Storage impact: none.** Column ids remain bare internal field ids (`item`, `quantity`, `custcol_rrp`) — the same values `columnIdFromSpanId("item_quantity1_fs", "item", 1)` already produces. The container, `STORAGE_KEY`, `STORAGE_SCHEMA_VERSION`, scope-key shape and the six-part doctrine of §5 are **unchanged**. §5's sentence "keyed by the internal column id decoded from `span[id="{machine}_{columnid}{line}_fs"]`" is amended to "keyed by the internal column id read from the machine's `{machine}fields` input"; every other word of §5 stands.
 
@@ -359,6 +391,9 @@ Measured behaviour of the ambiguity gate against the live payload: labels **and*
 | `{machine}fields` / `{machine}data` absent, malformed, ragged, or carrying duplicate field ids | `readColumnIds` returns `[]`; `installEditGrid` returns false. Nothing injected, nothing styled, nothing stored. |
 | Header labels unreadable, or any label empty | As above. |
 | Correlation optimum not unique (unrecognised locale, no data lines, unfamiliar machine) | As above — **the feature declines rather than guessing an axis**. |
+| A non-native column order is currently applied | `readColumnIds` is **not called**. The pinned axis is reused verbatim. Re-deriving here is never correct (A1.2) and would mis-key silently. |
+| Fresh native-DOM derivation differs from the pinned axis | Pin cleared, `installEditGrid` returns false, nothing applied. The stored entry is keyed to the old axis, so adopting the new one silently would relabel the user's saved layout. |
+| P-MONO violated by the form itself (custom layout order ≠ machine field order) | **Undetectable.** Mis-keys silently. Not mitigated in M1.5; recorded as U6 and gating any generalization beyond Sales Orders. |
 
 §7's row "Unrecognized DOM: no `#item_splits`, no header row, header count 0, **no `_fs` spans**, or duplicate/undecodable column ids" is amended: `no _fs spans` is replaced by `no decodable {machine}fields input, unreadable header labels, or an ambiguous correlation`.
 
@@ -382,7 +417,7 @@ These three rows replace their §8 counterparts. Every other row is unchanged.
 
 | Feature | Verdict | Change and evidence |
 |---|---|---|
-| **Drag-and-drop column reorder** | **Blocked pending M1.5 identity + Gate A′.** Was "Conditional — Gate A". | Gate A's verdict of record is **REFRAME** (checkpoint `:1258-1266`): the repaint is neither id-addressed nor index-addressed but **model-driven regeneration — it replaces, never patches**. The permutation was destroyed on line-**open**, before any commit; after the commit every value sat under its correct header in native order and the adjacent line's API value was untouched. **Corruption is not manifest**, so owner decision Q3 — whose trigger was index-addressing — **does not fire**, and reorder is *not* closed. No substitute is authorized or built. **Gate A′ is defined here:** with M1.5 identity live and a stored order applied, (1) apply a stored non-native column order after a full `<tbody>` rebuild, (2) open and commit a line so the machine regenerates, (3) re-read the axis and every visible cell, and (4) read the model back through `nlapiGetLineItemValue` for the committed line and one adjacent line. Gate A′ passes only if the re-applied order survives step 2 or is deterministically re-applied after it, **and** no value moved columns in the model. Gate A′ runs on the locked record with no save, under the §9 tier-3 protocol. M4 remains blocked until it passes. |
+| **Drag-and-drop column reorder** | **Blocked pending M1.5 identity + Gate A′.** Was "Conditional — Gate A". | Gate A's verdict of record is **REFRAME** (checkpoint `:1258-1266`): the repaint is neither id-addressed nor index-addressed but **model-driven regeneration — it replaces, never patches**. The permutation was destroyed on line-**open**, before any commit; after the commit every value sat under its correct header in native order and the adjacent line's API value was untouched. **Corruption is not manifest**, so owner decision Q3 — whose trigger was index-addressing — **does not fire**, and reorder is *not* closed. No substitute is authorized or built. **Gate A′ is defined here**, and it is defined around the axis pin (A1.2) rather than around re-derivation, because re-deriving from a permuted rendering is never correct: (1) mount on a native DOM and **pin** the axis; (2) apply a stored non-native column order; (3) open and commit a line so the machine regenerates the whole `<tbody>` in native order; (4) confirm the runtime re-applies the stored order using the **pinned** axis and did **not** re-derive while permuted; (5) read every visible cell against the pinned mapping; and (6) read the model back through `nlapiGetLineItemValue` for the committed line and one adjacent line. Gate A′ passes only if every value sits under its pinned column id **and** no value moved columns in the model. It explicitly does **not** require re-derivation to work mid-permutation — that is designed out, not tested. Gate A′ runs on the locked record with no save, under the full live protocol restated in the M1.5 plan. M4 remains blocked until it passes. |
 | **Excel-style sorting / filtering (M6/M7)** | Verdict unchanged — **hard precondition cleared**. | Probe 6b: `draggableTable false`, `orderedContainer false`, `movableCells 0` — the machine is **not** natively drag-ordered, so the U4 refusal will not fire on this form. `isOrderedMachine` stays an **unconditional** guard regardless (§7). Probe 12: 9 rendered rows, `nlapiGetLineItemCount('item') = 9`, **no pagination on this record** — the page-scope disclosure required by Q4 therefore ships **untested**, and must be re-checked on a record with more than one page before M6 is called complete. |
 | **Hide / show columns (M3)** | Verdict unchanged — **one mechanism replaced**. | Probe 11: the required Quantity column was hidden across 12 rows and the line still committed cleanly, value preserved, zero alerts — the safety claim holds live. But widgets materialise **per cell on click**, so a hidden cell's widget never materialises and §6's `focusin` force-reveal rule 1 is **unimplementable as written**. M3's reveal must be **chip/menu-driven**; rule 2 (reveal-all on validation failure) is unaffected. Probe 11 also re-confirmed H5: the injected hide classes were **gone** after the commit repaint. |
 
@@ -392,4 +427,5 @@ These three rows replace their §8 counterparts. Every other row is unchanged.
 - **U2 — superseded** by the Gate A REFRAME verdict, and re-opened as **Gate A′** (A1.6).
 - **U3 — answered.** `data-machine-name` **is** present, so `src/styles/netsuite.css:1616` is not dead code. No `src/edit-grid/` selector depends on it; that constraint stands.
 - **U4 — answered negative for this form** (probe 6b); the unconditional refusal is retained.
-- **New — U6: correlation portability.** The alignment is proven on one form of one record type in one account, in English. On an unrecognised locale, a machine with no rendered lines, or a paged machine whose rendered row numbering does not index `{machine}data`, the ambiguity gate declines. That is safe but silent: if the feature is ever generalized beyond Sales Orders, the first symptom of an unsupported form will be "nothing appears". A user-visible diagnostic is deliberately **not** added in M1.5.
+- **New — U6: P-MONO portability, and it is the highest carried risk in this design.** The correlator is correct only under **P-MONO** — rendered column order is a monotone subsequence of `{machine}fields` order (A1.2). It holds on the one probed form, and NetSuite appears to generate both orders from the same form column list, but **that is one form's evidence and P-MONO cannot be checked from the DOM**. Our own violation of it (M4 permuting columns) is closed by construction through axis pinning. A *form's* violation is not: a custom Sales Order form whose sublist layout order differs from its field order would mis-key silently — 43 well-formed, unique, wrong ids — and persist that. Consequences, all binding: no generalization beyond the probed Sales Order form ships without re-verifying P-MONO on the target form; any future work that reorders columns must go through the pin, never through re-derivation; and M4 cannot ship without Gate A′, which exists partly to prove the pin holds.
+- **New — U7: correlation portability (benign half).** On an unrecognised locale, a machine with no rendered lines, or a paged machine whose rendered row numbering does not index `{machine}data`, the ambiguity gate declines. That is safe but silent: the first symptom of an unsupported form is "nothing appears". A user-visible diagnostic is deliberately **not** added in M1.5.

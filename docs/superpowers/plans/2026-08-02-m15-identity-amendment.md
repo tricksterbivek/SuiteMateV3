@@ -2,9 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make `src/edit-grid/` actually mount on the real Sales Order Edit Mode machine. M1 shipped a foundation whose column axis was decoded from `_fs` spans that the live form does not emit, so `readColumnIds()` returns `[]` and the runtime declines forever. M1.5 replaces the axis source with the machine's own hidden `{machine}fields` / `{machine}data` inputs correlated against the header labels, fixes the two row predicates the live pass falsified, rebuilds the fixture to the real DOM shape, and proves `bound=true` live. **M2 does not start until this milestone's live re-probe passes.**
+**Goal:** Make `src/edit-grid/` actually mount on the real Sales Order Edit Mode machine. M1 shipped a foundation whose column axis was decoded from `_fs` spans that the live form does not emit, so `readColumnIds()` returns `[]` and the runtime declines forever. M1.5 replaces the axis source with the machine's own hidden `{machine}fields` / `{machine}data` inputs correlated against the header labels, **pins the derived axis so it is never re-derived under a permutation**, fixes the two row predicates the live pass falsified, rebuilds the fixture to the real DOM shape, and proves `bound=true` live. **M2 does not start until this milestone's live re-probe passes.**
 
-**Architecture:** Additive only. `src/edit-grid/core.js` gains a machine-field decode block and a monotonic label-to-field correlator; `readColumnIds(table)` keeps its signature and its fail-closed `[]` contract and simply gets a new interior. `src/edit-grid/runtime.js` gains nothing but a corrected `isLineOpen()`. Storage is untouched — column ids remain bare internal field ids, so `STORAGE_KEY`, the container schema and the scope key are byte-identical to M1.
+**Architecture:** Additive only. `src/edit-grid/core.js` gains a machine-field decode block and a monotonic label-to-field correlator; `readColumnIds(table)` keeps its signature and its fail-closed `[]` contract and simply gets a new interior. `src/edit-grid/runtime.js` gains a corrected `isLineOpen()` and the axis pin. Storage is untouched — column ids remain bare internal field ids, so `STORAGE_KEY`, the container schema and the scope key are byte-identical to M1.
+
+**The one non-obvious constraint, read this before Task 1.** The correlator emits only *increasing* subsequences of `{machine}fields` order, so it is correct only under **P-MONO** — rendered column order is a monotone subsequence of machine-field order (spec Amendment A1.2). Re-deriving the axis from a rendering that has been permuted is **never** correct: measured against the live payload, all 903 pairwise transpositions give 619 declines and 284 silent mis-keys, and all 1 806 single-column moves — the M4 gesture — give 1 002 declines and 804 silent mis-keys, with **zero** correct results in either sweep. A mis-key returns 43 plausible, unique, well-formed ids attached to the wrong columns and persists them. Task 4 closes this by construction; nothing else in the plan may work around it.
 
 **Tech Stack:** Vanilla JS IIFEs (`Object.freeze` exports on `globalThis`), `node:test` + `node:vm` `runInNewContext` harness, served-fixture browser verification (`python3 -m http.server 8931`), Claude in Chrome for the live pass.
 
@@ -20,13 +22,14 @@ Every task's requirements implicitly include this section. **The parent plan's G
 The following are **additional** and specific to M1.5.
 
 - **Additive only — nothing shipped in M1 is reverted.** The interpreter's ruling stands: the fail-closed behaviour was correct, only the axis source was wrong. Every M1 test that is not listed in a task below must stay green **and unedited**.
-- **`readColumnIds(table)` keeps its exact signature and its contract:** one argument, returns `string[]`, returns `[]` on every failure, never throws. Callers in `runtime.js` (`:207`, `:223`, `:256`) are not touched.
+- **`readColumnIds(table)` keeps its exact signature and its contract:** one argument, returns `string[]`, returns `[]` on every failure, never throws. Its three `runtime.js` call sites (`:207`, `:223`, `:256`) are re-pointed at `currentColumnIds(table)` in Task 4 and nowhere else.
+- **P-MONO is a precondition, not a check** (spec Amendment A1.2). The correlator only emits increasing subsequences of `{machine}fields` order, so it is correct only while the rendered column order is a monotone subsequence of it. Re-deriving from a rendering **we** have permuted is never correct — measured, 0 % correct across every transposition and every single-column move — so no task may call `readColumnIds` while a non-native order is applied. The axis is derived on a native DOM, pinned, and reused (Task 4).
 - **The frozen contract may gain only the thirteen names T1 enumerates**, and the frozen-contract test is updated in the same task that adds them. Nothing else is exported. Helpers not on that list (`machineFieldInputValue`, `nodeText`, `isFocusedRow`, `hasNumberedRowId`, `identifierTokens`, `columnIdTokens`, `comparableNumber`, `textMatchesValue`, `correlationScore`, `normalizeColumnId`) stay **module-scoped**.
 - **Storage schema is unchanged.** No task may touch `STORAGE_KEY`, `STORAGE_SCHEMA_VERSION`, `normalizeStored`, `refusesNewerSchema`, `withOrder`, `withHidden`, `withWidths`, `evictOverQuota` or the scope-key shape. If a task believes it must, it stops and reports.
 - **`src/edit-grid/core.js` stays source-pure.** The existing last test asserts `assert.doesNotMatch(source, /document\.|chrome\.|fetch\(|XMLHttpRequest|innerHTML|localStorage|sessionStorage/)`. Note the trap: `ownerDocument.` matches `document\.`. Reach the hidden inputs through `table.closest("form")` only — never `ownerDocument`, never a document global.
 - **Delimiters are written as escapes in source**, never as raw bytes: `"\u0001"` (SOH, field), `"\u0002"` (STX, line), `"\u0005"` (ENQ, intra-field option list). A raw control byte in a tracked file is a defect. The payload JSON's `delimiters` note claiming ENQ is the line separator is **wrong**; `src/internal-ids/core.js:81` is right.
 - **No new files.** M1.5 modifies `src/edit-grid/core.js`, `src/edit-grid/runtime.js`, `tests/edit-grid.test.mjs`, `tests/fixtures/sales-order-edit.html`, `docs/testing-log.md` and `save/CHECKPOINTS.md`. Manifest arrays, `tests/verify.mjs`, `package.json` and `route-catalog.js` are **not** touched, so the gate arithmetic and the 28 baselines cannot move.
-- **Mutation discipline (the Task 7 rule, applied to every test task).** Every new assertion must be shown to fail when the line it protects is broken, and to pass when it is restored. Record the mutation and both outcomes in the task report. A test that passes under mutation is not a test.
+- **Mutation discipline (the M1 Task 7 rule, applied to every test task).** Every new assertion must be shown to fail when the line it protects is broken, and to pass when it is restored. Record the mutation and both outcomes in the task report. A test that passes under mutation is not a test.
 - **Baseline: observed governs.** M1 ended at **245/245**. Re-run `npm test` before writing anything and use the observed number; if it differs, record the observed number and continue.
 - **Fail-closed is the default outcome.** Where the evidence is thin (unrecognised locale, machine with no lines, paged machine), the correct behaviour is `[]` and no mount. No task may add a "best effort" fallback.
 
@@ -39,8 +42,8 @@ The following are **additional** and specific to M1.5.
 | Path | Change |
 |---|---|
 | `src/edit-grid/core.js` | +1 identity block (machine-field decode, twin collapse, label affinity, monotonic correlator); `readColumnIds` interior replaced; `isDataRow` gains the numbered-row-id clause; `EXCLUDED_ROW_SELECTOR` gains one class; `columnIdFromSpanId` gains the line-less branch; frozen export list 37 → 50 names. |
-| `src/edit-grid/runtime.js` | `isLineOpen()` redefined. Nothing else. |
-| `tests/edit-grid.test.mjs` | New identity tests, updated frozen-contract assertions, updated `isLineOpen` slice test, extended DOM stub (form + hidden inputs + `div.listheader`). |
+| `src/edit-grid/runtime.js` | `isLineOpen()` redefined (Task 2); axis pinning — `pinnedColumnIds`, `appliedOrder`, `currentColumnIds`, three re-pointed call sites, two teardown resets (Task 4). Nothing else. |
+| `tests/edit-grid.test.mjs` | New identity tests, pinned 50-name contract assertion, updated `isLineOpen` slice test, pinning tests, extended DOM stub (form + hidden inputs + both header shapes). |
 | `tests/fixtures/sales-order-edit.html` | Rebuilt to the real machine shape. |
 | `docs/testing-log.md` | +1 line for the M1.5 live session. |
 | `save/CHECKPOINTS.md` | +1 M1.5 checkpoint entry. |
@@ -64,15 +67,17 @@ The following are **additional** and specific to M1.5.
 
 - [ ] **Step 1: Record the baseline.** Run `npm test`; record the observed pass count (expected 245/245). Run `npm run fixtures:verify`; record 28 baselines at 0.000 %.
 
-- [ ] **Step 2: Extend the DOM stub in `tests/edit-grid.test.mjs`.** `createCell` must answer a `div.listheader` lookup, and the machine must have a form ancestor carrying the hidden inputs. Add beside the existing helpers:
+- [ ] **Step 2: Extend the DOM stub in `tests/edit-grid.test.mjs`.** The machine needs a form ancestor carrying the hidden inputs, and header cells must be testable **both** with and without a label wrapper. Add beside the existing helpers:
 
 ```js
-// A header cell wraps its text in div.listheader (M1.5 probe a3); a data cell
-// is bare text. Both must answer querySelector without pretending to be a span.
-function createHeaderCell(label, { systemHidden = false } = {}) {
+// Whether the machine wraps its header text in div.listheader was NOT probed —
+// the only live evidence is that header cells carry text and no ids
+// (probe-transcripts.md:19). readHeaderLabels must therefore work either way, so
+// the stub builds both shapes and every header test runs against both.
+function createHeaderCell(label, { wrapped = true, systemHidden = false } = {}) {
   const cell = createCell({ text: label, systemHidden });
   cell.querySelector = (selector) =>
-    String(selector).includes("listheader") ? { textContent: label } : null;
+    wrapped && String(selector).includes("listheader") ? { textContent: label } : null;
   return cell;
 }
 
@@ -166,19 +171,20 @@ const LIVE_FIELDS_VALUE = LIVE_FIELDS.join(SOH);
 const LIVE_DATA_VALUE = [LIVE_LINE_1.join(SOH), LIVE_LINE_2.join(SOH)].join(STX);
 
 // Builds the machine in the shape the live pass observed: bare-text data cells,
-// div.listheader headers, numbered {machine}_row_{n} ids, symmetric cell counts,
-// and the hidden inputs on the form.
+// numbered {machine}_row_{n} ids, symmetric cell counts, and the hidden inputs on
+// the form. wrappedHeaders toggles the unprobed div.listheader wrapper.
 function createLiveMachine({
   fieldsValue = LIVE_FIELDS_VALUE,
   dataValue = LIVE_DATA_VALUE,
   labels = LIVE_LABELS,
   rows = [LIVE_ROW_1, LIVE_ROW_2],
-  focusedRowIndex = null
+  focusedRowIndex = null,
+  wrappedHeaders = true
 } = {}) {
   const form = createForm({ itemfields: fieldsValue, itemdata: dataValue });
   const header = createRow({
     className: "uir-machine-headerrow",
-    cells: labels.map((label) => createHeaderCell(label))
+    cells: labels.map((label) => createHeaderCell(label, { wrapped: wrappedHeaders }))
   });
   const dataRows = rows.map((texts, index) => createRow({
     id: `item_row_${index + 1}`,
@@ -310,6 +316,10 @@ test("reads the column axis from the machine's hidden inputs and header labels",
   assert.equal(core.HEADER_LABEL_SELECTOR, "div.listheader");
   assert.deepEqual(plain(core.readColumnIds(createLiveMachine())), LIVE_AXIS);
   assert.deepEqual(plain(core.readHeaderLabels(createLiveMachine())), LIVE_LABELS);
+  // The wrapper is an optimisation, not a requirement: it was never probed, so
+  // bare-text header cells must read identically.
+  assert.deepEqual(plain(core.readHeaderLabels(createLiveMachine({ wrappedHeaders: false }))), LIVE_LABELS);
+  assert.deepEqual(plain(core.readColumnIds(createLiveMachine({ wrappedHeaders: false }))), LIVE_AXIS);
   // Sample rows are indexed by their own line number, so skipping the open line
   // leaves a hole instead of shifting every later row against {machine}data.
   const withOpenFirstLine = createLiveMachine({ focusedRowIndex: 0 });
@@ -639,7 +649,7 @@ And replace `readColumnIds` entirely:
   }
 ```
 
-Add the thirteen names to the frozen export object, keeping the existing order and appending: `FIELD_DELIMITER, LINE_DELIMITER, OPTION_DELIMITER, HEADER_LABEL_SELECTOR, MAX_MACHINE_FIELDS, MAX_SAMPLE_ROWS` with the other constants, and `parseMachineFieldData, readMachineFieldData, collapseDisplayTwins, readHeaderLabels, readSampleRowTexts, labelAffinity, correlateColumnIds` with the other functions.
+Add the thirteen names to the frozen export object at exactly the positions pinned by the `Object.keys` assertion in Step 6. Every M1 name keeps its current slot.
 
 - [ ] **Step 6: Extend the frozen-contract test** in `tests/edit-grid.test.mjs` (the `exports a frozen core…` test) with the six new constant assertions, and add the name-count guard so a silent surface change cannot slip through:
 
@@ -651,8 +661,26 @@ Add the thirteen names to the frozen export object, keeping the existing order a
   assert.equal(core.LINE_DELIMITER, "\u0002");
   assert.equal(core.OPTION_DELIMITER, "\u0005");
   // M1 froze 37 names; M1.5 adds exactly the thirteen the amendment enumerates.
-  assert.equal(Object.keys(core).length, 50);
+  // deepEqual on the NAMES, not a count: a count passes when one export is
+  // renamed and another added, which is precisely the drift this guards.
+  assert.deepEqual(Object.keys(core), [
+    "VERSION", "STORAGE_KEY", "STORAGE_SCHEMA_VERSION", "MAX_SYNC_ITEM_BYTES",
+    "MAX_COLUMN_ID_LENGTH", "MAX_COLUMN_IDS", "ABSOLUTE_MIN_COLUMN_WIDTH", "MAX_COLUMN_WIDTH",
+    "MAX_MACHINE_FIELDS", "MAX_SAMPLE_ROWS",
+    "MACHINE_TABLE_SELECTOR", "MACHINE_CONTAINER_SELECTOR", "HEADER_ROW_SELECTOR",
+    "DATA_ROW_SELECTOR", "FOCUSED_ROW_SELECTOR", "EXCLUDED_ROW_SELECTOR", "COLUMN_SPAN_SELECTOR",
+    "HEADER_LABEL_SELECTOR",
+    "FIELD_DELIMITER", "LINE_DELIMITER", "OPTION_DELIMITER",
+    "DATA_ATTRIBUTE", "NATIVE_ROW_ATTRIBUTE", "BOUND_ATTRIBUTE", "FOREIGN_NODE_SELECTOR", "CLASSES",
+    "clampWidth", "normalizeStored", "refusesNewerSchema", "withOrder", "withHidden", "withWidths",
+    "machineIdFromTable", "rowLineNumber", "columnIdFromSpanId", "visibleCells", "tableRows",
+    "headerRow", "isExcludedRow", "alignsToHeader", "isDataRow", "readColumnIds", "isOrderedMachine",
+    "parseMachineFieldData", "readMachineFieldData", "collapseDisplayTwins", "readHeaderLabels",
+    "readSampleRowTexts", "labelAffinity", "correlateColumnIds"
+  ]);
 ```
+
+The list above is the **required export order** — the implementer inserts the new names at exactly these positions in the `Object.freeze({…})` literal, keeping every M1 name where it already sits. `Object.keys` on the frozen literal returns declaration order, so the assertion pins order as well as membership.
 
 - [ ] **Step 7: Run `npm test`** — all green, count = observed baseline + the new tests.
 
@@ -809,8 +837,8 @@ In `src/edit-grid/runtime.js`, replace `isLineOpen` entirely:
 
 - [ ] **Step 4: Run `npm test`** — all green.
 
-- [ ] **Step 5: Mutation-proof.**
-  1. Drop `tr.uir-machine-row-last` from the selector — the contract and predicate tests must fail.
+- [ ] **Step 5: Mutation-proof.** Note for mutation 1: `isDataRow` reaches `uir-machine-row-last` only through `isExcludedRow`, so dropping the class from `EXCLUDED_ROW_SELECTOR` is what proves the new class is load-bearing — the `isExcludedRow(lastRow)` assertion is the one that pins it, and the `isDataRow(lastRow, ids)` assertion is its consequence. Say so in the report rather than claiming two independent proofs.
+  1. Drop `tr.uir-machine-row-last` from the selector — the contract test and both `lastRow` assertions must fail.
   2. Drop `hasNumberedRowId(row)` from `isDataRow` — the entry-row assertion must fail.
   3. Change `NUMBERED_ROW_ID` to `/_row_[0-9]+$/` — the `item_row_0` assertion must fail.
   4. Restore the deleted button-row clause in `isLineOpen` — the two "no longer count" assertions must fail.
@@ -884,7 +912,169 @@ Implementer note: `raw.length === suffix.length` is what keeps a bare `"_fs"` fr
 
 ---
 
-### Task 4: Rebuild `tests/fixtures/sales-order-edit.html` to the real machine shape
+### Task 4: Axis pinning — derive on a native DOM only, never re-derive under our own permutation
+
+**Files:**
+- Modify: `src/edit-grid/runtime.js`, `tests/edit-grid.test.mjs`
+
+**Interfaces:**
+- Consumes: `core.readColumnIds(table)` (unchanged), `core.machineIdFromTable` — nothing new from `core`.
+- Produces: **nothing exported.** Two module-scoped variables (`pinnedColumnIds`, `appliedOrder`) and one module-scoped function (`currentColumnIds(table)`) in `runtime.js`. The frozen contract stays at the 50 names Task 1 pinned.
+- Replaces: the three `core.readColumnIds(table)` call sites in `runtime.js` (`:207` in `queueApply`, `:223` and `:256` in `installEditGrid`) with `currentColumnIds(table)`.
+
+**Why this task exists.** `correlateColumnIds` emits only strictly increasing subsequences of `{machine}fields` order, so it is correct only under **P-MONO** (spec Amendment A1.2). Measured against the live payload, re-deriving the axis from a *permuted* rendering is **never** correct — all 903 pairwise transpositions produce 619 declines and **284 silent mis-keys**, and all 1 806 single-column moves (the M4 gesture) produce 1 002 declines and **804 silent mis-keys**, with zero correct results in either sweep. A mis-key returns 43 plausible, unique, well-formed ids attached to the wrong columns and persists them. Since re-derivation under permutation is never right, refusing it costs nothing and removes the whole failure class. M1.5 applies no order, so `appliedOrder` stays `null` throughout this milestone — the machinery ships now so that M2 and M4 inherit it rather than rediscovering the hazard.
+
+- [ ] **Step 1: Write the failing tests.** Add to `tests/edit-grid.test.mjs`, using the same slice technique the `isLineOpen` test uses:
+
+```js
+test("the column axis is derived on a native DOM, pinned, and never re-derived under a permutation", () => {
+  // P-MONO (spec A1.2): the correlator only emits increasing subsequences of
+  // machine-field order, so re-deriving while WE have permuted the DOM silently
+  // mis-keys. The runtime must reuse the pin instead of asking again.
+  const [helper] = runtimeSource.match(/ {2}function currentColumnIds\(table\) \{[\s\S]*?\n {2}\}/) ?? [];
+  assert.equal(Boolean(helper), true, "currentColumnIds is no longer a named function in runtime.js");
+  const core = createApi();
+  const build = (readColumnIds, state = {}) => {
+    const sandbox = {
+      core: { ...core, readColumnIds },
+      pinnedColumnIds: null,
+      appliedOrder: null,
+      ...state
+    };
+    sandbox.globalThis = sandbox;
+    return sandbox;
+  };
+  const call = (sandbox, table) => {
+    runInNewContext(`${helper}\nglobalThis.result = currentColumnIds(${table});`, sandbox);
+    return sandbox.result;
+  };
+
+  // 1. First derivation on a native DOM pins the axis.
+  const native = build(() => ["item", "quantity", "rate"]);
+  assert.deepEqual(plain(call(native, "null")), ["item", "quantity", "rate"]);
+  assert.deepEqual(plain(native.pinnedColumnIds), ["item", "quantity", "rate"]);
+
+  // 2. While an order is applied, the pin is reused and readColumnIds is NOT called.
+  let asked = 0;
+  const permuted = build(() => { asked += 1; return ["rate", "item", "quantity"]; }, {
+    pinnedColumnIds: ["item", "quantity", "rate"],
+    appliedOrder: ["rate", "item", "quantity"]
+  });
+  assert.deepEqual(plain(call(permuted, "null")), ["item", "quantity", "rate"]);
+  assert.equal(asked, 0, "re-derivation under a permutation is never correct, so it must not happen");
+
+  // 3. An applied order with no pin yields nothing rather than a fresh guess.
+  const orphaned = build(() => ["rate", "item", "quantity"], { appliedOrder: ["rate"] });
+  assert.deepEqual(plain(call(orphaned, "null")), []);
+
+  // 4. A fresh native derivation that DIFFERS from the pin clears it and declines.
+  //    The stored entry is keyed to the old axis; adopting the new one silently
+  //    would relabel the user's saved layout.
+  const changed = build(() => ["item", "quantity", "custcol_rrp"], {
+    pinnedColumnIds: ["item", "quantity", "rate"]
+  });
+  assert.deepEqual(plain(call(changed, "null")), []);
+  assert.equal(changed.pinnedColumnIds, null);
+
+  // 5. A declining derivation leaves the pin alone — a transient repaint mid-read
+  //    must not throw away an axis that is still valid.
+  const transient = build(() => [], { pinnedColumnIds: ["item", "quantity", "rate"] });
+  assert.deepEqual(plain(call(transient, "null")), []);
+  assert.deepEqual(plain(transient.pinnedColumnIds), ["item", "quantity", "rate"]);
+
+  // 6. Re-deriving the SAME axis is a no-op, not a churn.
+  const stable = build(() => ["item", "quantity", "rate"], {
+    pinnedColumnIds: ["item", "quantity", "rate"]
+  });
+  assert.deepEqual(plain(call(stable, "null")), ["item", "quantity", "rate"]);
+});
+
+test("teardown clears the pinned axis and the applied order", () => {
+  // Both are module state that survives repaints by design, so removeEditGrid is
+  // the only thing that may clear them — otherwise a toggle-off/toggle-on cycle
+  // would re-mount against a stale axis.
+  const [teardown] = runtimeSource.match(/ {2}function removeEditGrid\(\) \{[\s\S]*?\n {2}\}/) ?? [];
+  assert.equal(Boolean(teardown), true);
+  assert.match(teardown, /pinnedColumnIds = null/);
+  assert.match(teardown, /appliedOrder = null/);
+});
+
+test("every axis read in the runtime goes through the pin", () => {
+  // The hazard is a caller that asks core directly while an order is applied.
+  // After this task there is exactly ONE core.readColumnIds call site, inside
+  // currentColumnIds; everything else asks currentColumnIds.
+  const direct = runtimeSource.match(/core\.readColumnIds\(/g) ?? [];
+  assert.equal(direct.length, 1, "core.readColumnIds must be reached only through currentColumnIds");
+  assert.match(runtimeSource, / {2}function currentColumnIds\(table\) \{[\s\S]*?core\.readColumnIds\(table\)/);
+});
+```
+
+- [ ] **Step 2: Run and watch them fail** (`currentColumnIds is no longer a named function`).
+
+- [ ] **Step 3: Implement** in `src/edit-grid/runtime.js`. Add beside the other module state (`activeTable`, `nativeColumnIds`, …):
+
+```js
+  // The axis is derived ONCE from a native-order DOM and pinned here. It survives
+  // repaints, which DOM stamps cannot. appliedOrder is the non-native column order
+  // this runtime has applied, or null while the machine is in native order.
+  let pinnedColumnIds = null;
+  let appliedOrder = null;
+```
+
+and, beside `machineContainer`:
+
+```js
+  function sameColumnIds(left, right) {
+    return left.length === right.length && left.every((id, index) => id === right[index]);
+  }
+
+  function currentColumnIds(table) {
+    // P-MONO (spec Amendment A1.2): core.correlateColumnIds only ever emits an
+    // increasing subsequence of the machine's own field order, so once WE have
+    // permuted the rendering it cannot recover the axis — measured on the live
+    // payload, every single-column move either declines (55%) or silently
+    // mis-keys (45%), and none is correct. Reuse the pin instead of asking.
+    if (appliedOrder) {
+      return pinnedColumnIds ?? [];
+    }
+    const derived = core.readColumnIds(table);
+    if (!derived.length) {
+      // A transient read during a repaint must not discard a still-valid pin.
+      return [];
+    }
+    if (pinnedColumnIds && !sameColumnIds(pinnedColumnIds, derived)) {
+      // The machine's own layout changed under us. The stored entry is keyed to
+      // the old axis, so adopting the new one silently would relabel the user's
+      // saved layout: drop the pin and decline until the next clean install.
+      pinnedColumnIds = null;
+      return [];
+    }
+    pinnedColumnIds = derived;
+    return derived;
+  }
+```
+
+Replace all three `core.readColumnIds(table)` call sites with `currentColumnIds(table)`, and add the two resets to `removeEditGrid`:
+
+```js
+    pinnedColumnIds = null;
+    appliedOrder = null;
+```
+
+- [ ] **Step 4: Run `npm test`** — all green.
+
+- [ ] **Step 5: Mutation-proof.**
+  1. Delete the `if (appliedOrder)` early return — assertion 2 must fail (`asked` becomes 1).
+  2. Change the change-detection branch to `pinnedColumnIds = derived; return derived;` — assertion 4 must fail.
+  3. Delete the `if (!derived.length) return []` guard — assertion 5 must fail (the pin gets cleared).
+  4. Remove one reset from `removeEditGrid` — the teardown test must fail.
+  5. Point any one call site back at `core.readColumnIds` — the single-call-site test must fail.
+
+- [ ] **Step 6: Commit** — `fix(edit-grid): pin the column axis and never re-derive it under a permutation`.
+
+---
+
+### Task 5: Rebuild `tests/fixtures/sales-order-edit.html` to the real machine shape
 
 **Files:**
 - Modify: `tests/fixtures/sales-order-edit.html`
@@ -894,7 +1084,7 @@ Implementer note: `raw.length === suffix.length` is what keeps a bare `"_fs"` fr
 The M1 fixture encodes two falsified assumptions — `_fs` spans on static rows, and data rows carrying one more cell than the header. It passes where reality fails. Rebuilt, it must make the M1 round-trip checks prove the feature **mounts**.
 
 - [ ] **Step 1: Rebuild the markup emulator** so it reproduces what the live pass observed:
-  - **Header row** — `tr.uir-machine-headerrow`, one `td` per column, each wrapping its label in `<div class="listheader">`. No ids, no `data-field-name`.
+  - **Header row** — `tr.uir-machine-headerrow`, one `td` per column, **bare text**, no ids, no `data-field-name`. That is the only shape the live pass evidences (`probe-transcripts.md:19`); whether NetSuite wraps the text in `div.listheader` was never probed, so the fixture must **not** assume the wrapper. Wrapping it here would repeat the exact M1 fixture sin of encoding an unverified assumption. The wrapped variant is covered in the unit stub (Task 1, `wrappedHeaders`), where it costs nothing to be wrong; Task 6 records which shape the machine really uses.
   - **Static data rows** — `tr.uir-machine-row` with `id="item_row_{n}"`, alternating `uir-machine-row-odd`/`-even`, **bare text cells** (`td.textContent = value`): no `_fs` spans, no `span[id]`, no `<input>`.
   - **Symmetric cell counts** — header and data rows carry the **same** number of cells, and none is inline-`display:none`. The M1 fix round's asymmetric shape is falsified; delete it.
   - **Hidden inputs on the form** — `<input type="hidden" name="itemfields" id="itemfields">` and the same for `itemdata`, values built from the fixture's own column list and line data with `String.fromCharCode(1)` / `(2)` / `(5)`, regenerated on **every** repaint so add/insert/remove stay consistent with the rendered rows.
@@ -912,13 +1102,14 @@ The M1 fixture encodes two falsified assumptions — `_fs` spans on static rows,
   - **MOUNT (new, and the point of the task):** with the toggle on, `document.querySelector(".uir-machine-table-container").hasAttribute("data-suitemate-v3-edit-grid-bound")` is `true`, and `document.querySelectorAll("[data-suitemate-v3-edit-grid]").length` is ≥ 1. M1 could only assert this on markup reality does not produce.
   - **AXIS (new):** `SuiteMateV3EditGridCore.readColumnIds(document.querySelector("#item_splits"))` deep-equals the twelve live ids above.
   - **AXIS SURVIVES REPAINT (new):** trigger the full `<tbody>` regenerate, then add a line, then remove it; `readColumnIds` returns the identical array each time.
+  - **AXIS PINNING (new, Task 4):** permute two `<td>`s in the header and in every data row, then force an install; the runtime must reuse the pinned axis and the array must be **unchanged**. Then restore native order and confirm a fresh derivation still returns the same array. This is the fixture-level proof that the M4 mis-key class is closed.
   - **OPEN LINE (new):** with line 2 open, the sliced `isLineOpen()` reads `true`; with every line closed but the entry row present and focused, it reads `false`.
   - **ZERO IDLE WRITES (kept):** `dataset.editGridWrites` is `0` after mount and stays `0` for 500 ms across regenerate / add / open / close, using the M1 counter capture-and-restore (Task 7 fix 1).
   - **TEARDOWN (kept):** toggling off leaves zero owned nodes and removes the bound attribute.
   - **H3 (kept, at the route gate):** `?id=1` gives `[edit false, view true]`; `?id=1&e=T` gives `[edit true, view false]`. Per spec Amendment A1.5 this stays a route-gate assertion — the DOM-level complement does not exist on symmetric rows.
   - **VISUALS (kept):** computed `table-layout` stays `auto`; every row's computed `display` is unchanged.
 
-- [ ] **Step 3: Mutation-proof the fixture, both ways** (the Task 7 discipline that made it a real net):
+- [ ] **Step 3: Mutation-proof the fixture, both ways** (the M1 Task 7 discipline that made it a real net):
   1. Break `readColumnIds`'s label gate (`labels.some((label) => !label)` → `false`) and blank a header label in the fixture — MOUNT must fail. Restore both — green.
   2. Corrupt one byte of the fixture's `itemfields` value — MOUNT must fail (the axis declines). Restore — green.
   3. Delete the entry row from the fixture — the OPEN LINE `false` case must still pass, proving it is not the entry row that makes it false.
@@ -931,18 +1122,34 @@ The M1 fixture encodes two falsified assumptions — `_fs` spans on static rows,
 
 ---
 
-### Task 5: Live re-probe — prove `bound=true` on the locked record
+### Task 6: Live re-probe — prove `bound=true` on the locked record
 
 **Files:**
-- Modify: `docs/testing-log.md`
+- Modify: `docs/testing-log.md`, `.superpowers/sdd/2026-08-02-edit-mode-table-enhancements/probe-transcripts.md`
 
-**This task is captain-driven.** It is a browser session, not an implementation task, and it runs under `docs/BUILD-BRIEF-edit-mode.md` tier 3 in full.
+**Interfaces:**
+- Consumes: the shipped extension loaded from this working tree (Tasks 1-5 committed), and `globalThis.SuiteMateV3EditGridCore` as exposed on the page by the content script.
+- Produces: a `## M1.5 live re-probe` section in `probe-transcripts.md` containing verbatim tool output for every check below; one appended line in `docs/testing-log.md`; and the **MOUNT PASS / MOUNT FAIL** verdict that Task 7 consumes.
+- Produces nothing in `src/`. **No code is written in this task.** A defect found here is reported, not patched in place.
 
-- [ ] **Step 1: Pre-flight.** `npm test` green at the observed count; `git status` clean; extension reloaded from this working tree; the popup toggle **"Sales Order columns (Edit Mode)"** switched **on**. Reload and toggle are human actions — ask for both in one interrupt.
+**This task is captain-driven** — a browser session, not an implementation task. The full live protocol is restated verbatim below rather than cited: `docs/BUILD-BRIEF-edit-mode.md` is untracked, has no "tiers", and must not be referenced as if it were a stable binding document.
 
-- [ ] **Step 2: Safety triple, verified before anything else** on `https://6998262.app.netsuite.com/app/accounting/transactions/salesord.nl?id=16342809&e=T`: `custbody_salesorder_issue` checked; Status = *Pending Approval*; Memo marks a testing record. Any failure: **stop and report, do not proceed**. Record the verbatim triple in the transcript.
+**Live protocol — binding, restated in full:**
 
-- [ ] **Step 3: Read-only only.** No save at any point. No Insert, no Remove, no OK, no Cancel, none of the forbidden verbs. This pass opens **no** line. Teardown is navigating to the view URL and letting the owner confirm the leave-page dialog.
+- **Record lock.** Account `6998262`, transaction `id=16342809`, **and that same record with `&e=T` appended** (owner decision Q2). No other record, no other transaction, no other account, no other URL. Any navigation outside the lock is a **stop-and-report**.
+- **Safety triple**, verified before testing begins **and** again before any save: `custbody_salesorder_issue` checked; Status = *Pending Approval*; Memo clearly marks a testing record. Any failure at any point: **do not save, stop, report**.
+- **No save.** This milestone requires none. The four-eyes save gate is therefore never invoked. Teardown is navigating away, never Submit.
+- **Four-eyes save gate** (stated so it is not lost, though unreachable here): any save needs an evidence pack plus an independent Opus 5 gate answering exactly GO or NO-GO, default NO-GO; the first save of a session additionally needs the owner's explicit go-ahead in chat.
+- **Forbidden verbs, regardless of anything else:** Approve, Reject, Bill, Fulfill, Email, Print, Delete, Make Copy, and any other status-changing or document-sending action.
+- **Interpretation is not the captain's.** Every judgement question — "did it render correctly?", "is this a regression?" — is answered by an **Opus 5 subagent from DOM evidence**, never by the captain's own reading.
+- **Batched human actions.** The extension reload and the popup toggle cannot be automated; ask for **both in one interrupt**. A fix found mid-pass is recorded as *"fixture-verified; live on next reload"* rather than blocking the pass.
+- **`docs/testing-log.md`** gains one line after every live session — timestamp, milestone, what was exercised, evidence location, gate verdict.
+
+- [ ] **Step 1: Pre-flight.** `npm test` green at the observed count; `npm run fixtures:verify` at 28 baselines / 0.000 %; `git status` clean; extension reloaded from this working tree; the popup toggle **"Sales Order columns (Edit Mode)"** switched **on**. Reload and toggle in one interrupt.
+
+- [ ] **Step 2: Safety triple, verified before anything else** on `https://6998262.app.netsuite.com/app/accounting/transactions/salesord.nl?id=16342809&e=T`. Record the verbatim triple in the transcript. Any failure: **stop and report, do not proceed**.
+
+- [ ] **Step 3: Read-only only.** No save. No Insert, no Remove, no OK, no Cancel, no forbidden verb. This pass opens **no** line and permutes **no** column. Teardown is navigating to the view URL and letting the owner confirm the leave-page dialog.
 
 - [ ] **Step 4: Collect the mount proof.** Record every result verbatim into `.superpowers/sdd/2026-08-02-edit-mode-table-enhancements/probe-transcripts.md` under a new `## M1.5 live re-probe` heading:
   1. **Bound:** `document.querySelector(".uir-machine-table-container").hasAttribute("data-suitemate-v3-edit-grid-bound")` — must be `true`.
@@ -953,31 +1160,39 @@ The M1 fixture encodes two falsified assumptions — `_fs` spans on static rows,
   6. **Predicates:** with no line open, the page's `isLineOpen()` equivalent must read `false` while the entry row is present and focused — evidence that the M1 permanent-true bug is closed. Verify by asserting the entry row exists (`tr.uir-machine-row-focused` with no `id`) **and** that no `tr[id^="item_row_"]` carries a focused class.
   7. **Console:** zero error-level messages across the pass.
   8. **Coexistence:** in Edit Mode, no `[data-suitemate-v3-so-columns]` and no `[data-suitemate-v3-form-views]` nodes.
-- [ ] **Step 5: Teardown and View Mode regression.** Navigate to the view URL; owner confirms the dialog. Verify: View Mode loads, `so-columns` mounts, `edit-grid` nodes = 0. Then re-run the View Mode regression eyeball from spec §9 tier 4 — personalization, sort, filter, widths, Export view, tab titles, internal-id badges — and record what was **actually** exercised. Do not claim more than was run; the M1 checkpoint review caught exactly that overclaim.
+  9. **Header label node — the open question from Task 1/Task 5.** Whether NetSuite wraps header text in a label element was never probed, and both documents currently tolerate either shape. Record verbatim: `document.querySelector("#item_splits tr.uir-machine-headerrow td").outerHTML` for the first three header cells, plus `document.querySelectorAll("#item_splits tr.uir-machine-headerrow td div.listheader").length`. Whatever it returns, **no code changes in this task** — the reader already handles both. This closes the evidence gap so `HEADER_LABEL_SELECTOR` stops being an assumption.
+  10. **P-MONO spot check (informational, spec U6).** The derived axis is a monotone subsequence of `itemfields` by construction, so this checks the *converse*: read `document.querySelector('input[name="itemfields"]').value.split(String.fromCharCode(1))` and confirm the 43 derived ids appear in it in **strictly increasing** index order. A failure here would mean the live form violates P-MONO and the axis is mis-keyed — a **stop-and-report**.
+
+- [ ] **Step 5: Teardown and View Mode regression.** Navigate to the view URL; owner confirms the dialog. Verify: View Mode loads, `so-columns` mounts, `edit-grid` nodes = 0. Then run the View Mode regression on the same record — personalization, sort, filter, widths, Export view (data rows, not headers-only), tab titles, internal-id badges — **and zero SuiteMate console errors across the whole View Mode pass**. Record what was **actually** exercised, item by item. Do not claim more than was run: the M1 checkpoint review caught exactly that overclaim.
 
 - [ ] **Step 6: Append one line to `docs/testing-log.md`** in the house shape: timestamp, milestone (`M1.5`), what was exercised, evidence location (`probe-transcripts.md` heading), and the gate verdict (`MOUNT PASS` / `MOUNT FAIL`).
 
-- [ ] **Step 7: Gate.** If any of 1-4 fails, **M1.5 is not complete**: record the divergence, stop, and report to the owner before touching code. `readColumnIds` returning `[]` live means the correlation is ambiguous on the real 43-column form — the sample-row set or the affinity tiers need re-derivation from the real data, and that is a new task, not a patch.
+- [ ] **Step 7: Gate.** If any of checks 1-4 or 10 fails, **M1.5 is not complete**: record the divergence, stop, and report to the owner before touching code. `readColumnIds` returning `[]` live means the correlation is ambiguous on the real 43-column form — the sample-row set or the affinity tiers need re-derivation from the real data. A wrong-but-well-formed axis, or a P-MONO violation, is more serious still. Either is a new task, not a patch.
 
 ---
 
-### Task 6: M1.5 checkpoint
+### Task 7: M1.5 checkpoint
 
 **Files:**
 - Modify: `save/CHECKPOINTS.md`
 
-- [ ] **Step 1: Re-run the gates independently.** `npm test` — record the exact pass/fail count. `npm run fixtures:verify` — record `28 baselines at 0.000 %`. `git diff --name-only main | grep so-columns` — must return exactly `src/so-columns/core.js`. `git status` — clean apart from the checkpoint edit.
+**Interfaces:**
+- Consumes: the commit SHA ranges of Tasks 1-5, the gate numbers re-run in Step 1, and Task 6's `probe-transcripts.md` section plus its MOUNT PASS/FAIL verdict and `docs/testing-log.md` line.
+- Produces: one `## Edit Mode Table Enhancements: Milestone M1.5 (column identity)` entry appended to `save/CHECKPOINTS.md`, and the checkpoint commit that unblocks M2.
+- Produces nothing in `src/` or `tests/`. If Step 1's gates are not green, the checkpoint is **not** written — the failure is reported instead.
+
+- [ ] **Step 1: Re-run the gates independently.** `npm test` — record the exact pass/fail count (**expected 245 + the tests Tasks 1-4 added; observed governs**). `npm run fixtures:verify` — record `28 baselines at 0.000 %`. `git diff --name-only main | grep so-columns` — must return exactly `src/so-columns/core.js`. `git diff --name-only main -- manifest.json tests/verify.mjs package.json tests/fixtures/route-catalog.js` — must return **nothing**. `git status` — clean apart from the checkpoint edit.
 
 - [ ] **Step 2: Write the entry** in `save/CHECKPOINTS.md`, in the house `### Included` / `### Verification` shape, headed `## Edit Mode Table Enhancements: Milestone M1.5 (column identity)`. It must state:
-  - **Status** — complete only if Task 5's mount proof passed; otherwise the milestone is not checkpointed.
-  - **Included** — one bullet per task, each with its commit SHA range.
-  - **Verification** — the observed `npm test` count, the baseline count, the fixture round-trip results (including the new MOUNT and AXIS checks), and the live re-probe results with the verbatim axis.
-  - **The identity mechanism in two sentences**, with the pointer to spec Amendment 1, and the explicit statement that **the storage schema did not change**.
-  - **What is now proven live that was not before:** attachment on the real machine. The M1 entry's honest disclaimer (`:1255`, "Not proven live: attachment and re-render survival — FIXTURE-PROVEN ONLY") is superseded **only to the extent Task 5 actually exercised it** — mount, axis and idle-write flatness. Re-render survival across a **commit** is still fixture-only, because this pass opens no line. Say so.
-  - **Carried gaps**, named: Gate A′ still owed before M4; the entry row is no longer treated as an open line, which M2/M3 must decide about before wiring the first apply; page-scope disclosure still untested (no paged record); locale portability declines by design (spec U6); and a machine with no rendered lines declines to mount.
+  - **Status** — complete only if Task 6's mount proof returned **MOUNT PASS**; otherwise the milestone is not checkpointed.
+  - **Included** — one bullet per task (1-6), each with its commit SHA range. **Range convention: `first..last`, inclusive of both endpoints** — the first commit *of that task* and its last, not git's exclusive `A..B` revision syntax. State the convention once in the entry so it cannot be misread. While here, correct the ledgered M1 nit: the M1 headline range should read **`0862814..cea3726`** inclusive (`f0716b7` is the branch point, not an M1 commit).
+  - **Verification** — the observed `npm test` count (**expected 245 + the tests Tasks 1-4 add; record the observed number, which governs**), `npm run fixtures:verify` at **28 baselines / 0.000 %**, the fixture round-trip results including the new MOUNT, AXIS and AXIS PINNING checks, and the live re-probe results with the verbatim 43-id axis.
+  - **The identity mechanism in two sentences**, with the pointer to spec Amendment 1, and the explicit statement that **the storage schema did not change** and the frozen contract went **37 → 50** names.
+  - **What is now proven live that was not before:** attachment on the real machine. The M1 entry's honest disclaimer (`:1255`, "Not proven live: attachment and re-render survival — FIXTURE-PROVEN ONLY") is superseded **only to the extent Task 6 actually exercised it** — mount, axis, idle-write flatness. Re-render survival across a **commit** is still fixture-only, because this pass opens no line. Axis pinning is **fixture-proven only** — the live pass permutes no column. Say both.
+  - **Carried gaps**, named: **P-MONO / U6 is the highest carried risk** — the correlator is only correct while rendered order is a monotone subsequence of machine-field order, it cannot be checked from the DOM, and a custom form that violates it mis-keys silently; Gate A′ still owed before M4 and now defined around the pin; the entry row is no longer treated as an open line, which M2/M3 must decide about before wiring the first apply; page-scope disclosure still untested (no paged record); locale portability declines by design (U7); a machine with no rendered lines declines to mount.
   - **Feature-status deltas** — none new; A1.6's three amended rows are already recorded in the spec.
 
-- [ ] **Step 3: Honesty sweep.** Every claim in the entry maps to a command output or a transcript line. No `<…>` placeholder survives. No sentence claims a verification that was not run. Read the entry against the Task 5 transcript line by line.
+- [ ] **Step 3: Honesty sweep.** Every claim in the entry maps to a command output or a transcript line. No `<…>` placeholder survives. No sentence claims a verification that was not run — in particular, do not write "re-render survival proven" or "pinning proven live". Read the entry against the Task 6 transcript line by line.
 
 - [ ] **Step 4: Commit** — `docs: M1.5 checkpoint — identity amendment shipped, mount proven live`.
 
