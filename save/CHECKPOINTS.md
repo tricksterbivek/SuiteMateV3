@@ -1225,3 +1225,71 @@ Date: 2026-07-31
 ### Verification
 
 - End-to-end on the released build against production SO 16302518: hide a field → real page reload → still hidden → chip unhide → storage clean; the schema-2 container written by the builder reads through correctly. Full `npm test` at 213 passing, 28 baselines at 0.000%. Owner declined re-hiding the two pre-builder fields (their own Resets had cleared them); fixture server shut down.
+
+## Edit Mode Table Enhancements: Milestone M1 (shared foundation)
+
+Status: Complete; foundation live-verified fail-closed, mount pending M1.5 identity amendment
+
+Date: 2026-08-02
+
+Spec: `docs/superpowers/specs/2026-08-02-edit-mode-table-enhancements-design.md` · Plan: `docs/superpowers/plans/2026-08-02-edit-mode-table-enhancements.md` · Built via Opus 5 subagent-driven development (implementer / reviewer / re-reviewer per task); 12 controller adjudications recorded in the SDD ledger. Commits `f0716b7..cea3726` on `feature/edit-mode-table-enhancements`.
+
+### Included
+
+- **Task 1** — branch cut at `f0716b7` with the baseline pinned (213/213, 28 baselines 0.000%, empty diff guard); plan-reviewer consistency edits `0862814`, CLASSES frozen-contract amendment `aaac481`.
+- **Task 2** (`5dd5c9e`) — additive capability `TRANSACTION_COLUMN_PERSONALIZATION_EDIT` in `src/shared/routes.js` (Sales Orders, top frame, `id` **and** `e` present). Disjoint from the two `!hasParam(context, "e")` view-mode rules by construction, so the modes are mutually exclusive; existing cases untouched.
+- **Task 3** (`f80a0e5..ed78108`) — settings schema v5→v6 with the full ripple and a new default-off opt-in toggle "Sales Order columns (Edit Mode)" (`salesOrderColumnsEdit`); registration is `startPaused`, which is why the 28 screenshot baselines cannot move.
+- **Task 4** (`0ae822a`) — chrome-stub serves the new `suiteMateV3EditColumns` key with a write counter; en route it fixed a latent stub bug that clobbered settings (and the settings/role-theme counters) on every edit-columns write, which would have made a naive round-trip look green.
+- **Task 5** (`3b80c42..f8aadb5`) — `src/edit-grid/core.js`: frozen contract (37 names), the six-part storage doctrine on its own key `suiteMateV3EditColumns` (container schema 1, `grids` keyed by `{company}:{user}:{type}:edit`), and Edit-Mode-native identity — column axis `visibleCells()` (inline `display:none` excluded, SuiteMate's class-based hiding retained), column ids decoded from `{machine}_{column}{line}_fs` spans against the row's own line number, `ids.every(Boolean)` fail-closed. Fix round closed two plan-mandated `evictOverQuota` defects (delete-path container wipe; no re-measure after eviction).
+- **Task 6** (`c4cb68f..4406d93`, 6 commits) — `src/edit-grid/runtime.js` + `edit-grid.css`: mounts, stamps `BOUND_ATTRIBUTE` on the container, binds one delegated-listener set, early-returns on identity, tears down synchronously to zero owned nodes — and does nothing visible. Seven adjudicated deviations (#4-#10) fixed, all revert-verified: inert CSS selector re-anchored to the stamped container, `EXCLUDED_ROW_SELECTOR` widened to the old∪CSS-derived row-class union, `relevant()` de-self-triggered and then narrowed to containment-only targets, `isDirty()` taught `<select>`, newer-schema toast once-latched.
+- **Task 7** (`55057eb..6f26989`) — `tests/fixtures/sales-order-edit.html`: self-loading Edit Mode fixture (`?id=1&e=T`) with a `buildtable()`-style full `<tbody>` repaint emulator. Deliberately **not** in `route-catalog.js`, which keeps the baseline count at 28. Fix round made it a genuine regression net (mutation-catching proven both ways).
+- **Task 8** (`3c38ea9`) — coexistence: all four `FOREIGN_NODE_SELECTOR` lists (so-columns, form-views, csv-export view snapshot, tab-title) now exclude `[data-suitemate-v3-edit-grid]`; one token each, four insertions, zero test edits.
+- **Task 9** (`cea3726`) — live probe pass on the locked record and `docs/testing-log.md`. Raw transcripts: `.superpowers/sdd/2026-08-02-edit-mode-table-enhancements/probe-transcripts.md`.
+
+### Verification
+
+- Full `npm test`: **245 tests, 245 pass, 0 fail**; `npm run fixtures:verify`: **28 screenshot baselines at 0.000%** (nothing visible shipped; the feature is default-off and `startPaused` — the M22/M24b precedent).
+- Fixture round-trip: mounts on `?e=T` with the marker and the bound attribute present; the route gate returns `[edit true, view false]` on `?id=1&e=T` and `[edit false, view true]` on `?id=1` — the H3 complement asserted at the gate, not at the DOM; full `<tbody>` regenerate + add-line + open-line + close-line produced **zero** storage writes over 500 ms; teardown left zero owned nodes and removed the bound attribute; computed `table-layout` stayed `auto` and every row stayed visible.
+- **Live probe pass** (account `6998262`, SO `id=16342809&e=T`, ~23:00-23:07 AEST): safety triple verified twice, read-only except probe 8's authorized in-page commit and probe 10's Insert/Remove cycle; **no save at any point**; teardown by navigating to the view URL, owner-confirmed; the record is byte-identical to its pre-pass state and the in-page qty "2" was discarded. **Zero error-level console messages** across the whole pass (33 messages, 0 errors, 0 warnings).
+- Live-proven this pass: the **route gate and byte-complement exclusivity** (View Mode after teardown: so-columns mounted with 55 nodes, edit-grid 0 nodes; in Edit Mode: so-columns/form-views absent, edit-grid 0 owned nodes — zero interference in both directions); **capability reach** on `&e=T`; the **fail-closed install path**, which declined cleanly (`bound=false`, `ownedNodes=0`) when `readColumnIds()` returned `[]`; and clean teardown.
+- **Not proven live: attachment and re-render survival — FIXTURE-PROVEN ONLY.** The live form declined to mount (see the identity finding), so no live evidence exists for mount-through-repaint. The claim "attachment + re-render survival proven" is **not** made.
+- View Mode regression on the same record: personalization, sort, filter, widths, Export view, tab titles and internal-id badges all behave; zero SuiteMate console errors. `git diff --name-only main | grep so-columns` returns exactly `src/so-columns/core.js`.
+
+### Gate A — verdict of record: REFRAME
+
+Independently interpreted by an Opus 5 subagent from the probe 8 transcript; the captain did not interpret it alone.
+
+- The repaint is neither id-addressed nor index-addressed: it is **model-driven regeneration — the repaint replaces, never patches**. The permutation was destroyed on line-**OPEN**, before any commit (opening a *different* line rebuilt the whole `<tbody>` and discarded both the moved cell and the tracer stamps); after the commit every value sat under its correct header in native order, the permutation was not resurrected, zero stamps survived anywhere in the document, and the API model on the adjacent line was untouched (`quantity` line 2 still `"1"`, line 3 correctly `"2"`).
+- **Corruption is not manifest** — no value landed in the wrong column.
+- Therefore **M4 (drag-and-drop reorder) is blocked-pending-M1.5-identity + Gate A′** (a re-apply-then-commit probe: re-apply a stored order after a rebuild, then commit, then read back). It is **not** closed under owner decision Q3 — Q3's trigger was index-addressing, which did not occur.
+- Static rows carry **no `_fs` spans**, so the brief's `_fs`-pair methodology was adapted to visible-index ↔ header-label ↔ cell-text triples plus tracer stamps.
+- NetSuite fired a **native reorder-point advisory dialog** on the qty commit (probe 8c) — server-side sourcing runs on commit, so M4/M7 flows must expect native dialogs.
+
+### Identity finding (falsifies spec §5 / §4.1 / §6 on this form)
+
+- Static data rows carry **zero `span[id]`, zero `<input>`, zero `data-field-name`** — the cells are bare text (`<td>MCH376</td>`). Header cells likewise have no ids and no `data-field-name`.
+- Open-line `_fs` ids carry **no line digits** (`item_item_fs`, `quantity_formattedValue`), and widgets materialize **per cell on click**, not per row.
+- Consequence: `readColumnIds()` returns `[]` **permanently** on this form, so the runtime declines to install. The fail-closed path behaved exactly as designed — but the shipped identity axis cannot reach this record.
+- **H1 (data rows carry extra hidden system cells) is NOT manifest**: 43 header cells / 43 visible, and rows 1-7 symmetric at 43/43. The spec's stop-condition never triggered. That makes **H3's route gate the sole mode barrier — load-bearing**.
+- `data-machine-name` is **present** (U3 answered: `src/styles/netsuite.css:1616` is not dead code). The `machines` global and `item.postBuildTableListeners` exist but are MAIN-world — non-goal, future optimization only.
+- `isLineOpen()` is **`true` permanently as coded** (the entry row always carries `uir-machine-row-focused`, and the button row is always attached) — it would starve every M2+ apply. `isDataRow` also accepts the id-less entry row. Both are M1.5 fixes.
+- The `EXCLUDED_ROW_SELECTOR` union (adjudication #5) was vindicated live: `uir-machine-button-row` is real, the old `machineButtonRow` name does not exist. A **new** class `uir-machine-row-last` was observed and must be added in M1.5. No totals row exists on this form.
+- The fixture encodes the two falsified assumptions (static-row `_fs` spans; an extra hidden system cell) — it passes where reality fails. **Nothing shipped in M1 needs reverting**; the fixture is what must be rebuilt.
+
+### Feature-status deltas (spec §8, evidence-only updates)
+
+- **Drag-and-drop column reorder** — was "Conditional — Gate A". Now **blocked-pending-M1.5-identity + Gate A′**, on the REFRAME verdict above. Not closed under Q3; no substitute is authorized or built.
+- **Excel-style sorting / filtering (M6/M7)** — the hard precondition is **cleared**: probe 6b found the machine is **not** natively drag-ordered (`draggableTable false`, `orderedContainer false`, `movableCells 0`). `isOrderedMachine` stays as an unconditional guard regardless. Probe 12: 9 lines, `nlapiGetLineItemCount('item')` 9, **no pagination on this record** — the page-scope disclosure ships untested.
+- **Column resizing (M2)** — mechanism **live-validated**: probe 9 found no `colgroup`, `table-layout: auto`, no width attributes on header cells → the design works exactly as specified.
+- **Hide / show columns (M3)** — the safety claim **holds live**: probe 11 hid the required Quantity column and the line still committed cleanly (value preserved, no alerts). But per-cell widget materialization means the hidden cell's widget never materializes, so the spec's `focusin` force-reveal is **unimplementable as written** — M3's reveal must be **chip/menu-driven**.
+- **Column personalization (persistence)** — unchanged (fully supportable); storage doctrine is unit- and fixture-proven, and the live pass never reached a write.
+- Probe 11 also produced repaint evidence: the injected hide classes were **gone** after the commit repaint — the rebuild discards anything not in the model.
+
+### Next: M1.5 (identity amendment — M2 cannot start before it)
+
+1. Read-only live probes still owed: the hidden `{prefix}fields` / data inputs (probe 5's read-only half was **not run** — recorded as an open gap; its POST-body half stays deferred because it requires a save), a uniqueness census over the 43 header labels, and the label source node.
+2. `readColumnIds` strategy chain with a fail-closed uniqueness gate — label-keyed identity, since `_fs` decoding is dead on this form.
+3. `isLineOpen()` redefined to numbered focused rows (the always-focused entry row must not count).
+4. `EXCLUDED_ROW_SELECTOR += uir-machine-row-last`; `isDataRow` requires a numbered row id.
+5. `tests/fixtures/sales-order-edit.html` rebuilt to the real shape (bare-text static rows, symmetric 43/43 cells, per-cell widget materialization, `uir-machine-row-last`).
+6. One live re-probe showing `bound=true` with **zero idle writes**. **M2 does not start until (6) passes.**
