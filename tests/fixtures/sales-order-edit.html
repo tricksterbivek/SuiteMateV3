@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <base href="/tests/fixtures/">
+    <title>SuiteMate V3 Sales Order Edit Mode fixture</title>
+    <link rel="stylesheet" href="../../src/styles/font.css">
+    <link rel="stylesheet" href="../../src/styles/netsuite.css">
+    <link rel="stylesheet" href="../../src/styles/radii.css">
+    <link rel="stylesheet" href="../../src/styles/v3-compat.css">
+    <link rel="stylesheet" href="../../src/styles/notifications.css">
+    <link rel="stylesheet" href="../../src/edit-grid/edit-grid.css">
+    <link rel="stylesheet" href="netSuiteFixture.css">
+    <script src="chrome-stub.js"></script>
+    <script>
+      history.replaceState(null, "", "/app/accounting/transactions/salesord.nl?id=1&e=T");
+    </script>
+    <script type="application/json" src="/javascript/sessionstatus/session_status_init.jsp?id=FIXTURE~1~3~N&companyName=Fixture+Company&roleName=Administrator&companyId=FIXTURE&roleId=3"></script>
+    <script src="../../src/shared/utilities.js"></script>
+    <script src="../../src/shared/routes.js"></script>
+    <script src="../../src/shared/commands.js"></script>
+    <script src="../../src/shared/lifecycle.js"></script>
+    <script src="../../src/shared/settings.js"></script>
+    <script src="../../src/runtime/notification-runtime.js"></script>
+    <script src="../../src/edit-grid/core.js"></script>
+    <script src="../../src/edit-grid/runtime.js"></script>
+  </head>
+  <body>
+    <form id="main_form">
+      <input id="baserecordtype" type="hidden" value="salesorder">
+      <main id="div__body">
+        <h1 class="uir-page-title-firstline">Sales Order #SO10428 — Edit</h1>
+        <div id="items" class="uir-machine-table-container">
+          <table id="item_splits" class="uir-machine-table">
+            <tbody></tbody>
+          </table>
+        </div>
+      </main>
+    </form>
+    <script>
+      // Emulates the parts of NetSuite's machine that the design depends on:
+      // extra system <td>s with inline display:none, {machine}_{column}{line}_fs
+      // spans, {machine}_row_{n} ids, a machineButtonRow beneath the open line,
+      // a totals row, and a buildtable()-style full <tbody> regenerate that
+      // discards everything SuiteMate wrote.
+      (() => {
+        const COLUMNS = ["item", "quantity", "rate", "amount"];
+        const LABELS = { item: "Item", quantity: "Quantity", rate: "Rate", amount: "Amount" };
+        const table = document.querySelector("#item_splits");
+        let lines = [
+          { item: "SKU-1001", quantity: "2", rate: "18.00", amount: "36.00" },
+          { item: "SKU-2004", quantity: "1", rate: "24.00", amount: "24.00" },
+          { item: "SKU-3300", quantity: "5", rate: "4.50", amount: "22.50" }
+        ];
+        let openLine = null;
+
+        function cell(content, { spanId = null, systemHidden = false } = {}) {
+          const td = document.createElement("td");
+          if (systemHidden) {
+            td.style.display = "none";
+          }
+          if (spanId) {
+            const span = document.createElement("span");
+            span.id = spanId;
+            span.textContent = content;
+            td.append(span);
+          } else {
+            td.textContent = content;
+          }
+          return td;
+        }
+
+        function buildTable() {
+          const body = document.createElement("tbody");
+          const header = document.createElement("tr");
+          header.className = "uir-machine-headerrow";
+          for (const column of COLUMNS) {
+            const th = document.createElement("td");
+            const label = document.createElement("div");
+            label.className = "listheader";
+            label.textContent = LABELS[column];
+            th.append(label);
+            header.append(th);
+          }
+          header.append(cell("", { systemHidden: true }));
+          body.append(header);
+
+          lines.forEach((line, index) => {
+            const number = index + 1;
+            const row = document.createElement("tr");
+            row.id = `item_row_${number}`;
+            row.className = number === openLine ? "uir-machine-row uir-machine-row-focused" : "uir-machine-row";
+            for (const column of COLUMNS) {
+              if (number === openLine) {
+                const td = document.createElement("td");
+                td.className = "uir-machine-focused-cell";
+                const span = document.createElement("span");
+                span.id = `item_${column}${number}_fs`;
+                const input = document.createElement("input");
+                input.type = "text";
+                input.value = line[column];
+                input.defaultValue = line[column];
+                span.append(input);
+                td.append(span);
+                row.append(td);
+              } else {
+                row.append(cell(line[column], { spanId: `item_${column}${number}_fs` }));
+              }
+            }
+            row.append(cell(`sys${number}`, { spanId: `item_sys${number}_fs`, systemHidden: true }));
+            body.append(row);
+            if (number === openLine) {
+              const buttons = document.createElement("tr");
+              buttons.className = "machineButtonRow";
+              const buttonCell = document.createElement("td");
+              buttonCell.colSpan = COLUMNS.length + 1;
+              buttonCell.textContent = "OK  Cancel  Insert";
+              buttons.append(buttonCell);
+              body.append(buttons);
+            }
+          });
+
+          const totals = document.createElement("tr");
+          totals.className = "totalrow";
+          const totalsCell = document.createElement("td");
+          totalsCell.colSpan = COLUMNS.length + 1;
+          totalsCell.textContent = "Total";
+          totals.append(totalsCell);
+          body.append(totals);
+
+          table.replaceChild(body, table.tBodies[0]);
+        }
+
+        // The scope key src/edit-grid/runtime.js resolveScopeKey() derives on this
+        // page, spelled out rather than recomputed so the fixture never disagrees
+        // with itself: `${companyId}:${userId}:${type}:edit`, where companyId and
+        // userId come from the session_status_init.jsp params in <head>
+        // (companyId=FIXTURE, id=FIXTURE~1~3~N -> segment 2 is the user id) and
+        // type comes from this page's own replaceState path (salesord.nl).
+        // If resolveScopeKey ever changes, this literal must change with it.
+        const SCOPE_KEY = "FIXTURE:1:salesord:edit";
+
+        globalThis.SuiteMateV3EditFixture = {
+          get lines() {
+            return lines;
+          },
+          get scopeKey() {
+            return SCOPE_KEY;
+          },
+          openLine(number) {
+            openLine = number;
+            buildTable();
+          },
+          closeLine() {
+            openLine = null;
+            buildTable();
+          },
+          addLine() {
+            const number = lines.length + 1;
+            lines = [...lines, { item: `SKU-90${number}`, quantity: "1", rate: "9.00", amount: "9.00" }];
+            buildTable();
+          },
+          removeLine(number) {
+            lines = lines.filter((_, index) => index + 1 !== number);
+            buildTable();
+          },
+          repaint: buildTable,
+          // Seeding costs a write: chrome-stub.js set() bumps
+          // dataset.editGridWrites on every suiteMateV3EditColumns write, so a
+          // seed left uncounted turns "seeded storage + reload = zero writes"
+          // into "one write", and a seed counted-then-forgotten turns it into a
+          // false green. This resets the counter itself, after the write lands,
+          // so the caller measures only what the runtime did.
+          //
+          // Fresh containers, never a mutated one: chrome-stub.js hands
+          // onChanged listeners the stored object BY REFERENCE (no clone), so a
+          // seed that mutated a previously stored container would let the
+          // runtime observe a change it was never notified of — and a one-write
+          // test would pass without the write. JSON round-trip guarantees the
+          // seeded entry shares no object identity with the caller's argument.
+          //
+          // M1 seeds nothing: applyAll() is a no-op and no writer is called, so
+          // this exists for M2+ (widths), M3 (hidden) and M4 (order). M1's own
+          // round-trip asserts the counter never leaves 0 without seeding at all.
+          async seed(entry, scopeKey = SCOPE_KEY) {
+            await chrome.storage.sync.set({
+              suiteMateV3EditColumns: {
+                schemaVersion: 1,
+                grids: { [scopeKey]: JSON.parse(JSON.stringify(entry)) }
+              }
+            });
+            document.documentElement.dataset.editGridWrites = "0";
+          }
+        };
+        buildTable();
+      })();
+      // STILL UNCOVERED, deliberately: the runtime's post-await
+      // `!table.isConnected` guard (src/edit-grid/runtime.js:239). repaint()
+      // swaps the <tbody> via replaceChild, which leaves the <table> itself
+      // connected, so no sequence of the methods above can make that clause
+      // true. Reaching it needs the <table> detached in the window between
+      // installEditGrid()'s `await chrome.storage.sync.get` and its resumption —
+      // a microtask-level race no fixture method can schedule deterministically.
+      // Left to a unit test with a controllable storage promise, not faked here.
+    </script>
+  </body>
+</html>

@@ -160,6 +160,7 @@ for (const fixture of [
   "tests/fixtures/classic.html",
   "tests/fixtures/redwood.html",
   "tests/fixtures/sales-order.html",
+  "tests/fixtures/sales-order-edit.html",
   "tests/fixtures/import-assistant.html",
   "tests/fixtures/saved-search-results.html",
   "tests/fixtures/saved-search-edit.html",
