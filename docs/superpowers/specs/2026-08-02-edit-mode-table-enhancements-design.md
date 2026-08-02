@@ -230,3 +230,166 @@ Owner decisions, taken 2026-08-02; all four adopt the `synthesis-and-approaches.
 - **U4 — Native drag-reorder machines.** If a machine is `.uir-list-machine-ordered` / `.uir-draggable-table`, row order is data and sort/filter must refuse. Unverified, but the refusal is an unconditional precondition (§7) so the risk is honoured regardless.
 - **U5 — Widths under repaint.** Whether NetSuite re-emits `width` attributes on repainted cells is unverified. `table-layout: fixed` should make it moot (fixed layout reads row 1 only); this is M2's live gate, not a blocker for M1.
 - **Carried from the reports, demoted.** Four dossier BLUF claims cite a §15 that does not exist in that file: `machine.dataManager`/`buildtable()`, `machine.postBuildTableListeners`, `data-field-name` on the cell, and native drag-reorder machines. All four are treated as **assumptions, not sources**, and none is load-bearing here. In particular, attachment is designed on the MutationObserver path only — if probe 6 finds a named repaint hook, it is adopted later as an optimization behind the same interface, never as a dependency.
+
+## Amendment 1 — M1.5 column identity (2026-08-02)
+
+Status: binding. Amends §5 (column-id keying), §6 (identity re-derivation, open-line state machine), §7 (fail-closed inventory), §8 (three rows) and H1. **Nothing shipped in M1 is reverted** — this amendment only extends. Source of authority: the M1 checkpoint entry `save/CHECKPOINTS.md:1229-1296`, the raw probe transcripts `.superpowers/sdd/2026-08-02-edit-mode-table-enhancements/probe-transcripts.md`, and the M1.5 identity payload `.superpowers/sdd/2026-08-02-edit-mode-table-enhancements/m15-identity-payload.json` (account `6998262`, SO `id=16342809&e=T`).
+
+Throughout this amendment the machine's serialization delimiters are written as their code points: `\u0001` = SOH (field separator), `\u0002` = STX (line separator), `\u0005` = ENQ (intra-field option-list separator).
+
+### A1.1 What was falsified
+
+| Spec claim | Live evidence | Verdict |
+|---|---|---|
+| §5 "Entries are keyed by the internal **column id** decoded from `span[id="{machine}_{columnid}{line}_fs"]`"; §4.1 `readColumnIds` decodes `_fs` spans; §6 "identity is re-derived from the machine's own `_fs` spans on **every** install" | Static data rows carry **zero `span[id]`, zero `<input>`, zero `data-field-name`** — cells are bare text (`<td>MCH376</td>`). Header cells carry no ids either. `probe-transcripts.md:19`, checkpoint `:1270`. | **Falsified on this form.** `readColumnIds()` returns `[]` permanently, so the runtime declines to install (`probe-transcripts.md:20`, checkpoint `:1272`). The fail-closed path behaved exactly as designed; the *axis* is what is unreachable. |
+| §6 open-line state machine: "`isLineOpen()` is true while a `tr.uir-machine-row-focused` exists or the **button row** is attached" | The permanent entry row **always** carries `uir-machine-row-focused` and its `uir-machine-button-row` is **always** attached. `probe-transcripts.md:15,33`, checkpoint `:1275`. | **Falsified.** `isLineOpen()` is `true` permanently as coded and would starve every M2+ queued apply. `isDataRow` likewise accepts the id-less entry row. |
+| H1: "Edit Mode data rows carry extra system `<td>`s with inline `display:none`, so `cells.length > headerCount` and **every one of those predicates matches zero rows**" | 43 header cells / 43 visible; data rows 1-7 symmetric at 43/43. **No hidden system cells on this record/form.** `probe-transcripts.md:12`, checkpoint `:1273`. | **Premise not manifest.** See A1.5. |
+| §12 U1: the hidden-input format is "already decoded at `src/internal-ids/core.js:67-89`" | The *container* format is decoded there (`\u0001` fields, `\u0002` rows), but `customizationScriptIds` strips a `{prefix}` derived from the input name: with `itemfields` the prefix is `item`, so `item_display` becomes `_display`, `item` becomes `""`, and `itempicked` becomes `picked`. | **Reusable as a format reference, not as code.** The item machine's field names are unprefixed. M1.5 ships its own parser. |
+| `m15-identity-payload.json` `delimiters`: `"line": "\u0005 (ENQ) observed in itemdata"` | `itemdata` splits into exactly **9** segments on **`\u0002`**, each with exactly 154 values — matching `nlapiGetLineItemCount('item') = 9` (`probe-transcripts.md:46`). `\u0005` occurs 776 times *inside* fields as the option-list separator (`unitslist`, `pricelevels`, `costestimatetypelist`). | **Payload note is mislabelled.** The shipped `src/internal-ids/core.js:81` already splits rows on `\u0002` and is correct. **Line delimiter = `\u0002`; `\u0005` = intra-field option-list delimiter.** |
+
+### A1.2 The new identity mechanism
+
+**Principle.** The hidden `{machine}fields` input is the **primary** identity source: it carries the machine's internal field ids, in machine order, unprefixed, form-determined and therefore i18n-proof and record-independent. It is a **superset** — 154 field ids against 43 rendered columns — so a *selection* step is required. Header labels supply that selection: they are the only signal that stands in 1:1 order with the rendered columns. Labels are used **as a correlation signal only**; the *output* and every *storage key* remain internal field ids. Duplicate labels are therefore harmless: the two `GST` headers correlate to `taxrate1` (visible 14) and `tax1amt` (visible 19) purely by monotonic position.
+
+This is the one place the evidence forced a choice beyond the recorded rulings. The ruling directed the correlation to be driven by aligning `itemdata` values against rendered cell text. **Worked on the real payload, that method cannot succeed**, for three independently fatal reasons:
+
+1. **It has no solution.** A monotonic value-alignment of the 43 visible cells against the 154 serialized values yields **zero** valid alignments. Seven of 43 cells are not rendered from their raw value at all — two list-rendered (`orderallocationstrategy` raw `-2` renders "Predefined On Hand Available Allocation Strategy"; `custcol_item_origin` raw `1` renders "People Republic of China") and five blank-rendered from a non-empty raw (`commitmentfirm`, `isclosed`, `excludefromraterequest`, `custcol_online_oversell` all raw `"F"`; `custcol_anx_mco_line_id` raw `"1"` renders `""`).
+2. **Relaxed, it is still ambiguous.** Turning those mismatches into a score penalty rather than an exclusion — so the true field is always reachable — leaves **18** equally-good alignments until the structural reductions described below are also applied. Runs of identical values (`quantitycommitted`, `quantitypickpackship`, `quantityfulfilled` and `quantitybilled` are all `"0"` on every line) and 17 empty cells carry no discriminating information at all.
+3. **It would not be stable.** `itemdata` is *record*-dependent. A value-driven mapping resolves differently on a record where `quantityfulfilled` is non-zero, so the derived column ids — and therefore the storage keys — would drift between records of the same type. Saved widths and orders would silently stop applying. `{machine}fields` and the header labels are both *form*-determined and do not drift.
+
+Labels were demoted by ruling from **key** duty — correctly, since `GST` is duplicated and labels cannot key storage — not from **correlation** duty. Readmitting them as the correlation signal satisfies both the letter and the purpose of that ruling. `itemdata` is retained as a corroborator and a structural gate, never as the deriver.
+
+**Decode algorithm** (`parseMachineFieldData`, pure, no DOM):
+
+1. Read `{machine}fields` and `{machine}data` from `input[name="…"]` (falling back to `#…`) inside `table.closest("form")`, where `{machine}` is `machineIdFromTable(table)` (`#item_splits` → `item`).
+2. `fieldIds = fieldsValue.split("\u0001")`. Gate: length in `[2, MAX_MACHINE_FIELDS = 400]`, every id passes `normalizeColumnId` (non-empty, ≤ 200 chars, not a reserved key), and **no duplicates**.
+3. `lines = dataValue === "" ? [] : dataValue.split("\u0002").map((line) => line.split("\u0001"))`. Gate: **every** line has exactly `fieldIds.length` values. Truncate to the first `MAX_SAMPLE_ROWS = 8` lines.
+4. Any gate failure returns `null`, which makes `readColumnIds` return `[]`. **No prefix is stripped** — the item machine's names are already the canonical ids that `nlapiGetLineItemValue('item', …)` takes, and that `columnIdFromSpanId("item_quantity1_fs", "item", 1)` already yields.
+
+**Candidate construction** (`collapseDisplayTwins`) — three structural reductions, 154 → 140 candidates on the live record:
+
+- **Display twins.** When `fieldIds[i] === fieldIds[i+1] + "_display"`, the pair is one column: id `fieldIds[i+1]`, rendered value `values[i]`, and index `i+1` is consumed. Live pairs: `item`, `units`, `price`, `taxcode`, `class`, `costestimatetype`, `custcol_mcol_mystery_original`.
+- **Option lists.** A field whose value contains `\u0005` is a serialized select option list and is never a rendered cell. Drops `unitslist`, `pricelevels`, `costestimatetypelist`.
+- **Bookkeeping mirrors.** A field whose id is `"old"` or `"default"` concatenated with another id **present in the same list** is a shadow copy, not a column. Drops `oldcommitmentfirm`, `oldexpectedshipdate`, `oldquantity`, `defaultorderallocationstrategy`. (`olditemid`, `olditemcount` and `quantitypickpackship` survive as candidates and are excluded by the alignment itself — the rule is deliberately narrow.)
+
+**Correlation algorithm** (`correlateColumnIds`): the 43 labels are aligned to a strictly increasing subsequence of the 140 candidates, maximising a score, with the optimum required to be **unique**.
+
+```
+score(label k, candidate c) = missingValuePenalty + 2 × labelAffinity(label, c.id) + (corroborated ? 1 : 0)
+
+labelAffinity  — both sides lowercased and split on non-alphanumerics; a leading
+                 cust/custcol/custcolsd/… token and pure-digit tokens are dropped
+                 from the id; then joined:
+                 4 exact · 3 either is a prefix or suffix of the other ·
+                 2 either contains the other, or every label word (>= 3 chars)
+                   occurs in the id · 1 at least half the label words occur ·
+                 0 otherwise
+corroborated   — some sampled row's non-empty cell text equals the candidate's raw
+                 value for that line, comparing numerically when both parse
+                 (so "1,701" matches 1701)
+missingValuePenalty = -4 when a sampled row renders non-empty text for this column
+                 while the candidate's raw value on that line is empty. A penalty,
+                 never an exclusion: a render transform we have not modelled must
+                 not put the true field out of reach.
+```
+
+The maximum-score monotonic alignment is computed by a backward DP over `(labelIndex, candidateIndex)` that also **counts** optimal alignments. Sampled rows are the closed, numbered `{machine}_row_{n}` data rows, indexed **by their own line number** so that skipping an open line leaves a hole rather than shifting every later row against `{machine}data`; open and focused rows are excluded because their cells hold widgets, not text.
+
+**Worked evidence — the first 12 visible columns of SO `16342809`** (produced by the shipped algorithm from the payload, not by hand; the full 43 follow):
+
+| vis | header label | `itemfields` index | derived column id | affinity | row-1 cell | row-1 raw value | value corroborates |
+|---|---|---|---|---|---|---|---|
+| 0 | Item | 0/1 | `item` (twin of `item_display`) | 4 | `"MCH376"` | `"MCH376"` | yes |
+| 1 | Committed | 3 | `quantitycommitted` | 3 | `"0"` | `"0"` | yes |
+| 2 | Fulfilled | 5 | `quantityfulfilled` | 3 | `"0"` | `"0"` | yes |
+| 3 | Invoiced | 6 | `quantitybilled` | 0 | `"0"` | `"0"` | yes |
+| 4 | Back Ordered | 7 | `quantitybackordered` | 3 | `""` | `""` | n/a (empty cell) |
+| 5 | Available | 8 | `quantityavailable` | 3 | `"82"` | `"82"` | yes |
+| 6 | Quantity | 9 | `quantity` | 4 | `"1"` | `"1"` | yes |
+| 7 | Units | 11/12 | `units` (twin of `units_display`) | 4 | `"Ea"` | `"Ea"` | yes |
+| 8 | Description | 15 | `description` | 4 | `"Magic Makeup Blender with Hard Case"` | same | yes |
+| 9 | Price Level | 16/17 | `price` (twin of `price_display`) | 3 | `"Custom"` | `"Custom"` | yes |
+| 10 | RRP | 19 | `custcol_rrp` | 4 | `""` | `""` | n/a (empty cell) |
+| 11 | Unit Price | 20 | `rate` | 0 | `"14.545"` | `"14.545"` | yes |
+
+Three of these twelve are decided by evidence that neither signal supplies alone, which is exactly why the score combines them:
+
+- **visible 2 and 3** — `quantitypickpackship` (index 4) sits between `quantitycommitted` and `quantityfulfilled` and holds `"0"` on every line, so values cannot exclude it. `labelAffinity("Fulfilled", "quantityfulfilled") = 3` against `0` for `quantitypickpackship` settles visible 2, and monotonicity then forces visible 3 onto `quantitybilled` — whose affinity to "Invoiced" is **0**. The right answer is reached with no label evidence at all for that column.
+- **visible 6** — `"1"` also matches `olditemcount` (index 10), `unitconversionrate`, `initquantity`, `origquantity` and three more. `labelAffinity("Quantity", "quantity") = 4` wins outright.
+- **visible 11** — `labelAffinity("Unit Price", "rate") = 0`; `rate` is selected purely by value corroboration (`"14.545"`) inside the gap monotonicity leaves between `custcol_rrp` and `amount`.
+
+Full derived axis, visible index 0 → 42: `item, quantitycommitted, quantityfulfilled, quantitybilled, quantitybackordered, quantityavailable, quantity, units, description, price, custcol_rrp, rate, amount, taxcode, taxrate1, class, commitmentfirm, orderpriority, grossamt, tax1amt, quantityallocated, orderallocationstrategy, requesteddate, expectedshipdate, inventorydetail, isclosed, options, createpo, excludefromraterequest, custcol_online_oversell, costestimatetype, costestimate, allocationalert, dayslate, custcol_item_shipper_qty, custcol_item_origin, custcol_salesorder_tun_qty, custcol_custom_original_quantity, custcol_hs_code, custcol_anx_order_line, custcolsd_closure_reason, custcol_anx_mco_line_id, custcol_mcol_mystery_original`.
+
+All 43 match the labels-and-machine-order ground truth, the optimum is unique, and the ids are distinct.
+
+**Fail-closed gates.** `readColumnIds(table)` returns `[]` — and the runtime declines to install, exactly as it does today — on any of:
+
+| Gate | Condition |
+|---|---|
+| Labels unreadable | header row missing, fewer than 2 visible header cells, or **any** empty label (live census: 43 labels, 0 empty) |
+| Hidden input missing | no `form` ancestor, or no `{machine}fields` / `{machine}data` input |
+| Field list malformed | fewer than 2 or more than 400 ids, any id failing `normalizeColumnId`, or **any duplicate id** |
+| Data ragged | any `{machine}data` line whose value count differs from `fieldIds.length` |
+| Too few candidates | fewer candidate columns than labels after twin, option-list and mirror reduction |
+| Width out of range | fewer than 2 or more than `MAX_COLUMN_IDS = 100` labels |
+| **Correlation ambiguous** | more than one maximum-score alignment — measured, not estimated |
+| Output invalid | fewer ids than labels, any id failing `normalizeColumnId`, or duplicate ids |
+| Any throw | caught; `[]` |
+
+Measured behaviour of the ambiguity gate against the live payload: labels **and** values → 1 optimum (mounts); labels only, no data rows → 56 optima (declines); labels replaced by opaque strings, simulating an unrecognised locale → about 6.4 × 10^12 optima (declines). The feature therefore fails closed on a non-English form rather than guessing, and **requires at least one closed, numbered data line**: an Edit Mode sales order with no existing lines declines to mount. Both are accepted limitations, disclosed here.
+
+**Storage impact: none.** Column ids remain bare internal field ids (`item`, `quantity`, `custcol_rrp`) — the same values `columnIdFromSpanId("item_quantity1_fs", "item", 1)` already produces. The container, `STORAGE_KEY`, `STORAGE_SCHEMA_VERSION`, scope-key shape and the six-part doctrine of §5 are **unchanged**. §5's sentence "keyed by the internal column id decoded from `span[id="{machine}_{columnid}{line}_fs"]`" is amended to "keyed by the internal column id read from the machine's `{machine}fields` input"; every other word of §5 stands.
+
+**`columnIdFromSpanId` is retained and extended, not replaced.** It gains acceptance of the line-less ids the open line materialises (`item_item_fs` → `item`) when the caller passes `line === null`; the numbered decode is byte-identical, so `columnIdFromSpanId("item_quantity21_fs", "item", 2) === null` still holds. It is no longer the axis source; it remains the per-cell resolver M2+ needs to map a materialised widget back to a column.
+
+### A1.3 Predicate redefinitions
+
+| Predicate | Was | Is |
+|---|---|---|
+| `isLineOpen()` (`src/edit-grid/runtime.js:93-103`) | any `FOCUSED_ROW_SELECTOR` match **or** any `tr.machineButtonRow, tr.uir-machine-button-row` | **only** a focused row that also carries a numbered `{machine}_row_{n}` id. The button-row clause is deleted outright: that row is permanently attached under the entry row. |
+| `isDataRow(row, columnIds)` (`src/edit-grid/core.js:295-304`) | `DATA_ROW_SELECTOR` and not header and not excluded and aligns-to-header | the same **and** a numbered row id (`/_row_[1-9][0-9]*$/`), which is what excludes the id-less permanent entry row. |
+| `EXCLUDED_ROW_SELECTOR` | the 8-name union | the same union **plus `tr.uir-machine-row-last`**, observed live and absent from both halves of the M1 union. |
+
+**Consequence of the `isLineOpen` change, carried to M2/M3:** an in-progress **new** line typed into the permanent entry row is no longer "open", so a queued apply may run while the user is typing there. M1.5 applies nothing, so nothing is at risk now; M2 and M3 must decide whether entry-row dirtiness deserves its own guard before either wires the first apply. Recorded as a known gap, not closed.
+
+### A1.4 Fail-closed inventory addition (§7)
+
+| Condition | Behaviour |
+|---|---|
+| `{machine}fields` / `{machine}data` absent, malformed, ragged, or carrying duplicate field ids | `readColumnIds` returns `[]`; `installEditGrid` returns false. Nothing injected, nothing styled, nothing stored. |
+| Header labels unreadable, or any label empty | As above. |
+| Correlation optimum not unique (unrecognised locale, no data lines, unfamiliar machine) | As above — **the feature declines rather than guessing an axis**. |
+
+§7's row "Unrecognized DOM: no `#item_splits`, no header row, header count 0, **no `_fs` spans**, or duplicate/undecodable column ids" is amended: `no _fs spans` is replaced by `no decodable {machine}fields input, unreadable header labels, or an ambiguous correlation`.
+
+### A1.5 H1 correction
+
+H1's **premise is not manifest on this form**: header and data rows are symmetric at 43/43 visible cells, and the probe found no hidden system `<td>` at all on this record (`probe-transcripts.md:12`). The stop-condition the M1 brief expected never triggered.
+
+H1's **conclusion still stands** — `src/edit-grid/` reimplements every row predicate and imports nothing from `so-columns` — but it now rests on the storage- and behaviour-isolation arguments, not on the arithmetic. The safety-by-accident reading is void.
+
+**Consequence, and it is the load-bearing one: the H3 route gate is the sole mode barrier.** Because the cell counts are symmetric, `so-columns`' `row.cells.length === headerCount` predicates would *match* rows in Edit Mode rather than matching zero — a View Mode feature that ever reached an Edit Mode page would act on it, keying by header label and visible index against a machine that regenerates from a model. Nothing downstream of the route gate would catch it. Therefore:
+
+- the route rule's mutual exclusivity (`hasParam(context, "e")` against `!hasParam(context, "e")`) is a **safety-critical** invariant, not a tidiness one, and `tests/routes.test.mjs`'s negative assertions at `:273-274` and `:312-313` are a load-bearing regression net;
+- the fixture's H3 assertion stays **at the route gate**, as §9 already requires — the DOM-level complement it was going to stand in for does not exist;
+- the four `FOREIGN_NODE_SELECTOR` exclusions (§4.4) remain a second line of defence and must not be pruned as redundant.
+
+H1's citation of the headers-only-CSV defect (`save/CHECKPOINTS.md:1094`, `src/csv-export/core.js:268`) is a View Mode observation and is **not** re-litigated here; this correction is scoped to the Edit Mode Sales Order form probed.
+
+### A1.6 Feature-status table — amended rows (§8)
+
+These three rows replace their §8 counterparts. Every other row is unchanged.
+
+| Feature | Verdict | Change and evidence |
+|---|---|---|
+| **Drag-and-drop column reorder** | **Blocked pending M1.5 identity + Gate A′.** Was "Conditional — Gate A". | Gate A's verdict of record is **REFRAME** (checkpoint `:1258-1266`): the repaint is neither id-addressed nor index-addressed but **model-driven regeneration — it replaces, never patches**. The permutation was destroyed on line-**open**, before any commit; after the commit every value sat under its correct header in native order and the adjacent line's API value was untouched. **Corruption is not manifest**, so owner decision Q3 — whose trigger was index-addressing — **does not fire**, and reorder is *not* closed. No substitute is authorized or built. **Gate A′ is defined here:** with M1.5 identity live and a stored order applied, (1) apply a stored non-native column order after a full `<tbody>` rebuild, (2) open and commit a line so the machine regenerates, (3) re-read the axis and every visible cell, and (4) read the model back through `nlapiGetLineItemValue` for the committed line and one adjacent line. Gate A′ passes only if the re-applied order survives step 2 or is deterministically re-applied after it, **and** no value moved columns in the model. Gate A′ runs on the locked record with no save, under the §9 tier-3 protocol. M4 remains blocked until it passes. |
+| **Excel-style sorting / filtering (M6/M7)** | Verdict unchanged — **hard precondition cleared**. | Probe 6b: `draggableTable false`, `orderedContainer false`, `movableCells 0` — the machine is **not** natively drag-ordered, so the U4 refusal will not fire on this form. `isOrderedMachine` stays an **unconditional** guard regardless (§7). Probe 12: 9 rendered rows, `nlapiGetLineItemCount('item') = 9`, **no pagination on this record** — the page-scope disclosure required by Q4 therefore ships **untested**, and must be re-checked on a record with more than one page before M6 is called complete. |
+| **Hide / show columns (M3)** | Verdict unchanged — **one mechanism replaced**. | Probe 11: the required Quantity column was hidden across 12 rows and the line still committed cleanly, value preserved, zero alerts — the safety claim holds live. But widgets materialise **per cell on click**, so a hidden cell's widget never materialises and §6's `focusin` force-reveal rule 1 is **unimplementable as written**. M3's reveal must be **chip/menu-driven**; rule 2 (reveal-all on validation failure) is unaffected. Probe 11 also re-confirmed H5: the injected hide classes were **gone** after the commit repaint. |
+
+### A1.7 Open risks — updates to §12
+
+- **U1 — resolved.** The hidden `{machine}fields` / `{machine}data` inputs are the authority for identity, and they are reachable from the content-script world. `machine.dataManager`, `buildtable()` and `postBuildTableListeners` exist but are MAIN-world and remain a **non-goal** (§2), not a fallback.
+- **U2 — superseded** by the Gate A REFRAME verdict, and re-opened as **Gate A′** (A1.6).
+- **U3 — answered.** `data-machine-name` **is** present, so `src/styles/netsuite.css:1616` is not dead code. No `src/edit-grid/` selector depends on it; that constraint stands.
+- **U4 — answered negative for this form** (probe 6b); the unconditional refusal is retained.
+- **New — U6: correlation portability.** The alignment is proven on one form of one record type in one account, in English. On an unrecognised locale, a machine with no rendered lines, or a paged machine whose rendered row numbering does not index `{machine}data`, the ambiguity gate declines. That is safe but silent: if the feature is ever generalized beyond Sales Orders, the first symptom of an unsupported form will be "nothing appears". A user-visible diagnostic is deliberately **not** added in M1.5.
