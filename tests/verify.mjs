@@ -37,7 +37,8 @@ assert.deepEqual(globalThemeContentScript.css, [
   "src/internal-ids/internal-ids.css",
   "src/record-actions/csv-import.css",
   "src/so-columns/so-columns.css",
-  "src/form-views/form-views.css"
+  "src/form-views/form-views.css",
+  "src/edit-grid/edit-grid.css"
 ]);
 assert.deepEqual(globalThemeContentScript.js, [
   "src/shared/utilities.js",
@@ -51,6 +52,7 @@ assert.deepEqual(globalThemeContentScript.js, [
   "src/so-columns/core.js",
   "src/tab-title/core.js",
   "src/form-views/core.js",
+  "src/edit-grid/core.js",
   "src/runtime/theme-runtime.js",
   "src/runtime/notification-runtime.js",
   "src/record-actions/core.js",
@@ -59,7 +61,8 @@ assert.deepEqual(globalThemeContentScript.js, [
   "src/csv-export/runtime.js",
   "src/so-columns/runtime.js",
   "src/tab-title/runtime.js",
-  "src/form-views/runtime.js"
+  "src/form-views/runtime.js",
+  "src/edit-grid/runtime.js"
 ]);
 assert.equal(
   globalThemeContentScript.js.includes("src/shared/permissions.js"),
@@ -205,6 +208,9 @@ const extensionSources = [
   "src/so-columns/core.js",
   "src/so-columns/runtime.js",
   "src/so-columns/so-columns.css",
+  "src/edit-grid/core.js",
+  "src/edit-grid/runtime.js",
+  "src/edit-grid/edit-grid.css",
   "src/import-assistant/core.js",
   "src/import-assistant/context-runtime.js",
   "src/popup/popup.html",

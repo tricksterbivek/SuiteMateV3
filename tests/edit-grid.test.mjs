@@ -7,6 +7,12 @@ import { runInNewContext } from "node:vm";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const source = await readFile(resolve(root, "src/edit-grid/core.js"), "utf8");
+const runtimeSource = await readFile(resolve(root, "src/edit-grid/runtime.js"), "utf8");
+const stylesheet = await readFile(resolve(root, "src/edit-grid/edit-grid.css"), "utf8");
+const sharedSources = Object.fromEntries(await Promise.all(
+  ["src/shared/utilities.js", "src/shared/routes.js", "src/shared/settings.js"]
+    .map(async (file) => [file, await readFile(resolve(root, file), "utf8")])
+));
 
 function createApi() {
   const sandbox = { TextEncoder };
@@ -26,6 +32,7 @@ function plain(value) {
 function createCell({ text = "", spanId = null, systemHidden = false, width = 100 } = {}) {
   const classes = new Set();
   return {
+    nodeType: 1,
     textContent: text,
     style: { display: systemHidden ? "none" : "", width: "" },
     offsetWidth: width,
@@ -44,6 +51,7 @@ function createCell({ text = "", spanId = null, systemHidden = false, width = 10
       }
     },
     getBoundingClientRect: () => ({ width }),
+    classNames: () => Array.from(classes),
     querySelector: (selector) => (spanId && selector.includes("_fs") ? { id: spanId } : null)
   };
 }
@@ -57,6 +65,7 @@ function classMatcher(className) {
 
 function createRow({ id = "", className = "uir-machine-row", cells = [] } = {}) {
   const row = {
+    nodeType: 1,
     id,
     className,
     cells,
@@ -78,22 +87,25 @@ function createRow({ id = "", className = "uir-machine-row", cells = [] } = {}) 
   return row;
 }
 
-function createTable(rows, { id = "item_splits", className = "uir-machine-table" } = {}) {
+function createTable(rows, { id = "item_splits", className = "uir-machine-table", container = null } = {}) {
   return {
     id,
     className,
     rows,
+    isConnected: true,
     style: { tableLayout: "", width: "" },
     matches: classMatcher(className),
-    closest: () => null,
+    closest: (selector) => (container?.matches?.(selector) ? container : null),
     querySelector: (selector) => rows.find((row) => row.matches(selector)) ?? null,
-    querySelectorAll: () => []
+    querySelectorAll: (selector) => rows.filter((row) => row.matches(selector))
   };
 }
 
 // Three data columns (item, quantity, rate) plus one NetSuite system cell that
 // carries inline display:none — the extra <td> that breaks View Mode.
-function createMachine({ lines = 2, className } = {}) {
+// `spans: false` is the read-only ?e=F shape: cells without the _fs widgets the
+// column axis is decoded from. `duplicate: true` decodes two cells to one id.
+function createMachine({ lines = 2, className, container = null, spans = true, duplicate = false } = {}) {
   const header = createRow({
     className: "uir-machine-headerrow",
     cells: [
@@ -105,20 +117,24 @@ function createMachine({ lines = 2, className } = {}) {
   });
   const dataRows = Array.from({ length: lines }, (_, index) => {
     const line = index + 1;
+    const spanId = (columnId) => (spans ? `item_${columnId}${line}_fs` : null);
     return createRow({
       id: `item_row_${line}`,
       className: "uir-machine-row",
       cells: [
-        createCell({ text: `SKU-100${line}`, spanId: `item_item${line}_fs` }),
-        createCell({ text: String(line * 2), spanId: `item_quantity${line}_fs` }),
-        createCell({ text: `$1${line}.00`, spanId: `item_rate${line}_fs` }),
-        createCell({ text: "sys", spanId: `item_sys${line}_fs`, systemHidden: true })
+        createCell({ text: `SKU-100${line}`, spanId: spanId("item") }),
+        createCell({ text: String(line * 2), spanId: spanId(duplicate ? "item" : "quantity") }),
+        createCell({ text: `$1${line}.00`, spanId: spanId("rate") }),
+        createCell({ text: "sys", spanId: spanId("sys"), systemHidden: true })
       ]
     });
   });
   const buttonRow = createRow({ className: "machineButtonRow", cells: [createCell({ text: "OK Cancel" })] });
   const totalsRow = createRow({ className: "totalrow", cells: [createCell({ text: "Total" })] });
-  return createTable([header, ...dataRows, buttonRow, totalsRow], className ? { className } : {});
+  return createTable([header, ...dataRows, buttonRow, totalsRow], {
+    ...(className ? { className } : {}),
+    container
+  });
 }
 
 test("exports a frozen core with the Edit Mode storage and DOM contract", () => {
@@ -284,4 +300,540 @@ test("core has no DOM, storage, bridge or network authority", () => {
   assert.doesNotMatch(source, /document\.|chrome\.|fetch\(|XMLHttpRequest|innerHTML|localStorage|sessionStorage/);
   assert.doesNotMatch(source, /suiteMateV3ColumnOrder/);
   assert.doesNotMatch(source, /SuiteMateV3SoColumnsCore/);
+});
+
+// ===== Runtime harness =====
+// The runtime is an IIFE with no exports. Its seams are reached the way
+// production reaches them: through the registration handed to
+// SuiteMateV3Lifecycle.register and through the storage change listener.
+const EDIT_STORAGE_KEY = "suiteMateV3EditColumns";
+const SETTINGS_STORAGE_KEY = "suiteMateV3Style";
+const DATA_ATTRIBUTE = "data-suitemate-v3-edit-grid";
+const BOUND_ATTRIBUTE = "data-suitemate-v3-edit-grid-bound";
+const RECORD_PATH = "https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl";
+const EDIT_URL = `${RECORD_PATH}?id=16342809&e=T`;
+const READ_ONLY_EDIT_URL = `${RECORD_PATH}?id=16342809&e=F`;
+const VIEW_URL = `${RECORD_PATH}?id=16342809`;
+const SESSION_SRC = "/javascript/sessionstatus/session_status_init.jsp?companyId=FIXTURE&id=FIXTURE~2462~3~N";
+
+function ownedMatch(node, selector) {
+  const wanted = /\[data-suitemate-v3-edit-grid(?:="([^"]*)")?\]/.exec(String(selector));
+  const value = node.getAttribute(DATA_ATTRIBUTE);
+  return Boolean(wanted) && value !== null && (wanted[1] === undefined || wanted[1] === value);
+}
+
+function createOwnedNode(tagName) {
+  const attributes = new Map();
+  const node = {
+    nodeType: 1,
+    tagName,
+    hidden: false,
+    parent: null,
+    getAttribute: (name) => attributes.get(name) ?? null,
+    setAttribute: (name, value) => attributes.set(name, String(value)),
+    matches: (selector) => ownedMatch(node, selector),
+    closest: (selector) => (ownedMatch(node, selector) ? node : null),
+    querySelector: () => null,
+    remove() {
+      node.parent?.removeChild(node);
+      node.parent = null;
+    }
+  };
+  return node;
+}
+
+function createContainer() {
+  const attributes = new Map();
+  const children = [];
+  const listeners = [];
+  const container = {
+    nodeType: 1,
+    children,
+    listeners,
+    matches: (selector) => String(selector).includes("uir-machine-table-container"),
+    closest: (selector) => (container.matches(selector) ? container : null),
+    getAttribute: (name) => attributes.get(name) ?? null,
+    setAttribute: (name, value) => attributes.set(name, String(value)),
+    hasAttribute: (name) => attributes.has(name),
+    removeAttribute: (name) => attributes.delete(name),
+    append(node) {
+      node.parent = container;
+      children.push(node);
+    },
+    removeChild(node) {
+      const at = children.indexOf(node);
+      if (at >= 0) {
+        children.splice(at, 1);
+      }
+    },
+    querySelector: (selector) => children.find((child) => child.matches(selector)) ?? null,
+    querySelectorAll: (selector) => children.filter((child) => child.matches(selector)),
+    addEventListener(type, handler, options) {
+      listeners.push({ type, handler, options });
+    },
+    removeEventListener(type, handler, options) {
+      const at = listeners.findIndex((entry) =>
+        entry.type === type && entry.handler === handler && entry.options === options);
+      if (at >= 0) {
+        listeners.splice(at, 1);
+      }
+    }
+  };
+  return container;
+}
+
+function createLifecycleStub() {
+  let registration = null;
+  let controller = null;
+  let generation = 0;
+  let active = false;
+  let lastRun = Promise.resolve();
+  let evaluations = 0;
+  let lastResult = null;
+
+  function run(reason = "initial") {
+    if (!registration || !active) {
+      return Promise.resolve();
+    }
+    const runGeneration = generation;
+    evaluations += 1;
+    lastRun = Promise.resolve(registration.evaluate({
+      id: registration.id,
+      reason,
+      records: [],
+      signal: controller.signal,
+      isCurrent: () => active && generation === runGeneration && !controller.signal.aborted
+    })).then((result) => {
+      lastResult = result;
+      return result;
+    });
+    return lastRun;
+  }
+
+  return {
+    register(config) {
+      registration = config;
+      controller = new AbortController();
+      active = config.startPaused !== true;
+      generation += 1;
+      if (active) {
+        void run("initial");
+      }
+      return {
+        pause(reason = "paused") {
+          if (!active) {
+            return false;
+          }
+          active = false;
+          generation += 1;
+          controller.abort(reason);
+          registration.cleanup?.({ id: registration.id, reason });
+          return true;
+        },
+        resume(reason = "resumed") {
+          if (active) {
+            return false;
+          }
+          active = true;
+          generation += 1;
+          controller = new AbortController();
+          void run(reason);
+          return true;
+        },
+        dispose(reason = "disposed") {
+          active = false;
+          generation += 1;
+          registration.cleanup?.({ id: registration.id, reason });
+          return true;
+        }
+      };
+    },
+    run,
+    get registration() {
+      return registration;
+    },
+    get lastRun() {
+      return lastRun;
+    },
+    get evaluations() {
+      return evaluations;
+    },
+    get lastResult() {
+      return lastResult;
+    }
+  };
+}
+
+function createLocation(value) {
+  const url = new URL(value);
+  return {
+    href: url.href,
+    origin: url.origin,
+    hostname: url.hostname,
+    pathname: url.pathname,
+    search: url.search,
+    hash: url.hash
+  };
+}
+
+function createRuntimeHarness({
+  url = EDIT_URL,
+  settings = { salesOrderColumnsEdit: true },
+  stored,
+  machine = {},
+  sessionSrc = SESSION_SRC,
+  readError = null,
+  holdRead = false
+} = {}) {
+  const container = createContainer();
+  const table = machine ? createMachine({ ...machine, container }) : null;
+  const counts = { editReads: 0, settingsReads: 0, writes: 0 };
+  const toasts = [];
+  const errors = [];
+  const storageListeners = [];
+  const windowListeners = [];
+  const lifecycle = createLifecycleStub();
+  const location = createLocation(url);
+  let settingsValue = settings;
+  let releaseRead = null;
+  const readGate = holdRead ? new Promise((done) => { releaseRead = done; }) : null;
+
+  const sandbox = {
+    URL,
+    URLSearchParams,
+    TextEncoder,
+    location,
+    document: {
+      readyState: "complete",
+      documentElement: { dataset: {} },
+      querySelector(selector) {
+        if (selector === "#item_splits") {
+          return table;
+        }
+        if (selector.startsWith("script[")) {
+          return sessionSrc ? { src: `${location.origin}${sessionSrc}` } : null;
+        }
+        return null;
+      },
+      querySelectorAll: (selector) => container.querySelectorAll(selector),
+      createElement: (tagName) => createOwnedNode(tagName),
+      addEventListener() {}
+    },
+    chrome: {
+      runtime: {},
+      storage: {
+        sync: {
+          async get(key) {
+            if (key === EDIT_STORAGE_KEY) {
+              counts.editReads += 1;
+              if (readError) {
+                throw readError;
+              }
+              await readGate;
+              return { [key]: stored };
+            }
+            counts.settingsReads += 1;
+            return { [key]: settingsValue };
+          },
+          async set() {
+            counts.writes += 1;
+          }
+        },
+        onChanged: {
+          addListener(listener) {
+            storageListeners.push(listener);
+          }
+        }
+      }
+    },
+    console: {
+      error(...args) {
+        errors.push(args);
+      }
+    },
+    SuiteMateV3Lifecycle: lifecycle,
+    SuiteMateV3Notifications: {
+      showToast(message, options) {
+        toasts.push({ message, type: options?.type });
+      }
+    },
+    addEventListener(type, handler) {
+      windowListeners.push({ type, handler });
+    },
+    setTimeout,
+    clearTimeout
+  };
+  sandbox.globalThis = sandbox;
+  sandbox.window = sandbox;
+  sandbox.top = sandbox;
+  runInNewContext(sharedSources["src/shared/utilities.js"], sandbox);
+  runInNewContext(sharedSources["src/shared/routes.js"], sandbox);
+  runInNewContext(sharedSources["src/shared/settings.js"], sandbox);
+  runInNewContext(source, sandbox);
+  runInNewContext(runtimeSource, sandbox);
+
+  const harness = {
+    container,
+    table,
+    counts,
+    toasts,
+    errors,
+    lifecycle,
+    windowListeners,
+    // tick() drains microtasks without awaiting the install: an install parked
+    // on a held storage read would deadlock flush().
+    async tick(rounds = 4) {
+      for (let index = 0; index < rounds; index += 1) {
+        await new Promise((done) => setImmediate(done));
+      }
+    },
+    async flush() {
+      await harness.tick();
+      await lifecycle.lastRun;
+    },
+    async run(reason = "mutation") {
+      await lifecycle.run(reason);
+      await harness.tick();
+    },
+    async changeSettings(next, areaName = "sync") {
+      settingsValue = next;
+      for (const listener of storageListeners) {
+        listener({ [SETTINGS_STORAGE_KEY]: { newValue: next } }, areaName);
+      }
+      await harness.tick();
+    },
+    releaseRead: () => releaseRead?.(),
+    pagehide: (persisted) =>
+      windowListeners.filter(({ type }) => type === "pagehide").forEach(({ handler }) => handler({ persisted })),
+    mounts: () => container.querySelectorAll(`[${DATA_ATTRIBUTE}]`)
+  };
+  return harness;
+}
+
+function assertNotMounted(harness, message) {
+  assert.equal(harness.container.children.length, 0, `${message}: a node was mounted`);
+  assert.equal(harness.container.hasAttribute(BOUND_ATTRIBUTE), false, `${message}: the container was stamped`);
+  assert.equal(harness.container.listeners.length, 0, `${message}: a listener was bound`);
+  assert.equal(harness.counts.writes, 0, `${message}: storage was written`);
+}
+
+test("registers paused against the edit capability with a synchronous cleanup", async () => {
+  const harness = createRuntimeHarness({ settings: { salesOrderColumnsEdit: false } });
+  await harness.flush();
+  const registration = harness.lifecycle.registration;
+  assert.equal(registration.id, "record.edit-grid");
+  assert.equal(registration.capability, "transaction-column-personalization-edit");
+  assert.equal(registration.replace, true);
+  assert.equal(registration.startPaused, true);
+  assert.deepEqual(plain(registration.observe), { childList: true, subtree: true });
+  // lifecycle.js:479-481 throws at register() when cleanup is declared async.
+  assert.equal(registration.cleanup.constructor.name, "Function");
+  assert.equal(registration.cleanup({ reason: "test" }), undefined);
+  assert.deepEqual(harness.windowListeners.map(({ type }) => type), ["pagehide"]);
+  // Default-off: the watcher never evaluates and the page is never touched.
+  assert.equal(harness.lifecycle.evaluations, 0);
+  assert.equal(harness.counts.editReads, 0);
+  assertNotMounted(harness, "settings off");
+});
+
+test("never registers on a View Mode record", async () => {
+  const harness = createRuntimeHarness({ url: VIEW_URL });
+  await harness.flush();
+  assert.equal(harness.lifecycle.registration, null);
+  assert.equal(harness.counts.settingsReads, 0);
+  assertNotMounted(harness, "view mode");
+});
+
+test("declines to install when the machine table is absent", async () => {
+  const harness = createRuntimeHarness({ machine: null });
+  await harness.flush();
+  assert.equal(harness.lifecycle.evaluations, 1);
+  assert.equal(harness.lifecycle.lastResult, false);
+  assert.equal(harness.counts.editReads, 0, "storage was read before the machine was confirmed");
+  assertNotMounted(harness, "no machine table");
+});
+
+test("declines to install on a read-only edit page whose column axis cannot be decoded", async () => {
+  // ?e=F satisfies the route rule by design, so the install path is the only
+  // gate: no _fs spans means no column identity, and identity is mandatory.
+  const harness = createRuntimeHarness({ url: READ_ONLY_EDIT_URL, machine: { spans: false } });
+  await harness.flush();
+  assert.equal(harness.lifecycle.evaluations, 1);
+  assert.equal(harness.lifecycle.lastResult, false);
+  assert.equal(harness.counts.editReads, 0);
+  assert.equal(harness.errors.length, 0, "a fail-closed decline is not an error");
+  assertNotMounted(harness, "undecodable axis");
+});
+
+test("declines to install when the decoded axis carries duplicate ids", async () => {
+  const harness = createRuntimeHarness({ machine: { duplicate: true } });
+  await harness.flush();
+  assert.equal(harness.lifecycle.lastResult, false);
+  assert.equal(harness.counts.editReads, 0);
+  assertNotMounted(harness, "duplicate ids");
+});
+
+test("declines to install when the machine has no container to bind to", async () => {
+  const harness = createRuntimeHarness();
+  harness.table.closest = () => null;
+  await harness.run("mutation");
+  assert.equal(harness.lifecycle.lastResult, false);
+  assertNotMounted(harness, "no container");
+});
+
+test("mounts one hidden marker, binds once and writes nothing", async () => {
+  const harness = createRuntimeHarness({
+    stored: { schemaVersion: 1, grids: { "FIXTURE:2462:salesord:edit": { hidden: ["quantity"] } } }
+  });
+  await harness.flush();
+  assert.equal(harness.lifecycle.lastResult, true);
+  const mounted = harness.mounts();
+  assert.equal(mounted.length, 1);
+  assert.equal(mounted[0].tagName, "span");
+  assert.equal(mounted[0].getAttribute(DATA_ATTRIBUTE), "mount");
+  assert.equal(mounted[0].hidden, true);
+  assert.equal(harness.container.hasAttribute(BOUND_ATTRIBUTE), true);
+  assert.equal(harness.counts.editReads, 1);
+  // Seeded storage plus install is a read, never a write (spec: count writes).
+  assert.equal(harness.counts.writes, 0);
+  // M1 is invisible: no class and no inline width reaches any machine cell.
+  for (const row of harness.table.rows) {
+    for (const cell of row.cells) {
+      assert.deepEqual(cell.classNames(), []);
+      assert.equal(cell.style.width, "");
+    }
+  }
+  // A repaint re-installs: the marker and the binding stay singular.
+  await harness.run("mutation");
+  assert.equal(harness.mounts().length, 1);
+  assert.equal(harness.container.listeners.length, 0);
+  assert.equal(harness.counts.writes, 0);
+});
+
+test("refuses a newer stored schema with one warning and no writes", async () => {
+  const harness = createRuntimeHarness({ stored: { schemaVersion: 2, grids: {} } });
+  await harness.flush();
+  assert.equal(harness.lifecycle.lastResult, true);
+  assert.deepEqual(harness.toasts, [
+    { message: "This layout was saved by a newer SuiteMate.", type: "warning" }
+  ]);
+  assert.equal(harness.counts.writes, 0);
+});
+
+test("absorbs a rejected storage read as an ordinary failure, logged once", async () => {
+  const harness = createRuntimeHarness({ readError: new Error("QUOTA_BYTES_PER_ITEM quota exceeded") });
+  await harness.flush();
+  assert.equal(harness.lifecycle.lastResult, false);
+  assert.equal(harness.counts.editReads, 1, "a failed read must not be retried inside one install");
+  assert.equal(harness.errors.length, 1);
+  await harness.run("mutation");
+  assert.equal(harness.lifecycle.lastResult, false);
+  assert.equal(harness.counts.editReads, 2);
+  assert.equal(harness.errors.length, 1, "the install failure is logged once, not once per repaint");
+  assert.equal(harness.counts.writes, 0);
+});
+
+test("teardown is synchronous, unstamps the page and can remount afterwards", async () => {
+  const harness = createRuntimeHarness();
+  await harness.flush();
+  assert.equal(harness.mounts().length, 1);
+  const result = harness.lifecycle.registration.cleanup({ id: "record.edit-grid", reason: "paused" });
+  assert.equal(result, undefined, "a thenable cleanup is only reported, never awaited");
+  assertNotMounted(harness, "after cleanup");
+  await harness.run("mutation");
+  assert.equal(harness.mounts().length, 1);
+  assert.equal(harness.container.hasAttribute(BOUND_ATTRIBUTE), true);
+});
+
+test("turning the setting off tears down and turning it back on remounts", async () => {
+  const harness = createRuntimeHarness();
+  await harness.flush();
+  assert.equal(harness.mounts().length, 1);
+  await harness.changeSettings({ salesOrderColumnsEdit: false });
+  assertNotMounted(harness, "setting turned off");
+  // A non-sync area cannot revive the feature.
+  await harness.changeSettings({ salesOrderColumnsEdit: true }, "local");
+  assertNotMounted(harness, "local storage change");
+  await harness.changeSettings({ salesOrderColumnsEdit: true });
+  assert.equal(harness.mounts().length, 1);
+  assert.equal(harness.counts.writes, 0);
+});
+
+test("a bfcache pagehide keeps the mount and a real navigation disposes it", async () => {
+  const harness = createRuntimeHarness();
+  await harness.flush();
+  assert.equal(harness.mounts().length, 1);
+  // persisted: the page is frozen, not destroyed — tearing down here would
+  // leave a live page with no runtime after the back button restores it.
+  harness.pagehide(true);
+  assert.equal(harness.mounts().length, 1);
+  harness.pagehide(false);
+  assertNotMounted(harness, "after a real navigation");
+});
+
+test("an install interrupted by teardown never lands on the stale generation", async () => {
+  const harness = createRuntimeHarness({ holdRead: true });
+  await harness.tick();
+  // The marker is placed before the read, so teardown must remove it even
+  // though the install that placed it has not finished.
+  assert.equal(harness.mounts().length, 1);
+  assert.equal(harness.counts.editReads, 1);
+  await harness.changeSettings({ salesOrderColumnsEdit: false });
+  assertNotMounted(harness, "torn down mid-install");
+  harness.releaseRead();
+  await harness.flush();
+  assert.equal(harness.lifecycle.lastResult, false, "the aborted install reported success");
+  assertNotMounted(harness, "stale install after teardown");
+});
+
+test("relevance ignores the runtime's own nodes and reacts to machine mutations", async () => {
+  const harness = createRuntimeHarness();
+  await harness.flush();
+  const { relevant } = harness.lifecycle.registration;
+  const owned = harness.mounts()[0];
+  const dataRow = harness.table.rows[1];
+  const headerRow = harness.table.rows[0];
+  assert.equal(relevant([{ target: harness.container, addedNodes: [dataRow], removedNodes: [] }]), true);
+  assert.equal(relevant([{ target: harness.container, addedNodes: [], removedNodes: [headerRow] }]), true);
+  // The runtime's own mount must never schedule another install.
+  assert.equal(relevant([{ target: harness.container, addedNodes: [owned], removedNodes: [] }]), false);
+  assert.equal(relevant([{ target: owned, addedNodes: [dataRow], removedNodes: [] }]), false);
+  assert.equal(relevant([{ target: harness.container, addedNodes: [harness.container], removedNodes: [] }]), false);
+});
+
+test("installs without a session status script and without its identifiers", async () => {
+  const withoutScript = createRuntimeHarness({ sessionSrc: null });
+  await withoutScript.flush();
+  assert.equal(withoutScript.lifecycle.lastResult, true);
+  assert.equal(withoutScript.mounts().length, 1);
+  const withoutIds = createRuntimeHarness({
+    sessionSrc: "/javascript/sessionstatus/session_status_init.jsp?companyId=&id="
+  });
+  await withoutIds.flush();
+  assert.equal(withoutIds.lifecycle.lastResult, true);
+  assert.equal(withoutIds.mounts().length, 1);
+});
+
+test("runtime owns no observer, no HTML sink and no View Mode storage", () => {
+  assert.doesNotMatch(runtimeSource, /innerHTML|new MutationObserver|suiteMateV3ColumnOrder|SuiteMateV3SoColumnsCore/);
+  assert.doesNotMatch(runtimeSource, /chrome\.storage\.sync\.set/, "M1 performs no storage writes");
+  assert.match(runtimeSource, /startPaused: true/);
+  assert.match(runtimeSource, /capability: routeApi\.CAPABILITIES\.TRANSACTION_COLUMN_PERSONALIZATION_EDIT/);
+});
+
+test("every stylesheet rule is scoped to the feature and every hide rule wins", () => {
+  const selectors = stylesheet
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("}")
+    .map((block) => block.split("{")[0].trim())
+    .filter(Boolean);
+  assert.equal(selectors.length > 0, true);
+  for (const selector of selectors) {
+    assert.match(selector, /suitemate-v3-edit-grid/, `${selector} can match a View Mode node`);
+  }
+  // display-defeats-hidden has three recorded sightings; all three hide rules
+  // and the [hidden] guard carry !important.
+  assert.match(stylesheet, /\[data-suitemate-v3-edit-grid\]\[hidden\]\s*\{\s*display: none !important/);
+  assert.match(stylesheet, /\.suitemate-v3-edit-grid-col-hidden\s*\{\s*display: none !important/);
+  assert.match(stylesheet, /\.suitemate-v3-edit-grid-row-filtered\s*\{\s*display: none !important/);
 });
