@@ -164,9 +164,13 @@ test("exports a frozen core with the Edit Mode storage and DOM contract", () => 
   assert.equal(core.NATIVE_ROW_ATTRIBUTE, "data-suitemate-v3-edit-grid-native-row");
   assert.equal(core.BOUND_ATTRIBUTE, "data-suitemate-v3-edit-grid-bound");
   assert.equal(core.FOCUSED_ROW_SELECTOR, "tr.uir-machine-row-focused, tr.listfocusedrow");
+  // Union of the spec's four names and the four src/styles/netsuite.css carries:
+  // the spec's four have zero occurrences there, so excluding only those would
+  // leave the button, totals, loading and nodata rows counted as data rows.
   assert.equal(
     core.EXCLUDED_ROW_SELECTOR,
-    "tr.machineButtonRow, tr.totalrow, tr.uir-machine-loading-row, tr.uir-machine-nodata-row"
+    "tr.machineButtonRow, tr.totalrow, tr.uir-machine-loading-row, tr.uir-machine-nodata-row, "
+    + "tr.uir-machine-button-row, tr.uir-machine-totals-row, tr.uir-loading-row, tr.uir-nodata-row"
   );
   assert.equal(
     core.FOREIGN_NODE_SELECTOR,
@@ -742,17 +746,24 @@ test("mounts one hidden marker, binds once and writes nothing", async () => {
   assert.equal(harness.counts.writes, 0);
 });
 
-test("refuses a newer stored schema with a warning and no writes", async () => {
+test("refuses a newer stored schema with one warning across repaints", async () => {
   const harness = createRuntimeHarness({ stored: { schemaVersion: 2, grids: {} } });
   await harness.flush();
   assert.equal(harness.lifecycle.lastResult, true);
-  // Single-install scope only: the toast has no once-latch, so a repaint emits
-  // another one (escalated, see task-6-report.md §7). The repeat assertion goes
-  // in once the latch lands.
   assert.deepEqual(harness.toasts, [
     { message: "This layout was saved by a newer SuiteMate.", type: "warning" }
   ]);
+  // Install re-runs on every machine repaint; the warning is latched, so two
+  // more repaints must not produce two more toasts.
+  await harness.run("mutation");
+  await harness.run("mutation");
+  assert.equal(harness.counts.editReads, 3);
+  assert.equal(harness.toasts.length, 1, "the newer-schema warning is not latched");
   assert.equal(harness.counts.writes, 0);
+  // Teardown resets the latch: a fresh page state warns again.
+  harness.lifecycle.registration.cleanup({ reason: "paused" });
+  await harness.run("resumed");
+  assert.equal(harness.toasts.length, 2);
 });
 
 test("absorbs a rejected storage read as an ordinary failure, logged once", async () => {
@@ -837,13 +848,30 @@ test("relevance reacts to machine mutations and drops records targeted at owned 
   assert.equal(relevant([{ target: harness.container, addedNodes: [], removedNodes: [headerRow] }]), true);
   // A record whose target is one of our own nodes is dropped outright.
   assert.equal(relevant([{ target: owned, addedNodes: [dataRow], removedNodes: [] }]), false);
-  // KNOWN GAP (escalated, see task-6-report.md §7): a record that only adds our
-  // own marker is still relevant, because `isMachineNode(record.target)` is
-  // ORed in after the owned-node filter and the machine container contains the
-  // table. Today that costs one extra install and one extra storage read per
-  // mount; from M2 every write into the container re-triggers install the same
-  // way. Asserted as-is so the gap is visible rather than mis-stated.
-  assert.equal(relevant([{ target: harness.container, addedNodes: [owned], removedNodes: [] }]), true);
+  // Our own mount is what produces this record — target is the machine
+  // container, which contains the table and so reads as a machine node. It must
+  // still be refused, or every install would schedule the next one.
+  assert.equal(relevant([{ target: harness.container, addedNodes: [owned], removedNodes: [] }]), false);
+  assert.equal(relevant([{ target: harness.container, addedNodes: [], removedNodes: [owned] }]), false);
+  // A repaint that removes our marker *and* rebuilds machine rows is still ours
+  // to act on — the refusal covers records that touch nothing but our nodes.
+  assert.equal(relevant([{ target: harness.container, addedNodes: [dataRow], removedNodes: [owned] }]), true);
+});
+
+test("the install that mounts does not schedule the next install", async () => {
+  const harness = createRuntimeHarness();
+  await harness.flush();
+  const { relevant } = harness.lifecycle.registration;
+  // Exactly the records the shared observer reports for our own mount
+  // (childList on the container, addedNodes = the marker).
+  const ownWrites = harness.mounts().map((node) => ({
+    target: harness.container,
+    addedNodes: [node],
+    removedNodes: []
+  }));
+  assert.equal(ownWrites.length, 1);
+  assert.equal(relevant(ownWrites), false, "the mount re-triggered install");
+  assert.equal(harness.counts.editReads, 1);
 });
 
 test("installs without a session status script and without its identifiers", async () => {
@@ -857,6 +885,36 @@ test("installs without a session status script and without its identifiers", asy
   await withoutIds.flush();
   assert.equal(withoutIds.lifecycle.lastResult, true);
   assert.equal(withoutIds.mounts().length, 1);
+});
+
+test("an untouched select in the open row is not dirty", () => {
+  // isDirty() has no caller until M3, so it cannot be reached through the
+  // lifecycle registration. This evaluates the shipped predicate itself —
+  // sliced out of runtime.js, not re-typed — which is the strongest coverage
+  // available before a caller exists (see task-6-report.md §8).
+  const [predicate] = runtimeSource.match(/ {2}function fieldIsDirty\(field\) \{[\s\S]*?\n {2}\}/) ?? [];
+  assert.equal(Boolean(predicate), true, "fieldIsDirty is no longer a named function in runtime.js");
+  const sandbox = {};
+  sandbox.globalThis = sandbox;
+  runInNewContext(`${predicate}\nglobalThis.fieldIsDirty = fieldIsDirty;`, sandbox);
+  const select = (options, value) => ({
+    tagName: "SELECT",
+    value,
+    // HTMLSelectElement genuinely has no defaultValue — omitted, not undefined
+    // by accident: reading it is the bug this test exists for.
+    options: options.map(([optionValue, defaultSelected]) => ({ value: optionValue, defaultSelected }))
+  });
+  const pristine = select([["", false], ["1", true], ["2", false]], "1");
+  assert.equal(sandbox.fieldIsDirty(pristine), false, "an untouched select reads as dirty");
+  assert.equal(sandbox.fieldIsDirty(select([["", false], ["1", true]], "")), true);
+  // No option is defaultSelected: the browser selects the first one.
+  assert.equal(sandbox.fieldIsDirty(select([["a", false], ["b", false]], "a")), false);
+  assert.equal(sandbox.fieldIsDirty(select([["a", false], ["b", false]], "b")), true);
+  assert.equal(sandbox.fieldIsDirty(select([], "")), false);
+  // Inputs and textareas keep the defaultValue comparison.
+  assert.equal(sandbox.fieldIsDirty({ tagName: "INPUT", value: "5", defaultValue: "5" }), false);
+  assert.equal(sandbox.fieldIsDirty({ tagName: "INPUT", value: "6", defaultValue: "5" }), true);
+  assert.equal(sandbox.fieldIsDirty({ tagName: "TEXTAREA", value: "x", defaultValue: "x" }), false);
 });
 
 test("runtime owns no observer, no HTML sink and no View Mode storage", () => {

@@ -15,8 +15,15 @@
   const HEADER_ROW_SELECTOR = "tr.uir-machine-headerrow";
   const DATA_ROW_SELECTOR = "tr.uir-machine-row";
   const FOCUSED_ROW_SELECTOR = "tr.uir-machine-row-focused, tr.listfocusedrow";
+  // The union of the spec's names and the ones src/styles/netsuite.css actually
+  // carries (tr.uir-machine-button-row + td.machineButtonRow, uir-machine-totals-row,
+  // uir-loading-row, uir-nodata-row). A selector naming a class the live DOM
+  // does not use matches nothing and costs nothing, so the union is fail-closed
+  // whichever reality the machine holds; the Task 9 probe confirms which half
+  // matches and M2+ may prune.
   const EXCLUDED_ROW_SELECTOR =
-    "tr.machineButtonRow, tr.totalrow, tr.uir-machine-loading-row, tr.uir-machine-nodata-row";
+    "tr.machineButtonRow, tr.totalrow, tr.uir-machine-loading-row, tr.uir-machine-nodata-row, "
+    + "tr.uir-machine-button-row, tr.uir-machine-totals-row, tr.uir-loading-row, tr.uir-nodata-row";
   const ORDERED_TABLE_SELECTOR = ".uir-draggable-table";
   const ORDERED_CONTAINER_SELECTOR = ".uir-list-machine-ordered";
   const MOVABLE_CELL_SELECTOR = "td.movable";

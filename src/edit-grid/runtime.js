@@ -42,6 +42,7 @@
   let entry = {};
   let pendingApply = false;
   let installErrorLogged = false;
+  let warnedNewerSchema = false;
 
   function showToast(message, type) {
     globalThis.SuiteMateV3Notifications?.showToast(message, { type });
@@ -98,14 +99,26 @@
       || Boolean(table.querySelector("tr.machineButtonRow"));
   }
 
+  function fieldIsDirty(field) {
+    if (field.tagName !== "SELECT") {
+      return field.value !== field.defaultValue;
+    }
+    // HTMLSelectElement has no defaultValue, so comparing against it reports
+    // every untouched select as dirty — and a machine row always has selects.
+    // The pristine value is the defaultSelected option, or the first option
+    // when the markup names none.
+    const options = Array.from(field.options ?? []);
+    const pristine = options.find((option) => option.defaultSelected) ?? options[0];
+    return field.value !== (pristine?.value ?? "");
+  }
+
   function isDirty() {
     const table = activeTable ?? machineTable();
     const openRow = table?.querySelector?.(core.FOCUSED_ROW_SELECTOR);
     if (!openRow) {
       return false;
     }
-    return Array.from(openRow.querySelectorAll("input, select, textarea"))
-      .some((field) => field.value !== field.defaultValue);
+    return Array.from(openRow.querySelectorAll("input, select, textarea")).some(fieldIsDirty);
   }
 
   function forcedRows() {
@@ -224,7 +237,12 @@
         return false;
       }
       if (core.refusesNewerSchema(stored[core.STORAGE_KEY])) {
-        showToast("This layout was saved by a newer SuiteMate.", "warning");
+        // Latched: install re-runs on every machine repaint, and one warning
+        // per repaint is a toast storm for the exact user it exists to inform.
+        if (!warnedNewerSchema) {
+          warnedNewerSchema = true;
+          showToast("This layout was saved by a newer SuiteMate.", "warning");
+        }
         entry = {};
         return true;
       }
@@ -263,6 +281,7 @@
     scopeKey = null;
     entry = {};
     pendingApply = false;
+    warnedNewerSchema = false;
   }
 
   // ===== Relevance: stamp exclusion =====
@@ -286,6 +305,13 @@
         return false;
       }
       const touched = [...record.addedNodes, ...record.removedNodes];
+      // Our own mount and teardown must never schedule another install. This
+      // has to short-circuit before the target is consulted: the target of
+      // those records is the machine container, which legitimately contains
+      // the machine table and so always reads as a machine node.
+      if (touched.length > 0 && touched.every(isOwned)) {
+        return false;
+      }
       return touched.some((node) => !isOwned(node) && isMachineNode(node))
         || isMachineNode(record.target);
     });
