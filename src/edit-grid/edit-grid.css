@@ -73,7 +73,10 @@ body.suitemate-v3-edit-grid-resizing {
     user-select: none !important
 }
 
-#item_splits[data-suitemate-v3-edit-grid-bound] tr.uir-machine-headerrow td {
+/* Anchored at the container, which is where ensureBindings() stamps
+   BOUND_ATTRIBUTE — #item_splits is the table inside it and never carries the
+   stamp, so a rule anchored at the table could never match. */
+.uir-machine-table-container[data-suitemate-v3-edit-grid-bound] #item_splits tr.uir-machine-headerrow td {
     box-sizing: border-box
 }
 

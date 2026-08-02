@@ -837,3 +837,15 @@ test("every stylesheet rule is scoped to the feature and every hide rule wins", 
   assert.match(stylesheet, /\.suitemate-v3-edit-grid-col-hidden\s*\{\s*display: none !important/);
   assert.match(stylesheet, /\.suitemate-v3-edit-grid-row-filtered\s*\{\s*display: none !important/);
 });
+
+test("the bound-attribute rule is anchored where the runtime actually stamps", () => {
+  const core = createApi();
+  // ensureBindings() stamps BOUND_ATTRIBUTE on the machine container; the table
+  // never carries it, so a rule anchored at #item_splits[...-bound] would be
+  // inert — and M2's width arithmetic depends on this box-sizing landing.
+  const rule =
+    `${core.MACHINE_CONTAINER_SELECTOR}[${core.BOUND_ATTRIBUTE}] ${core.MACHINE_TABLE_SELECTOR} ${core.HEADER_ROW_SELECTOR} td`;
+  assert.equal(stylesheet.includes(rule), true, `the stylesheet has no rule for ${rule}`);
+  assert.doesNotMatch(stylesheet, /#item_splits\[data-suitemate-v3-edit-grid-bound\]/);
+  assert.match(runtimeSource, /container\.setAttribute\(core\.BOUND_ATTRIBUTE, ""\)/);
+});
