@@ -369,7 +369,12 @@ function createLiveMachine({
   focusedRowIndex = null,
   wrappedHeaders = true
 } = {}) {
-  const form = createForm({ itemfields: fieldsValue, itemdata: dataValue });
+  // dataValue: null omits the {machine}data input entirely, which is a different
+  // machine from one whose input is present and empty. A1.2 refuses both.
+  const form = createForm({
+    itemfields: fieldsValue,
+    ...(dataValue === null ? {} : { itemdata: dataValue })
+  });
   const header = createRow({
     className: "uir-machine-headerrow",
     cells: labels.map((label) => createHeaderCell(label, { wrapped: wrappedHeaders }))
@@ -411,7 +416,9 @@ test("parses the machine's serialized field list and line data", () => {
     null,
     "over MAX_MACHINE_FIELDS"
   );
-  // An empty data value is legal — it just leaves the correlator no corroboration.
+  // An empty data value PARSES — the field list alone is well-formed — but it is
+  // not usable identity: A1.2's gate row requires at least one closed, numbered
+  // data line, so readColumnIds refuses it. Pinned in the fails-closed test.
   assert.deepEqual(plain(core.parseMachineFieldData(`a${SOH}b`, "").lines), []);
 });
 
@@ -554,6 +561,28 @@ test("readColumnIds fails closed on every unusable machine", () => {
   assert.deepEqual(plain(core.readColumnIds(createMachine())), []);
   assert.deepEqual(plain(core.readColumnIds(createLiveMachine({ fieldsValue: "" }))), []);
   assert.deepEqual(plain(core.readColumnIds(createLiveMachine({ dataValue: `a${SOH}b` }))), []);
+  // A1.2 gate row "no {machine}fields / {machine}data input", plus its
+  // requirement of at least one closed, numbered data line. Both shapes of a
+  // missing line set refuse: the input absent, and the input present but empty.
+  // The machine below is deliberately NARROW — six field ids collapsing to five
+  // candidates against three labels — because label affinity alone has a unique
+  // optimum there ("item","quantity","rate"). On the twelve-label live slice the
+  // ambiguity gate fires regardless, so only a machine this narrow can prove the
+  // data-line refusal is load-bearing rather than incidental. Without it the
+  // feature would key storage on header text, which is what A1.2 exists to refuse.
+  const narrowFields = ["item_display", "item", "olditemid", "quantity", "rate", "amount"].join(SOH);
+  for (const dataValue of [null, ""]) {
+    assert.deepEqual(
+      plain(core.readColumnIds(createLiveMachine({
+        fieldsValue: narrowFields,
+        dataValue,
+        labels: ["Item", "Quantity", "Rate"],
+        rows: []
+      }))),
+      [],
+      `narrow machine, {machine}data ${dataValue === null ? "absent" : "present but empty"}`
+    );
+  }
   // An empty header label is unusable: the live census found 43 labels, 0 empty.
   const blanked = LIVE_LABELS.slice();
   blanked[4] = "";

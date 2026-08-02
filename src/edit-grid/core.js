@@ -578,7 +578,13 @@
         return [];
       }
       const machineData = readMachineFieldData(table);
-      if (!machineData) {
+      if (!machineData || machineData.lines.length === 0) {
+        // A1.2's "Hidden input missing" gate row, and its requirement of at least
+        // one closed, numbered data line: with no {machine}data there is no value
+        // corroboration at all, so the axis would rest on label affinity alone —
+        // which is precisely the label keying A1.2 exists to refuse. The probed
+        // form declines here by measurement (56 optima); narrower machines would
+        // not, so the refusal is by construction rather than by luck.
         return [];
       }
       const columns = collapseDisplayTwins(machineData.fieldIds, machineData.lines);
