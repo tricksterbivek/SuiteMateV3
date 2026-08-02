@@ -619,8 +619,33 @@ test("exports a frozen core with the Edit Mode storage and DOM contract", () => 
   assert.equal(core.DATA_ATTRIBUTE, "data-suitemate-v3-edit-grid");
   assert.equal(core.NATIVE_ROW_ATTRIBUTE, "data-suitemate-v3-edit-grid-native-row");
   assert.equal(core.BOUND_ATTRIBUTE, "data-suitemate-v3-edit-grid-bound");
-  assert.equal(core.CLASSES.colHidden, "suitemate-v3-edit-grid-col-hidden");
-  assert.equal(core.CLASSES.rowFiltered, "suitemate-v3-edit-grid-row-filtered");
+  assert.equal(core.FOCUSED_ROW_SELECTOR, "tr.uir-machine-row-focused, tr.listfocusedrow");
+  assert.equal(
+    core.EXCLUDED_ROW_SELECTOR,
+    "tr.machineButtonRow, tr.totalrow, tr.uir-machine-loading-row, tr.uir-machine-nodata-row"
+  );
+  assert.equal(
+    core.FOREIGN_NODE_SELECTOR,
+    "[data-suitemate-v3-internal-id], [data-suitemate-v3-so-columns], [data-suitemate-v3-form-views], [data-suitemate-v3-edit-grid]"
+  );
+  // Every class this feature can put on a NetSuite node is pinned here: the
+  // CSS file and the runtime both read them from CLASSES, so a rename that
+  // misses one side fails this test instead of silently breaking a rule.
+  assert.deepEqual(plain(core.CLASSES), {
+    controls: "suitemate-v3-edit-grid-controls",
+    button: "suitemate-v3-edit-grid-button",
+    chip: "suitemate-v3-edit-grid-chip",
+    menu: "suitemate-v3-edit-grid-menu",
+    note: "suitemate-v3-edit-grid-note",
+    colHidden: "suitemate-v3-edit-grid-col-hidden",
+    rowFiltered: "suitemate-v3-edit-grid-row-filtered",
+    personalizing: "suitemate-v3-edit-grid-personalizing",
+    dragging: "suitemate-v3-edit-grid-dragging",
+    dropTarget: "suitemate-v3-edit-grid-drop-target",
+    resizeEdge: "suitemate-v3-edit-grid-resize-edge",
+    resizing: "suitemate-v3-edit-grid-resizing",
+    sorted: "suitemate-v3-edit-grid-sorted"
+  });
   assert.equal(Object.isFrozen(core.CLASSES), true);
 });
 
@@ -769,7 +794,9 @@ Expected: FAIL — `ENOENT: no such file or directory, open '…/src/edit-grid/c
     personalizing: "suitemate-v3-edit-grid-personalizing",
     dragging: "suitemate-v3-edit-grid-dragging",
     dropTarget: "suitemate-v3-edit-grid-drop-target",
-    resizeEdge: "suitemate-v3-edit-grid-resize-edge"
+    resizeEdge: "suitemate-v3-edit-grid-resize-edge",
+    resizing: "suitemate-v3-edit-grid-resizing",
+    sorted: "suitemate-v3-edit-grid-sorted"
   });
 
   if (globalScope.SuiteMateV3EditGridCore?.VERSION === VERSION) {
@@ -2571,7 +2598,7 @@ git commit -m "feat: edit-grid width planner with per-column widget minimums"
         startWidth: Number.isFinite(styleWidth) ? styleWidth : cell.getBoundingClientRect().width,
         minimum: core.columnMinimums(table, core.readColumnIds(table))[columnId] ?? 0
       };
-      document.body.classList.add("suitemate-v3-edit-grid-resizing");
+      document.body.classList.add(core.CLASSES.resizing);
       document.addEventListener("pointermove", handleResizeMove, true);
       document.addEventListener("pointerup", handleResizeUp, true);
     } catch {
@@ -2594,7 +2621,7 @@ git commit -m "feat: edit-grid width planner with per-column widget minimums"
   function handleResizeUp() {
     document.removeEventListener("pointermove", handleResizeMove, true);
     document.removeEventListener("pointerup", handleResizeUp, true);
-    document.body.classList.remove("suitemate-v3-edit-grid-resizing");
+    document.body.classList.remove(core.CLASSES.resizing);
     if (!resizing) {
       return;
     }
@@ -5556,7 +5583,7 @@ git commit -m "feat: edit-grid row sorting with an Edit Mode contiguity definiti
   // ===== Sorting: session-only, refused while a line is open =====
   function applyCurrentSort(table, columnIds) {
     if (!sortState) {
-      table.classList.remove("suitemate-v3-edit-grid-sorted");
+      table.classList.remove(core.CLASSES.sorted);
       return;
     }
     const index = columnIds.indexOf(sortState.columnId);
@@ -5564,7 +5591,7 @@ git commit -m "feat: edit-grid row sorting with an Edit Mode contiguity definiti
       return;
     }
     const applied = core.sortRowsEdit(table, index, sortState.dir, columnIds);
-    table.classList.toggle("suitemate-v3-edit-grid-sorted", applied && sortState.dir !== "native");
+    table.classList.toggle(core.CLASSES.sorted, applied && sortState.dir !== "native");
   }
 
   function setSort(columnId, dir) {
@@ -5585,7 +5612,7 @@ git commit -m "feat: edit-grid row sorting with an Edit Mode contiguity definiti
     sortState = dir === "native" ? null : { columnId, dir };
     if (dir === "native") {
       core.sortRowsEdit(table, 0, "native", core.readColumnIds(table));
-      table.classList.remove("suitemate-v3-edit-grid-sorted");
+      table.classList.remove(core.CLASSES.sorted);
     }
     queueApply("sort");
   }
@@ -5655,7 +5682,7 @@ change the first `menu.append(...)` to `menu.append(scope, sortAsc, sortDesc, so
 ```js
       if (table) {
         core.sortRowsEdit(table, 0, "native", core.readColumnIds(table));
-        table.classList.remove("suitemate-v3-edit-grid-sorted");
+        table.classList.remove(core.CLASSES.sorted);
       }
       sortState = null;
 ```
@@ -6105,7 +6132,7 @@ git add save/CHECKPOINTS.md && git commit -m "docs: record the v3.22.0 release" 
 
 **2. Placeholder scan.** Every code step carries real code; every command step carries the exact command and its expected output. The only `<…>` markers are in document templates (checkpoint verdicts, log lines, completion-doc cells) where the value is an observation that cannot exist before the step runs — each is accompanied by the instruction "**No `<`-bracketed placeholder may survive the commit.**" No "TBD", no "add error handling", no "similar to Task N" (the safety protocol and the View Mode regression steps are repeated in full in every task that needs them, deliberately, because tasks are read out of order).
 
-**3. Type and name consistency.** Verified across all tasks: `readColumnIds`/`visibleCells`/`alignsToHeader`/`isDataRow`/`isExcludedRow`/`columnIdFromSpanId`/`rowLineNumber`/`machineIdFromTable`/`isOrderedMachine`/`clampWidth`/`columnMinimums`/`applyWidths`/`readCellText`/`readHeaderLabels`/`applyHidden`/`planOrder`/`moveColumn`/`applyOrderEdit`/`mergeOrder`/`mergeHidden`/`parseFilterQuery`/`matchesFilter`/`applyRowFilters`/`distinctColumnValuesEdit`/`parseSortValue`/`detectColumnKind`/`sortRowsEdit`/`normalizeStored`/`refusesNewerSchema`/`withOrder`/`withHidden`/`withWidths` are defined once and called with the same argument lists everywhere. Runtime seams `installEditGrid`/`removeEditGrid`/`relevant`/`renderSignature(table, columnIds)`/`targetSignature(table, columnIds)`/`applyAll(table, columnIds)`/`queueApply(reason)`/`enqueueSave`/`ensureBindings`/`releaseBindings`/`ensureControls`/`updateControls`/`closeColumnMenu`/`currentMenuColumnId`/`recomputeColumnFilter`/`headerCellsOf`/`columnIdOfHeaderCell`/`machineColumnIds`/`dataRowsOf`/`forcedRows`/`forcedFilterRows`/`effectiveHidden`/`filtersActive` keep one signature from M1 to M7, and `DELEGATED_LISTENERS` is the single place any milestone adds a listener. Storage shapes are uniform: container `{schemaVersion:1, grids:{[scope]:{order?,hidden?,widths?}}}`; `rowFilters` and `sortState` are session-only module state and never enter that container. Constant names (`STORAGE_KEY`, `DATA_ATTRIBUTE`, `NATIVE_ROW_ATTRIBUTE`, `BOUND_ATTRIBUTE`, `ABSOLUTE_MIN_COLUMN_WIDTH`, `MAX_COLUMN_IDS`, `MAX_COLUMN_ID_LENGTH`) match the frozen-contract test in Task 5. **Known gap (see review findings):** the frozen-contract test asserts only `CLASSES.colHidden` and `CLASSES.rowFiltered` of the eleven keys, and `FOCUSED_ROW_SELECTOR`, `EXCLUDED_ROW_SELECTOR` and `FOREIGN_NODE_SELECTOR` are exported but unasserted; `suitemate-v3-edit-grid-resizing` and `-sorted` are bare string literals that never enter `CLASSES`.
+**3. Type and name consistency.** Verified across all tasks: `readColumnIds`/`visibleCells`/`alignsToHeader`/`isDataRow`/`isExcludedRow`/`columnIdFromSpanId`/`rowLineNumber`/`machineIdFromTable`/`isOrderedMachine`/`clampWidth`/`columnMinimums`/`applyWidths`/`readCellText`/`readHeaderLabels`/`applyHidden`/`planOrder`/`moveColumn`/`applyOrderEdit`/`mergeOrder`/`mergeHidden`/`parseFilterQuery`/`matchesFilter`/`applyRowFilters`/`distinctColumnValuesEdit`/`parseSortValue`/`detectColumnKind`/`sortRowsEdit`/`normalizeStored`/`refusesNewerSchema`/`withOrder`/`withHidden`/`withWidths` are defined once and called with the same argument lists everywhere. Runtime seams `installEditGrid`/`removeEditGrid`/`relevant`/`renderSignature(table, columnIds)`/`targetSignature(table, columnIds)`/`applyAll(table, columnIds)`/`queueApply(reason)`/`enqueueSave`/`ensureBindings`/`releaseBindings`/`ensureControls`/`updateControls`/`closeColumnMenu`/`currentMenuColumnId`/`recomputeColumnFilter`/`headerCellsOf`/`columnIdOfHeaderCell`/`machineColumnIds`/`dataRowsOf`/`forcedRows`/`forcedFilterRows`/`effectiveHidden`/`filtersActive` keep one signature from M1 to M7, and `DELEGATED_LISTENERS` is the single place any milestone adds a listener. Storage shapes are uniform: container `{schemaVersion:1, grids:{[scope]:{order?,hidden?,widths?}}}`; `rowFilters` and `sortState` are session-only module state and never enter that container. Constant names (`STORAGE_KEY`, `DATA_ATTRIBUTE`, `NATIVE_ROW_ATTRIBUTE`, `BOUND_ATTRIBUTE`, `ABSOLUTE_MIN_COLUMN_WIDTH`, `MAX_COLUMN_IDS`, `MAX_COLUMN_ID_LENGTH`) match the frozen-contract test in Task 5. **Gap found and fixed inline:** the contract test originally asserted only two of the `CLASSES` keys and left `FOCUSED_ROW_SELECTOR`, `EXCLUDED_ROW_SELECTOR` and `FOREIGN_NODE_SELECTOR` unasserted, while `suitemate-v3-edit-grid-resizing` (Task 12) and `suitemate-v3-edit-grid-sorted` (Task 33) were bare literals outside `CLASSES` — spec §4.1 and §9 tier 1 require **every** selector and class in the frozen contract. Both classes now live in `CLASSES` (`resizing`, `sorted`), the runtime reads them from there, and Task 5's test `deepEqual`s the whole `CLASSES` object plus the three selectors.
 
 **4. Two interpretations pinned while writing (neither is a spec deviation; both are recorded so a reviewer can challenge them).**
 
