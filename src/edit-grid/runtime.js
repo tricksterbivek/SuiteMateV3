@@ -118,7 +118,29 @@
     if (appliedOrder) {
       return pinnedColumnIds ?? [];
     }
-    const derived = core.readColumnIds(table);
+    // The mini-form boundary (live 2026-08-03, M1.5 re-probe): NetSuite wraps
+    // the machine table in its OWN form — form[name="item_form"] — while the
+    // serialized identity inputs live in form[name="main_form"]. sameForm was
+    // FALSE live, so core's table.closest("form") route reaches a form that can
+    // never hold them and every live install died on an empty axis. Resolve them
+    // here, where the whole document is in scope, exactly the way the repo's
+    // live-verified route does (src/internal-ids/runtime.js:56,198,202): under
+    // #main_form, falling back to the bare name for a page with no #main_form.
+    // core.readColumnIds stays the fallback for a machine whose inputs are only
+    // reachable through its own form — the shape every unit harness models.
+    const machineId = core.machineIdFromTable(table);
+    const machineFieldInput = (suffix) => {
+      const name = `${machineId}${suffix}`;
+      return document.querySelector(`#main_form input[type="hidden"][name="${name}"]`)
+        ?? document.querySelector(`input[name="${name}"]`);
+    };
+    // A machine id that is not a bare identifier cannot be spliced into a
+    // selector safely, so it declines to the fallback instead of throwing.
+    const fields = /^[A-Za-z_][A-Za-z0-9_]*$/.test(machineId) ? machineFieldInput("fields") : null;
+    const data = fields ? machineFieldInput("data") : null;
+    const derived = fields && data
+      ? core.readColumnIdsFrom(table, fields.value, data.value)
+      : core.readColumnIds(table);
     if (!derived.length) {
       // A transient read during a repaint must not discard a still-valid pin.
       return [];

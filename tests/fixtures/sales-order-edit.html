@@ -27,7 +27,23 @@
     <script src="../../src/edit-grid/runtime.js"></script>
   </head>
   <body>
-    <form id="main_form">
+    <!--
+      THE MINI-FORM BOUNDARY, mirrored from the live DOM (M1.5 re-probe,
+      2026-08-03; .superpowers/sdd/2026-08-02-m15-identity-amendment/m15-t6-live-capture.json
+      records itemfieldsInMainForm: true, tableInsideMainForm: FALSE,
+      tableInsideAnyForm: true). NetSuite wraps the machine table in its own
+      mini-form — form[name="item_form"] — that does NOT contain the identity
+      inputs, while itemfields/itemdata live in form[name="main_form"], which
+      does NOT contain the table. table.closest("form") therefore reaches a form
+      with no inputs in it, which is why every live install read an empty axis.
+
+      This split is the whole point of the fixture: with the two forms separate
+      and disjoint, the ONLY way to mount is the document-scoped resolution in
+      src/edit-grid/runtime.js currentColumnIds. The pre-T6a fixture wired the
+      inputs into the table's own ancestor form, so it asserted precisely what
+      live contradicts. Do not merge these two forms back together.
+    -->
+    <form id="main_form" name="main_form">
       <input id="baserecordtype" type="hidden" value="salesorder">
       <!--
         The machine's own serialization of its field list and line values. These
@@ -44,12 +60,14 @@
       <input type="hidden" name="itemdata" id="itemdata" value="">
       <main id="div__body">
         <h1 class="uir-page-title-firstline">Sales Order #SO10428 — Edit</h1>
-        <div id="items" class="uir-machine-table-container" data-machine-name="item">
-          <table id="item_splits" class="uir-machine-table">
-            <tbody></tbody>
-          </table>
-        </div>
       </main>
+    </form>
+    <form id="item_form" name="item_form">
+      <div id="items" class="uir-machine-table-container" data-machine-name="item">
+        <table id="item_splits" class="uir-machine-table">
+          <tbody></tbody>
+        </table>
+      </div>
     </form>
     <script>
       // Emulates the item machine as the 2026-08-02 live pass actually observed
@@ -357,7 +375,8 @@
             ["item_remove", "Remove"]
           ]) {
             const button = document.createElement("input");
-            // type="button" always: this lives inside #main_form.
+            // type="button" always: this lives inside the machine's mini-form,
+            // and a bare <input> in a form submits it.
             button.type = "button";
             button.id = id;
             button.name = id;

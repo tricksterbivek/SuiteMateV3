@@ -616,6 +616,46 @@
     }
   }
 
+  function readColumnIdsFrom(table, fieldsValue, dataValue) {
+    // The same derivation as readColumnIds, taking the two serialized VALUES
+    // instead of reading them off table.closest("form"). Live 2026-08-03 (M1.5
+    // re-probe): NetSuite wraps the machine table in its own mini-form —
+    // form[name="item_form"] — while itemfields/itemdata live in
+    // form[name="main_form"], so the form-scoped lookup can never see them and
+    // readColumnIds declined on every live install. The caller that CAN see the
+    // whole document resolves them (src/edit-grid/runtime.js currentColumnIds,
+    // mirroring the live-verified route at src/internal-ids/runtime.js:56,198,202)
+    // and hands them here; core stays document-free, which is what the
+    // source-purity test measures.
+    //
+    // Deliberate duplication, not an oversight: readColumnIds keeps its body
+    // byte-identical so the fallback path stays exactly the code the M1.5 unit
+    // suite already pins, and the gate sequence below is asserted independently
+    // on BOTH entries (tests/edit-grid.test.mjs, "readColumnIds fails closed on
+    // every unusable machine" and "readColumnIdsFrom fails closed …"), so the
+    // two cannot drift silently. Sanctioned by adjudication #13, which also
+    // sanctions the frozen contract growing 50 -> 51 for this one name.
+    try {
+      const labels = readHeaderLabels(table);
+      if (labels.length < 2 || labels.some((label) => !label)) {
+        return [];
+      }
+      const machineData = parseMachineFieldData(fieldsValue, dataValue);
+      if (!machineData || machineData.lines.length === 0) {
+        // A1.2's "Hidden input missing" gate row and its requirement of at least
+        // one closed, numbered data line — a null/empty value reaches here as an
+        // unparseable field list or an empty line set and refuses either way.
+        return [];
+      }
+      const columns = collapseDisplayTwins(machineData.fieldIds, machineData.lines);
+      const samples = readSampleRowTexts(table, labels.length, machineData.lines.length);
+      const ids = correlateColumnIds(labels, columns, samples);
+      return ids.every((id) => normalizeColumnId(id)) ? ids.map(normalizeColumnId) : [];
+    } catch {
+      return [];
+    }
+  }
+
   function isOrderedMachine(table) {
     try {
       // Fail closed: a node that cannot be interrogated counts as ordered, so a
@@ -680,6 +720,7 @@
       alignsToHeader,
       isDataRow,
       readColumnIds,
+      readColumnIdsFrom,
       isOrderedMachine,
       parseMachineFieldData,
       readMachineFieldData,

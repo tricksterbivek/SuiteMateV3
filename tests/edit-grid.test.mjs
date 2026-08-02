@@ -244,7 +244,9 @@ test("exports a frozen core with the Edit Mode storage and DOM contract", () => 
   assert.equal(core.FIELD_DELIMITER, "\u0001");
   assert.equal(core.LINE_DELIMITER, "\u0002");
   assert.equal(core.OPTION_DELIMITER, "\u0005");
-  // M1 froze 37 names; M1.5 adds exactly the thirteen the amendment enumerates.
+  // M1 froze 37 names; M1.5 adds exactly the thirteen the amendment enumerates,
+  // and T6a adds ONE more — readColumnIdsFrom, 50 -> 51, sanctioned by
+  // adjudication #13 as the fix for the live mini-form boundary failure.
   // deepEqual on the NAMES, not a count: a count passes when one export is
   // renamed and another added, which is precisely the drift this guards.
   assert.deepEqual(Object.keys(core), [
@@ -258,7 +260,8 @@ test("exports a frozen core with the Edit Mode storage and DOM contract", () => 
     "DATA_ATTRIBUTE", "NATIVE_ROW_ATTRIBUTE", "BOUND_ATTRIBUTE", "FOREIGN_NODE_SELECTOR", "CLASSES",
     "clampWidth", "normalizeStored", "refusesNewerSchema", "withOrder", "withHidden", "withWidths",
     "machineIdFromTable", "rowLineNumber", "columnIdFromSpanId", "visibleCells", "tableRows",
-    "headerRow", "isExcludedRow", "alignsToHeader", "isDataRow", "readColumnIds", "isOrderedMachine",
+    "headerRow", "isExcludedRow", "alignsToHeader", "isDataRow", "readColumnIds", "readColumnIdsFrom",
+    "isOrderedMachine",
     "parseMachineFieldData", "readMachineFieldData", "collapseDisplayTwins", "readHeaderLabels",
     "readSampleRowTexts", "labelAffinity", "correlateColumnIds"
   ]);
@@ -405,11 +408,17 @@ function createLiveMachine({
   labels = LIVE_LABELS,
   rows = [LIVE_ROW_1, LIVE_ROW_2],
   focusedRowIndex = null,
-  wrappedHeaders = true
+  wrappedHeaders = true,
+  // The live ancestry (m15-t6-live-capture.json: itemfieldsInMainForm true,
+  // tableInsideMainForm FALSE): the table's own closest("form") is NetSuite's
+  // machine mini-form, which carries no identity inputs at all. readColumnIds
+  // must decline on it — that is the live MOUNT FAIL — while readColumnIdsFrom,
+  // which is HANDED the values, must not care.
+  miniForm = false
 } = {}) {
   // dataValue: null omits the {machine}data input entirely, which is a different
   // machine from one whose input is present and empty. A1.2 refuses both.
-  const form = createForm({
+  const form = createForm(miniForm ? {} : {
     itemfields: fieldsValue,
     ...(dataValue === null ? {} : { itemdata: dataValue })
   });
@@ -639,6 +648,93 @@ test("readColumnIds fails closed on every unusable machine", () => {
   assert.deepEqual(plain(core.readColumnIds(createLiveMachine({ rows: [] }))), []);
   assert.deepEqual(plain(core.readColumnIds(null)), []);
   assert.deepEqual(plain(core.readColumnIds({})), []);
+});
+
+test("readColumnIdsFrom derives the axis across the mini-form boundary", () => {
+  const core = createApi();
+  // The live shape, and the live failure: the table's own form holds NOTHING, so
+  // the form-scoped entry declines while the value-taking entry resolves the
+  // identical axis. This is the whole of adjudication #13 in two assertions.
+  const machine = createLiveMachine({ miniForm: true });
+  assert.deepEqual(plain(core.readColumnIds(machine)), [], "the mini-form route cannot reach the inputs");
+  assert.deepEqual(plain(core.readColumnIdsFrom(machine, LIVE_FIELDS_VALUE, LIVE_DATA_VALUE)), LIVE_AXIS);
+  // Same derivation, same answer, whether or not the form happens to be reachable:
+  // the entry never consults the form at all.
+  assert.deepEqual(
+    plain(core.readColumnIdsFrom(createLiveMachine(), LIVE_FIELDS_VALUE, LIVE_DATA_VALUE)),
+    LIVE_AXIS
+  );
+  // Both header shapes read, exactly as through readColumnIds.
+  assert.deepEqual(
+    plain(core.readColumnIdsFrom(
+      createLiveMachine({ miniForm: true, wrappedHeaders: false }), LIVE_FIELDS_VALUE, LIVE_DATA_VALUE
+    )),
+    LIVE_AXIS
+  );
+  // An open first line contributes no text; the axis still resolves from line 2.
+  assert.deepEqual(
+    plain(core.readColumnIdsFrom(
+      createLiveMachine({ miniForm: true, focusedRowIndex: 0 }), LIVE_FIELDS_VALUE, LIVE_DATA_VALUE
+    )),
+    LIVE_AXIS
+  );
+  // The emitted axis is the NORMALIZED id, never the raw {machine}fields token.
+  assert.deepEqual(
+    plain(core.readColumnIdsFrom(
+      machine, LIVE_FIELDS.map((id) => (id === "rate" ? " rate " : id)).join(SOH), LIVE_DATA_VALUE
+    )),
+    LIVE_AXIS
+  );
+});
+
+test("readColumnIdsFrom fails closed on every gate readColumnIds does", () => {
+  const core = createApi();
+  const from = (fieldsValue, dataValue, options = {}) =>
+    plain(core.readColumnIdsFrom(createLiveMachine({ miniForm: true, ...options }), fieldsValue, dataValue));
+  // Absent and empty values — the shape the runtime's own fallback branch turns
+  // on, asserted here so a caller that hands nulls through can never mount.
+  assert.deepEqual(from(null, null), []);
+  assert.deepEqual(from(undefined, undefined), []);
+  assert.deepEqual(from("", LIVE_DATA_VALUE), []);
+  assert.deepEqual(from(LIVE_FIELDS_VALUE, null), [], "no data lines at all");
+  assert.deepEqual(from(LIVE_FIELDS_VALUE, ""), [], "the input is present but empty");
+  // A1.2's data-line requirement is load-bearing only on a machine narrow enough
+  // for label affinity alone to have a unique optimum — same construction as the
+  // readColumnIds gate test, so both entries are measured on the same machine.
+  const narrowFields = ["item_display", "item", "olditemid", "quantity", "rate", "amount"].join(SOH);
+  for (const dataValue of [null, ""]) {
+    assert.deepEqual(
+      from(narrowFields, dataValue, { labels: ["Item", "Quantity", "Rate"], rows: [] }),
+      [],
+      `narrow machine, {machine}data ${dataValue === null ? "absent" : "present but empty"}`
+    );
+  }
+  // parseMachineFieldData's own gates reach through unchanged.
+  assert.deepEqual(from(LIVE_FIELDS_VALUE, `a${SOH}b`), [], "ragged line");
+  assert.deepEqual(from(["a", "a"].join(SOH), ["1", "2"].join(SOH)), [], "duplicate field id");
+  assert.deepEqual(from("solo", "1"), [], "single field");
+  assert.deepEqual(from(`a${SOH}`, `1${SOH}2`), [], "empty field id");
+  // Ambiguity: an unrecognised locale carries no label affinity anywhere.
+  assert.deepEqual(
+    from(LIVE_FIELDS_VALUE, LIVE_DATA_VALUE, { labels: LIVE_LABELS.map((_, index) => `Colonne ${index}`) }),
+    []
+  );
+  // A blank header label, and a header narrower than two columns.
+  const blanked = LIVE_LABELS.slice();
+  blanked[4] = "";
+  assert.deepEqual(from(LIVE_FIELDS_VALUE, LIVE_DATA_VALUE, { labels: blanked }), []);
+  assert.deepEqual(from(LIVE_FIELDS_VALUE, LIVE_DATA_VALUE, { labels: ["Item"], rows: [["MCH376"]] }), []);
+  // No rendered lines: correlation is ambiguous, so the feature declines.
+  assert.deepEqual(from(LIVE_FIELDS_VALUE, LIVE_DATA_VALUE, { rows: [] }), []);
+  // An unusable or hostile table fails closed rather than escaping.
+  assert.deepEqual(plain(core.readColumnIdsFrom(null, LIVE_FIELDS_VALUE, LIVE_DATA_VALUE)), []);
+  assert.deepEqual(plain(core.readColumnIdsFrom({}, LIVE_FIELDS_VALUE, LIVE_DATA_VALUE)), []);
+  assert.deepEqual(
+    plain(core.readColumnIdsFrom(
+      { querySelector() { throw new Error("boom"); } }, LIVE_FIELDS_VALUE, LIVE_DATA_VALUE
+    )),
+    []
+  );
 });
 
 test("normalizes the stored container fail-closed and refuses a newer schema", () => {
@@ -932,6 +1028,15 @@ function createRuntimeHarness({
   // machine whose axis cannot be decoded.
   machineFields = HARNESS_FIELDS_VALUE,
   machineData = HARNESS_DATA_VALUE,
+  // Where the identity inputs live, which is the whole of the T6a fix:
+  //   false        — inside the table's own ancestor form (every pre-T6a test)
+  //   "main-form"  — the LIVE shape: the table's form is NetSuite's empty
+  //                  mini-form and the inputs sit in #main_form, which does not
+  //                  contain the table (m15-t6-live-capture.json)
+  //   "unscoped"   — in the document but with no #main_form at all: the
+  //                  runtime's bare-name fallback
+  //   "orphaned"   — nowhere reachable: the live MOUNT FAIL, modelled
+  inputsAt = false,
   sessionSrc = SESSION_SRC,
   readError = null,
   holdRead = false
@@ -939,7 +1044,10 @@ function createRuntimeHarness({
   const container = createContainer();
   const form = machineFields === null
     ? null
-    : createForm({ itemfields: machineFields, itemdata: machineData });
+    : createForm(inputsAt === false ? { itemfields: machineFields, itemdata: machineData } : {});
+  const documentInputs = machineFields !== null && (inputsAt === "main-form" || inputsAt === "unscoped")
+    ? { itemfields: machineFields, itemdata: machineData }
+    : null;
   const table = machine ? createMachine({ ...machine, container, form }) : null;
   const counts = { editReads: 0, settingsReads: 0, writes: 0 };
   const toasts = [];
@@ -966,6 +1074,19 @@ function createRuntimeHarness({
         }
         if (selector.startsWith("script[")) {
           return sessionSrc ? { src: `${location.origin}${sessionSrc}` } : null;
+        }
+        // The document-scoped identity inputs the runtime resolves before it
+        // asks core. The #main_form-scoped selector answers only when the page
+        // has a #main_form holding them; the bare-name selector is the fallback.
+        const scoped = /^#main_form input\[type="hidden"\]\[name="([^"]+)"\]$/.exec(selector);
+        if (scoped) {
+          return inputsAt === "main-form" && documentInputs && scoped[1] in documentInputs
+            ? { value: documentInputs[scoped[1]] }
+            : null;
+        }
+        const bare = /^input\[name="([^"]+)"\]$/.exec(selector);
+        if (bare) {
+          return documentInputs && bare[1] in documentInputs ? { value: documentInputs[bare[1]] } : null;
         }
         return null;
       },
@@ -1137,6 +1258,35 @@ test("declines to install when the decoded axis carries duplicate ids", async ()
   assert.equal(harness.lifecycle.lastResult, false);
   assert.equal(harness.counts.editReads, 0);
   assertNotMounted(harness, "duplicate ids");
+});
+
+test("mounts across the mini-form boundary, and declines when nothing holds the inputs", async () => {
+  // The live 2026-08-03 failure, and its fix, at the runtime seam. NetSuite
+  // wraps the machine in form[name="item_form"] and keeps itemfields/itemdata in
+  // form[name="main_form"], which does NOT contain the table, so core's
+  // closest("form") route reads nothing and M1.5 mounted on no live page.
+  const core = createApi();
+  const mainForm = createRuntimeHarness({ inputsAt: "main-form" });
+  await mainForm.flush();
+  // The fallback route genuinely cannot see them — the mount below is the
+  // document-scoped resolution and nothing else.
+  assert.deepEqual(plain(core.readColumnIds(mainForm.table)), [], "the mini-form holds no inputs");
+  assert.equal(mainForm.lifecycle.lastResult, true);
+  assert.equal(mainForm.mounts().length, 1);
+  assert.equal(mainForm.container.hasAttribute(BOUND_ATTRIBUTE), true);
+  assert.equal(mainForm.counts.writes, 0);
+  // A page with no #main_form at all falls back to the bare input name.
+  const unscoped = createRuntimeHarness({ inputsAt: "unscoped" });
+  await unscoped.flush();
+  assert.equal(unscoped.lifecycle.lastResult, true);
+  assert.equal(unscoped.mounts().length, 1);
+  // …and with the inputs nowhere reachable — the pre-fix live condition — the
+  // install declines exactly as it did on the real page: no stamp, no binding.
+  const orphaned = createRuntimeHarness({ inputsAt: "orphaned" });
+  await orphaned.flush();
+  assert.equal(orphaned.lifecycle.lastResult, false);
+  assert.equal(orphaned.counts.editReads, 0, "it declines before the storage read");
+  assertNotMounted(orphaned, "identity inputs unreachable");
 });
 
 test("declines to install when the machine has no container to bind to", async () => {
@@ -1402,6 +1552,13 @@ test("the column axis is derived on a native DOM, pinned, and never re-derived u
   const build = (readColumnIds, state = {}) => {
     const sandbox = {
       core: { ...core, readColumnIds },
+      // T6a: the derivation branch resolves the identity inputs document-scoped
+      // before it asks core. A document that finds nothing sends it down the
+      // core.readColumnIds fallback — the seam these six assertions drive. The
+      // resolved path has its own coverage (the mini-form runtime test and the
+      // readColumnIdsFrom unit tests); what is pinned HERE is that resolution
+      // changed nothing about pinning, reuse, the latch or the transient guard.
+      document: { querySelector: () => null },
       pinnedColumnIds: null,
       appliedOrder: null,
       axisMismatch: false,
@@ -1481,11 +1638,27 @@ test("teardown clears the pinned axis, the applied order and the mismatch latch"
 
 test("every axis read in the runtime goes through the pin", () => {
   // The hazard is a caller that asks core directly while an order is applied.
-  // After this task there is exactly ONE core.readColumnIds call site, inside
-  // currentColumnIds; everything else asks currentColumnIds.
+  // There is exactly ONE core.readColumnIds call site and — since T6a — exactly
+  // ONE core.readColumnIdsFrom call site, and BOTH sit inside currentColumnIds;
+  // everything else asks currentColumnIds. `core.readColumnIds(` cannot match
+  // `core.readColumnIdsFrom(`: the literal paren is part of the pattern.
   const direct = runtimeSource.match(/core\.readColumnIds\(/g) ?? [];
+  const fromValues = runtimeSource.match(/core\.readColumnIdsFrom\(/g) ?? [];
   assert.equal(direct.length, 1, "core.readColumnIds must be reached only through currentColumnIds");
-  assert.match(runtimeSource, / {2}function currentColumnIds\(table\) \{[\s\S]*?core\.readColumnIds\(table\)/);
+  assert.equal(fromValues.length, 1, "core.readColumnIdsFrom must be reached only through currentColumnIds");
+  const [helper] = runtimeSource.match(/ {2}function currentColumnIds\(table\) \{[\s\S]*?\n {2}\}/) ?? [];
+  assert.equal(Boolean(helper), true, "currentColumnIds is no longer a named function in runtime.js");
+  assert.match(helper, /core\.readColumnIdsFrom\(table, fields\.value, data\.value\)/);
+  assert.match(helper, /core\.readColumnIds\(table\)/);
+  // The resolution is document-scoped and #main_form-first, mirroring the
+  // live-verified route at src/internal-ids/runtime.js:56,198,202 — a lookup
+  // that went back through table.closest("form") would reproduce the live
+  // MOUNT FAIL with every unit test still green.
+  assert.match(helper, /document\.querySelector\(`#main_form input\[type="hidden"\]\[name="\$\{name\}"\]`\)/);
+  // Comments stripped: the prose above the resolution names the closest("form")
+  // route it replaces, and the guard is about the CODE, not the explanation.
+  const helperCode = helper.split("\n").filter((line) => !line.trim().startsWith("//")).join("\n");
+  assert.doesNotMatch(helperCode, /closest\("form"\)/);
 });
 
 test("an untouched select in the open row is not dirty", () => {
