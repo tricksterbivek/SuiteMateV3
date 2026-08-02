@@ -470,6 +470,7 @@ test("popup composes rapid color swap and appearance edits without stale renderi
   const swap = harness.element("swapColors");
   const squareCorners = harness.element("squareCorners");
   const showInternalIds = harness.element("showInternalIds");
+  const salesOrderColumnsEdit = harness.element("salesOrderColumnsEdit");
   const light = harness.modes.find(({ value }) => value === "light");
   const dark = harness.modes.find(({ value }) => value === "dark");
 
@@ -487,6 +488,7 @@ test("popup composes rapid color swap and appearance edits without stale renderi
   dark.checked = true;
   squareCorners.checked = true;
   showInternalIds.checked = true;
+  salesOrderColumnsEdit.checked = true;
   harness.form.dispatch("change", dark);
   await flushTasks();
   assert.equal(harness.writes.length, 1, "The second write must wait for the queued first write");
@@ -499,6 +501,7 @@ test("popup composes rapid color swap and appearance edits without stale renderi
   assert.equal(harness.writes[1].snapshot.mode, "dark");
   assert.equal(harness.writes[1].snapshot.squareCorners, true);
   assert.equal(harness.writes[1].snapshot.showInternalIds, true);
+  assert.equal(harness.writes[1].snapshot.salesOrderColumnsEdit, true);
   assert.deepEqual(harness.writes[1].snapshot.roleThemes["role-1"], {
     name: "Fixture Role",
     main: "#445566",
@@ -509,6 +512,7 @@ test("popup composes rapid color swap and appearance edits without stale renderi
   assert.equal(harness.storedSettings.mode, "dark");
   assert.equal(harness.storedSettings.squareCorners, true);
   assert.equal(harness.storedSettings.showInternalIds, true);
+  assert.equal(harness.storedSettings.salesOrderColumnsEdit, true);
   assert.deepEqual(harness.storedSettings.roleThemes["role-1"], {
     name: "Fixture Role",
     main: "#445566",
@@ -519,6 +523,7 @@ test("popup composes rapid color swap and appearance edits without stale renderi
   assert.equal(dark.checked, true);
   assert.equal(squareCorners.checked, true);
   assert.equal(showInternalIds.checked, true);
+  assert.equal(salesOrderColumnsEdit.checked, true);
 });
 
 test("popup exports, confirms and atomically imports a validated settings backup", async () => {
@@ -526,6 +531,8 @@ test("popup exports, confirms and atomically imports a validated settings backup
   const backupData = harness.element("settingsBackupData");
   const exportButton = harness.element("exportSettings");
   const importButton = harness.element("importSettings");
+  const salesOrderColumnsEdit = harness.element("salesOrderColumnsEdit");
+  assert.equal(salesOrderColumnsEdit.checked, false);
 
   assert.equal(exportButton.disabled, false);
   exportButton.click();
@@ -567,6 +574,7 @@ test("popup exports, confirms and atomically imports a validated settings backup
   assert.equal(backupData.value, "");
   assert.equal(importButton.disabled, true);
   assert.equal(harness.element("status").textContent, "Settings imported");
+  assert.equal(salesOrderColumnsEdit.checked, true, "An imported toggle value must be rendered back into the form");
 });
 
 test("popup rejects malformed backup text without touching storage", async () => {
