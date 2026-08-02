@@ -87,7 +87,35 @@ function createRow({ id = "", className = "uir-machine-row", cells = [] } = {}) 
   return row;
 }
 
-function createTable(rows, { id = "item_splits", className = "uir-machine-table", container = null } = {}) {
+// Whether the machine wraps its header text in div.listheader was NOT probed —
+// the only live evidence is that header cells carry text and no ids
+// (probe-transcripts.md:19). readHeaderLabels must therefore work either way, so
+// the stub builds both shapes and every header test runs against both.
+function createHeaderCell(label, { wrapped = true, systemHidden = false } = {}) {
+  const cell = createCell({ text: label, systemHidden });
+  cell.querySelector = (selector) =>
+    wrapped && String(selector).includes("listheader") ? { textContent: label } : null;
+  return cell;
+}
+
+// The machine lives inside <form id="main_form">, which is where NetSuite puts
+// the serialized {machine}fields / {machine}data inputs. closest("form") is the
+// only route core.js may take to them: ownerDocument trips the purity test.
+function createForm(inputs) {
+  const form = {
+    nodeType: 1,
+    matches: (selector) => String(selector).split(",").some((part) => part.trim() === "form"),
+    querySelector: (selector) => {
+      const byName = /^input\[name="(.+)"\]$/.exec(String(selector).trim());
+      const byId = /^#(.+)$/.exec(String(selector).trim());
+      const key = byName?.[1] ?? byId?.[1] ?? null;
+      return key !== null && key in inputs ? { value: inputs[key] } : null;
+    }
+  };
+  return form;
+}
+
+function createTable(rows, { id = "item_splits", className = "uir-machine-table", container = null, form = null } = {}) {
   const table = {
     nodeType: 1,
     id,
@@ -107,7 +135,10 @@ function createTable(rows, { id = "item_splits", className = "uir-machine-table"
       if (table.matches(selector)) {
         return table;
       }
-      return container?.matches?.(selector) ? container : null;
+      if (container?.matches?.(selector)) {
+        return container;
+      }
+      return form?.matches?.(selector) ? form : null;
     },
     querySelector: (selector) => rows.find((row) => row.matches(selector)) ?? null,
     querySelectorAll: (selector) => rows.filter((row) => row.matches(selector))
@@ -118,9 +149,12 @@ function createTable(rows, { id = "item_splits", className = "uir-machine-table"
 
 // Three data columns (item, quantity, rate) plus one NetSuite system cell that
 // carries inline display:none — the extra <td> that breaks View Mode.
-// `spans: false` is the read-only ?e=F shape: cells without the _fs widgets the
-// column axis is decoded from. `duplicate: true` decodes two cells to one id.
-function createMachine({ lines = 2, className, container = null, spans = true, duplicate = false } = {}) {
+// `spans: false` is the read-only ?e=F shape: cells without the _fs widgets M2+
+// resolves a materialised widget through. `duplicate: true` decodes two cells to
+// one id. `form` carries the hidden {machine}fields / {machine}data inputs the
+// M1.5 axis is decoded from; it defaults to null so a bare createMachine() is
+// the M1 live condition — a machine whose axis cannot be read at all.
+function createMachine({ lines = 2, className, container = null, spans = true, duplicate = false, form = null } = {}) {
   const header = createRow({
     className: "uir-machine-headerrow",
     cells: [
@@ -148,7 +182,8 @@ function createMachine({ lines = 2, className, container = null, spans = true, d
   const totalsRow = createRow({ className: "totalrow", cells: [createCell({ text: "Total" })] });
   return createTable([header, ...dataRows, buttonRow, totalsRow], {
     ...(className ? { className } : {}),
-    container
+    container,
+    form
   });
 }
 
@@ -203,6 +238,30 @@ test("exports a frozen core with the Edit Mode storage and DOM contract", () => 
     sorted: "suitemate-v3-edit-grid-sorted"
   });
   assert.equal(Object.isFrozen(core.CLASSES), true);
+  assert.equal(core.MAX_MACHINE_FIELDS, 400);
+  assert.equal(core.MAX_SAMPLE_ROWS, 8);
+  assert.equal(core.HEADER_LABEL_SELECTOR, "div.listheader");
+  assert.equal(core.FIELD_DELIMITER, "\u0001");
+  assert.equal(core.LINE_DELIMITER, "\u0002");
+  assert.equal(core.OPTION_DELIMITER, "\u0005");
+  // M1 froze 37 names; M1.5 adds exactly the thirteen the amendment enumerates.
+  // deepEqual on the NAMES, not a count: a count passes when one export is
+  // renamed and another added, which is precisely the drift this guards.
+  assert.deepEqual(Object.keys(core), [
+    "VERSION", "STORAGE_KEY", "STORAGE_SCHEMA_VERSION", "MAX_SYNC_ITEM_BYTES",
+    "MAX_COLUMN_ID_LENGTH", "MAX_COLUMN_IDS", "ABSOLUTE_MIN_COLUMN_WIDTH", "MAX_COLUMN_WIDTH",
+    "MAX_MACHINE_FIELDS", "MAX_SAMPLE_ROWS",
+    "MACHINE_TABLE_SELECTOR", "MACHINE_CONTAINER_SELECTOR", "HEADER_ROW_SELECTOR",
+    "DATA_ROW_SELECTOR", "FOCUSED_ROW_SELECTOR", "EXCLUDED_ROW_SELECTOR", "COLUMN_SPAN_SELECTOR",
+    "HEADER_LABEL_SELECTOR",
+    "FIELD_DELIMITER", "LINE_DELIMITER", "OPTION_DELIMITER",
+    "DATA_ATTRIBUTE", "NATIVE_ROW_ATTRIBUTE", "BOUND_ATTRIBUTE", "FOREIGN_NODE_SELECTOR", "CLASSES",
+    "clampWidth", "normalizeStored", "refusesNewerSchema", "withOrder", "withHidden", "withWidths",
+    "machineIdFromTable", "rowLineNumber", "columnIdFromSpanId", "visibleCells", "tableRows",
+    "headerRow", "isExcludedRow", "alignsToHeader", "isDataRow", "readColumnIds", "isOrderedMachine",
+    "parseMachineFieldData", "readMachineFieldData", "collapseDisplayTwins", "readHeaderLabels",
+    "readSampleRowTexts", "labelAffinity", "correlateColumnIds"
+  ]);
 });
 
 test("decodes column ids from _fs spans against the row's own line number", () => {
@@ -228,7 +287,10 @@ test("decodes column ids from _fs spans against the row's own line number", () =
 test("reads the column axis from visible cells only and ignores excluded rows", () => {
   const core = createApi();
   const table = createMachine();
-  assert.deepEqual(plain(core.readColumnIds(table)), ["item", "quantity", "rate"]);
+  // M1.5: the axis no longer comes from _fs spans (spec Amendment A1.2). This
+  // machine carries no {machine}fields input, so it declines — the M1 expectation
+  // of ["item","quantity","rate"] from spans alone is the falsified mechanism.
+  assert.deepEqual(plain(core.readColumnIds(table)), []);
   assert.equal(core.visibleCells(table.rows[1]).length, 3);
   assert.equal(core.alignsToHeader(table.rows[1], ["item", "quantity", "rate"]), true);
   assert.equal(core.isDataRow(table.rows[1], ["item", "quantity", "rate"]), true);
@@ -246,6 +308,260 @@ test("refuses ordered machines, failing closed on anything unreadable", () => {
   assert.equal(core.isOrderedMachine(createMachine()), false);
   assert.equal(core.isOrderedMachine(createMachine({ className: "uir-machine-table uir-draggable-table" })), true);
   assert.equal(core.isOrderedMachine(null), true);
+});
+
+// ===== M1.5 identity: a verbatim slice of the live machine =====
+// Fields 0-24 of itemfields on SO 16342809, with the real line-1/line-2 values
+// and the real first twelve header labels and cell texts. Option-list values are
+// shortened; every other byte is as probed. This slice carries every pitfall the
+// full 154-field payload carries: a display twin (item_display/item), a
+// bookkeeping mirror that holds the same "0" as the real column
+// (quantitypickpackship), an ENQ option list (unitslist, pricelevels), a
+// comma-formatted number ("1,701" against raw 1701), and empty cells.
+const SOH = "\u0001";
+const STX = "\u0002";
+const ENQ = "\u0005";
+const LIVE_FIELDS = [
+  "item_display", "item", "olditemid", "quantitycommitted", "quantitypickpackship",
+  "quantityfulfilled", "quantitybilled", "quantitybackordered", "quantityavailable",
+  "quantity", "olditemcount", "units_display", "units", "unitslist", "unitconversionrate",
+  "description", "price_display", "price", "pricelevels", "custcol_rrp", "rate",
+  "rateschedule", "marginal", "oqpbucket", "amount"
+];
+const LIVE_LINE_1 = [
+  "MCH376", "4998", "4998", "0", "0", "0", "0", "", "82", "1", "1", "Ea", "3",
+  `3${ENQ}4${ENQ}5`, "1", "Magic Makeup Blender with Hard Case", "Custom", "-1",
+  `22${ENQ}50${ENQ}-1`, "", "14.545", "", "F", "", "14.55"
+];
+const LIVE_LINE_2 = [
+  "MCH214", "1405", "1405", "0", "0", "0", "0", "", "1701", "1", "1", "Ea", "3",
+  `3${ENQ}4${ENQ}5`, "1", "Everyday 6 Piece Essentials Set", "Custom", "-1",
+  `1${ENQ}22${ENQ}-1`, "", "30.909", "", "F", "", "30.91"
+];
+const LIVE_LABELS = [
+  "Item", "Committed", "Fulfilled", "Invoiced", "Back Ordered", "Available",
+  "Quantity", "Units", "Description", "Price Level", "RRP", "Unit Price"
+];
+const LIVE_ROW_1 = [
+  "MCH376", "0", "0", "0", "", "82", "1", "Ea",
+  "Magic Makeup Blender with Hard Case", "Custom", "", "14.545"
+];
+const LIVE_ROW_2 = [
+  "MCH214", "0", "0", "0", "", "1,701", "1", "Ea",
+  "Everyday 6 Piece Essentials Set", "Custom", "", "30.909"
+];
+const LIVE_AXIS = [
+  "item", "quantitycommitted", "quantityfulfilled", "quantitybilled",
+  "quantitybackordered", "quantityavailable", "quantity", "units", "description",
+  "price", "custcol_rrp", "rate"
+];
+const LIVE_FIELDS_VALUE = LIVE_FIELDS.join(SOH);
+const LIVE_DATA_VALUE = [LIVE_LINE_1.join(SOH), LIVE_LINE_2.join(SOH)].join(STX);
+
+// Builds the machine in the shape the live pass observed: bare-text data cells,
+// numbered {machine}_row_{n} ids, symmetric cell counts, and the hidden inputs on
+// the form. wrappedHeaders toggles the unprobed div.listheader wrapper.
+function createLiveMachine({
+  fieldsValue = LIVE_FIELDS_VALUE,
+  dataValue = LIVE_DATA_VALUE,
+  labels = LIVE_LABELS,
+  rows = [LIVE_ROW_1, LIVE_ROW_2],
+  focusedRowIndex = null,
+  wrappedHeaders = true
+} = {}) {
+  const form = createForm({ itemfields: fieldsValue, itemdata: dataValue });
+  const header = createRow({
+    className: "uir-machine-headerrow",
+    cells: labels.map((label) => createHeaderCell(label, { wrapped: wrappedHeaders }))
+  });
+  const dataRows = rows.map((texts, index) => createRow({
+    id: `item_row_${index + 1}`,
+    className: index === focusedRowIndex
+      ? "uir-machine-row uir-machine-row-focused"
+      : "uir-machine-row",
+    cells: texts.map((text) => createCell({ text }))
+  }));
+  return createTable([header, ...dataRows], { form });
+}
+
+test("parses the machine's serialized field list and line data", () => {
+  const core = createApi();
+  assert.equal(core.FIELD_DELIMITER, "\u0001");
+  assert.equal(core.LINE_DELIMITER, "\u0002");
+  assert.equal(core.OPTION_DELIMITER, "\u0005");
+  const parsed = core.parseMachineFieldData(LIVE_FIELDS_VALUE, LIVE_DATA_VALUE);
+  assert.equal(parsed.fieldIds.length, 25);
+  assert.equal(parsed.lines.length, 2);
+  assert.equal(parsed.lines[0].length, 25);
+  // The row separator is STX. The payload note calling ENQ the line separator is
+  // wrong: splitting on ENQ would shatter unitslist into dozens of phantom lines.
+  assert.equal(parsed.lines[1][0], "MCH214");
+  // No prefix stripping: internal-ids/core.js:75 would turn item_display into
+  // "_display" and item into "" for this machine.
+  assert.equal(parsed.fieldIds[0], "item_display");
+  assert.equal(parsed.fieldIds[1], "item");
+  // Gates.
+  assert.equal(core.parseMachineFieldData(LIVE_FIELDS_VALUE, `a${SOH}b`), null, "ragged line");
+  assert.equal(core.parseMachineFieldData(["a", "a"].join(SOH), ""), null, "duplicate field id");
+  assert.equal(core.parseMachineFieldData("solo", ""), null, "single field");
+  assert.equal(core.parseMachineFieldData(`a${SOH}`, ""), null, "empty field id");
+  assert.equal(core.parseMachineFieldData(null, null), null);
+  assert.equal(
+    core.parseMachineFieldData(new Array(core.MAX_MACHINE_FIELDS + 1).fill("f").map((f, i) => f + i).join(SOH), ""),
+    null,
+    "over MAX_MACHINE_FIELDS"
+  );
+  // An empty data value is legal — it just leaves the correlator no corroboration.
+  assert.deepEqual(plain(core.parseMachineFieldData(`a${SOH}b`, "").lines), []);
+});
+
+test("collapses display twins and drops option lists and bookkeeping mirrors", () => {
+  const core = createApi();
+  const parsed = core.parseMachineFieldData(LIVE_FIELDS_VALUE, LIVE_DATA_VALUE);
+  const columns = core.collapseDisplayTwins(parsed.fieldIds, parsed.lines);
+  const ids = columns.map((column) => column.id);
+  // item_display + item -> one candidate carrying the DISPLAY value.
+  assert.equal(ids.includes("item_display"), false);
+  assert.equal(columns.find((column) => column.id === "item").values[0], "MCH376");
+  assert.equal(columns.find((column) => column.id === "units").values[0], "Ea");
+  // ENQ-bearing option lists are never rendered cells.
+  assert.equal(ids.includes("unitslist"), false);
+  assert.equal(ids.includes("pricelevels"), false);
+  // The narrow mirror rule: "old"/"default" + an id present in the same list.
+  const mirrored = core.collapseDisplayTwins(
+    ["commitmentfirm", "oldcommitmentfirm", "orderallocationstrategy", "defaultorderallocationstrategy"],
+    [["F", "F", "-2", "-2"]]
+  ).map((column) => column.id);
+  // plain(): collapseDisplayTwins returns an array built inside the VM realm, so
+  // deepStrictEqual against a host-realm literal fails on the prototype alone.
+  assert.deepEqual(plain(mirrored), ["commitmentfirm", "orderallocationstrategy"]);
+  // …and it is narrow on purpose: olditemid's base ("itemid") is not in the list.
+  assert.equal(ids.includes("olditemid"), true);
+  assert.equal(ids.includes("quantitypickpackship"), true);
+  assert.equal(columns.length, 20);
+});
+
+test("scores label-to-field affinity in five tiers", () => {
+  const core = createApi();
+  assert.equal(core.labelAffinity("Quantity", "quantity"), 4);
+  assert.equal(core.labelAffinity("HS Code", "custcol_hs_code"), 4, "cust prefix dropped");
+  assert.equal(core.labelAffinity("Committed", "quantitycommitted"), 3, "suffix");
+  assert.equal(core.labelAffinity("Price Level", "price"), 3, "label starts with id");
+  assert.equal(core.labelAffinity("Allocation Strategy", "orderallocationstrategy"), 3);
+  assert.equal(core.labelAffinity("Exclude Item from Rate Request", "excludefromraterequest"), 1,
+    "4 of 5 label words occur in the id");
+  assert.equal(core.labelAffinity("Unit Price", "rate"), 0, "no lexical relation at all");
+  assert.equal(core.labelAffinity("Invoiced", "quantitybilled"), 0);
+  assert.equal(core.labelAffinity("", "quantity"), 0);
+  assert.equal(core.labelAffinity("Quantity", ""), 0);
+});
+
+test("correlates the live label set onto the live field list", () => {
+  const core = createApi();
+  const parsed = core.parseMachineFieldData(LIVE_FIELDS_VALUE, LIVE_DATA_VALUE);
+  const columns = core.collapseDisplayTwins(parsed.fieldIds, parsed.lines);
+  assert.deepEqual(
+    plain(core.correlateColumnIds(LIVE_LABELS, columns, [LIVE_ROW_1, LIVE_ROW_2])),
+    LIVE_AXIS
+  );
+  // "Fulfilled" is separated from quantitypickpackship — which holds the same "0"
+  // on every line — by label affinity alone; monotonicity then forces "Invoiced"
+  // onto quantitybilled, for which the label evidence is zero.
+  assert.equal(LIVE_AXIS[2], "quantityfulfilled");
+  assert.equal(LIVE_AXIS[3], "quantitybilled");
+  // "Available" corroborates through a thousands separator: "1,701" against 1701.
+  assert.equal(LIVE_AXIS[5], "quantityavailable");
+  // One sampled row is enough here; zero is not — the ambiguity gate then fires.
+  assert.deepEqual(plain(core.correlateColumnIds(LIVE_LABELS, columns, [LIVE_ROW_1])), LIVE_AXIS);
+  assert.deepEqual(plain(core.correlateColumnIds(LIVE_LABELS, columns, [])), []);
+  // Unrecognised locale: no label affinity anywhere, optimum wildly non-unique.
+  assert.deepEqual(
+    plain(core.correlateColumnIds(LIVE_LABELS.map((_, i) => `Colonne ${i}`), columns, [LIVE_ROW_1, LIVE_ROW_2])),
+    []
+  );
+  // Fewer candidates than labels, and a width below 2, both refuse.
+  assert.deepEqual(plain(core.correlateColumnIds(LIVE_LABELS, columns.slice(0, 5), [LIVE_ROW_1])), []);
+  assert.deepEqual(plain(core.correlateColumnIds(["Item"], columns, [LIVE_ROW_1])), []);
+});
+
+test("an empty raw value under a rendered cell is penalised, not excluded", () => {
+  const core = createApi();
+  // Constructed from live ids and live values, because the penalty is an
+  // AGGREGATE effect: measured against the real payload it is load-bearing at 22
+  // labels and above — with the penalty at 0 the full 43-label correlation stops
+  // being unique and declines — but the twelve-label slice above resolves either
+  // way. `rateschedule` holds "" on every line of SO 16342809, so it can absorb
+  // any label whose cell renders text unless it is pushed below the true column.
+  const parsed = core.parseMachineFieldData(
+    ["item_display", "item", "rateschedule", "marginal"].join(SOH),
+    ["MCH376", "4998", "", "F"].join(SOH)
+  );
+  const columns = core.collapseDisplayTwins(parsed.fieldIds, parsed.lines);
+  assert.deepEqual(plain(columns.map((column) => column.id)), ["item", "rateschedule", "marginal"]);
+  // Neither label has any affinity to rateschedule or marginal, so the empty raw
+  // value is the ONLY thing separating them: penalised, `marginal` wins outright.
+  assert.deepEqual(
+    plain(core.correlateColumnIds(["Item", "Oversell?"], columns, [["MCH376", "Yes"]])),
+    ["item", "marginal"]
+  );
+  // A penalty, never an exclusion: rateschedule stays reachable, which is what
+  // keeps a render transform we have not modelled from hiding the true field.
+  assert.deepEqual(
+    plain(core.correlateColumnIds(["Item", "Schedule"], columns, [["MCH376", "Yes"]])),
+    ["item", "rateschedule"]
+  );
+});
+
+test("duplicate header labels are separated by position, never by name", () => {
+  const core = createApi();
+  // The live form carries "GST" twice: the tax RATE and the tax AMOUNT. Pure
+  // label keying is refused by its own uniqueness gate; monotonic correlation
+  // resolves both because they sit at different points in the field list.
+  const fields = ["taxcode_display", "taxcode", "taxrate1", "grossamt", "tax1amt"].join(SOH);
+  const data = ["GST:GST", "7", "10.0%", "16.00", "1.45"].join(SOH);
+  const parsed = core.parseMachineFieldData(fields, data);
+  const columns = core.collapseDisplayTwins(parsed.fieldIds, parsed.lines);
+  const labels = ["Tax Code", "GST", "Gross Amt", "GST"];
+  const texts = [["GST:GST", "10.0%", "16.00", "1.45"]];
+  assert.deepEqual(
+    plain(core.correlateColumnIds(labels, columns, texts)),
+    ["taxcode", "taxrate1", "grossamt", "tax1amt"]
+  );
+});
+
+test("reads the column axis from the machine's hidden inputs and header labels", () => {
+  const core = createApi();
+  assert.equal(core.HEADER_LABEL_SELECTOR, "div.listheader");
+  assert.deepEqual(plain(core.readColumnIds(createLiveMachine())), LIVE_AXIS);
+  assert.deepEqual(plain(core.readHeaderLabels(createLiveMachine())), LIVE_LABELS);
+  // The wrapper is an optimisation, not a requirement: it was never probed, so
+  // bare-text header cells must read identically.
+  assert.deepEqual(plain(core.readHeaderLabels(createLiveMachine({ wrappedHeaders: false }))), LIVE_LABELS);
+  assert.deepEqual(plain(core.readColumnIds(createLiveMachine({ wrappedHeaders: false }))), LIVE_AXIS);
+  // Sample rows are indexed by their own line number, so skipping the open line
+  // leaves a hole instead of shifting every later row against {machine}data.
+  const withOpenFirstLine = createLiveMachine({ focusedRowIndex: 0 });
+  const samples = core.readSampleRowTexts(withOpenFirstLine, LIVE_LABELS.length, 2);
+  assert.equal(samples[0], undefined, "the open line contributes no text");
+  assert.deepEqual(plain(samples[1]), LIVE_ROW_2);
+  // …and the axis still resolves with only line 2 sampled.
+  assert.deepEqual(plain(core.readColumnIds(withOpenFirstLine)), LIVE_AXIS);
+});
+
+test("readColumnIds fails closed on every unusable machine", () => {
+  const core = createApi();
+  // No hidden inputs at all — the M1 live condition, and still a clean decline.
+  assert.deepEqual(plain(core.readColumnIds(createMachine())), []);
+  assert.deepEqual(plain(core.readColumnIds(createLiveMachine({ fieldsValue: "" }))), []);
+  assert.deepEqual(plain(core.readColumnIds(createLiveMachine({ dataValue: `a${SOH}b` }))), []);
+  // An empty header label is unusable: the live census found 43 labels, 0 empty.
+  const blanked = LIVE_LABELS.slice();
+  blanked[4] = "";
+  assert.deepEqual(plain(core.readColumnIds(createLiveMachine({ labels: blanked }))), []);
+  // No rendered lines: correlation is ambiguous, so the feature declines.
+  assert.deepEqual(plain(core.readColumnIds(createLiveMachine({ rows: [] }))), []);
+  assert.deepEqual(plain(core.readColumnIds(null)), []);
+  assert.deepEqual(plain(core.readColumnIds({})), []);
 });
 
 test("normalizes the stored container fail-closed and refuses a newer schema", () => {
@@ -517,17 +833,37 @@ function createLocation(value) {
   };
 }
 
+// The hidden inputs the harness machine decodes its axis from. Six field ids
+// collapse to five candidates (item_display/item is a display twin) against the
+// three header labels Item/Quantity/Rate, so the monotonic optimum is unique.
+// `olditemid` is carried deliberately: it is the live payload's proof that the
+// bookkeeping-mirror rule is narrow, and it must not disturb the alignment.
+const HARNESS_FIELDS = ["item_display", "item", "olditemid", "quantity", "rate", "amount"];
+const HARNESS_LINES = [
+  ["SKU-1001", "4998", "4998", "2", "11.00", "22.00"],
+  ["SKU-1002", "1405", "1405", "4", "12.00", "48.00"]
+];
+const HARNESS_FIELDS_VALUE = HARNESS_FIELDS.join(SOH);
+const HARNESS_DATA_VALUE = HARNESS_LINES.map((values) => values.join(SOH)).join(STX);
+
 function createRuntimeHarness({
   url = EDIT_URL,
   settings = { salesOrderColumnsEdit: true },
   stored,
   machine = {},
+  // null omits the hidden inputs entirely, which is how a harness models a
+  // machine whose axis cannot be decoded.
+  machineFields = HARNESS_FIELDS_VALUE,
+  machineData = HARNESS_DATA_VALUE,
   sessionSrc = SESSION_SRC,
   readError = null,
   holdRead = false
 } = {}) {
   const container = createContainer();
-  const table = machine ? createMachine({ ...machine, container }) : null;
+  const form = machineFields === null
+    ? null
+    : createForm({ itemfields: machineFields, itemdata: machineData });
+  const table = machine ? createMachine({ ...machine, container, form }) : null;
   const counts = { editReads: 0, settingsReads: 0, writes: 0 };
   const toasts = [];
   const errors = [];
@@ -696,8 +1032,14 @@ test("declines to install when the machine table is absent", async () => {
 
 test("declines to install on a read-only edit page whose column axis cannot be decoded", async () => {
   // ?e=F satisfies the route rule by design, so the install path is the only
-  // gate: no _fs spans means no column identity, and identity is mandatory.
-  const harness = createRuntimeHarness({ url: READ_ONLY_EDIT_URL, machine: { spans: false } });
+  // gate: no decodable {machine}fields input means no column identity, and
+  // identity is mandatory. Whether a real ?e=F page actually omits those hidden
+  // inputs was NOT probed — this asserts the decline, never the ?e=F shape.
+  const harness = createRuntimeHarness({
+    url: READ_ONLY_EDIT_URL,
+    machine: { spans: false },
+    machineFields: null
+  });
   await harness.flush();
   assert.equal(harness.lifecycle.evaluations, 1);
   assert.equal(harness.lifecycle.lastResult, false);
@@ -707,7 +1049,13 @@ test("declines to install on a read-only edit page whose column axis cannot be d
 });
 
 test("declines to install when the decoded axis carries duplicate ids", async () => {
-  const harness = createRuntimeHarness({ machine: { duplicate: true } });
+  // M1.5 moves the duplicate check to the field list itself: a {machine}fields
+  // input naming one id twice is refused by parseMachineFieldData before any
+  // correlation runs, so the axis is never decoded and the install declines.
+  const harness = createRuntimeHarness({
+    machine: { duplicate: true },
+    machineFields: ["item_display", "item", "olditemid", "quantity", "quantity", "amount"].join(SOH)
+  });
   await harness.flush();
   assert.equal(harness.lifecycle.lastResult, false);
   assert.equal(harness.counts.editReads, 0);
@@ -731,6 +1079,10 @@ test("mounts one hidden marker, binds once and writes nothing", async () => {
   });
   await harness.flush();
   assert.equal(harness.lifecycle.lastResult, true);
+  // The harness mounts because its axis DECODES, not by accident: pin the axis
+  // the runtime tests all run against, so a later edit to the hidden inputs
+  // cannot silently change what "mounted" means.
+  assert.deepEqual(plain(createApi().readColumnIds(harness.table)), ["item", "quantity", "rate"]);
   const mounted = harness.mounts();
   assert.equal(mounted.length, 1);
   assert.equal(mounted[0].tagName, "span");

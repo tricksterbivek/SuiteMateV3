@@ -29,6 +29,22 @@
   const MOVABLE_CELL_SELECTOR = "td.movable";
   const COLUMN_SPAN_SELECTOR = 'span[id$="_fs"]';
 
+  // The machine's serialization delimiters, written as code points: SOH separates
+  // fields, STX separates lines, and ENQ separates the options inside a single
+  // select field's value — it is NOT a line separator (spec Amendment A1.1).
+  const FIELD_DELIMITER = "\u0001";
+  const LINE_DELIMITER = "\u0002";
+  const OPTION_DELIMITER = "\u0005";
+  const HEADER_LABEL_SELECTOR = "div.listheader";
+  const MAX_MACHINE_FIELDS = 400;
+  const MAX_SAMPLE_ROWS = 8;
+  const DISPLAY_SUFFIX = "_display";
+  const MIRROR_PREFIXES = Object.freeze(["old", "default"]);
+  const CUSTOM_FIELD_PREFIX = /^cust(?:col|colsd|column|record|event|entity|body)?$/;
+  const MACHINE_ID_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+  const MISSING_VALUE_PENALTY = -4;
+  const LABEL_WEIGHT = 2;
+
   const DATA_ATTRIBUTE = "data-suitemate-v3-edit-grid";
   const NATIVE_ROW_ATTRIBUTE = "data-suitemate-v3-edit-grid-native-row";
   const BOUND_ATTRIBUTE = "data-suitemate-v3-edit-grid-bound";
@@ -231,6 +247,219 @@
     return writeField(stored, scopeKey, "widths", widths, normalizeWidths);
   }
 
+  // ===== Machine field data: the primary identity source =====
+  // The machine serializes its own field list and line values into two hidden
+  // inputs on the form. The field list is form-determined, unprefixed and
+  // i18n-proof, which is why it — and not the header text or the visible index —
+  // supplies every column id this feature stores (spec Amendment A1.2).
+  function parseMachineFieldData(fieldsValue, dataValue) {
+    const fieldIds = String(fieldsValue ?? "").split(FIELD_DELIMITER);
+    if (
+      fieldIds.length < 2
+      || fieldIds.length > MAX_MACHINE_FIELDS
+      || !fieldIds.every((id) => normalizeColumnId(id))
+      || new Set(fieldIds).size !== fieldIds.length
+    ) {
+      return null;
+    }
+    const serialized = String(dataValue ?? "");
+    const lines = serialized === ""
+      ? []
+      : serialized.split(LINE_DELIMITER).map((line) => line.split(FIELD_DELIMITER));
+    if (lines.some((values) => values.length !== fieldIds.length)) {
+      return null;
+    }
+    return { fieldIds, lines: lines.slice(0, MAX_SAMPLE_ROWS) };
+  }
+
+  function machineFieldInputValue(table, suffix) {
+    // closest("form") is the ONLY route to these inputs: core.js may not touch a
+    // document global, and `ownerDocument.` trips the source-purity test.
+    const machineId = machineIdFromTable(table);
+    const form = table?.closest?.("form");
+    if (!MACHINE_ID_PATTERN.test(machineId) || typeof form?.querySelector !== "function") {
+      return null;
+    }
+    const name = `${machineId}${suffix}`;
+    const input = form.querySelector(`input[name="${name}"]`) ?? form.querySelector(`#${name}`);
+    return typeof input?.value === "string" ? input.value : null;
+  }
+
+  function readMachineFieldData(table) {
+    try {
+      return parseMachineFieldData(
+        machineFieldInputValue(table, "fields"),
+        machineFieldInputValue(table, "data")
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  function collapseDisplayTwins(fieldIds, lines) {
+    const present = new Set(fieldIds);
+    const columns = [];
+    for (let index = 0; index < fieldIds.length; index += 1) {
+      const id = fieldIds[index];
+      const base = id.endsWith(DISPLAY_SUFFIX) ? id.slice(0, -DISPLAY_SUFFIX.length) : null;
+      // {X}_display immediately followed by {X} is one column rendered by its
+      // display value; the raw id is what gets stored.
+      const paired = base !== null && fieldIds[index + 1] === base;
+      const values = lines.map((line) => String(line[index] ?? ""));
+      // A value carrying ENQ is a serialized select option list, never a cell.
+      const optionList = values.some((value) => value.includes(OPTION_DELIMITER));
+      // "old"/"default" + an id present in the same list is a bookkeeping mirror.
+      // Deliberately narrow: olditemid survives because "itemid" is not a field.
+      const mirror = MIRROR_PREFIXES.some(
+        (prefix) => id.startsWith(prefix) && present.has(id.slice(prefix.length))
+      );
+      if (!optionList && !mirror) {
+        columns.push({ id: paired ? base : id, values });
+      }
+      if (paired) {
+        index += 1;
+      }
+    }
+    return columns;
+  }
+
+  // ===== Label-to-field correlation =====
+  function identifierTokens(value) {
+    return String(value ?? "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  }
+
+  function columnIdTokens(columnId) {
+    const tokens = identifierTokens(columnId);
+    const trimmed = tokens.filter(
+      (token, index) => !(index === 0 && CUSTOM_FIELD_PREFIX.test(token)) && !/^[0-9]+$/.test(token)
+    );
+    return trimmed.length ? trimmed : tokens;
+  }
+
+  function labelAffinity(label, columnId) {
+    const labelParts = identifierTokens(label);
+    const idParts = columnIdTokens(columnId);
+    if (!labelParts.length || !idParts.length) {
+      return 0;
+    }
+    const flatLabel = labelParts.join("");
+    const flatId = idParts.join("");
+    if (flatLabel === flatId) {
+      return 4;
+    }
+    if (
+      flatId.startsWith(flatLabel) || flatId.endsWith(flatLabel)
+      || flatLabel.startsWith(flatId) || flatLabel.endsWith(flatId)
+    ) {
+      return 3;
+    }
+    if (flatId.includes(flatLabel) || flatLabel.includes(flatId)) {
+      return 2;
+    }
+    const words = labelParts.filter((token) => token.length >= 3);
+    if (!words.length) {
+      return 0;
+    }
+    const covered = words.filter((token) => flatId.includes(token)).length;
+    if (covered === words.length) {
+      return 2;
+    }
+    return covered * 2 >= words.length ? 1 : 0;
+  }
+
+  function comparableNumber(text) {
+    const trimmed = String(text ?? "").trim().replace(/,/g, "");
+    return trimmed !== "" && /^-?[0-9]*\.?[0-9]+$/.test(trimmed) ? Number(trimmed) : null;
+  }
+
+  function textMatchesValue(cellText, rawValue) {
+    const cell = String(cellText ?? "").trim();
+    const raw = String(rawValue ?? "").trim();
+    if (cell === "" || raw === "") {
+      return false;
+    }
+    if (cell === raw) {
+      return true;
+    }
+    const cellNumber = comparableNumber(cell);
+    const rawNumber = comparableNumber(raw);
+    return cellNumber !== null && rawNumber !== null && cellNumber === rawNumber;
+  }
+
+  function correlationScore(label, column, sampleTexts, labelIndex) {
+    let penalty = 0;
+    let corroborated = false;
+    for (let row = 0; row < sampleTexts.length; row += 1) {
+      const text = String(sampleTexts[row]?.[labelIndex] ?? "").trim();
+      if (text === "") {
+        continue;
+      }
+      // A rendered non-empty cell backed by an empty raw value is evidence
+      // against this pairing — but only evidence. Seven of the 43 live columns
+      // render through a transform (list text, blank checkbox), so an exclusion
+      // here would put the true field out of reach.
+      if (String(column.values[row] ?? "").trim() === "") {
+        penalty = MISSING_VALUE_PENALTY;
+      }
+      corroborated = corroborated || textMatchesValue(text, column.values[row]);
+    }
+    return penalty + LABEL_WEIGHT * labelAffinity(label, column.id) + (corroborated ? 1 : 0);
+  }
+
+  function correlateColumnIds(labels, columns, sampleTexts) {
+    const width = labels.length;
+    const count = columns.length;
+    if (width < 2 || width > MAX_COLUMN_IDS || count < width) {
+      return [];
+    }
+    const scores = labels.map(
+      (label, labelIndex) => columns.map((column) => correlationScore(label, column, sampleTexts, labelIndex))
+    );
+    // Backward DP over (labelIndex, firstAllowedCandidate). best[] is the top
+    // score for the remaining labels; paths[] COUNTS the alignments that reach
+    // it, which is what makes the ambiguity gate a measurement, not a guess.
+    const best = [];
+    const paths = [];
+    for (let k = 0; k <= width; k += 1) {
+      best.push(new Array(count + 1).fill(Number.NEGATIVE_INFINITY));
+      paths.push(new Array(count + 1).fill(0));
+    }
+    best[width].fill(0);
+    paths[width].fill(1);
+    for (let k = width - 1; k >= 0; k -= 1) {
+      for (let c = count - (width - k); c >= 0; c -= 1) {
+        let top = Number.NEGATIVE_INFINITY;
+        let ways = 0;
+        for (let i = c; i <= count - (width - k); i += 1) {
+          const total = scores[k][i] + best[k + 1][i + 1];
+          if (total > top) {
+            top = total;
+            ways = paths[k + 1][i + 1];
+          } else if (total === top) {
+            ways += paths[k + 1][i + 1];
+          }
+        }
+        best[k][c] = top;
+        paths[k][c] = ways;
+      }
+    }
+    if (paths[0][0] !== 1) {
+      return [];
+    }
+    const ids = [];
+    let cursor = 0;
+    for (let k = 0; k < width; k += 1) {
+      for (let i = cursor; i <= count - (width - k); i += 1) {
+        if (scores[k][i] + best[k + 1][i + 1] === best[k][cursor]) {
+          ids.push(columns[i].id);
+          cursor = i + 1;
+          break;
+        }
+      }
+    }
+    return ids.length === width && new Set(ids).size === width ? ids : [];
+  }
+
   // ===== Edit-Mode DOM identity =====
   function tableRows(table) {
     return Array.from(table?.rows ?? []);
@@ -286,6 +515,45 @@
     }
   }
 
+  function nodeText(node) {
+    return String(node?.textContent ?? "").replace(/\s+/g, " ").trim();
+  }
+
+  function isFocusedRow(row) {
+    try {
+      // Fail closed: a row that cannot be interrogated is treated as open, so
+      // its widget text can never be mistaken for cell data.
+      return row?.matches?.(FOCUSED_ROW_SELECTOR) !== false;
+    } catch {
+      return true;
+    }
+  }
+
+  function readHeaderLabels(table) {
+    return visibleCells(headerRow(table))
+      .map((cell) => nodeText(cell?.querySelector?.(HEADER_LABEL_SELECTOR) ?? cell));
+  }
+
+  function readSampleRowTexts(table, width, lineCount) {
+    const machineId = machineIdFromTable(table);
+    const header = headerRow(table);
+    const samples = [];
+    for (const row of tableRows(table)) {
+      const line = row === header ? null : rowLineNumber(row, machineId);
+      if (line === null || line > lineCount || isExcludedRow(row) || isFocusedRow(row)) {
+        continue;
+      }
+      const cells = visibleCells(row);
+      if (cells.length !== width) {
+        continue;
+      }
+      // Indexed by the row's OWN line number: an open line that is skipped must
+      // leave a hole, not shift every later row against {machine}data.
+      samples[line - 1] = cells.map(nodeText);
+    }
+    return samples;
+  }
+
   function alignsToHeader(row, columnIds) {
     return Array.isArray(columnIds)
       && columnIds.length > 0
@@ -305,27 +573,18 @@
 
   function readColumnIds(table) {
     try {
-      const header = headerRow(table);
-      const width = visibleCells(header).length;
-      if (!width) {
+      const labels = readHeaderLabels(table);
+      if (labels.length < 2 || labels.some((label) => !label)) {
         return [];
       }
-      const machineId = machineIdFromTable(table);
-      for (const row of tableRows(table)) {
-        if (row === header || isExcludedRow(row) || visibleCells(row).length !== width) {
-          continue;
-        }
-        const line = rowLineNumber(row, machineId);
-        if (line === null) {
-          continue;
-        }
-        const ids = visibleCells(row).map((cell) =>
-          columnIdFromSpanId(cell?.querySelector?.(COLUMN_SPAN_SELECTOR)?.id, machineId, line) ?? "");
-        if (ids.every(Boolean)) {
-          return ids;
-        }
+      const machineData = readMachineFieldData(table);
+      if (!machineData) {
+        return [];
       }
-      return [];
+      const columns = collapseDisplayTwins(machineData.fieldIds, machineData.lines);
+      const samples = readSampleRowTexts(table, labels.length, machineData.lines.length);
+      const ids = correlateColumnIds(labels, columns, samples);
+      return ids.every((id) => normalizeColumnId(id)) ? ids : [];
     } catch {
       return [];
     }
@@ -361,6 +620,8 @@
       MAX_COLUMN_IDS,
       ABSOLUTE_MIN_COLUMN_WIDTH,
       MAX_COLUMN_WIDTH,
+      MAX_MACHINE_FIELDS,
+      MAX_SAMPLE_ROWS,
       MACHINE_TABLE_SELECTOR,
       MACHINE_CONTAINER_SELECTOR,
       HEADER_ROW_SELECTOR,
@@ -368,6 +629,10 @@
       FOCUSED_ROW_SELECTOR,
       EXCLUDED_ROW_SELECTOR,
       COLUMN_SPAN_SELECTOR,
+      HEADER_LABEL_SELECTOR,
+      FIELD_DELIMITER,
+      LINE_DELIMITER,
+      OPTION_DELIMITER,
       DATA_ATTRIBUTE,
       NATIVE_ROW_ATTRIBUTE,
       BOUND_ATTRIBUTE,
@@ -389,7 +654,14 @@
       alignsToHeader,
       isDataRow,
       readColumnIds,
-      isOrderedMachine
+      isOrderedMachine,
+      parseMachineFieldData,
+      readMachineFieldData,
+      collapseDisplayTwins,
+      readHeaderLabels,
+      readSampleRowTexts,
+      labelAffinity,
+      correlateColumnIds
     }),
     configurable: false,
     enumerable: true,
