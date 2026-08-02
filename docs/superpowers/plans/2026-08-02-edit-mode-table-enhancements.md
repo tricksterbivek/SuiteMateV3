@@ -470,6 +470,7 @@ git commit -m "test: chrome stub serves the edit-grid storage key with a write c
 - Consumes: `TextEncoder` (the only sandbox global, exactly as `tests/so-columns.test.mjs:11-16` injects it).
 - Produces — the names every later task uses:
   - Constants: `VERSION = 1`, `STORAGE_KEY = "suiteMateV3EditColumns"`, `STORAGE_SCHEMA_VERSION = 1`, `MAX_SYNC_ITEM_BYTES = 7800`, `MAX_COLUMN_ID_LENGTH = 200`, `MAX_COLUMN_IDS = 100`, `ABSOLUTE_MIN_COLUMN_WIDTH = 50`, `MAX_COLUMN_WIDTH = 1000`, `MACHINE_TABLE_SELECTOR = "#item_splits"`, `MACHINE_CONTAINER_SELECTOR = ".uir-machine-table-container"`, `HEADER_ROW_SELECTOR = "tr.uir-machine-headerrow"`, `DATA_ROW_SELECTOR = "tr.uir-machine-row"`, `FOCUSED_ROW_SELECTOR`, `EXCLUDED_ROW_SELECTOR`, `COLUMN_SPAN_SELECTOR = 'span[id$="_fs"]'`, `DATA_ATTRIBUTE`, `NATIVE_ROW_ATTRIBUTE`, `BOUND_ATTRIBUTE`, `FOREIGN_NODE_SELECTOR`, `CLASSES`.
+  - Widths: `clampWidth(value, minimum)`.
   - Storage: `normalizeStored(value)`, `refusesNewerSchema(stored)`, `withOrder(stored, key, ids|null)`, `withHidden(stored, key, ids|null)`, `withWidths(stored, key, widths|null)`.
   - DOM: `machineIdFromTable(table)`, `rowLineNumber(row, machineId)`, `columnIdFromSpanId(spanId, machineId, line)`, `visibleCells(row)`, `tableRows(table)`, `headerRow(table)`, `isExcludedRow(row)`, `alignsToHeader(row, columnIds)`, `isDataRow(row, columnIds)`, `readColumnIds(table)`, `isOrderedMachine(table)`.
 
@@ -4679,7 +4680,7 @@ Four tasks. **Prerequisite:** M1 probe 6b recorded the machine as **not** native
 - Test: `tests/edit-grid.test.mjs` (three tests before the source-purity test)
 
 **Interfaces:**
-- Consumes: `isDataRow`, `isExcludedRow`, `visibleCells`, `readCellText`, `isOrderedMachine`, `isPlainObject`, `CLASSES.rowFiltered` (Tasks 5, 15).
+- Consumes: `isDataRow`, `isExcludedRow`, `visibleCells`, `readCellText`, `headerRow`, `tableRows`, `isOrderedMachine`, `isPlainObject`, `CLASSES.rowFiltered` (Tasks 5, 15).
 - Produces: `core.parseFilterQuery(raw) -> {op, value}|null`, `core.matchesFilter(cellText, query) -> boolean`, `core.applyRowFilters(table, queries, columnIds, forcedRows) -> boolean` where `queries` is `{ [columnId]: { anyOf?: string[], op?, value? } }`, and `core.distinctColumnValuesEdit(table, columnIndex, columnIds, cap) -> string[]`. Task 29 uses all four.
 
 - [ ] **Step 1: Write the failing tests** — insert before the source-purity test:
@@ -4876,7 +4877,7 @@ git commit -m "feat: edit-grid row filtering with an unconditional ordered-machi
 - Modify: `src/edit-grid/runtime.js` (module state; new filter section; `ensureControls`, `renderSignature`, `targetSignature`, `applyAll`, `handleContainerClick`, `installEditGrid`, `removeEditGrid`)
 
 **Interfaces:**
-- Consumes: `core.applyRowFilters`, `core.parseFilterQuery`, `core.distinctColumnValuesEdit`, `core.isOrderedMachine`, `core.readHeaderLabels` (Tasks 5, 15, 28).
+- Consumes: `core.applyRowFilters`, `core.parseFilterQuery`, `core.distinctColumnValuesEdit`, `core.isOrderedMachine` (Tasks 5, 15, 28).
 - Produces: `rowFilters: { [columnId]: { anyOf?: string[], op?, value? } }` (**session-only, never persisted**), `filterQueryText: { [columnId]: string }`, `applyCurrentFilters(table, columnIds)`, `forcedFilterRows(table, columnIds)`, `openFilterMenu(table, columnId)`, `setColumnFilter(columnId, next)`, `renderScopeNote(table, columnIds)`. M7 reuses `openFilterMenu` for its sort entries.
 
 - [ ] **Step 1: Add module state.** Beside `let columnOrder = [];` add:
@@ -4999,20 +5000,27 @@ git commit -m "feat: edit-grid row filtering with an unconditional ordered-machi
     return controlButtons?.menu?.dataset.columnId ?? null;
   }
 
+  function recomputeColumnFilter(columnId) {
+    // One place computes a column's query from the menu's own state, so the
+    // checkbox path and the search-text path can never disagree — including on
+    // a column with zero distinct values, where there are no checkboxes at all.
+    const boxes = [...(controlButtons?.menu?.querySelectorAll(`[${core.DATA_ATTRIBUTE}="filter-value"]`) ?? [])];
+    const checked = boxes.filter((entry) => entry.checked).map((entry) => entry.dataset.value);
+    const anyOf = boxes.length && checked.length !== boxes.length ? checked : null;
+    const query = core.parseFilterQuery(filterQueryText[columnId] ?? "");
+    setColumnFilter(
+      columnId,
+      anyOf || query ? { ...(anyOf ? { anyOf } : {}), ...(query ?? {}) } : null
+    );
+  }
+
   function handleFilterMenuChange(event) {
     const box = event.target?.closest?.(`[${core.DATA_ATTRIBUTE}="filter-value"]`);
     const columnId = currentMenuColumnId();
     if (!box || !columnId) {
       return;
     }
-    const checked = [...controlButtons.menu.querySelectorAll(`[${core.DATA_ATTRIBUTE}="filter-value"]`)]
-      .filter((entry) => entry.checked)
-      .map((entry) => entry.dataset.value);
-    const all = [...controlButtons.menu.querySelectorAll(`[${core.DATA_ATTRIBUTE}="filter-value"]`)].length;
-    const text = filterQueryText[columnId] ?? "";
-    const query = core.parseFilterQuery(text);
-    const anyOf = checked.length === all ? null : checked;
-    setColumnFilter(columnId, anyOf || query ? { ...(anyOf ? { anyOf } : {}), ...(query ?? {}) } : null);
+    recomputeColumnFilter(columnId);
   }
 
   function handleFilterMenuInput(event) {
@@ -5022,7 +5030,7 @@ git commit -m "feat: edit-grid row filtering with an unconditional ordered-machi
       return;
     }
     filterQueryText = { ...filterQueryText, [columnId]: field.value };
-    handleFilterMenuChange({ target: controlButtons.menu.querySelector(`[${core.DATA_ATTRIBUTE}="filter-value"]`) ?? field });
+    recomputeColumnFilter(columnId);
   }
 
   function handleFilterMenuClick(event) {
@@ -5037,16 +5045,30 @@ git commit -m "feat: edit-grid row filtering with an unconditional ordered-machi
   }
 ```
 
-- [ ] **Step 3: Open the menu from a header click.** In `handleContainerClick`, after the `chip` branch add:
+- [ ] **Step 3: Open the menu from a header click.** A header cell is **not** a SuiteMate-owned node, so it never reaches the role branches — the header case has to be handled where the owned-node guard bails out. In `handleContainerClick`, replace
 
 ```js
-    const headerCell = event.target?.closest?.("td");
-    if (!personalizing && headerCell && headerCellsOf(table).includes(headerCell)) {
-      const columnId = columnIdOfHeaderCell(table, headerCell);
-      if (columnId) {
-        event.preventDefault();
-        openFilterMenu(table, columnId);
+    if (!owned || !table) {
+      return;
+    }
+```
+
+with
+
+```js
+    if (!table) {
+      return;
+    }
+    if (!owned) {
+      const headerCell = event.target?.closest?.("td");
+      if (!personalizing && headerCell && headerCellsOf(table).includes(headerCell)) {
+        const columnId = columnIdOfHeaderCell(table, headerCell);
+        if (columnId) {
+          event.preventDefault();
+          openFilterMenu(table, columnId);
+        }
       }
+      return;
     }
 ```
 
@@ -5279,7 +5301,7 @@ Six tasks (32-33 build, 34 live with the exit branch or 34A close-out, then 35-3
 - Test: `tests/edit-grid.test.mjs` (stub helper + three tests before the source-purity test)
 
 **Interfaces:**
-- Consumes: `isDataRow`, `visibleCells`, `readCellText`, `isOrderedMachine`, `tableRows`, `NATIVE_ROW_ATTRIBUTE` (Tasks 5, 15).
+- Consumes: `isDataRow`, `visibleCells`, `readCellText`, `isOrderedMachine`, `tableRows`, `NATIVE_ROW_ATTRIBUTE` (Tasks 5, 15) and the private helper `cleanNumber` (Task 28) — `parseSortValue`/`detectColumnKind` do not parse without it, so **Task 28 must be run even on the branch where M6 is closed**.
 - Produces: `core.parseSortValue(text, kind) -> {empty, value}`, `core.detectColumnKind(values) -> "text"|"number"|"date"`, `core.sortRowsEdit(table, columnIndex, direction, columnIds) -> boolean` with `direction ∈ {"asc","desc","native"}`. Task 33 uses all three.
 
 - [ ] **Step 1: Give the stub a parent node.** In `tests/edit-grid.test.mjs`, add this helper beside `createTable` and call it at the end of `createMachine` (`return attachParent(createTable([...]));`):
@@ -6083,7 +6105,7 @@ git add save/CHECKPOINTS.md && git commit -m "docs: record the v3.22.0 release" 
 
 **2. Placeholder scan.** Every code step carries real code; every command step carries the exact command and its expected output. The only `<…>` markers are in document templates (checkpoint verdicts, log lines, completion-doc cells) where the value is an observation that cannot exist before the step runs — each is accompanied by the instruction "**No `<`-bracketed placeholder may survive the commit.**" No "TBD", no "add error handling", no "similar to Task N" (the safety protocol and the View Mode regression steps are repeated in full in every task that needs them, deliberately, because tasks are read out of order).
 
-**3. Type and name consistency.** Verified across all tasks: `readColumnIds`/`visibleCells`/`alignsToHeader`/`isDataRow`/`isExcludedRow`/`columnIdFromSpanId`/`rowLineNumber`/`machineIdFromTable`/`isOrderedMachine`/`clampWidth`/`columnMinimums`/`applyWidths`/`readCellText`/`readHeaderLabels`/`applyHidden`/`planOrder`/`moveColumn`/`applyOrderEdit`/`mergeOrder`/`mergeHidden`/`parseFilterQuery`/`matchesFilter`/`applyRowFilters`/`distinctColumnValuesEdit`/`parseSortValue`/`detectColumnKind`/`sortRowsEdit`/`normalizeStored`/`refusesNewerSchema`/`withOrder`/`withHidden`/`withWidths` are defined once and called with the same argument lists everywhere. Runtime seams `installEditGrid`/`removeEditGrid`/`relevant`/`renderSignature(table, columnIds)`/`targetSignature(table, columnIds)`/`applyAll(table, columnIds)`/`queueApply(reason)`/`enqueueSave`/`ensureBindings`/`releaseBindings`/`ensureControls`/`headerCellsOf`/`columnIdOfHeaderCell`/`machineColumnIds`/`forcedRows`/`effectiveHidden` keep one signature from M1 to M7. Storage shapes are uniform: container `{schemaVersion:1, grids:{[scope]:{order?,hidden?,widths?}}}`; `rowFilters` and `sortState` are session-only module state and never enter that container. Constant names (`STORAGE_KEY`, `DATA_ATTRIBUTE`, `NATIVE_ROW_ATTRIBUTE`, `BOUND_ATTRIBUTE`, `ABSOLUTE_MIN_COLUMN_WIDTH`, `MAX_COLUMN_IDS`, `MAX_COLUMN_ID_LENGTH`, `CLASSES.*`) match the frozen-contract test in Task 5.
+**3. Type and name consistency.** Verified across all tasks: `readColumnIds`/`visibleCells`/`alignsToHeader`/`isDataRow`/`isExcludedRow`/`columnIdFromSpanId`/`rowLineNumber`/`machineIdFromTable`/`isOrderedMachine`/`clampWidth`/`columnMinimums`/`applyWidths`/`readCellText`/`readHeaderLabels`/`applyHidden`/`planOrder`/`moveColumn`/`applyOrderEdit`/`mergeOrder`/`mergeHidden`/`parseFilterQuery`/`matchesFilter`/`applyRowFilters`/`distinctColumnValuesEdit`/`parseSortValue`/`detectColumnKind`/`sortRowsEdit`/`normalizeStored`/`refusesNewerSchema`/`withOrder`/`withHidden`/`withWidths` are defined once and called with the same argument lists everywhere. Runtime seams `installEditGrid`/`removeEditGrid`/`relevant`/`renderSignature(table, columnIds)`/`targetSignature(table, columnIds)`/`applyAll(table, columnIds)`/`queueApply(reason)`/`enqueueSave`/`ensureBindings`/`releaseBindings`/`ensureControls`/`headerCellsOf`/`columnIdOfHeaderCell`/`machineColumnIds`/`forcedRows`/`effectiveHidden` keep one signature from M1 to M7. Storage shapes are uniform: container `{schemaVersion:1, grids:{[scope]:{order?,hidden?,widths?}}}`; `rowFilters` and `sortState` are session-only module state and never enter that container. Constant names (`STORAGE_KEY`, `DATA_ATTRIBUTE`, `NATIVE_ROW_ATTRIBUTE`, `BOUND_ATTRIBUTE`, `ABSOLUTE_MIN_COLUMN_WIDTH`, `MAX_COLUMN_IDS`, `MAX_COLUMN_ID_LENGTH`) match the frozen-contract test in Task 5. **Known gap (see review findings):** the frozen-contract test asserts only `CLASSES.colHidden` and `CLASSES.rowFiltered` of the eleven keys, and `FOCUSED_ROW_SELECTOR`, `EXCLUDED_ROW_SELECTOR` and `FOREIGN_NODE_SELECTOR` are exported but unasserted; `suitemate-v3-edit-grid-resizing` and `-sorted` are bare string literals that never enter `CLASSES`.
 
 **4. Two interpretations pinned while writing (neither is a spec deviation; both are recorded so a reviewer can challenge them).**
 
