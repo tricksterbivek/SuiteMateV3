@@ -47,6 +47,7 @@
       (() => {
         const COLUMNS = ["item", "quantity", "rate", "amount"];
         const LABELS = { item: "Item", quantity: "Quantity", rate: "Rate", amount: "Amount" };
+        const ITEM_OPTIONS = ["SKU-1001", "SKU-2004", "SKU-3300"];
         const table = document.querySelector("#item_splits");
         let lines = [
           { item: "SKU-1001", quantity: "2", rate: "18.00", amount: "36.00" },
@@ -71,6 +72,29 @@
           return td;
         }
 
+        function textInput(value) {
+          const input = document.createElement("input");
+          input.type = "text";
+          input.value = value;
+          input.defaultValue = value;
+          return input;
+        }
+
+        function itemSelect(value) {
+          const select = document.createElement("select");
+          // The row's own item is always in the list, so the pristine value is
+          // the row's value and never a fallback to options[0].
+          const values = ITEM_OPTIONS.includes(value) ? ITEM_OPTIONS : [value, ...ITEM_OPTIONS];
+          for (const candidate of values) {
+            const option = document.createElement("option");
+            option.value = candidate;
+            option.textContent = candidate;
+            option.defaultSelected = candidate === value;
+            select.append(option);
+          }
+          return select;
+        }
+
         function buildTable() {
           const body = document.createElement("tbody");
           const header = document.createElement("tr");
@@ -83,7 +107,15 @@
             th.append(label);
             header.append(th);
           }
-          header.append(cell("", { systemHidden: true }));
+          // ASYMMETRIC ON PURPOSE, and load-bearing: the header gets NO system
+          // cell, so it has 4 cells while every data row has 5 (4 + one inline
+          // display:none system cell). That is the dossier's real machine shape,
+          // and it is what makes core.visibleCells()'s display:none filter
+          // testable: delete that filter and the header reads 4 while data rows
+          // read 5, nothing aligns, readColumnIds returns [] and install fails
+          // closed. With a symmetric 5/5 shape the same mutation reads 5 == 5,
+          // leaks the system column "sys" into the ids, and installs happily —
+          // the regression this fixture exists to catch would sail through.
           body.append(header);
 
           lines.forEach((line, index) => {
@@ -97,11 +129,15 @@
                 td.className = "uir-machine-focused-cell";
                 const span = document.createElement("span");
                 span.id = `item_${column}${number}_fs`;
-                const input = document.createElement("input");
-                input.type = "text";
-                input.value = line[column];
-                input.defaultValue = line[column];
-                span.append(input);
+                // The item column's open-line widget is a <select>, because
+                // NetSuite's is: runtime.js fieldIsDirty() has a SELECT-only
+                // branch (defaultSelected ?? first option) that an all-<input>
+                // open line can never reach, and M2's perColumnMin measures the
+                // widest widget in a column — calibrating that against text
+                // inputs alone would size every column too narrow for the real
+                // machine. defaultSelected is the `selected` attribute, so the
+                // untouched select reads pristine, not dirty.
+                span.append(column === "item" ? itemSelect(line.item) : textInput(line[column]));
                 td.append(span);
                 row.append(td);
               } else {
@@ -170,8 +206,11 @@
           // dataset.editGridWrites on every suiteMateV3EditColumns write, so a
           // seed left uncounted turns "seeded storage + reload = zero writes"
           // into "one write", and a seed counted-then-forgotten turns it into a
-          // false green. This resets the counter itself, after the write lands,
-          // so the caller measures only what the runtime did.
+          // false green. This DISCOUNTS ONLY ITS OWN WRITE — it restores the
+          // counter's prior value rather than zeroing it, so a write that
+          // happened before the seed still shows. Zeroing would erase that
+          // evidence and make load -> seed -> repaint -> assert-0 pass even when
+          // load wrote; restoring keeps that pattern able to fail.
           //
           // Fresh containers, never a mutated one: chrome-stub.js hands
           // onChanged listeners the stored object BY REFERENCE (no clone), so a
@@ -184,13 +223,21 @@
           // this exists for M2+ (widths), M3 (hidden) and M4 (order). M1's own
           // round-trip asserts the counter never leaves 0 without seeding at all.
           async seed(entry, scopeKey = SCOPE_KEY) {
+            const before = document.documentElement.dataset.editGridWrites;
             await chrome.storage.sync.set({
-              suiteMateV3EditColumns: {
-                schemaVersion: 1,
+              [SuiteMateV3EditGridCore.STORAGE_KEY]: {
+                schemaVersion: SuiteMateV3EditGridCore.STORAGE_SCHEMA_VERSION,
                 grids: { [scopeKey]: JSON.parse(JSON.stringify(entry)) }
               }
             });
-            document.documentElement.dataset.editGridWrites = "0";
+            // Restore, never zero. `undefined` before the seed means no write
+            // had happened, so the attribute goes back to absent — not to "0",
+            // which would be indistinguishable from a counter that was reset.
+            if (before === undefined) {
+              delete document.documentElement.dataset.editGridWrites;
+            } else {
+              document.documentElement.dataset.editGridWrites = before;
+            }
           }
         };
         buildTable();
