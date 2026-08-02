@@ -887,6 +887,31 @@ test("installs without a session status script and without its identifiers", asy
   assert.equal(withoutIds.mounts().length, 1);
 });
 
+test("an open line is detected under either button-row class name", () => {
+  // Same slice technique as the dirty-field test below: isLineOpen() has no
+  // reachable caller until M2 wires queue-while-open, so this evaluates the
+  // shipped bytes with their three dependencies injected.
+  const [predicate] = runtimeSource.match(/ {2}function isLineOpen\(\) \{[\s\S]*?\n {2}\}/) ?? [];
+  assert.equal(Boolean(predicate), true, "isLineOpen is no longer a named function in runtime.js");
+  const core = createApi();
+  const lineOpen = (rows, { table = createTable(rows) } = {}) => {
+    const sandbox = { core, activeTable: table, machineTable: () => table };
+    sandbox.globalThis = sandbox;
+    runInNewContext(`${predicate}\nglobalThis.result = isLineOpen();`, sandbox);
+    return sandbox.result;
+  };
+  const header = createRow({ className: "uir-machine-headerrow", cells: [createCell()] });
+  const dataRow = createRow({ id: "item_row_1", cells: [createCell()] });
+  assert.equal(lineOpen([header, dataRow]), false);
+  assert.equal(lineOpen([header, createRow({ className: "uir-machine-row uir-machine-row-focused" })]), true);
+  assert.equal(lineOpen([header, createRow({ className: "listfocusedrow" })]), true);
+  // The name the spec used…
+  assert.equal(lineOpen([header, dataRow, createRow({ className: "machineButtonRow" })]), true);
+  // …and the one src/styles/netsuite.css actually puts on the <tr>.
+  assert.equal(lineOpen([header, dataRow, createRow({ className: "uir-machine-button-row" })]), true);
+  assert.equal(lineOpen([], { table: null }), false);
+});
+
 test("an untouched select in the open row is not dirty", () => {
   // isDirty() has no caller until M3, so it cannot be reached through the
   // lifecycle registration. This evaluates the shipped predicate itself —

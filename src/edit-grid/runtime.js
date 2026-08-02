@@ -95,8 +95,11 @@
     if (!table) {
       return false;
     }
+    // Both button-row names, for the same reason EXCLUDED_ROW_SELECTOR carries
+    // both: netsuite.css puts machineButtonRow on the <td> and
+    // uir-machine-button-row on the <tr>, so the spec's name alone finds nothing.
     return Boolean(table.querySelector(core.FOCUSED_ROW_SELECTOR))
-      || Boolean(table.querySelector("tr.machineButtonRow"));
+      || Boolean(table.querySelector("tr.machineButtonRow, tr.uir-machine-button-row"));
   }
 
   function fieldIsDirty(field) {
