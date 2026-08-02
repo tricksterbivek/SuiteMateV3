@@ -315,8 +315,8 @@ A mis-key is silent: `readColumnIds` returns 43 plausible, unique, well-formed i
 1. **Derive only from a native-order DOM.** The runtime attempts derivation only when it has applied no column order. Immediately after any repaint the machine regenerates in native order (H5), which is exactly when re-derivation is safe.
 2. **Pin it.** The derived axis is held in runtime module state for the mounted machine and survives repaints, which DOM stamps do not.
 3. **Refuse to re-derive while permuted.** While a non-native order is applied, the pinned axis is reused verbatim and `readColumnIds` is not called. Because the table above shows re-derivation under permutation is *never* correct, refusing it costs nothing and removes the entire mis-key class our own feature could cause.
-4. **Change-detect, never swap.** A fresh derivation on a native DOM that differs from the pin means the machine's own layout changed underneath us (a form switch, a role change, a different record shape). The pin is cleared and the feature **declines** — it never silently adopts the new axis, because the stored entry is keyed to the old one.
-5. **Teardown clears both** the pin and the applied-order state.
+4. **Change-detect, never swap — and the refusal is latched.** A fresh derivation on a native DOM that differs from the pin means the machine's own layout changed underneath us (a form switch, a role change, a different record shape). The pin is cleared, a **sticky mismatch latch** is set, and the feature declines. The latch is essential rather than decorative: installs are repaint-driven and arrive milliseconds apart, so *clearing the pin alone would let the very next install re-pin the new axis* — the silent swap this rule exists to forbid, reintroduced through the back door. The latch is consulted before anything else in the derivation path and is cleared **only** by teardown.
+5. **Teardown clears all three** — the pin, the applied-order state and the mismatch latch. It is the only thing that may clear the latch, so a feature that has seen its axis change stays declined for the life of the mount.
 
 The residual — a *custom form* whose native layout order is not machine order — is undetectable and is recorded as **U6**.
 
@@ -359,12 +359,21 @@ All 43 match the labels-and-machine-order ground truth, the optimum is unique, a
 | Width out of range | fewer than 2 or more than `MAX_COLUMN_IDS = 100` labels |
 | **Correlation ambiguous** | more than one maximum-score alignment — measured, not estimated |
 | Output invalid | fewer ids than labels, any id failing `normalizeColumnId`, or duplicate ids |
-| **Axis changed under the pin** | a fresh native-DOM derivation differs from the pinned axis — pin cleared, decline; never a silent swap |
+| **Axis changed under the pin** | a fresh native-DOM derivation differs from the pinned axis — pin cleared, sticky mismatch latch set, decline for the life of the mount; never a silent swap on the next repaint |
 | Any throw | caught; `[]` |
 
 One condition is deliberately **not** a gate on `readColumnIds` but a rule on its *caller*: **P-MONO cannot be checked, so it is never tested — it is guaranteed.** While a non-native order is applied the runtime does not call `readColumnIds` at all; it reuses the pinned axis. A caller that re-derives mid-permutation is a defect, not a degraded mode.
 
-Measured behaviour of the ambiguity gate against the live payload: labels **and** values → 1 optimum (mounts); labels only, no data rows → 56 optima (declines); labels replaced by opaque strings, simulating an unrecognised locale → about 6.4 × 10^12 optima (declines). The feature therefore fails closed on a non-English form rather than guessing, and **requires at least one closed, numbered data line**: an Edit Mode sales order with no existing lines declines to mount. Both are accepted limitations, disclosed here.
+Measured behaviour of the ambiguity gate against the live payload — obtained by instrumenting `correlateColumnIds` to return `paths[0][0]` (the optimal-alignment count it normally discards) instead of applying the `!== 1` gate, over the full 43 labels and 140 candidates:
+
+| Input | optimal alignments | outcome |
+|---|---|---|
+| live labels + both sampled rows | **1** | mounts |
+| live labels, no sampled rows | 56 | declines |
+| labels replaced by opaque strings (`Colonne 0…42`), rows sampled | **11 218 446 198 960** (1.12 × 10^13) | declines |
+| opaque labels, no sampled rows | ≈ 2.3 × 10^36 | declines |
+
+The opaque-label rows simulate an unrecognised locale: every affinity collapses to 0 and only the value corroboration remains, which is nowhere near enough to single out one alignment. The feature therefore fails closed on a non-English form rather than guessing, and **requires at least one closed, numbered data line**: an Edit Mode sales order with no existing lines declines to mount. Both are accepted limitations, disclosed here.
 
 **Frozen contract.** `readColumnIds(table)` keeps its signature and its `[]`-on-failure contract. The contract grows from **37 names to 50** by exactly thirteen additions, and no others: constants `FIELD_DELIMITER`, `LINE_DELIMITER`, `OPTION_DELIMITER`, `HEADER_LABEL_SELECTOR`, `MAX_MACHINE_FIELDS`, `MAX_SAMPLE_ROWS`; functions `parseMachineFieldData`, `readMachineFieldData`, `collapseDisplayTwins`, `readHeaderLabels`, `readSampleRowTexts`, `labelAffinity`, `correlateColumnIds`. The axis pin and the applied-order state live in `runtime.js` module scope and are **not** exported.
 
@@ -392,7 +401,7 @@ Measured behaviour of the ambiguity gate against the live payload: labels **and*
 | Header labels unreadable, or any label empty | As above. |
 | Correlation optimum not unique (unrecognised locale, no data lines, unfamiliar machine) | As above — **the feature declines rather than guessing an axis**. |
 | A non-native column order is currently applied | `readColumnIds` is **not called**. The pinned axis is reused verbatim. Re-deriving here is never correct (A1.2) and would mis-key silently. |
-| Fresh native-DOM derivation differs from the pinned axis | Pin cleared, `installEditGrid` returns false, nothing applied. The stored entry is keyed to the old axis, so adopting the new one silently would relabel the user's saved layout. |
+| Fresh native-DOM derivation differs from the pinned axis | Pin cleared, mismatch latch set, `installEditGrid` returns false, nothing applied — and every later install in this mount declines too, because installs are repaint-driven and an unlatched refusal would simply re-pin the new axis on the next one. The stored entry is keyed to the old axis, so adopting the new one silently would relabel the user's saved layout. Cleared only by teardown. |
 | P-MONO violated by the form itself (custom layout order ≠ machine field order) | **Undetectable.** Mis-keys silently. Not mitigated in M1.5; recorded as U6 and gating any generalization beyond Sales Orders. |
 
 §7's row "Unrecognized DOM: no `#item_splits`, no header row, header count 0, **no `_fs` spans**, or duplicate/undecodable column ids" is amended: `no _fs spans` is replaced by `no decodable {machine}fields input, unreadable header labels, or an ambiguous correlation`.

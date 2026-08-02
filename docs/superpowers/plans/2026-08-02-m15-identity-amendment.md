@@ -42,7 +42,7 @@ The following are **additional** and specific to M1.5.
 | Path | Change |
 |---|---|
 | `src/edit-grid/core.js` | +1 identity block (machine-field decode, twin collapse, label affinity, monotonic correlator); `readColumnIds` interior replaced; `isDataRow` gains the numbered-row-id clause; `EXCLUDED_ROW_SELECTOR` gains one class; `columnIdFromSpanId` gains the line-less branch; frozen export list 37 → 50 names. |
-| `src/edit-grid/runtime.js` | `isLineOpen()` redefined (Task 2); axis pinning — `pinnedColumnIds`, `appliedOrder`, `currentColumnIds`, three re-pointed call sites, two teardown resets (Task 4). Nothing else. |
+| `src/edit-grid/runtime.js` | `isLineOpen()` redefined (Task 2); axis pinning — `pinnedColumnIds`, `appliedOrder`, `axisMismatch`, `sameColumnIds`, `currentColumnIds`, three re-pointed call sites, three teardown resets (Task 4). Nothing else. |
 | `tests/edit-grid.test.mjs` | New identity tests, pinned 50-name contract assertion, updated `isLineOpen` slice test, pinning tests, extended DOM stub (form + hidden inputs + both header shapes). |
 | `tests/fixtures/sales-order-edit.html` | Rebuilt to the real machine shape. |
 | `docs/testing-log.md` | +1 line for the M1.5 live session. |
@@ -919,7 +919,7 @@ Implementer note: `raw.length === suffix.length` is what keeps a bare `"_fs"` fr
 
 **Interfaces:**
 - Consumes: `core.readColumnIds(table)` (unchanged), `core.machineIdFromTable` — nothing new from `core`.
-- Produces: **nothing exported.** Two module-scoped variables (`pinnedColumnIds`, `appliedOrder`) and one module-scoped function (`currentColumnIds(table)`) in `runtime.js`. The frozen contract stays at the 50 names Task 1 pinned.
+- Produces: **nothing exported.** Three module-scoped variables (`pinnedColumnIds`, `appliedOrder`, `axisMismatch`) and two module-scoped functions (`currentColumnIds(table)`, `sameColumnIds(left, right)`) in `runtime.js`. The frozen contract stays at the 50 names Task 1 pinned.
 - Replaces: the three `core.readColumnIds(table)` call sites in `runtime.js` (`:207` in `queueApply`, `:223` and `:256` in `installEditGrid`) with `currentColumnIds(table)`.
 
 **Why this task exists.** `correlateColumnIds` emits only strictly increasing subsequences of `{machine}fields` order, so it is correct only under **P-MONO** (spec Amendment A1.2). Measured against the live payload, re-deriving the axis from a *permuted* rendering is **never** correct — all 903 pairwise transpositions produce 619 declines and **284 silent mis-keys**, and all 1 806 single-column moves (the M4 gesture) produce 1 002 declines and **804 silent mis-keys**, with zero correct results in either sweep. A mis-key returns 43 plausible, unique, well-formed ids attached to the wrong columns and persists them. Since re-derivation under permutation is never right, refusing it costs nothing and removes the whole failure class. M1.5 applies no order, so `appliedOrder` stays `null` throughout this milestone — the machinery ships now so that M2 and M4 inherit it rather than rediscovering the hazard.
@@ -931,21 +931,29 @@ test("the column axis is derived on a native DOM, pinned, and never re-derived u
   // P-MONO (spec A1.2): the correlator only emits increasing subsequences of
   // machine-field order, so re-deriving while WE have permuted the DOM silently
   // mis-keys. The runtime must reuse the pin instead of asking again.
+  // BOTH functions are sliced. currentColumnIds calls sameColumnIds, which is
+  // module-scoped and reaches the sandbox through neither `core` nor a global —
+  // slicing only the caller makes assertions 4 and 6 die on "sameColumnIds is
+  // not defined". (The isLineOpen slice got away with one function because every
+  // dependency it had went through core.)
   const [helper] = runtimeSource.match(/ {2}function currentColumnIds\(table\) \{[\s\S]*?\n {2}\}/) ?? [];
+  const [comparer] = runtimeSource.match(/ {2}function sameColumnIds\(left, right\) \{[\s\S]*?\n {2}\}/) ?? [];
   assert.equal(Boolean(helper), true, "currentColumnIds is no longer a named function in runtime.js");
+  assert.equal(Boolean(comparer), true, "sameColumnIds is no longer a named function in runtime.js");
   const core = createApi();
   const build = (readColumnIds, state = {}) => {
     const sandbox = {
       core: { ...core, readColumnIds },
       pinnedColumnIds: null,
       appliedOrder: null,
+      axisMismatch: false,
       ...state
     };
     sandbox.globalThis = sandbox;
     return sandbox;
   };
   const call = (sandbox, table) => {
-    runInNewContext(`${helper}\nglobalThis.result = currentColumnIds(${table});`, sandbox);
+    runInNewContext(`${comparer}\n${helper}\nglobalThis.result = currentColumnIds(${table});`, sandbox);
     return sandbox.result;
   };
 
@@ -967,14 +975,22 @@ test("the column axis is derived on a native DOM, pinned, and never re-derived u
   const orphaned = build(() => ["rate", "item", "quantity"], { appliedOrder: ["rate"] });
   assert.deepEqual(plain(call(orphaned, "null")), []);
 
-  // 4. A fresh native derivation that DIFFERS from the pin clears it and declines.
-  //    The stored entry is keyed to the old axis; adopting the new one silently
-  //    would relabel the user's saved layout.
+  // 4. A fresh native derivation that DIFFERS from the pin clears it, LATCHES,
+  //    and declines. The stored entry is keyed to the old axis; adopting the new
+  //    one silently would relabel the user's saved layout.
   const changed = build(() => ["item", "quantity", "custcol_rrp"], {
     pinnedColumnIds: ["item", "quantity", "rate"]
   });
   assert.deepEqual(plain(call(changed, "null")), []);
   assert.equal(changed.pinnedColumnIds, null);
+  assert.equal(changed.axisMismatch, true);
+  // 4b. …and it STAYS declined. Installs are repaint-driven and arrive
+  //     milliseconds apart, so without the latch this second call would find a
+  //     null pin, skip the mismatch branch and re-pin the new axis — the silent
+  //     swap the rule forbids, reintroduced through the back door.
+  assert.deepEqual(plain(call(changed, "null")), []);
+  assert.equal(changed.pinnedColumnIds, null);
+  assert.deepEqual(plain(call(changed, "null")), []);
 
   // 5. A declining derivation leaves the pin alone — a transient repaint mid-read
   //    must not throw away an axis that is still valid.
@@ -989,14 +1005,20 @@ test("the column axis is derived on a native DOM, pinned, and never re-derived u
   assert.deepEqual(plain(call(stable, "null")), ["item", "quantity", "rate"]);
 });
 
-test("teardown clears the pinned axis and the applied order", () => {
-  // Both are module state that survives repaints by design, so removeEditGrid is
-  // the only thing that may clear them — otherwise a toggle-off/toggle-on cycle
-  // would re-mount against a stale axis.
+test("teardown clears the pinned axis, the applied order and the mismatch latch", () => {
+  // All three are module state that survives repaints by design, so removeEditGrid
+  // is the only thing that may clear them — otherwise a toggle-off/toggle-on cycle
+  // would re-mount against a stale axis. Teardown is also the ONLY place the latch
+  // may be cleared: anywhere else and the silent swap comes back.
   const [teardown] = runtimeSource.match(/ {2}function removeEditGrid\(\) \{[\s\S]*?\n {2}\}/) ?? [];
   assert.equal(Boolean(teardown), true);
   assert.match(teardown, /pinnedColumnIds = null/);
   assert.match(teardown, /appliedOrder = null/);
+  assert.match(teardown, /axisMismatch = false/);
+  // Exactly one place RESETS the latch, and it is this one. The negative
+  // lookbehind skips the module-scope declaration, which initialises to the
+  // same value.
+  assert.equal((runtimeSource.match(/(?<!let )axisMismatch = false/g) ?? []).length, 1);
 });
 
 test("every axis read in the runtime goes through the pin", () => {
@@ -1017,8 +1039,11 @@ test("every axis read in the runtime goes through the pin", () => {
   // The axis is derived ONCE from a native-order DOM and pinned here. It survives
   // repaints, which DOM stamps cannot. appliedOrder is the non-native column order
   // this runtime has applied, or null while the machine is in native order.
+  // axisMismatch latches when the machine's own axis changes underneath the pin;
+  // only removeEditGrid clears it.
   let pinnedColumnIds = null;
   let appliedOrder = null;
+  let axisMismatch = false;
 ```
 
 and, beside `machineContainer`:
@@ -1029,6 +1054,13 @@ and, beside `machineContainer`:
   }
 
   function currentColumnIds(table) {
+    // Latched refusal comes first. Installs are repaint-driven and arrive
+    // milliseconds apart, so clearing the pin alone would let the very NEXT
+    // install re-pin the changed axis — the silent swap spec A1.2 rule 4
+    // forbids, reintroduced through the back door. Only teardown clears this.
+    if (axisMismatch) {
+      return [];
+    }
     // P-MONO (spec Amendment A1.2): core.correlateColumnIds only ever emits an
     // increasing subsequence of the machine's own field order, so once WE have
     // permuted the rendering it cannot recover the axis — measured on the live
@@ -1045,8 +1077,9 @@ and, beside `machineContainer`:
     if (pinnedColumnIds && !sameColumnIds(pinnedColumnIds, derived)) {
       // The machine's own layout changed under us. The stored entry is keyed to
       // the old axis, so adopting the new one silently would relabel the user's
-      // saved layout: drop the pin and decline until the next clean install.
+      // saved layout: drop the pin, latch, and decline for the life of the mount.
       pinnedColumnIds = null;
+      axisMismatch = true;
       return [];
     }
     pinnedColumnIds = derived;
@@ -1054,11 +1087,12 @@ and, beside `machineContainer`:
   }
 ```
 
-Replace all three `core.readColumnIds(table)` call sites with `currentColumnIds(table)`, and add the two resets to `removeEditGrid`:
+Replace all three `core.readColumnIds(table)` call sites with `currentColumnIds(table)`, and add the three resets to `removeEditGrid`:
 
 ```js
     pinnedColumnIds = null;
     appliedOrder = null;
+    axisMismatch = false;
 ```
 
 - [ ] **Step 4: Run `npm test`** — all green.
@@ -1069,6 +1103,7 @@ Replace all three `core.readColumnIds(table)` call sites with `currentColumnIds(
   3. Delete the `if (!derived.length) return []` guard — assertion 5 must fail (the pin gets cleared).
   4. Remove one reset from `removeEditGrid` — the teardown test must fail.
   5. Point any one call site back at `core.readColumnIds` — the single-call-site test must fail.
+  6. **Delete the `if (axisMismatch) return []` early return, keeping `axisMismatch = true` in the mismatch branch** — assertion **4b** must fail: the second call finds a null pin, skips the mismatch branch and re-pins the changed axis. This is the mutation that proves the latch is load-bearing rather than bookkeeping; without 4b, mutation 6 passes silently.
 
 - [ ] **Step 6: Commit** — `fix(edit-grid): pin the column axis and never re-derive it under a permutation`.
 
