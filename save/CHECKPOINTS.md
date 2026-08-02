@@ -1232,7 +1232,7 @@ Status: Complete; foundation live-verified fail-closed, mount pending M1.5 ident
 
 Date: 2026-08-02
 
-Spec: `docs/superpowers/specs/2026-08-02-edit-mode-table-enhancements-design.md` · Plan: `docs/superpowers/plans/2026-08-02-edit-mode-table-enhancements.md` · Built via Opus 5 subagent-driven development (implementer / reviewer / re-reviewer per task); 12 controller adjudications recorded in the SDD ledger. Commits `f0716b7..cea3726` on `feature/edit-mode-table-enhancements`.
+Spec: `docs/superpowers/specs/2026-08-02-edit-mode-table-enhancements-design.md` · Plan: `docs/superpowers/plans/2026-08-02-edit-mode-table-enhancements.md` · Built via Opus 5 subagent-driven development (implementer / reviewer / re-reviewer per task); 12 controller adjudications recorded in the SDD ledger. Commits `f0716b7..cea3726` on `feature/edit-mode-table-enhancements` — every commit range in this entry is **inclusive of both endpoints**, not git-exclusive.
 
 ### Included
 
@@ -1250,10 +1250,10 @@ Spec: `docs/superpowers/specs/2026-08-02-edit-mode-table-enhancements-design.md`
 
 - Full `npm test`: **245 tests, 245 pass, 0 fail**; `npm run fixtures:verify`: **28 screenshot baselines at 0.000%** (nothing visible shipped; the feature is default-off and `startPaused` — the M22/M24b precedent).
 - Fixture round-trip: mounts on `?e=T` with the marker and the bound attribute present; the route gate returns `[edit true, view false]` on `?id=1&e=T` and `[edit false, view true]` on `?id=1` — the H3 complement asserted at the gate, not at the DOM; full `<tbody>` regenerate + add-line + open-line + close-line produced **zero** storage writes over 500 ms; teardown left zero owned nodes and removed the bound attribute; computed `table-layout` stayed `auto` and every row stayed visible.
-- **Live probe pass** (account `6998262`, SO `id=16342809&e=T`, ~23:00-23:07 AEST): safety triple verified twice, read-only except probe 8's authorized in-page commit and probe 10's Insert/Remove cycle; **no save at any point**; teardown by navigating to the view URL, owner-confirmed; the record is byte-identical to its pre-pass state and the in-page qty "2" was discarded. **Zero error-level console messages** across the whole pass (33 messages, 0 errors, 0 warnings).
+- **Live probe pass** (account `6998262`, SO `id=16342809&e=T`, ~23:00-23:07 AEST): safety triple verified twice, read-only except **three** authorized in-page interactions — probe 8's Gate A cell permutation plus its quantity edit and OK commit on line 3, probe 10's Insert/Remove/Cancel cycle, and probe 11's line-open and OK commit with the Quantity column hidden; **no save at any point**; teardown by navigating to the view URL, owner-confirmed; the record is byte-identical to its pre-pass state and the in-page qty "2" was discarded. **Zero error-level console messages** across the whole pass (33 messages, 0 errors, 0 warnings).
 - Live-proven this pass: the **route gate and byte-complement exclusivity** (View Mode after teardown: so-columns mounted with 55 nodes, edit-grid 0 nodes; in Edit Mode: so-columns/form-views absent, edit-grid 0 owned nodes — zero interference in both directions); **capability reach** on `&e=T`; the **fail-closed install path**, which declined cleanly (`bound=false`, `ownedNodes=0`) when `readColumnIds()` returned `[]`; and clean teardown.
 - **Not proven live: attachment and re-render survival — FIXTURE-PROVEN ONLY.** The live form declined to mount (see the identity finding), so no live evidence exists for mount-through-repaint. The claim "attachment + re-render survival proven" is **not** made.
-- View Mode regression on the same record: personalization, sort, filter, widths, Export view, tab titles and internal-id badges all behave; zero SuiteMate console errors. `git diff --name-only main | grep so-columns` returns exactly `src/so-columns/core.js`.
+- View Mode was **not** interactively regression-swept this milestone. What is evidenced: the coexistence eyeball after teardown (so-columns mounted with 55 nodes on the view page, edit-grid 0 nodes), zero SuiteMate console errors across the pass, and the 28 pixel baselines at 0.000% as the automated View Mode net. The mechanical guard holds — `git diff --name-only main | grep so-columns` returns exactly `src/so-columns/core.js`, the one-token `FOREIGN_NODE_SELECTOR` addition. A full interactive sweep (personalization, sort, filter, widths, Export view, tab titles, internal-id badges) is **owed** — see Next item 7.
 
 ### Gate A — verdict of record: REFRAME
 
@@ -1292,4 +1292,7 @@ Independently interpreted by an Opus 5 subagent from the probe 8 transcript; the
 3. `isLineOpen()` redefined to numbered focused rows (the always-focused entry row must not count).
 4. `EXCLUDED_ROW_SELECTOR += uir-machine-row-last`; `isDataRow` requires a numbered row id.
 5. `tests/fixtures/sales-order-edit.html` rebuilt to the real shape (bare-text static rows, symmetric 43/43 cells, per-cell widget materialization, `uir-machine-row-last`).
-6. One live re-probe showing `bound=true` with **zero idle writes**. **M2 does not start until (6) passes.**
+6. One live re-probe showing `bound=true` with **zero idle writes**.
+7. Full interactive View Mode regression sweep (Tier 4 — personalization, sort, filter, widths, Export view, tab titles, internal-id badges), batched into the same M1.5 live re-probe session as (1) and (6). Owed from M1, where only the coexistence eyeball and the automated pixel net ran.
+
+**M2 does not start until (6) and (7) pass.**
