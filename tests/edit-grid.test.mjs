@@ -282,6 +282,22 @@ test("decodes column ids from _fs spans against the row's own line number", () =
   assert.equal(core.columnIdFromSpanId(`item_${"x".repeat(201)}1_fs`, "item", 1), null);
   assert.equal(core.rowLineNumber(createMachine().rows[1], "item"), 1);
   assert.equal(core.rowLineNumber(createMachine().rows[2], "item"), 2);
+  // The open line and the permanent entry row materialise line-LESS span ids
+  // (item_item_fs, not item_item1_fs) — live 2026-08-02, probe 7. Passing an
+  // explicit null line is how a caller says "this row has no line number".
+  assert.equal(core.columnIdFromSpanId("item_item_fs", "item", null), "item");
+  assert.equal(core.columnIdFromSpanId("item_custcol_rrp_fs", "item", null), "custcol_rrp");
+  assert.equal(core.columnIdFromSpanId("actionbuttons_item_item_fs", "item", null),
+    "actionbuttons_item_item", "an unrelated prefix is kept, not silently trimmed");
+  assert.equal(core.columnIdFromSpanId("item_item1_fs", "item", null), "item1",
+    "line-less mode does not strip digits — taxrate1 is a real column");
+  assert.equal(core.columnIdFromSpanId("item_item_fs_lbl", "item", null), null);
+  assert.equal(core.columnIdFromSpanId("", "item", null), null);
+  assert.equal(core.columnIdFromSpanId(null, "item", null), null);
+  // The numbered decode is UNCHANGED: a line-less span is refused when a line is
+  // given, and a mismatched line still refuses rather than truncating.
+  assert.equal(core.columnIdFromSpanId("item_item_fs", "item", 1), null);
+  assert.equal(core.columnIdFromSpanId("item_quantity21_fs", "item", 2), null);
 });
 
 test("reads the column axis from visible cells only and ignores excluded rows", () => {

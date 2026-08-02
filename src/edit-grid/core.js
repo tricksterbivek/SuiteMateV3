@@ -488,11 +488,15 @@
 
   function columnIdFromSpanId(spanId, machineId, line) {
     // Mirrors src/internal-ids/core.js sublistColumnId, with the row's own line
-    // number instead of a hard-coded 1 so a paged machine (line 26+) decodes
-    // and line 21 can never be mistaken for line 1.
+    // number instead of a hard-coded 1 so a paged machine (line 26+) decodes and
+    // line 21 can never be mistaken for line 1. When the caller passes no line —
+    // the open line and the permanent entry row materialise line-LESS ids such as
+    // item_item_fs — the bare _fs suffix is accepted instead. Numbered decoding is
+    // untouched: a mismatched line still refuses.
     const raw = String(spanId ?? "");
-    const suffix = `${line}_fs`;
-    if (!Number.isSafeInteger(line) || line <= 0 || !raw.endsWith(suffix)) {
+    const numbered = Number.isSafeInteger(line) && line > 0;
+    const suffix = numbered ? `${line}_fs` : "_fs";
+    if (!raw.endsWith(suffix) || raw.length === suffix.length) {
       return null;
     }
     const withoutRow = raw.slice(0, -suffix.length);
