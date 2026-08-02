@@ -95,11 +95,14 @@
     if (!table) {
       return false;
     }
-    // Both button-row names, for the same reason EXCLUDED_ROW_SELECTOR carries
-    // both: netsuite.css puts machineButtonRow on the <td> and
-    // uir-machine-button-row on the <tr>, so the spec's name alone finds nothing.
-    return Boolean(table.querySelector(core.FOCUSED_ROW_SELECTOR))
-      || Boolean(table.querySelector("tr.machineButtonRow, tr.uir-machine-button-row"));
+    // Live 2026-08-02: the permanent entry row ALWAYS carries
+    // uir-machine-row-focused and its uir-machine-button-row is ALWAYS attached,
+    // so "any focused row or any button row" is true for the entire session and
+    // every queued apply starves. An open EXISTING line is a focused row that
+    // also carries a numbered {machine}_row_{n} id.
+    const machineId = core.machineIdFromTable(table);
+    return Array.from(table.querySelectorAll(core.FOCUSED_ROW_SELECTOR))
+      .some((row) => core.rowLineNumber(row, machineId) !== null);
   }
 
   function fieldIsDirty(field) {

@@ -17,13 +17,15 @@
   const FOCUSED_ROW_SELECTOR = "tr.uir-machine-row-focused, tr.listfocusedrow";
   // The union of the spec's names and the ones src/styles/netsuite.css actually
   // carries (tr.uir-machine-button-row + td.machineButtonRow, uir-machine-totals-row,
-  // uir-loading-row, uir-nodata-row). A selector naming a class the live DOM
-  // does not use matches nothing and costs nothing, so the union is fail-closed
-  // whichever reality the machine holds; the Task 9 probe confirms which half
-  // matches and M2+ may prune.
+  // uir-loading-row, uir-nodata-row), plus tr.uir-machine-row-last — observed
+  // live 2026-08-02 and named by neither half. A selector naming a class the
+  // live DOM does not use matches nothing and costs nothing, so the union is
+  // fail-closed whichever reality the machine holds; the Task 9 probe confirms
+  // which half matches and M2+ may prune.
   const EXCLUDED_ROW_SELECTOR =
     "tr.machineButtonRow, tr.totalrow, tr.uir-machine-loading-row, tr.uir-machine-nodata-row, "
-    + "tr.uir-machine-button-row, tr.uir-machine-totals-row, tr.uir-loading-row, tr.uir-nodata-row";
+    + "tr.uir-machine-button-row, tr.uir-machine-totals-row, tr.uir-loading-row, tr.uir-nodata-row, "
+    + "tr.uir-machine-row-last";
   const ORDERED_TABLE_SELECTOR = ".uir-draggable-table";
   const ORDERED_CONTAINER_SELECTOR = ".uir-list-machine-ordered";
   const MOVABLE_CELL_SELECTOR = "td.movable";
@@ -560,9 +562,19 @@
       && visibleCells(row).length === columnIds.length;
   }
 
+  // NetSuite numbers only its committed lines. The permanent entry row — which is
+  // always present, always focused and always full-width — carries no id at all,
+  // so requiring a numbered id is what keeps it off the data-row axis.
+  const NUMBERED_ROW_ID = /_row_[1-9][0-9]*$/;
+
+  function hasNumberedRowId(row) {
+    return NUMBERED_ROW_ID.test(String(row?.id ?? ""));
+  }
+
   function isDataRow(row, columnIds) {
     try {
       return row?.matches?.(DATA_ROW_SELECTOR) === true
+        && hasNumberedRowId(row)
         && !row.matches(HEADER_ROW_SELECTOR)
         && !isExcludedRow(row)
         && alignsToHeader(row, columnIds);

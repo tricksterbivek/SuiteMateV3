@@ -207,13 +207,13 @@ test("exports a frozen core with the Edit Mode storage and DOM contract", () => 
   assert.equal(core.NATIVE_ROW_ATTRIBUTE, "data-suitemate-v3-edit-grid-native-row");
   assert.equal(core.BOUND_ATTRIBUTE, "data-suitemate-v3-edit-grid-bound");
   assert.equal(core.FOCUSED_ROW_SELECTOR, "tr.uir-machine-row-focused, tr.listfocusedrow");
-  // Union of the spec's four names and the four src/styles/netsuite.css carries:
-  // the spec's four have zero occurrences there, so excluding only those would
-  // leave the button, totals, loading and nodata rows counted as data rows.
+  // Union of the spec's four names and the four src/styles/netsuite.css carries,
+  // plus tr.uir-machine-row-last, observed live 2026-08-02 and in neither half.
   assert.equal(
     core.EXCLUDED_ROW_SELECTOR,
     "tr.machineButtonRow, tr.totalrow, tr.uir-machine-loading-row, tr.uir-machine-nodata-row, "
-    + "tr.uir-machine-button-row, tr.uir-machine-totals-row, tr.uir-loading-row, tr.uir-nodata-row"
+    + "tr.uir-machine-button-row, tr.uir-machine-totals-row, tr.uir-loading-row, tr.uir-nodata-row, "
+    + "tr.uir-machine-row-last"
   );
   assert.equal(
     core.FOREIGN_NODE_SELECTOR,
@@ -301,6 +301,26 @@ test("reads the column axis from visible cells only and ignores excluded rows", 
   assert.equal(core.isDataRow(table.rows[4], ["item", "quantity", "rate"]), false);
   assert.equal(core.isDataRow(table.rows[0], ["item", "quantity", "rate"]), false);
   assert.deepEqual(plain(core.readColumnIds(createTable([]))), []);
+});
+
+test("only numbered rows are data rows, and uir-machine-row-last never is", () => {
+  const core = createApi();
+  const ids = ["item", "quantity", "rate"];
+  const cells = () => [createCell(), createCell(), createCell()];
+  const numbered = createRow({ id: "item_row_1", cells: cells() });
+  // The live machine's permanent entry row: uir-machine-row, uir-machine-row-focused,
+  // 43 cells, and NO id. M1 counted it as a data row.
+  const entryRow = createRow({
+    className: "uir-machine-row uir-machine-row-even listtextnonedit uir-machine-row-focused",
+    cells: cells()
+  });
+  const lastRow = createRow({ className: "uir-machine-row-last", cells: cells() });
+  assert.equal(core.isDataRow(numbered, ids), true);
+  assert.equal(core.isDataRow(entryRow, ids), false, "the id-less entry row is not a data row");
+  assert.equal(core.isDataRow(lastRow, ids), false);
+  assert.equal(core.isExcludedRow(lastRow), true);
+  assert.equal(core.isDataRow(createRow({ id: "item_row_0", cells: cells() }), ids), false);
+  assert.equal(core.isDataRow(createRow({ id: "item_row_x", cells: cells() }), ids), false);
 });
 
 test("refuses ordered machines, failing closed on anything unreadable", () => {
@@ -1306,10 +1326,10 @@ test("installs without a session status script and without its identifiers", asy
   assert.equal(withoutIds.mounts().length, 1);
 });
 
-test("an open line is detected under either button-row class name", () => {
-  // Same slice technique as the dirty-field test below: isLineOpen() has no
-  // reachable caller until M2 wires queue-while-open, so this evaluates the
-  // shipped bytes with their three dependencies injected.
+test("an open line is a FOCUSED row carrying a numbered row id", () => {
+  // Live 2026-08-02: the permanent entry row always carries
+  // uir-machine-row-focused and its uir-machine-button-row is always attached,
+  // so the M1 predicate was true forever and would starve every queued apply.
   const [predicate] = runtimeSource.match(/ {2}function isLineOpen\(\) \{[\s\S]*?\n {2}\}/) ?? [];
   assert.equal(Boolean(predicate), true, "isLineOpen is no longer a named function in runtime.js");
   const core = createApi();
@@ -1320,14 +1340,20 @@ test("an open line is detected under either button-row class name", () => {
     return sandbox.result;
   };
   const header = createRow({ className: "uir-machine-headerrow", cells: [createCell()] });
-  const dataRow = createRow({ id: "item_row_1", cells: [createCell()] });
-  assert.equal(lineOpen([header, dataRow]), false);
-  assert.equal(lineOpen([header, createRow({ className: "uir-machine-row uir-machine-row-focused" })]), true);
-  assert.equal(lineOpen([header, createRow({ className: "listfocusedrow" })]), true);
-  // The name the spec used…
-  assert.equal(lineOpen([header, dataRow, createRow({ className: "machineButtonRow" })]), true);
-  // …and the one src/styles/netsuite.css actually puts on the <tr>.
-  assert.equal(lineOpen([header, dataRow, createRow({ className: "uir-machine-button-row" })]), true);
+  const closedRow = createRow({ id: "item_row_1", cells: [createCell()] });
+  const entryRow = createRow({ className: "uir-machine-row uir-machine-row-focused" });
+  const buttonRow = createRow({ className: "uir-machine-button-row" });
+  const openLine = createRow({
+    id: "item_row_2",
+    className: "uir-machine-row uir-machine-row-focused listfocusedrow"
+  });
+  assert.equal(lineOpen([header, closedRow]), false);
+  // The permanent entry row and its attached button row no longer count.
+  assert.equal(lineOpen([header, closedRow, entryRow]), false);
+  assert.equal(lineOpen([header, closedRow, entryRow, buttonRow]), false);
+  assert.equal(lineOpen([header, createRow({ className: "machineButtonRow" })]), false);
+  // A real open line does.
+  assert.equal(lineOpen([header, closedRow, openLine, buttonRow, entryRow]), true);
   assert.equal(lineOpen([], { table: null }), false);
 });
 
