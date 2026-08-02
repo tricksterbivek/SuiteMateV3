@@ -302,6 +302,16 @@
       || Boolean(node.closest?.(core.MACHINE_TABLE_SELECTOR));
   }
 
+  function isMachineTarget(node) {
+    // Containment only — deliberately not isMachineNode(). Its descendant
+    // clause makes every ancestor of the machine (body, portal hosts, tooltip
+    // and dropdown containers, all of which churn constantly on a NetSuite
+    // page) look like a machine node, and each one would cost an install and a
+    // storage read. A sourcing rewrite mutates cells *inside* the table, which
+    // closest() still catches, and which produces no addedNodes to catch.
+    return node?.nodeType === 1 && Boolean(node.closest?.(core.MACHINE_TABLE_SELECTOR));
+  }
+
   function relevant(records) {
     return records.some((record) => {
       if (isOwned(record.target)) {
@@ -316,7 +326,7 @@
         return false;
       }
       return touched.some((node) => !isOwned(node) && isMachineNode(node))
-        || isMachineNode(record.target);
+        || isMachineTarget(record.target);
     });
   }
 

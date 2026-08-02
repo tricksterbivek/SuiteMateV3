@@ -89,6 +89,7 @@ function createRow({ id = "", className = "uir-machine-row", cells = [] } = {}) 
 
 function createTable(rows, { id = "item_splits", className = "uir-machine-table", container = null } = {}) {
   const table = {
+    nodeType: 1,
     id,
     className,
     rows,
@@ -100,7 +101,14 @@ function createTable(rows, { id = "item_splits", className = "uir-machine-table"
     matches: (selector) => String(selector)
       .split(",")
       .some((part) => part.trim() === `#${id}` || classMatcher(className)(part)),
-    closest: (selector) => (container?.matches?.(selector) ? container : null),
+    // closest() starts at the element itself, so #item_splits is its own
+    // nearest #item_splits — the runtime relies on that for target matching.
+    closest: (selector) => {
+      if (table.matches(selector)) {
+        return table;
+      }
+      return container?.matches?.(selector) ? container : null;
+    },
     querySelector: (selector) => rows.find((row) => row.matches(selector)) ?? null,
     querySelectorAll: (selector) => rows.filter((row) => row.matches(selector))
   };
@@ -856,6 +864,36 @@ test("relevance reacts to machine mutations and drops records targeted at owned 
   // A repaint that removes our marker *and* rebuilds machine rows is still ours
   // to act on — the refusal covers records that touch nothing but our nodes.
   assert.equal(relevant([{ target: harness.container, addedNodes: [dataRow], removedNodes: [owned] }]), true);
+});
+
+test("body-level churn around the machine is not relevant, but churn inside it is", async () => {
+  const harness = createRuntimeHarness();
+  await harness.flush();
+  const { relevant } = harness.lifecycle.registration;
+  const readsAfterInstall = harness.counts.editReads;
+  // An ancestor of the machine: body, a portal host, a tooltip or dropdown
+  // container. Its querySelector finds the table, which is exactly the trap —
+  // NetSuite churns these constantly and each one would cost a storage read.
+  const ancestor = {
+    nodeType: 1,
+    matches: () => false,
+    querySelector: (selector) => (selector.includes("#item_splits") ? harness.table : null),
+    closest: () => null
+  };
+  const portal = { nodeType: 1, matches: () => false, querySelector: () => null, closest: () => null };
+  assert.equal(relevant([{ target: ancestor, addedNodes: [portal], removedNodes: [] }]), false);
+  assert.equal(harness.counts.editReads, readsAfterInstall, "irrelevant churn caused a storage read");
+  // A cell inside the machine: a sourcing rewrite mutates existing cells and
+  // adds no nodes, so the target path is the only thing that can catch it.
+  const cellInside = {
+    nodeType: 1,
+    matches: () => false,
+    querySelector: () => null,
+    closest: (selector) => (selector === "#item_splits" ? harness.table : null)
+  };
+  assert.equal(relevant([{ target: cellInside, addedNodes: [], removedNodes: [] }]), true);
+  // The table itself is inside itself as far as closest() is concerned.
+  assert.equal(relevant([{ target: harness.table, addedNodes: [], removedNodes: [] }]), true);
 });
 
 test("the install that mounts does not schedule the next install", async () => {
