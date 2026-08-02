@@ -942,17 +942,18 @@ runInNewContext(utilitySource, settingsSandbox);
 runInNewContext(settingsSource, settingsSandbox);
 const settingsApi = settingsSandbox.SuiteMateV3Settings;
 assert.equal(settingsApi.THEME_PREVIEW_MESSAGE, "SUITEMATE_V3_PREVIEW_ROLE_THEME");
-assert.equal(settingsApi.SCHEMA_VERSION, 5);
+assert.equal(settingsApi.SCHEMA_VERSION, 6);
 assert.equal(settingsApi.DEFAULTS.schemaVersion, settingsApi.SCHEMA_VERSION);
 assert.equal(settingsApi.DEFAULTS.squareCorners, false);
 assert.equal(settingsApi.DEFAULTS.showInternalIds, false);
 assert.equal(settingsApi.DEFAULTS.salesOrderColumns, false);
 assert.equal(settingsApi.DEFAULTS.smartTabTitles, false);
 assert.equal(settingsApi.DEFAULTS.formViews, false);
+assert.equal(settingsApi.DEFAULTS.salesOrderColumnsEdit, false);
 assert.deepEqual(
   JSON.parse(JSON.stringify(settingsApi.validateForStorage({ mode: "dark" }))),
   {
-    schemaVersion: 5,
+    schemaVersion: 6,
     enabled: true,
     mode: "dark",
     squareCorners: false,
@@ -960,6 +961,7 @@ assert.deepEqual(
     salesOrderColumns: false,
     smartTabTitles: false,
     formViews: false,
+    salesOrderColumnsEdit: false,
     roleThemes: {}
   }
 );

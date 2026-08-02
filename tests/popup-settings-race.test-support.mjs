@@ -199,6 +199,7 @@ function createPopupDocument() {
   const salesOrderColumns = add("salesOrderColumns", "input");
   const smartTabTitles = add("smartTabTitles", "input");
   const formViews = add("formViews", "input");
+  const salesOrderColumnsEdit = add("salesOrderColumnsEdit", "input");
   const light = add("mode-light", "input");
   light.value = "light";
   light.checked = true;
@@ -214,6 +215,7 @@ function createPopupDocument() {
     salesOrderColumns,
     smartTabTitles,
     formViews,
+    salesOrderColumnsEdit,
     ...modes,
     add("mainColor", "input", ["role-color"]),
     add("secondaryColor", "input", ["role-color"]),
@@ -315,7 +317,7 @@ function clone(value) {
 async function createPopupHarness(options = {}) {
   const dom = createPopupDocument();
   const initialSettings = {
-    schemaVersion: 5,
+    schemaVersion: 6,
     enabled: true,
     mode: "light",
     squareCorners: false,
@@ -323,6 +325,7 @@ async function createPopupHarness(options = {}) {
     salesOrderColumns: false,
     smartTabTitles: false,
     formViews: false,
+    salesOrderColumnsEdit: false,
     roleThemes: {
       "role-1": {
         name: "Fixture Role",
@@ -534,7 +537,7 @@ test("popup exports, confirms and atomically imports a validated settings backup
   assert.equal(harness.element("status").textContent, "Settings backup copied");
 
   const importedSettings = {
-    schemaVersion: 5,
+    schemaVersion: 6,
     enabled: false,
     mode: "dark",
     squareCorners: true,
@@ -542,6 +545,7 @@ test("popup exports, confirms and atomically imports a validated settings backup
     salesOrderColumns: true,
     smartTabTitles: true,
     formViews: true,
+    salesOrderColumnsEdit: true,
     roleThemes: {
       "role-2": {
         name: "Imported Role",
