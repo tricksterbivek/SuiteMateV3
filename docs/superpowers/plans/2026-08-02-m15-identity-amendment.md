@@ -903,10 +903,12 @@ In `src/edit-grid/runtime.js`, replace `isLineOpen` entirely:
 ```
 
 Implementer note: `raw.length === suffix.length` is what keeps a bare `"_fs"` from normalizing to the empty string; the old guard's `Number.isSafeInteger` early-return no longer covers it.
+[Corrected by escalation #6: this mutation is inert — endsWith refuses empty, normalizeColumnId refuses bare _fs; guard kept as belt-and-braces, uncovered by design.]
 
 - [ ] **Step 4: Run `npm test`** — all green, and confirm none of the pre-existing assertions in that test changed.
 
 - [ ] **Step 5: Mutation-proof.** (1) Force `numbered` to `true` always — the line-less assertions must fail. (2) Force it to `false` always — `columnIdFromSpanId("item_quantity21_fs", "item", 2)` must stop returning `null`. (3) Delete the `raw.length === suffix.length` guard — the `""` case must fail.
+[Corrected by escalation #6: this mutation is inert — endsWith refuses empty, normalizeColumnId refuses bare _fs; guard kept as belt-and-braces, uncovered by design.]
 
 - [ ] **Step 6: Commit** — `feat(edit-grid): decode the open line's line-less _fs span ids`.
 

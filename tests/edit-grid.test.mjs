@@ -289,6 +289,8 @@ test("decodes column ids from _fs spans against the row's own line number", () =
   assert.equal(core.columnIdFromSpanId("item_custcol_rrp_fs", "item", null), "custcol_rrp");
   assert.equal(core.columnIdFromSpanId("actionbuttons_item_item_fs", "item", null),
     "actionbuttons_item_item", "an unrelated prefix is kept, not silently trimmed");
+  assert.equal(core.columnIdFromSpanId("parent_actionbuttons_item_item_fs", "item", null),
+    "parent_actionbuttons_item_item", "only a LEADING {machine}_ is stripped, and only once");
   assert.equal(core.columnIdFromSpanId("item_item1_fs", "item", null), "item1",
     "line-less mode does not strip digits — taxrate1 is a real column");
   assert.equal(core.columnIdFromSpanId("item_item_fs_lbl", "item", null), null);
@@ -589,6 +591,16 @@ test("reads the column axis from the machine's hidden inputs and header labels",
   assert.deepEqual(plain(samples[1]), LIVE_ROW_2);
   // …and the axis still resolves with only line 2 sampled.
   assert.deepEqual(plain(core.readColumnIds(withOpenFirstLine)), LIVE_AXIS);
+  // The emitted axis is the NORMALIZED id, not the raw {machine}fields token:
+  // validating through normalizeColumnId while emitting the raw string lets a
+  // padded entry key storage under " rate " while every other core entry point
+  // stores "rate" — the same column under two keys (T1 review, minor 2).
+  assert.deepEqual(
+    plain(core.readColumnIds(createLiveMachine({
+      fieldsValue: LIVE_FIELDS.map((id) => (id === "rate" ? " rate " : id)).join(SOH)
+    }))),
+    LIVE_AXIS
+  );
 });
 
 test("readColumnIds fails closed on every unusable machine", () => {
@@ -1371,6 +1383,109 @@ test("an open line is a FOCUSED row carrying a numbered row id", () => {
   // A real open line does.
   assert.equal(lineOpen([header, closedRow, openLine, buttonRow, entryRow]), true);
   assert.equal(lineOpen([], { table: null }), false);
+});
+
+test("the column axis is derived on a native DOM, pinned, and never re-derived under a permutation", () => {
+  // P-MONO (spec A1.2): the correlator only emits increasing subsequences of
+  // machine-field order, so re-deriving while WE have permuted the DOM silently
+  // mis-keys. The runtime must reuse the pin instead of asking again.
+  // BOTH functions are sliced. currentColumnIds calls sameColumnIds, which is
+  // module-scoped and reaches the sandbox through neither `core` nor a global —
+  // slicing only the caller makes assertions 4 and 6 die on "sameColumnIds is
+  // not defined". (The isLineOpen slice got away with one function because every
+  // dependency it had went through core.)
+  const [helper] = runtimeSource.match(/ {2}function currentColumnIds\(table\) \{[\s\S]*?\n {2}\}/) ?? [];
+  const [comparer] = runtimeSource.match(/ {2}function sameColumnIds\(left, right\) \{[\s\S]*?\n {2}\}/) ?? [];
+  assert.equal(Boolean(helper), true, "currentColumnIds is no longer a named function in runtime.js");
+  assert.equal(Boolean(comparer), true, "sameColumnIds is no longer a named function in runtime.js");
+  const core = createApi();
+  const build = (readColumnIds, state = {}) => {
+    const sandbox = {
+      core: { ...core, readColumnIds },
+      pinnedColumnIds: null,
+      appliedOrder: null,
+      axisMismatch: false,
+      ...state
+    };
+    sandbox.globalThis = sandbox;
+    return sandbox;
+  };
+  const call = (sandbox, table) => {
+    runInNewContext(`${comparer}\n${helper}\nglobalThis.result = currentColumnIds(${table});`, sandbox);
+    return sandbox.result;
+  };
+
+  // 1. First derivation on a native DOM pins the axis.
+  const native = build(() => ["item", "quantity", "rate"]);
+  assert.deepEqual(plain(call(native, "null")), ["item", "quantity", "rate"]);
+  assert.deepEqual(plain(native.pinnedColumnIds), ["item", "quantity", "rate"]);
+
+  // 2. While an order is applied, the pin is reused and readColumnIds is NOT called.
+  let asked = 0;
+  const permuted = build(() => { asked += 1; return ["rate", "item", "quantity"]; }, {
+    pinnedColumnIds: ["item", "quantity", "rate"],
+    appliedOrder: ["rate", "item", "quantity"]
+  });
+  assert.deepEqual(plain(call(permuted, "null")), ["item", "quantity", "rate"]);
+  assert.equal(asked, 0, "re-derivation under a permutation is never correct, so it must not happen");
+
+  // 3. An applied order with no pin yields nothing rather than a fresh guess.
+  const orphaned = build(() => ["rate", "item", "quantity"], { appliedOrder: ["rate"] });
+  assert.deepEqual(plain(call(orphaned, "null")), []);
+
+  // 4. A fresh native derivation that DIFFERS from the pin clears it, LATCHES,
+  //    and declines. The stored entry is keyed to the old axis; adopting the new
+  //    one silently would relabel the user's saved layout.
+  const changed = build(() => ["item", "quantity", "custcol_rrp"], {
+    pinnedColumnIds: ["item", "quantity", "rate"]
+  });
+  assert.deepEqual(plain(call(changed, "null")), []);
+  assert.equal(changed.pinnedColumnIds, null);
+  assert.equal(changed.axisMismatch, true);
+  // 4b. …and it STAYS declined. Installs are repaint-driven and arrive
+  //     milliseconds apart, so without the latch this second call would find a
+  //     null pin, skip the mismatch branch and re-pin the new axis — the silent
+  //     swap the rule forbids, reintroduced through the back door.
+  assert.deepEqual(plain(call(changed, "null")), []);
+  assert.equal(changed.pinnedColumnIds, null);
+  assert.deepEqual(plain(call(changed, "null")), []);
+
+  // 5. A declining derivation leaves the pin alone — a transient repaint mid-read
+  //    must not throw away an axis that is still valid.
+  const transient = build(() => [], { pinnedColumnIds: ["item", "quantity", "rate"] });
+  assert.deepEqual(plain(call(transient, "null")), []);
+  assert.deepEqual(plain(transient.pinnedColumnIds), ["item", "quantity", "rate"]);
+
+  // 6. Re-deriving the SAME axis is a no-op, not a churn.
+  const stable = build(() => ["item", "quantity", "rate"], {
+    pinnedColumnIds: ["item", "quantity", "rate"]
+  });
+  assert.deepEqual(plain(call(stable, "null")), ["item", "quantity", "rate"]);
+});
+
+test("teardown clears the pinned axis, the applied order and the mismatch latch", () => {
+  // All three are module state that survives repaints by design, so removeEditGrid
+  // is the only thing that may clear them — otherwise a toggle-off/toggle-on cycle
+  // would re-mount against a stale axis. Teardown is also the ONLY place the latch
+  // may be cleared: anywhere else and the silent swap comes back.
+  const [teardown] = runtimeSource.match(/ {2}function removeEditGrid\(\) \{[\s\S]*?\n {2}\}/) ?? [];
+  assert.equal(Boolean(teardown), true);
+  assert.match(teardown, /pinnedColumnIds = null/);
+  assert.match(teardown, /appliedOrder = null/);
+  assert.match(teardown, /axisMismatch = false/);
+  // Exactly one place RESETS the latch, and it is this one. The negative
+  // lookbehind skips the module-scope declaration, which initialises to the
+  // same value.
+  assert.equal((runtimeSource.match(/(?<!let )axisMismatch = false/g) ?? []).length, 1);
+});
+
+test("every axis read in the runtime goes through the pin", () => {
+  // The hazard is a caller that asks core directly while an order is applied.
+  // After this task there is exactly ONE core.readColumnIds call site, inside
+  // currentColumnIds; everything else asks currentColumnIds.
+  const direct = runtimeSource.match(/core\.readColumnIds\(/g) ?? [];
+  assert.equal(direct.length, 1, "core.readColumnIds must be reached only through currentColumnIds");
+  assert.match(runtimeSource, / {2}function currentColumnIds\(table\) \{[\s\S]*?core\.readColumnIds\(table\)/);
 });
 
 test("an untouched select in the open row is not dirty", () => {

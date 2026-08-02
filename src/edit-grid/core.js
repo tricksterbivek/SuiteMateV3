@@ -606,7 +606,11 @@
       const columns = collapseDisplayTwins(machineData.fieldIds, machineData.lines);
       const samples = readSampleRowTexts(table, labels.length, machineData.lines.length);
       const ids = correlateColumnIds(labels, columns, samples);
-      return ids.every((id) => normalizeColumnId(id)) ? ids : [];
+      // Emit the NORMALIZED form, not the raw {machine}fields token: validating
+      // through normalizeColumnId while emitting the raw string would let a
+      // padded id key storage under " rate " while every other entry point
+      // (normalizeColumnIds, writeOrder, normalizeWidths) stores "rate".
+      return ids.every((id) => normalizeColumnId(id)) ? ids.map(normalizeColumnId) : [];
     } catch {
       return [];
     }

@@ -39,6 +39,14 @@
   let scopeKey = null;
   let activeTable = null;
   let nativeColumnIds = null;
+  // The axis is derived ONCE from a native-order DOM and pinned here. It survives
+  // repaints, which DOM stamps cannot. appliedOrder is the non-native column order
+  // this runtime has applied, or null while the machine is in native order.
+  // axisMismatch latches when the machine's own axis changes underneath the pin;
+  // only removeEditGrid clears it.
+  let pinnedColumnIds = null;
+  let appliedOrder = null;
+  let axisMismatch = false;
   let entry = {};
   let pendingApply = false;
   let installErrorLogged = false;
@@ -88,6 +96,43 @@
 
   function machineContainer(table) {
     return table?.closest?.(core.MACHINE_CONTAINER_SELECTOR) ?? null;
+  }
+
+  function sameColumnIds(left, right) {
+    return left.length === right.length && left.every((id, index) => id === right[index]);
+  }
+
+  function currentColumnIds(table) {
+    // Latched refusal comes first. Installs are repaint-driven and arrive
+    // milliseconds apart, so clearing the pin alone would let the very NEXT
+    // install re-pin the changed axis — the silent swap spec A1.2 rule 4
+    // forbids, reintroduced through the back door. Only teardown clears this.
+    if (axisMismatch) {
+      return [];
+    }
+    // P-MONO (spec Amendment A1.2): core.correlateColumnIds only ever emits an
+    // increasing subsequence of the machine's own field order, so once WE have
+    // permuted the rendering it cannot recover the axis — measured on the live
+    // payload, every single-column move either declines (55%) or silently
+    // mis-keys (45%), and none is correct. Reuse the pin instead of asking.
+    if (appliedOrder) {
+      return pinnedColumnIds ?? [];
+    }
+    const derived = core.readColumnIds(table);
+    if (!derived.length) {
+      // A transient read during a repaint must not discard a still-valid pin.
+      return [];
+    }
+    if (pinnedColumnIds && !sameColumnIds(pinnedColumnIds, derived)) {
+      // The machine's own layout changed under us. The stored entry is keyed to
+      // the old axis, so adopting the new one silently would relabel the user's
+      // saved layout: drop the pin, latch, and decline for the life of the mount.
+      pinnedColumnIds = null;
+      axisMismatch = true;
+      return [];
+    }
+    pinnedColumnIds = derived;
+    return derived;
   }
 
   function isLineOpen() {
@@ -207,7 +252,7 @@
     }
     pendingApply = false;
     const table = machineTable();
-    const columnIds = table ? core.readColumnIds(table) : [];
+    const columnIds = table ? currentColumnIds(table) : [];
     if (!table || columnIds.length < 2) {
       return;
     }
@@ -223,7 +268,7 @@
       if (!table || !container) {
         return false;
       }
-      const columnIds = core.readColumnIds(table);
+      const columnIds = currentColumnIds(table);
       // Fail closed on an unrecognized machine: no header, no _fs spans,
       // duplicate or undecodable ids (spec section 7).
       if (
@@ -256,7 +301,7 @@
       // Identity re-derivation: Add/Insert/Remove renumbers every row id and
       // _fs span, so identity is re-read here on every install and a surviving
       // stamp on a <td> is never trusted as identity.
-      const current = core.readColumnIds(table);
+      const current = currentColumnIds(table);
       if (renderSignature(table, current) === targetSignature(table, current)) {
         return true;
       }
@@ -284,6 +329,9 @@
     }
     activeTable = null;
     nativeColumnIds = null;
+    pinnedColumnIds = null;
+    appliedOrder = null;
+    axisMismatch = false;
     scopeKey = null;
     entry = {};
     pendingApply = false;
