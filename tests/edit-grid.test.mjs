@@ -1467,9 +1467,70 @@ test("applyHidden fails closed on an axis that is absent, empty or misaligned", 
   // No header row at all, and no table at all.
   const headless = createTable([createRow({ id: "item_row_1", cells: [createCell({ text: "SKU" })] })]);
   assert.equal(core.applyHidden(headless, ["quantity"], EDIT_AXIS), false);
-  assert.equal(core.applyHidden(headless, [], EDIT_AXIS), false, "a reveal still needs a machine");
   assert.equal(core.applyHidden(null, ["quantity"], EDIT_AXIS), false);
-  assert.equal(core.applyHidden(undefined, [], EDIT_AXIS), false);
+  assert.equal(core.applyHidden(undefined, ["quantity"], EDIT_AXIS), false);
+  // Only the ACTIVE path refuses. The reveal is ruled unconditional — its own
+  // test, below.
+});
+
+test("ADJUDICATION #19: the reveal is unconditional — a stale class comes off a broken machine", () => {
+  // The ruling's requirement, pinned as its own test because it is the one place
+  // in this feature where refusing is WORSE than acting: a teardown that fails
+  // closed strands SuiteMate's class on NetSuite's page, and the class carries
+  // `display: none !important`, so a stranded one hides a column of the user's
+  // data with no UI left to un-hide it.
+  const core = createApi();
+  const stale = (options) => {
+    const table = createMachine(options);
+    assert.equal(core.applyHidden(table, ["quantity"], EDIT_AXIS), true);
+    assert.equal(anythingClassed(core, table), true, "nothing was staged to clear");
+    return table;
+  };
+
+  // 1. No axis at all, and an axis of the wrong width — neither blocks a reveal.
+  for (const axis of [null, undefined, [], "item,quantity,rate", ["item", "quantity"],
+    ["item", "quantity", "rate", "extra"]]) {
+    const table = stale();
+    assert.equal(core.applyHidden(table, [], axis), true,
+      `a broken axis (${JSON.stringify(axis) ?? "undefined"}) blocked a reveal`);
+    assert.equal(anythingClassed(core, table), false, "a stale class survived a reveal");
+  }
+
+  // 2. The header row itself is gone — a repaint that swapped the machine out
+  // from under a teardown. applyWidths' restore refuses here because it writes to
+  // header CELLS and cannot work without them; this sweep needs no header at all,
+  // and the stale classes are on the DATA rows, which are still right there.
+  const beheaded = stale();
+  beheaded.rows.splice(0, 1);
+  assert.equal(core.headerRow(beheaded), null, "the fixture still has a header row");
+  assert.equal(anythingClassed(core, beheaded), true);
+  assert.equal(core.applyHidden(beheaded, [], EDIT_AXIS), true, "a missing header row blocked a reveal");
+  assert.equal(anythingClassed(core, beheaded), false, "a stale class survived a headerless reveal");
+
+  // 3. Both at once: no header, no axis. Still cleared.
+  const worst = stale();
+  worst.rows.splice(0, 1);
+  assert.equal(core.applyHidden(worst, [], null), true);
+  assert.equal(anythingClassed(core, worst), false);
+
+  // 4. A cell NetSuite has hidden with its OWN inline display since the apply.
+  // That is the only way this feature's class can land on a cell visibleCells no
+  // longer returns, and it is why the sweep runs over row.cells rather than
+  // visibleCells: leave the class there and the column springs back hidden — by
+  // SuiteMate's `!important` rule — the moment NetSuite shows the cell again,
+  // with the feature long since torn down and nothing left to un-hide it.
+  const swapped = stale();
+  swapped.rows[1].cells[1].style.display = "none";
+  assert.equal(core.visibleCells(swapped.rows[1]).length, 2, "the fixture is not modelling the swap");
+  assert.equal(core.applyHidden(swapped, [], EDIT_AXIS), true);
+  assert.equal(swapped.rows[1].cells[1].classList.contains(HIDDEN_CLASS), false,
+    "a class was stranded on a cell NetSuite hid after the apply");
+
+  // 5. The floor: no machine at all is still a refusal, not a vacuous success.
+  // There is nothing to sweep and a null reference is a caller defect, so the
+  // carve-out does not extend to inventing a success signal for it.
+  assert.equal(core.applyHidden(null, [], EDIT_AXIS), false);
+  assert.equal(core.applyHidden(undefined, [], null), false);
 });
 
 test("an excluded row is never hidden, even when it aligns to the header", () => {

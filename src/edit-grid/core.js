@@ -999,22 +999,30 @@
   // mis-hide of the same family as a mis-keyed width.
   function applyHidden(table, hiddenIds, columnIds) {
     try {
-      const header = headerRow(table);
-      if (!header) {
+      if (!table) {
         return false;
       }
       const hidden = Array.isArray(hiddenIds) ? hiddenIds.filter((id) => id) : [];
       if (!hidden.length) {
-        // The reveal path needs no axis and must not require one — the same
-        // carve-out applyWidths' restore path has, for the same reason: teardown
-        // runs after the pin has been dropped, and a mount that cannot key its
-        // columns must still be able to undo what it set. It cannot mis-key,
-        // because it makes no per-column decision at all.
+        // ADJUDICATION #19: an empty hidden set is a RESTORE, it takes no axis,
+        // and it is UNCONDITIONAL. It runs before every gate below — a broken,
+        // empty or misaligned axis does not stop it, and neither does a missing
+        // header row.
         //
-        // Every cell of every row, not just the aligned ones: a row that has gone
-        // ragged since the apply — an open line grows spacer cells around its
-        // widgets — still carries the class the apply put there, and a reveal that
-        // could not reach it would strand it hidden.
+        // Grounds. It cannot mis-key: it makes no per-column decision at all.
+        // Teardown genuinely runs after the pin has been dropped, so demanding an
+        // axis here would make teardown fail closed and STRAND THIS FEATURE'S OWN
+        // CLASS on NetSuite's page — the one place in this feature where refusing
+        // is worse than acting. The header gate is dropped for the same reason and
+        // one more: applyWidths' restore keeps its header check because it writes
+        // to header CELLS and mechanically cannot work without them, which is a
+        // necessity of that function and not a policy to copy here. This sweep
+        // needs no header at all.
+        //
+        // Every cell of every row, not just the visible ones and not just the
+        // aligned ones: a row that has gone ragged since the apply — an open line
+        // grows spacer cells around its widgets — still carries the class the
+        // apply put there, and a reveal that could not reach it would strand it.
         for (const row of tableRows(table)) {
           for (const cell of Array.from(row?.cells ?? [])) {
             cell?.classList?.remove?.(CLASSES.colHidden);
@@ -1022,7 +1030,12 @@
         }
         return true;
       }
-      if (!alignsToHeader(header, columnIds)) {
+      // One gate, not two: alignsToHeader already subsumes "there is a header" —
+      // a null header has no visible cells, and an axis of length 0 is refused by
+      // alignsToHeader itself, so no non-empty axis can ever match it. A separate
+      // `!headerRow(table)` clause would be unreachable, and an unreachable gate
+      // is one no mutation can kill and no reader can trust.
+      if (!alignsToHeader(headerRow(table), columnIds)) {
         return false;
       }
       const wanted = new Set(hidden);
