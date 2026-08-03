@@ -556,9 +556,73 @@
     }
   }
 
-  function readHeaderLabels(table) {
-    return visibleCells(headerRow(table))
-      .map((cell) => nodeText(cell?.querySelector?.(HEADER_LABEL_SELECTOR) ?? cell));
+  // NetSuite's own text in one cell, with every node a SuiteMate feature injected
+  // into it removed first (spec Amendment A3.2). Three consumers: the label
+  // reader below, Task 16's control bar, and M6/M7's filter and sort keys.
+  //
+  // WHY THE STRIP IS NOT OPTIONAL. Header cells are shared furniture: internal-ids
+  // appends a badge span carrying data-suitemate-v3-internal-id into
+  // `.uir-machine-headerrow > td` (live-confirmed), and from Task 16 this feature
+  // hangs its OWN chips there — which FOREIGN_NODE_SELECTOR also names. Reading a
+  // cell whole would therefore feed another feature's output, and worse this
+  // feature's own output, into a label that keys a control bar and correlates
+  // column identity. That is A3.2's shape exactly: a value we wrote, laundered
+  // back in through a read.
+  //
+  // It reads, and never writes: the strip happens on a DETACHED clone, because the
+  // badge is another feature's node and removing it from the page would be this
+  // feature reaching across the boundary the plan draws around every other one.
+  //
+  // Fail closed on a cell that carries an injected node and cannot be read clean —
+  // an unclonable cell, a node that will not detach, a hostile query surface. The
+  // one outcome A3.2 forbids is returning the polluted text as though it were
+  // NetSuite's, so an unreadable cell reads as empty instead.
+  function readCellText(cell) {
+    try {
+      if (typeof cell?.querySelector !== "function") {
+        // No query surface at all: nothing can be hiding in it. This is the
+        // div.listheader wrapper's shape, and a plain text node's.
+        return nodeText(cell);
+      }
+      if (!cell.querySelector(FOREIGN_NODE_SELECTOR)) {
+        // The overwhelmingly common case, and the one the live machine is in for
+        // every static data cell: bare text, nothing injected, no clone needed.
+        return nodeText(cell);
+      }
+      const clone = cell.cloneNode?.(true);
+      if (typeof clone?.querySelectorAll !== "function") {
+        return "";
+      }
+      for (const foreign of Array.from(clone.querySelectorAll(FOREIGN_NODE_SELECTOR))) {
+        foreign.remove?.();
+      }
+      // Verified, not assumed: a node that did not detach leaves the text dirty,
+      // and dirty is the one thing this must never return.
+      return typeof clone.querySelector === "function" && clone.querySelector(FOREIGN_NODE_SELECTOR)
+        ? ""
+        : nodeText(clone);
+    } catch {
+      return "";
+    }
+  }
+
+  // The visible header's labels, one per visible header cell.
+  //
+  // `columnIds` is OPTIONAL and is a FALLBACK ONLY — a name for a column whose
+  // header renders no text, so Task 16's control bar can still list it. It is
+  // never a substitute for a label: readColumnIds and readColumnIdsFrom call this
+  // with ONE argument precisely so a blank header stays blank and A1.2's
+  // blank-label gate refuses the machine instead of correlating an id against
+  // itself. Extended in place rather than redeclared — a second declaration of
+  // this name in this scope silently wins and would have re-pointed both identity
+  // call sites at it.
+  function readHeaderLabels(table, columnIds) {
+    return visibleCells(headerRow(table)).map((cell, index) => {
+      // div.listheader when the machine wraps its label, the cell itself when it
+      // does not: both shapes are observed live and neither is guaranteed.
+      const label = readCellText(cell?.querySelector?.(HEADER_LABEL_SELECTOR) ?? cell);
+      return label || (Array.isArray(columnIds) ? String(columnIds[index] ?? "") : "");
+    });
   }
 
   function readSampleRowTexts(table, width, lineCount) {
@@ -904,6 +968,87 @@
     }
   }
 
+  // ===== Hide / show =====
+  // Hides exactly the columns `hiddenIds` names, across the header and every
+  // aligned, non-excluded row, BY CLASS ONLY.
+  //
+  // CLASS ONLY, and this is the load-bearing sentence of the whole function
+  // (spec A3.2's carve-out, design doc :605-615). `visibleCells` reads INLINE
+  // `style.display`, and is right to: inline display:none is how NetSuite hides
+  // its own system cells, a property this feature never writes, so a
+  // SuiteMate-hidden column stays on the axis. The moment this function writes an
+  // inline display it collapses the one property that tells NetSuite's hiding
+  // apart from ours — the hidden column drops out of `visibleCells`, the axis
+  // shortens, and the next install keys storage by an axis this feature's own
+  // output shortened. That is laundering into column IDENTITY, strictly worse
+  // than the width D1 laundered. The `display: none !important` lives in
+  // edit-grid.css:10-12, where display-defeats-hidden is already closed.
+  //
+  // The value is untouched: the cell, its widget and its content stay in the DOM
+  // and still submit — live-proven at probe 11, where a hidden required column
+  // committed cleanly.
+  //
+  // The axis is a PARAMETER and is never derived here (Amendment A1.2 rule 3,
+  // adjudication #14). No "derive it if the caller passed none" fallback exists,
+  // by ruling: that is the rule-4 back door. An active hide with no usable axis
+  // fails closed.
+  //
+  // `alignsToHeader(header, columnIds)` and not a bare length compare: a two-id
+  // axis against a three-column header passes `Array.isArray && length` and then
+  // hides by index against an axis that is not what is rendered — a silent
+  // mis-hide of the same family as a mis-keyed width.
+  function applyHidden(table, hiddenIds, columnIds) {
+    try {
+      const header = headerRow(table);
+      if (!header) {
+        return false;
+      }
+      const hidden = Array.isArray(hiddenIds) ? hiddenIds.filter((id) => id) : [];
+      if (!hidden.length) {
+        // The reveal path needs no axis and must not require one — the same
+        // carve-out applyWidths' restore path has, for the same reason: teardown
+        // runs after the pin has been dropped, and a mount that cannot key its
+        // columns must still be able to undo what it set. It cannot mis-key,
+        // because it makes no per-column decision at all.
+        //
+        // Every cell of every row, not just the aligned ones: a row that has gone
+        // ragged since the apply — an open line grows spacer cells around its
+        // widgets — still carries the class the apply put there, and a reveal that
+        // could not reach it would strand it hidden.
+        for (const row of tableRows(table)) {
+          for (const cell of Array.from(row?.cells ?? [])) {
+            cell?.classList?.remove?.(CLASSES.colHidden);
+          }
+        }
+        return true;
+      }
+      if (!alignsToHeader(header, columnIds)) {
+        return false;
+      }
+      const wanted = new Set(hidden);
+      const flags = columnIds.map((id) => wanted.has(id));
+      for (const row of tableRows(table)) {
+        // An excluded row is skipped even when it aligns — a totals row rendered
+        // at full width does — so hiding a column never takes a total with it.
+        // A ragged row is skipped because it cannot be indexed against the axis;
+        // that keeps an open line from being NEWLY hidden, but it does NOT clear
+        // a class an earlier apply already set on it, which is why force-reveal
+        // is a runtime duty and not a free consequence of this gate.
+        if (isExcludedRow(row) || !alignsToHeader(row, columnIds)) {
+          continue;
+        }
+        // toggle(name, force) is idempotent by construction: two consecutive
+        // applies of the same hidden set leave byte-identical class attributes.
+        visibleCells(row).forEach((cell, index) => {
+          cell?.classList?.toggle?.(CLASSES.colHidden, flags[index]);
+        });
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   // ===== Frozen export surface =====
   Object.defineProperty(globalScope, "SuiteMateV3EditGridCore", {
     value: Object.freeze({
@@ -954,9 +1099,11 @@
       isOrderedMachine,
       columnMinimums,
       applyWidths,
+      applyHidden,
       parseMachineFieldData,
       readMachineFieldData,
       collapseDisplayTwins,
+      readCellText,
       readHeaderLabels,
       readSampleRowTexts,
       labelAffinity,

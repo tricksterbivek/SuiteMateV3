@@ -78,8 +78,69 @@ function renderedWidth(cell) {
     : styled + cell.rectDelta;
 }
 
+// A node ANOTHER feature injected into a NetSuite cell. Live, internal-ids
+// appends a badge span carrying data-suitemate-v3-internal-id into
+// `.uir-machine-headerrow > td`; M3/M4 add this feature's own chips, which
+// FOREIGN_NODE_SELECTOR also names. Modelled with the removal genuinely WORKING
+// and the clone genuinely DETACHED, because the obvious shortcut — a clone that
+// already answers the stripped text — measures nothing at all: a reader that
+// strips nothing passes it exactly as well as one that strips (spec A3.3, "a
+// stub that flattens a quantity the production code derives from its own output
+// is blindness, not simplification").
+function isForeignSelector(selector) {
+  return String(selector).includes("data-suitemate-v3");
+}
+
+// `injected` entries are a string, or { text, detaches } — detaches:false models
+// a node that will not come off, so "the strip is verified, not assumed" has
+// something to be measured against.
+function withInjectedNodes(node, ownText, injected) {
+  const nodes = [];
+  for (const entry of injected) {
+    const spec = typeof entry === "string" ? { text: entry } : entry;
+    const child = {
+      nodeType: 1,
+      textContent: String(spec.text ?? ""),
+      matches: isForeignSelector,
+      ...(spec.detaches === false ? {} : {
+        remove: () => {
+          const at = nodes.indexOf(child);
+          if (at >= 0) {
+            nodes.splice(at, 1);
+          }
+        }
+      })
+    };
+    nodes.push(child);
+  }
+  const innerQuery = node.querySelector;
+  const innerQueryAll = node.querySelectorAll;
+  // A real <td> reports its descendants' text, so the badge is part of
+  // textContent until something removes the badge.
+  Object.defineProperty(node, "textContent", {
+    get: () => nodes.reduce((text, child) => text + child.textContent, String(ownText)),
+    configurable: true
+  });
+  node.querySelector = (selector) => (isForeignSelector(selector)
+    ? nodes[0] ?? null
+    : innerQuery?.(selector) ?? null);
+  node.querySelectorAll = (selector) => (isForeignSelector(selector)
+    ? nodes.slice()
+    : innerQueryAll?.(selector) ?? []);
+  // A DETACHED deep copy with its own nodes: stripping the clone cannot touch the
+  // page, which is the property that keeps this reader from destroying another
+  // feature's output while reading past it.
+  node.cloneNode = (deep) => withInjectedNodes(
+    { nodeType: 1 },
+    ownText,
+    deep === false ? [] : nodes.map((child) => ({ text: child.textContent, detaches: "remove" in child }))
+  );
+  return node;
+}
+
 function createCell({
-  text = "", spanId = null, systemHidden = false, width = 100, widget = 0, rectDelta = null
+  text = "", spanId = null, systemHidden = false, width = 100, widget = 0, rectDelta = null,
+  injected = []
 } = {}) {
   const classes = new Set();
   // The machine's materialised field widgets. Live 2026-08-02: only the OPEN line
@@ -122,7 +183,7 @@ function createCell({
     querySelector: (selector) => (spanId && selector.includes("_fs") ? { id: spanId } : null),
     querySelectorAll: (selector) => (String(selector).includes("input") ? widgets : [])
   };
-  return cell;
+  return injected.length ? withInjectedNodes(cell, text, injected) : cell;
 }
 
 // Gives a row's VISIBLE cells real page coordinates, left to right. The resize
@@ -186,11 +247,11 @@ function createRow({ id = "", className = "uir-machine-row", cells = [] } = {}) 
 // the only live evidence is that header cells carry text and no ids
 // (probe-transcripts.md:19). readHeaderLabels must therefore work either way, so
 // the stub builds both shapes and every header test runs against both.
-function createHeaderCell(label, { wrapped = true, systemHidden = false } = {}) {
+function createHeaderCell(label, { wrapped = true, systemHidden = false, injected = [] } = {}) {
   const cell = createCell({ text: label, systemHidden });
   cell.querySelector = (selector) =>
     wrapped && String(selector).includes("listheader") ? { textContent: label } : null;
-  return cell;
+  return injected.length ? withInjectedNodes(cell, label, injected) : cell;
 }
 
 // The machine lives inside <form id="main_form">, which is where NetSuite puts
@@ -379,6 +440,13 @@ test("exports a frozen core with the Edit Mode storage and DOM contract", () => 
   // the task brief's Step 4 sanctions ("Add `columnMinimums,` and `applyWidths,`
   // to the frozen export object beside `isOrderedMachine`"), re-sanctioned by
   // adjudication #14 together with applyWidths' axis-TAKING signature.
+  // M3 Task 15 adds TWO — readCellText and applyHidden, 54 -> 56. The task brief
+  // sanctions THREE Produces names; the third, readHeaderLabels, has been on the
+  // contract since M1.5, so it grows by two rather than three. That function is
+  // EXTENDED in place (an optional second parameter) rather than redeclared —
+  // a second `function readHeaderLabels` in the same scope silently wins and
+  // would have re-pointed readColumnIds' and readColumnIdsFrom's label reads at
+  // it without a single test noticing.
   // deepEqual on the NAMES, not a count: a count passes when one export is
   // renamed and another added, which is precisely the drift this guards.
   assert.deepEqual(Object.keys(core), [
@@ -394,8 +462,9 @@ test("exports a frozen core with the Edit Mode storage and DOM contract", () => 
     "clampWidth", "normalizeStored", "refusesNewerSchema", "withOrder", "withHidden", "withWidths",
     "machineIdFromTable", "rowLineNumber", "columnIdFromSpanId", "visibleCells", "tableRows",
     "headerRow", "isExcludedRow", "alignsToHeader", "isDataRow", "readColumnIds", "readColumnIdsFrom",
-    "isOrderedMachine", "columnMinimums", "applyWidths",
-    "parseMachineFieldData", "readMachineFieldData", "collapseDisplayTwins", "readHeaderLabels",
+    "isOrderedMachine", "columnMinimums", "applyWidths", "applyHidden",
+    "parseMachineFieldData", "readMachineFieldData", "collapseDisplayTwins",
+    "readCellText", "readHeaderLabels",
     "readSampleRowTexts", "labelAffinity", "correlateColumnIds"
   ]);
 });
@@ -1288,6 +1357,292 @@ test("applyWidths keys widths by the axis it is handed, never by one it derives"
   assert.equal(header[0].style.width, "240px", "the handed axis governs, not the derivable one");
   assert.equal(header[11].style.width, "100px", "the natively-eleventh column is not the one resized");
   assert.deepEqual(plain(header.slice(1).map((cell) => cell.style.width)), new Array(11).fill("100px"));
+});
+
+// ===== M3: hide / show =====
+const HIDDEN_CLASS = "suitemate-v3-edit-grid-col-hidden";
+const EDIT_AXIS = ["item", "quantity", "rate"];
+
+// plain(): visibleCells builds its array inside the vm sandbox, so its prototype
+// is the sandbox's Array.prototype and deepStrictEqual refuses it against a
+// literal built out here — the same reason every other assertion in this file
+// goes through plain().
+function hiddenFlags(core, row) {
+  return plain(core.visibleCells(row).map((cell) => cell.classList.contains(HIDDEN_CLASS)));
+}
+
+// Every class on every cell, system cells included — the shape an idempotence
+// claim has to be measured against, since "byte-identical DOM" is a statement
+// about what an apply wrote, not about the columns it meant to write to.
+function classSnapshot(core, table) {
+  return plain(core.tableRows(table).map((row) => Array.from(row.cells).map((cell) => cell.classNames())));
+}
+
+function anythingClassed(core, table) {
+  return core.tableRows(table)
+    .some((row) => Array.from(row.cells).some((cell) => cell.classNames().length > 0));
+}
+
+test("hides a column across the header and every aligned row, and nothing else", () => {
+  const core = createApi();
+  const table = createMachine();
+  // The axis is HANDED in and never derived here — adjudication #14, and the
+  // reason a bare createMachine() is used: its axis is not derivable at all
+  // (no {machine}fields input), so an implementation that reached for
+  // readColumnIds internally would refuse every call this test makes.
+  assert.deepEqual(plain(core.readColumnIds(table)), [], "the fixture became self-deriving");
+  const displays = () => plain(core.tableRows(table)
+    .map((row) => Array.from(row.cells).map((cell) => cell.style.display)));
+  const nativeDisplays = displays();
+
+  assert.equal(core.applyHidden(table, ["quantity"], EDIT_AXIS), true);
+  assert.deepEqual(hiddenFlags(core, table.rows[0]), [false, true, false], "the header cell is hidden too");
+  assert.deepEqual(hiddenFlags(core, table.rows[1]), [false, true, false]);
+  assert.deepEqual(hiddenFlags(core, table.rows[2]), [false, true, false]);
+  // The system cell keeps its own inline display:none and is never classed.
+  assert.equal(table.rows[1].cells[3].classList.contains(HIDDEN_CLASS), false);
+  // machineButtonRow and the totals row are never touched.
+  assert.equal(table.rows[3].cells[0].classList.contains(HIDDEN_CLASS), false);
+  assert.equal(table.rows[4].cells[0].classList.contains(HIDDEN_CLASS), false);
+
+  // BINDING RULE 3 and the spec's A3.2 carve-out (design doc :605-615): hiding is
+  // by CLASS ONLY. Not one inline display moved. The moment core writes one,
+  // visibleCells — which reads inline display, and is right to, because that is
+  // how NetSuite hides its OWN cells — drops the hidden cell, the column leaves
+  // the axis, and the next install keys storage by a two-column axis. That is
+  // laundering our own output into column IDENTITY, strictly worse than a width.
+  assert.deepEqual(displays(), nativeDisplays, "applyHidden wrote an inline display");
+  // Which is the same statement, made positively: the column is still on the axis.
+  assert.equal(core.alignsToHeader(table.rows[1], EDIT_AXIS), true);
+  assert.equal(core.visibleCells(table.rows[0]).length, 3);
+  assert.equal(core.isDataRow(table.rows[1], EDIT_AXIS), true);
+
+  // Idempotent (A3.3): a second identical apply leaves byte-identical classes.
+  const applied = classSnapshot(core, table);
+  assert.equal(core.applyHidden(table, ["quantity"], EDIT_AXIS), true);
+  assert.deepEqual(classSnapshot(core, table), applied, "a second identical apply moved the DOM");
+
+  // Hiding a DIFFERENT column reveals the first one. The reveal path below runs
+  // on an EMPTY set and so never exercises the toggle's off branch at all — an
+  // add-only implementation ("hide what is named, leave the rest") passes every
+  // other assertion in this file and strands a column hidden the moment the user
+  // unchecks it, which is the ordinary way Task 16's menu will call this.
+  assert.equal(core.applyHidden(table, ["rate"], EDIT_AXIS), true);
+  assert.deepEqual(hiddenFlags(core, table.rows[0]), [false, false, true]);
+  assert.deepEqual(hiddenFlags(core, table.rows[1]), [false, false, true], "the previous column stayed hidden");
+  assert.equal(core.applyHidden(table, ["item", "rate"], EDIT_AXIS), true);
+  assert.deepEqual(hiddenFlags(core, table.rows[1]), [true, false, true]);
+  assert.equal(core.applyHidden(table, ["quantity"], EDIT_AXIS), true);
+  assert.deepEqual(classSnapshot(core, table), applied,
+    "the set is the whole plan: arriving back at it must reproduce it exactly");
+
+  // Revealing is a clean toggle back that leaves nothing behind anywhere.
+  assert.equal(core.applyHidden(table, [], EDIT_AXIS), true);
+  assert.deepEqual(hiddenFlags(core, table.rows[1]), [false, false, false]);
+  assert.equal(anythingClassed(core, table), false, "a reveal left a class behind");
+  assert.deepEqual(displays(), nativeDisplays, "a reveal wrote an inline display");
+  assert.equal(core.applyHidden(null, ["quantity"], EDIT_AXIS), false);
+});
+
+test("applyHidden fails closed on an axis that is absent, empty or misaligned", () => {
+  // BINDING RULE 1. alignsToHeader is the house gate and is stronger than the
+  // length compare the task brief carried: a two-id axis against a three-column
+  // header passes `Array.isArray(columnIds) && columnIds.length` and then hides
+  // by index against an axis that is not the one rendered — a silent mis-hide of
+  // the same family as the mis-keyed width M2 was spent on.
+  const core = createApi();
+  const refused = [null, undefined, [], "item,quantity,rate", { 0: "item" },
+    ["item", "quantity"], ["item", "quantity", "rate", "extra"]];
+  for (const axis of refused) {
+    const table = createMachine();
+    assert.equal(core.applyHidden(table, ["quantity"], axis), false,
+      `axis ${JSON.stringify(axis) ?? "undefined"} was accepted`);
+    assert.equal(anythingClassed(core, table), false, "a refused apply classed a cell anyway");
+  }
+  // Not vacuous: the very same call with the aligned axis hides.
+  const good = createMachine();
+  assert.equal(core.applyHidden(good, ["quantity"], EDIT_AXIS), true);
+  assert.equal(anythingClassed(core, good), true);
+
+  // No header row at all, and no table at all.
+  const headless = createTable([createRow({ id: "item_row_1", cells: [createCell({ text: "SKU" })] })]);
+  assert.equal(core.applyHidden(headless, ["quantity"], EDIT_AXIS), false);
+  assert.equal(core.applyHidden(headless, [], EDIT_AXIS), false, "a reveal still needs a machine");
+  assert.equal(core.applyHidden(null, ["quantity"], EDIT_AXIS), false);
+  assert.equal(core.applyHidden(undefined, [], EDIT_AXIS), false);
+});
+
+test("an excluded row is never hidden, even when it aligns to the header", () => {
+  // createMachine's button and totals rows carry ONE cell each, so the alignment
+  // gate alone already skips them and isExcludedRow is not load-bearing there —
+  // it can be deleted and the suite stays green. A totals row rendered at the
+  // machine's full width is what makes it load-bearing: it aligns, and hiding a
+  // column must still not take its total with it.
+  const core = createApi();
+  const table = createMachine();
+  const totals = createRow({
+    className: "totalrow",
+    cells: [
+      createCell({ text: "" }), createCell({ text: "12" }), createCell({ text: "$24.00" }),
+      createCell({ text: "", systemHidden: true })
+    ]
+  });
+  table.rows.push(totals);
+  assert.equal(core.alignsToHeader(totals, EDIT_AXIS), true, "the fixture no longer aligns");
+  assert.equal(core.isExcludedRow(totals), true);
+
+  assert.equal(core.applyHidden(table, ["quantity"], EDIT_AXIS), true);
+  assert.deepEqual(totals.cells.map((cell) => cell.classNames()), [[], [], [], []],
+    "an aligned totals row was hidden with the column");
+  assert.equal(table.rows[1].cells[1].classList.contains(HIDDEN_CLASS), true, "the data row was not hidden");
+});
+
+test("revealing needs no axis, and reaches the rows an apply can no longer key", () => {
+  const core = createApi();
+  const table = createMachine();
+  assert.equal(core.applyHidden(table, ["quantity"], EDIT_AXIS), true);
+
+  // DELIBERATE DEPARTURE from binding rule 1's letter, mirroring applyWidths'
+  // restore path verbatim (core.js:812-826) and disclosed as such: an EMPTY hidden
+  // set is a restore and needs no axis, because teardown runs after the pin has
+  // been dropped and a mount that cannot key its columns must still be able to
+  // undo what it set. It cannot mis-key anything — it makes no per-column
+  // decision at all; the rule guards the ACTIVE path, which still refuses.
+  assert.equal(core.applyHidden(table, [], null), true);
+  assert.equal(anythingClassed(core, table), false);
+  // A hidden set that is not an array is that same restore, exactly as a `widths`
+  // that is not a plain object is for applyWidths — never a success that silently
+  // hides nothing while claiming to have hidden something.
+  assert.equal(core.applyHidden(table, ["quantity"], EDIT_AXIS), true);
+  assert.equal(core.applyHidden(table, "quantity", EDIT_AXIS), true);
+  assert.equal(anythingClassed(core, table), false);
+  // Nothing in the set survives normalization -> nothing to hide -> restore.
+  assert.equal(core.applyHidden(table, ["quantity"], EDIT_AXIS), true);
+  assert.equal(core.applyHidden(table, [null, "", undefined], EDIT_AXIS), true);
+  assert.equal(anythingClassed(core, table), false);
+
+  // What the alignment gate does NOT buy, stated because the task brief claims it
+  // does ("force-reveal rule 3, for free"): a row that was aligned when the apply
+  // ran KEEPS its class when it later goes ragged — an open line grows spacer
+  // cells around its widgets. The gate only stops a ragged row being NEWLY
+  // hidden. Task 16's force-reveal is a runtime duty and is not free.
+  assert.equal(core.applyHidden(table, ["quantity"], EDIT_AXIS), true);
+  const opened = table.rows[1];
+  opened.cells.push(createCell({ text: "" }));
+  assert.equal(core.alignsToHeader(opened, EDIT_AXIS), false);
+  const ragged = plain(opened.cells.map((cell) => cell.classNames()));
+  assert.equal(core.applyHidden(table, ["quantity"], EDIT_AXIS), true);
+  assert.equal(opened.cells[1].classList.contains(HIDDEN_CLASS), true,
+    "the stale class on a ragged row is exactly what force-reveal has to clear");
+  // Untouched, not merely still-hidden. A ragged row indexed against the axis
+  // anyway would run out of flags at its extra cell and `toggle(class, undefined)`
+  // flips rather than sets — so the spacer cell an open line grew would go hidden
+  // on every apply, which is the same off-by-one column shift that made every
+  // View Mode row predicate match zero rows here (spec H1).
+  assert.deepEqual(plain(opened.cells.map((cell) => cell.classNames())), ragged,
+    "an apply reached into a row it cannot index against the axis");
+  // The reveal sweep does reach it: every cell of every row, aligned or not.
+  assert.equal(core.applyHidden(table, [], EDIT_AXIS), true);
+  assert.equal(anythingClassed(core, table), false, "a ragged row kept a class through a reveal");
+});
+
+test("a hidden column stays on the axis, measured on the live twelve-column machine", () => {
+  // Everything above runs on the three-column stub. A gate written against one
+  // geometry (`columnIds.length > 3 ? … : …`) survives all of it, and the
+  // laundering this pins is only visible where the axis is re-derivable at all.
+  const core = createApi();
+  const table = createLiveMachine();
+  assert.deepEqual(plain(core.readColumnIds(table)), LIVE_AXIS);
+  assert.equal(core.applyHidden(table, ["quantity", "rate", "not_a_column"], LIVE_AXIS), true);
+
+  // THE laundering pin. Re-derived AFTER the hide, from the same machine: an
+  // inline write would have taken two labels off visibleCells, and readColumnIds
+  // would answer a ten-column axis (or nothing) — which is what would then key
+  // storage on the next install.
+  assert.deepEqual(plain(core.readColumnIds(table)), LIVE_AXIS, "hiding moved the column axis");
+  assert.deepEqual(plain(core.readHeaderLabels(table)), LIVE_LABELS);
+  const expected = LIVE_AXIS.map((id) => id === "quantity" || id === "rate");
+  for (const row of core.tableRows(table)) {
+    assert.deepEqual(hiddenFlags(core, row), expected, "the wrong columns hid on a twelve-column axis");
+  }
+  // An id that is not on the axis is ignored, not an error and not an extra hide.
+  assert.equal(expected.filter(Boolean).length, 2);
+});
+
+test("readCellText reads NetSuite's own text and never a node SuiteMate injected", () => {
+  const core = createApi();
+  // Static data cells are BARE TEXT live (probe 11): no _fs span, no input, no id,
+  // nothing to unwrap — so the cheap path has to be the correct one. Whitespace
+  // collapses exactly as the label reader has always collapsed it, which is what
+  // keeps an M6/M7 filter or sort key free of a newline no user could type.
+  assert.equal(core.readCellText(createCell({ text: "  Rate  " })), "Rate");
+  assert.equal(core.readCellText(createCell({ text: " Back\n\tOrdered " })), "Back Ordered");
+  assert.equal(core.readCellText(createCell({ text: "" })), "");
+  assert.equal(core.readCellText(null), "");
+  assert.equal(core.readCellText(undefined), "");
+  // A node with no query surface at all — the div.listheader wrapper's shape.
+  // Collapsed on this path too: it is the path every wrapped header label takes.
+  assert.equal(core.readCellText({ textContent: "  Rate  " }), "Rate");
+  assert.equal(core.readCellText({ textContent: " Back\n\tOrdered " }), "Back Ordered");
+
+  // A3.2. internal-ids appends a badge span into these cells (live-confirmed) and
+  // this feature's own chips land there from Task 16 on; FOREIGN_NODE_SELECTOR
+  // names both. Neither is NetSuite's text.
+  const badged = createCell({ text: "Item", injected: ["42"] });
+  assert.equal(badged.textContent, "Item42", "the fixture stopped modelling the pollution");
+  assert.equal(core.readCellText(badged), "Item");
+  // And the page is NOT mutated: the badge is another feature's output, still there.
+  assert.equal(badged.textContent, "Item42", "readCellText removed another feature's node from the page");
+  // Our own node is the case A3.2 is actually about.
+  assert.equal(core.readCellText(createCell({ text: "Quantity", injected: ["×"] })), "Quantity");
+  assert.equal(core.readCellText(createCell({ text: " Rate ", injected: ["1", "2", "3"] })), "Rate");
+  // Fail closed rather than dirty, both ways it can fail: a cell that carries an
+  // injected node and cannot be cloned, and a clone whose node will not detach.
+  // Returning the polluted text instead is the one outcome A3.2 forbids.
+  assert.equal(core.readCellText({ textContent: "Item42", querySelector: () => ({ nodeType: 1 }) }), "");
+  assert.equal(core.readCellText(createCell({ text: "Item", injected: [{ text: "42", detaches: false }] })), "");
+  assert.equal(core.readCellText({
+    textContent: "Item",
+    querySelector: () => { throw new Error("hostile"); }
+  }), "");
+});
+
+test("readHeaderLabels reads both header shapes, strips injections, and never opens the blank-label gate", () => {
+  const core = createApi();
+  // Both shapes are already pinned clean above ("reads the column axis from the
+  // machine's hidden inputs and header labels"). Here they carry pollution.
+  const bare = createLiveMachine({ wrappedHeaders: false });
+  bare.rows[0].cells[0] = createHeaderCell("Item", { wrapped: false, injected: ["42"] });
+  assert.deepEqual(plain(core.readHeaderLabels(bare)), LIVE_LABELS);
+  // The identity path reads through the same function, so it is unpolluted too —
+  // today internal-ids costs affinity 4 -> 3 on every badged header.
+  assert.deepEqual(plain(core.readColumnIds(bare)), LIVE_AXIS);
+  // Wrapped: the badge sits in the td beside div.listheader, so the wrapper read
+  // already excludes it. Belt and braces, deliberately: either mechanism alone
+  // gives the clean label.
+  const wrapped = createLiveMachine();
+  wrapped.rows[0].cells[0] = createHeaderCell("Item", { wrapped: true, injected: ["42"] });
+  assert.deepEqual(plain(core.readHeaderLabels(wrapped)), LIVE_LABELS);
+  assert.deepEqual(plain(core.readColumnIds(wrapped)), LIVE_AXIS);
+
+  // The axis parameter is a FALLBACK for a blank label and nothing else: the
+  // header of a machine that renders one column with no text still names that
+  // column in a control bar, and its id is the only name left.
+  const blanked = LIVE_LABELS.slice();
+  blanked[3] = "   ";
+  const table = createLiveMachine({ labels: blanked });
+  const withAxis = plain(core.readHeaderLabels(table, LIVE_AXIS));
+  assert.equal(withAxis[3], "quantitybilled");
+  assert.deepEqual(withAxis.filter((_, index) => index !== 3), LIVE_LABELS.filter((_, index) => index !== 3));
+  // And ONLY that. With no axis the blank stays blank — which is what keeps
+  // A1.2's blank-label gate shut, since readColumnIds calls this with one
+  // argument and refuses a machine whose header has a hole.
+  assert.equal(plain(core.readHeaderLabels(table))[3], "");
+  assert.deepEqual(plain(core.readColumnIds(table)), [], "a fallback label reopened the A1.2 blank gate");
+  // A short axis fills what it has and leaves the rest blank — never an index shift.
+  assert.deepEqual(plain(core.readHeaderLabels(table, ["item"])), blanked.map((label, index) =>
+    (index === 3 ? "" : label)));
+  assert.deepEqual(plain(core.readHeaderLabels(null, LIVE_AXIS)), []);
 });
 
 test("core has no DOM, storage, bridge or network authority", () => {
