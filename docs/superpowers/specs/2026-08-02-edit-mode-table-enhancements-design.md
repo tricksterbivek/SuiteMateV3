@@ -500,3 +500,224 @@ M3, M6 and M7 read the amended text: **width is the only exempt set.** A later m
 that wants a second exemption needs its own amendment and its own measurement — the
 grounds here are specific to a freeze whose absence is itself a visible layout change, and
 they do not generalise to a set that moves or removes rows.
+
+---
+
+## Amendment 3 — DOM-read laundering, gesture seeding and harness fidelity (2026-08-03)
+
+Status: binding. **Adds** one invariant that M3, M4 and every later gesture inherit (A3.2) and
+records three findings the M2 live pass and its storage-level re-probe produced. It **reverts
+nothing shipped** and **amends no earlier rule** — A1.2's pinning rules, A1.4's fail-closed
+inventory and Amendment 2's width exemption all stand exactly as written (A3.5). One earlier
+*claim* is struck as false, and that is the whole of A3.1.
+
+Source of authority: the M2 Task 13 verdict of record and its correction
+(`.superpowers/sdd/2026-08-02-edit-mode-table-enhancements/progress.md:106`), the M2 re-probe
+verdict — in which the interpreter read the owner's own `chrome.storage` LevelDB off disk and
+recovered every write of `suiteMateV3EditColumns` in order (`progress.md:169-175`), the D2
+storage-level verification (`:176`), the View Mode attribution entries (`:177-178`) and the
+uncontrolled-variable by-catch (`:179`). Code state: the fixes are shipped at `051c5ae`, the
+tree is `b43f6ec`, 290/290 with 28 screenshot baselines at 0.000 % (`progress.md:163`).
+
+### A3.1 The DOM-read laundering hazard — the corrected D1 blast-radius account
+
+The Task 13 verdict closed D1's blast radius with this syllogism: `saveWidths` is the one
+write site, `columnWidths` has exactly four assignment sites, **none of them the floor**,
+therefore an inflated width can never reach storage and every inflated value is a render
+artifact (`progress.md:106`). Every clause of it is **true**. The conclusion is **false**.
+
+Both halves of the enumeration still check out against the shipped file: `columnWidths` is
+assigned at `src/edit-grid/runtime.js:382` (the drag), `:734` (the guarded reseed) and `:766`
+and `:779` (teardown), over its `:57` initializer, and the only writer is `saveWidths`
+(`:470`, called from `:395`). The floor is assigned to none of them. What the enumeration
+never asked is **where the value assigned at `:382` comes from**, and the answer is the DOM:
+
+| Link | Code | What moves |
+|---|---|---|
+| 1 | pre-fix `core.applyWidths` clamped every column against a live-measured widget floor | an inflated width is written to `cell.style.width` — the render artifact |
+| 2 | `runtime.js:338`, seeded at `:343` | `handleResizeDown` parses **that same `cell.style.width`** into `startWidth` |
+| 3 | `runtime.js:382` | `handleResizeMove` writes `startWidth + delta` into `columnWidths` — assignment site #1 of the four, carrying a value the apply path authored |
+| 4 | `runtime.js:395` → `:470` | `handleResizeUp` persists it. One gesture, one write, and the drift is now in `chrome.storage.sync` |
+
+The gesture never had to be a real resize: a near-zero delta is enough, because the *starting
+point* is already the inflated value. Storage forensics confirmed it happened — writes 4-7 of
+`suiteMateV3EditColumns` carry `quantitycommitted: 111 → 174`, `units: 213` and
+`description: 103`, the **exact D1 drift figures, on columns nobody chose to resize**
+(`progress.md:172`; the live D1 walk was Committed 72 → 111 → 174 and Units 75 → 213, neither
+ever dragged, commit `051c5ae`). The most likely gestures are the near-zero-delta 5px-edge and
+field-help probes. Storage was polluted for real and was cleaned by hand; the scope key is
+`companyId:userId:salesord:edit` — per user per **record type**, not per record — so a
+polluted layout applied to every sales order that user edited (`progress.md:173`).
+
+**Named hazard — DOM-read laundering.** Any value the feature's apply path puts into the DOM
+can be carried into storage by a later gesture that takes that DOM state as its starting
+point. The persisted variable's assignment sites are clean at every step; the *provenance* of
+the assigned value is the leak.
+
+> **The general lesson, and it is the binding half of this subsection: enumerating the
+> assignment sites of a persisted variable does not bound what can reach storage. You must
+> also ask, transitively, where each assigned value comes from — and a value read back out of
+> the feature's own rendering has the feature's own output as its source.**
+
+**The read at `:338` is still there, byte-identical to its pre-fix form, and it is now safe —
+for a reason that must not be mistaken for the read being harmless.** It is safe because
+`core.applyWidths` now clamps to the static bounds only (`src/edit-grid/core.js:853`, `:895`)
+and the apply is a pure function of the plan it is handed, so `cell.style.width` *is* the
+feature's model, faithfully rendered. Reading it back is reading the model. Anything that
+re-admits a value the apply path derives rather than reproduces — an apply-time floor above
+all — re-arms this path in full, which is why `applyWidths`' now-unread `minimums` slot is
+pinned provably inert (`tests/edit-grid.test.mjs:1191`, adjudication #17) and why re-admitting
+a floor through it requires a fresh adjudication.
+
+The `getBoundingClientRect().width` fallback on the same line (`:343`) is the *other* kind of
+read and is the model for A3.2's carve-out: it fires only when the feature has written no
+inline width on that cell, so the value it takes is NetSuite's native layout — a number the
+feature could not have authored. It was exercised live: the re-probe's write arithmetic checks
+against native starts (60 + 50 = 110, 57 + 45 = 102), which is that branch running
+(`progress.md:176`).
+
+### A3.2 Gesture seeding — binding on M3, M4 and every gesture after them
+
+> **A gesture handler takes its starting value from the feature's own model — the plan,
+> the stored entry, or the pinned axis — and never re-reads it from the DOM the feature
+> itself rendered.**
+
+**Carve-out, deliberately narrow.** A DOM read is permitted as a *seed* only when the quantity
+read is one **the feature has never written on that node** — a native width, a native order,
+NetSuite's own state — and then only as a fallback below the model. It must be justified
+in-code at the read, and the justification must answer the authorship question explicitly:
+*could this feature have written this value?* The existing note at `runtime.js:336-337` is the
+right shape and is **not** sufficient on its own — it justifies preferring the style width on
+rendering-accuracy grounds (collapsed borders render ~2px over the style value and re-measuring
+rects accumulates it) and never asks who wrote that style value. That gap is exactly how D1's
+output reached storage.
+
+**Procedural requirement: every new gesture handler states in-code which model it seeds
+from.** A handler whose seed cannot be named against a model is a defect at review, not a
+style note.
+
+| Gesture | Bound to seed from | Forbidden seed, and why |
+|---|---|---|
+| **M3 hide/show** | the stored hidden set and runtime module state | **rendered** visibility — `getComputedStyle(cell).display`, an offset/rect test, or anything downstream of our own class-based hide rules (`.suitemate-v3-edit-grid-col-hidden`, `src/edit-grid/edit-grid.css:10-12`, and `.suitemate-v3-edit-grid-row-filtered`, `:14-16`, both `display: none !important`). Computed display *is* our output, so a reveal seeded from it is A3.1's shape exactly. See the carve-out note below: the **inline** read is a different thing and must stay that way. |
+| **M4 reorder** | the **pinned axis** (A1.2 rule 3, `:317`) and the applied-order module state | DOM column order or header position after we have permuted it. This already had one sufficient reason — re-derivation under permutation is *never* correct, measured: 0 of 903 transpositions and 0 of 1 806 single-column moves come back right (`:306-309`). A3.1 supplies a **second, independent** one: position read out of a rendering we permuted is our own output re-entering our input, and a mis-key laundered this way persists silently. Two independent reasons, one rule — the pin. |
+| **any future gesture** | its own persisted state | any quantity the feature writes to the DOM and could read back |
+
+**The carve-out, already implemented correctly in-source, and M3 must not break it.**
+`visibleCells` reads **inline** `cell.style.display` (`src/edit-grid/core.js:531-534`) and is
+right to: inline `display:none` is how *NetSuite* hides its own system cells — the same property
+`src/internal-ids/runtime.js:171` filters on — while **SuiteMate hides columns with a class**, so
+a SuiteMate-hidden column stays on the axis. The comment at `:532-533` says exactly that. This is
+the A3.2 carve-out done properly: the read takes a property this feature never writes on that
+node, and the code states why. **Binding consequence for M3: it hides by class only.** The moment
+M3 writes an inline `display` on a machine cell it collapses the one property that distinguishes
+NetSuite's hiding from ours, and `visibleCells` — which computes the axis every install — begins
+laundering our own output into **column identity**, which is strictly worse than laundering a
+width.
+
+Already ledgered and restated here because it binds the same handlers: `pendingWrites` is
+incremented only by the width writer and read only by the reseed guard (`runtime.js:733`), so
+a second writer that does not increment at its **own** enqueue reintroduces D2 for its field.
+Cheapest closure when M3's writer arrives is folding the counter into `enqueueSave` itself
+(`progress.md:120`, `:132`).
+
+### A3.3 Test-harness fidelity — a stub that flattens a feedback quantity is blindness
+
+**The suite was 282/282 green with both defects live** (`progress.md:104`). It was not thin —
+it was blind in one specific place: **D1 was structurally unobservable**, for two separable
+reasons, and both are now closed. (D2's harness gap is deliberately not claimed here as a third:
+the call-time storage snapshot added alongside these was reported as what makes D2 staleness
+modellable and that claim was **false** — reverting it leaves the whole suite green. It is a
+fidelity improvement, not a pin, `progress.md:154`.)
+
+| Blindness | Then | Now |
+|---|---|---|
+| **The floor was flattened.** `columnMinimums` returned all zeros in the sliced apply harness and no test machine carried a materialised widget at all, so no floor existed anywhere in the model and there was nothing for the apply path to widen. | `eea4c25:tests/edit-grid.test.mjs:2813` — `columnMinimums: (target, ids) => Object.fromEntries(ids.map((id) => [id, 0]))` | the stub answers a real floor and records every call (`tests/edit-grid.test.mjs:3409-3416`), and `createMachine` takes a `widgets` map so machines carry real widget widths (`:258-271`) |
+| **The feedback path was cut.** `createCell`'s rect was a constant independent of `style.width`, so no edit-grid test could model a rect that follows what an apply wrote — the loop D1 walked around was unrepresentable. | `eea4c25:tests/edit-grid.test.mjs:68` — `getBoundingClientRect: () => ({ width })` | `rectDelta` threads through `createCell` (`:65-82`) and `layoutCells` installs one **live** getter (`:145-148`); 0 = border-box, 2 = this repo's measured collapsed-border figure, 11 = the View Mode observation |
+
+> **Standing requirement: any harness stub that flattens a quantity the production code derives
+> from its own output is a blindness, not a simplification.** A measurement stub must model the
+> feedback path — the rect follows the style, the floor answers a real value — or a test that
+> exercises the loop proves nothing about the loop.
+
+**Stated precisely, because this subsection is about false confidence and must not manufacture
+any.** In the replacement stub the *number* is documentation, not detection: changing 400 to 0
+changes nothing, and what actually catches a re-measuring apply is the call recording asserted
+at `tests/edit-grid.test.mjs:3434-3435` (`progress.md:154`, which corrects an earlier
+overclaim). The requirement is therefore two-part: the stub must model the feedback path **and
+a test must assert against it**. A faithful stub nothing asserts on is a better-documented
+blindness.
+
+**The fixture analogue.** Before `051c5ae` all twelve fixture columns were wider than their own
+widgets, so the width round trip was **green by geometry luck** — no column could ever be
+raised by its widget, so the raise-and-walk was unreachable in the fixture as well as in the
+unit harness. The Units `<select>` is now deliberately wider than the column that holds it
+(`tests/fixtures/sales-order-edit.html:294-306`). **The same class recurred once more inside
+the fix itself**: the residual flat `createCell` rect above was diagnosed and fixed in the
+`so-columns` stub first (`createMeasuredTable` in `tests/so-columns.test.mjs`, whose predecessor
+returned a flat `{width: 80}`) and left flat in our own until review caught it
+(`progress.md:155`, `:138`).
+
+**The sharpest form of the finding, and the reason the requirement is standing rather than
+advisory:** an existing assertion *asserted D1 as correct*. "A floor measured on a redistributed
+table is honoured while it stands" pinned `style.width === "200px"`; post-fix the same
+assertion reads `60px` (`progress.md:111`, `:119`). A harness blind to a loop will not merely
+miss the defect — it will let the defect be written down as the contract.
+
+### A3.4 Uncontrolled variables in a live width baseline
+
+`showInternalIds` was **ON for the entire failing M2 session** (write sequence 863 → 878) and
+**OFF for the passing re-probe** (`progress.md:179`). `decorateMachineColumns`
+(`src/internal-ids/runtime.js:167-181`) selects `.uir-machine-headerrow > td` at `:169` and
+appends a badge into each at `:174-178` — the exact header cells `src/edit-grid` measures,
+freezes and sizes. The two runs therefore did **not** execute against the same header-row DOM.
+
+**Neither verdict is disturbed, and the reason is specific rather than reassuring.** D1 and D2
+are code-level and storage-proven, and `columnMinimums` measures `input, select, textarea` only
+(`src/edit-grid/core.js:746`), so a badge `<span>` can never enter a column floor. What the
+uncontrolled variable *does* cost is comparability: a pass and a fail measured under different
+header-row DOM cannot be set against each other on width evidence alone.
+
+> **Requirement: every live width baseline pins and records the state of every toggle that
+> injects into the machine header row, and any pass/fail comparison across sessions states
+> whether that state matched.** Today the known injector is `showInternalIds`
+> (`src/internal-ids/runtime.js:167-181`); the rule is written against the header row, not
+> against that one feature, so a future injector inherits it without another amendment.
+
+**Correction to the record.** The transcript's owed-item list carried "internal-id badges
+(toggle off)" as unexercised through the M2 pass (`progress.md:107`, `:115`). That is **wrong**:
+badges were ON for the whole of it, so the Tier-4 badges item was **partly exercised, though
+unobserved** — exercised in the sense that edit-grid ran against a badged header row throughout
+and produced no badge-attributable failure, unobserved in the sense that nobody was watching for
+one. It is owed as a *deliberate* observation, not as first contact.
+
+### A3.5 What is not amended
+
+- **A1.2's axis-pinning rules are unchanged** (`:313-319`). A3.2 adds a second independent
+  reason for rule 3 and changes none of the five rules, the latch, or Gate A′.
+- **Amendment 2's width exemption is unchanged** (`:444-502`). Width remains the only set exempt
+  from the queue-while-open rule; A2.4 still governs any second exemption.
+- **A1.4's fail-closed inventory is unchanged** (`:396-407`). No gate is added, relaxed or removed.
+- **Storage-key isolation is unchanged.** `STORAGE_KEY = "suiteMateV3EditColumns"` against View
+  Mode's `suiteMateV3ColumnOrder`, asserted in both directions with each half shown non-vacuous
+  (`tests/edit-grid.test.mjs:1299-1321`) and at the width-writing layer (`:1324`).
+- **`suiteMateV3ColumnOrder` remains unreachable from `src/edit-grid`** — 0 occurrences in the
+  directory, and the no-leak ruling is now **positively re-proven by the forensics rather than
+  only by construction**: View's `Item: 200` was written at log offset 497863, *before* Edit's
+  `item → 200` at 501384, so the View value it superficially resembles cannot be downstream of
+  it (`progress.md:174`). Attribution of those two View writes to a human at the browser is
+  **positively supported, not proof** (`progress.md:178`): the log carries no wall clock, so the
+  support is ordering and content — `suiteMateV3Style` toggle flips at seq 861-863, which only a
+  human clicking the extension popup produces, then an Edit write at 864, then the two View
+  writes at 865-866 adjacent with zero intervening records. That places a person at the browser
+  in that window and makes one short burst the likeliest source; it does not prove authorship,
+  and the owner is still to confirm before anything is cleared.
+- **No NetSuite record data was ever at risk, at any point in this.** Both defects were confined
+  to the personalization layer: D1 to inline header widths and, through A3.1's laundering path,
+  to the `suiteMateV3EditColumns` entry; D2 to stored widths in that same entry. Nothing wrote a
+  record field, and the polluted entry has been cleaned.
+- **Struck, and it is the only thing this amendment strikes:** the Task 13 verdict's claim that
+  "D1 never reaches storage; inflated values are render artifacts" (`progress.md:106`). It was
+  false. The corrected mechanism is the `startWidth` read-back of A3.1, storage was polluted for
+  real, and D2's live proof came from a different scenario than the one first run — the first
+  attempt put a full reload between the two gestures, which defuses the race and would have
+  passed pre-fix too (`progress.md:171`).
