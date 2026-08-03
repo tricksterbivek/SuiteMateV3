@@ -36,6 +36,9 @@
   const RELEVANT_SELECTOR =
     `${core.MACHINE_TABLE_SELECTOR}, ${core.HEADER_ROW_SELECTOR}, ${core.DATA_ROW_SELECTOR}`;
   let settingsRevision = 0;
+  // Resolved ONCE per mount and latched — see the install. Every stored read and
+  // every write this mount makes is keyed by it, so it is pinned for the same
+  // reason the axis below is.
   let scopeKey = null;
   let activeTable = null;
   let nativeColumnIds = null;
@@ -49,6 +52,15 @@
   let axisMismatch = false;
   let entry = {};
   let pendingApply = false;
+  // The container this mount BOUND, kept as a handle rather than re-derived at
+  // teardown — see ensureBindings.
+  let boundContainer = null;
+  // The record that the last hide/reveal did not finish. core.applyHidden walks
+  // every row; renderSignature only reads the HEADER, so a walk that stops
+  // part-way leaves a machine whose header agrees with the target and whose rows
+  // below do not, and the install's early return would then skip the repair for
+  // the life of the mount. This is what makes the next pass try again.
+  let hideIncomplete = false;
   let installErrorLogged = false;
   let warnedNewerSchema = false;
   // The widths THIS mount will apply, keyed by column id: seeded from the stored
@@ -80,6 +92,15 @@
   // natural 74px, hidden, another column resized, revealed at 50px, dragged +10,
   // stored as 60.
   let naturalWidths = {};
+  // WHETHER THE `table-layout: fixed` ON THE MACHINE IS OURS. Session-only, and
+  // the half of rememberNaturalWidths' guard that `fixed` cannot supply on its
+  // own: the property sits on the <table>, which outlives the <tbody> and can
+  // outlive a whole mount, so an install can meet a `fixed` that no live mount
+  // set. It tracks the CURRENT plan and nothing older: an apply that lays the
+  // machine out raises it, the apply that hands the machine back its own layout
+  // — the null plan, whose restore clears `fixed` — drops it again, and teardown
+  // drops it with the widths it belongs to.
+  let ownsLayout = false;
   // The columns THIS mount will hide, by column id: seeded from the stored entry
   // on install under the same reseed guard the widths take, replaced by a
   // hide/show gesture, emptied on teardown. Only these are ever persisted, and
@@ -88,6 +109,10 @@
   // The control bar this mount owns: { bar, columnsButton, chips, menu }, or
   // null before the first install and after teardown.
   let controlButtons = null;
+  // Whether the column menu's document-level dismissal pair is bound. The menu
+  // is an owned NODE and dies with the sweep; these listeners are not, so they
+  // come off by name — see closeColumnMenu and the teardown.
+  let menuDismissBound = false;
   // One explanation per mount for why a stored hide is not being rendered. The
   // force-reveal below flips on and off with the open-line state, and a toast
   // per flip is a storm for the exact user it exists to inform.
@@ -277,41 +302,43 @@
     // rows — is that mid-typing users get their layout rewritten under the caret.
     // querySelector takes the FIRST focused row in document order, so an open
     // numbered line (which renders above the entry row) still governs whenever
-    // there is one. Pinned behaviourally by "typing into the permanent entry row
-    // reads as dirty, and an open line still governs" in tests/edit-grid.test.mjs.
+    // there is one.
+    //
+    // AND EVERY OTHER ROW WITH IT, which is spec section 6's own wording — "the
+    // open row AND any dirty row" — finally wired instead of promised. This used
+    // to read the FIRST focused row and nothing else, which on the locked SO form
+    // is the same set (only a focused row carries widgets at all, a committed row
+    // is plain text) and stops being the same set the moment a machine renders
+    // fields in an unfocused row: a read-only variant, a custom form, a row the
+    // user edited and then clicked away from. There the hide took a cell whose
+    // value is still going to SUBMIT, which is the one outcome section 6 exists
+    // to prevent. Scanning every row costs one querySelectorAll per row per
+    // apply on a table that already gets one per cell, and it fails SAFE — the
+    // wrong answer shows a column the user hid rather than hiding one they are
+    // editing.
+    //
+    // core.tableRows is every <tr>, deliberately unfiltered: the button row and
+    // the totals row carry no editable field, so excluding them would buy nothing
+    // and would exclude the permanent entry row on any machine that renders it
+    // last (`tr.uir-machine-row-last` is in EXCLUDED_ROW_SELECTOR) — the exact
+    // row this predicate was built for.
     const table = activeTable ?? machineTable();
-    const openRow = table?.querySelector?.(core.FOCUSED_ROW_SELECTOR);
-    if (!openRow) {
+    if (!table) {
       return false;
     }
-    return rowIsDirty(openRow);
+    return core.tableRows(table).some(rowIsDirty);
   }
 
   function rowIsDirty(row) {
     return Array.from(row?.querySelectorAll?.("input, select, textarea") ?? []).some(fieldIsDirty);
   }
 
-  function forcedRows() {
-    // The open row and any dirty row are exempt from every hide/filter/move set
-    // (spec section 6, the open-line state machine).
-    //
-    // The dirty half is now DELIVERED and not merely promised. The body used to
-    // return the focused rows alone and the comment named two sets; on THIS
-    // machine the two coincide — only a focused row carries fields at all, a
-    // committed row is plain text — so the old body was a superset by accident,
-    // for a reason nothing stated and nothing pinned. It stops being an accident
-    // on any machine that renders fields in an unfocused row (a read-only
-    // variant, a custom form), and a hide that took a user's uncommitted edit
-    // with it is not a failure worth inheriting from a comment.
-    const table = activeTable ?? machineTable();
-    if (!table) {
-      return [];
-    }
-    const focused = new Set(Array.from(table.querySelectorAll?.(core.FOCUSED_ROW_SELECTOR) ?? []));
-    // Document order, not focused-then-dirty: a caller indexing these against
-    // the rendered table must not have to re-sort them.
-    return core.tableRows(table).filter((row) => focused.has(row) || rowIsDirty(row));
-  }
+  // forcedRows() lived here and is GONE. It answered "which rows are exempt from
+  // a hide" for a caller that never arrived: M3 hides by COLUMN, so the exemption
+  // it modelled is delivered whole-table by isDirty above, and M4's row moves are
+  // not built. It was a tested function with zero production call sites — the
+  // same objection adjudication #19 raised against teardown's closeColumnMenu,
+  // and the same remedy. Its test now pins the wired behaviour instead.
 
   // ===== Resize =====
   function headerCellsOf(table) {
@@ -503,7 +530,35 @@
     // This makes the code match this map's own definition — "the width each
     // column had the last time this mount saw it NOT hidden" is only meaningful
     // while the machine still owns its layout.
-    if (table?.style?.tableLayout === "fixed") {
+    //
+    // AND `fixed` ALONE IS NOT THE PREDICATE. `ownsLayout` is the other half,
+    // and it is what makes this guard fail-SAFE rather than fail-open: `fixed`
+    // answers "is this table laid out by someone", never "is that someone us".
+    // The window that separates the two is a teardown that lands mid-buildtable,
+    // with the header row already gone with the <tbody>: removeEditGrid's
+    // null-plan clear refuses at core's header gate, core.js:871-873, and never
+    // reaches the restore that clears the layout at core.js:886-888, while the
+    // state clears run regardless. Reading `fixed` alone there, the NEXT install
+    // meets a laid-out table with an empty naturalWidths, refuses to measure
+    // forever, never freezes, and plans a PARTIAL map — so a hidden column
+    // renders 0, takes core's 50px floor, and a reveal-then-drag stores the
+    // floor plus the delta (probe: 60 stored where the truth is 72). That is
+    // #20's own defect re-entered through the guard meant to close it, and it
+    // also breaks core.js:949-966's total-plan precondition. Teardown now clears
+    // the layout unconditionally; this half means a `fixed` left by anything
+    // else — a dead mount, a future caller — still cannot starve a fresh one.
+    //
+    // AND WHAT MAKES A TRUE FLAG SAFE TO REFUSE ON, stated because refusing to
+    // measure is the dangerous direction. Two facts, both structural. The flag
+    // is only ever raised by an apply, and every apply runs this function FIRST
+    // (see applyCurrentWidths), so a true flag means the measurement pass has
+    // already run at least once with the flag still false — on a machine this
+    // mount had not laid out. And naturalWidths is emptied in exactly ONE place,
+    // the teardown, which clears the flag in the same block. A refusal here can
+    // therefore only decline to OVERWRITE what that pass found with post-layout
+    // numbers; it can never be the reason the plan has nothing. The partial plan
+    // is unreachable from a true flag by construction, not by luck.
+    if (ownsLayout && table?.style?.tableLayout === "fixed") {
       return;
     }
     // Measured ONLY where we are not hiding, which is what makes this a record of
@@ -550,9 +605,19 @@
     if (!applied) {
       return false;
     }
+    // THE OWNERSHIP RECORD: the CURRENT plan holds the layout, or nothing does.
+    // Taken here because here is the only place it is knowable — core.applyWidths
+    // has just returned true, and it is the one call in this feature that writes
+    // `table-layout: fixed` for a real plan and clears it again for a null one.
+    // An apply it REFUSED (a header the axis no longer aligns to) wrote neither,
+    // so it must claim neither: a mount that claims a layout it did not set is
+    // the fail-open half rememberNaturalWidths' guard exists to refuse.
+    ownsLayout = planned !== null;
     if (planned === null) {
       frozenWidths = {};
-    } else if (freezing) {
+      return true;
+    }
+    if (freezing) {
       const frozen = {};
       headerCellsOf(table).forEach((cell, index) => {
         const id = columnIds[index];
@@ -714,7 +779,60 @@
     return controlButtons;
   }
 
+  // The menu is absolutely positioned on <body>, so the container's own click
+  // handler — which already dismisses it for any click inside the machine —
+  // cannot see a click that lands anywhere else on the page. These two are the
+  // rest of the dismissal, and they follow the drag pair's precedent exactly:
+  // document-level, bound while the thing that needs them exists, removed by
+  // name when it does not. Nothing is bound per node, so nothing can accumulate.
+  const MENU_DISMISS_LISTENERS = [
+    ["click", handleMenuDismiss, true],
+    ["keydown", handleMenuKey, true]
+  ];
+
+  function handleMenuDismiss(event) {
+    const target = event.target;
+    // The Columns button is exempt or the menu could never be closed BY it: this
+    // runs in the capture phase, ahead of the container's delegated click, so
+    // closing here would leave that handler seeing no menu and re-opening it.
+    // The menu itself is exempt because ticking a box is not dismissing.
+    if (
+      target?.closest?.(`[${core.DATA_ATTRIBUTE}="menu"]`)
+      || target?.closest?.(`[${core.DATA_ATTRIBUTE}="columns-button"]`)
+    ) {
+      return;
+    }
+    closeColumnMenu();
+  }
+
+  function handleMenuKey(event) {
+    if (event.key === "Escape") {
+      closeColumnMenu();
+    }
+  }
+
+  function bindMenuDismissal() {
+    if (menuDismissBound) {
+      return;
+    }
+    menuDismissBound = true;
+    for (const [type, handler, options] of MENU_DISMISS_LISTENERS) {
+      document.addEventListener(type, handler, options);
+    }
+  }
+
+  function releaseMenuDismissal() {
+    if (!menuDismissBound) {
+      return;
+    }
+    menuDismissBound = false;
+    for (const [type, handler, options] of MENU_DISMISS_LISTENERS) {
+      document.removeEventListener(type, handler, options);
+    }
+  }
+
   function closeColumnMenu() {
+    releaseMenuDismissal();
     controlButtons?.menu?.remove();
     if (controlButtons) {
       controlButtons.menu = null;
@@ -765,6 +883,7 @@
     }
     document.body?.append?.(menu);
     controlButtons.menu = menu;
+    bindMenuDismissal();
   }
 
   function renderChips(table, columnIds) {
@@ -872,6 +991,14 @@
     const applied = wanted.size
       ? core.applyHidden(table, [...wanted], columnIds)
       : core.applyHidden(table, [], null);
+    // The return value is not decoration. core swallows a mid-walk throw and
+    // answers false, and what it leaves behind is a PARTIAL machine — header and
+    // the first rows hidden, the rest not. renderSignature reads the header
+    // alone, so that state compares EQUAL to the target and every later install
+    // takes the early return: the machine stays half-hidden until an unrelated
+    // repaint happens to change the header. Recording the refusal is what makes
+    // the next pass re-apply instead (see installEditGrid).
+    hideIncomplete = !applied;
     noteDeferredHide();
     renderChips(table, columnIds);
     return applied;
@@ -946,8 +1073,12 @@
     }
     // The same early return the install takes, and for the same reason: focus
     // moves constantly inside a machine, and a re-apply per movement would make
-    // "zero DOM writes when nothing changed" untrue for the whole session.
-    if (renderSignature(table, columnIds) === targetSignature(table, columnIds)) {
+    // "zero DOM writes when nothing changed" untrue for the whole session. The
+    // SAME means the same, `hideIncomplete` included — a half-applied machine
+    // whose header agrees with the target is invisible to this pair too, and a
+    // user who clicks into a line is the likeliest next event after the repaint
+    // that interrupted the walk.
+    if (!hideIncomplete && renderSignature(table, columnIds) === targetSignature(table, columnIds)) {
       return;
     }
     queueApply("focus-moved");
@@ -1003,7 +1134,18 @@
   ];
 
   function ensureBindings(container) {
-    if (!container || container.hasAttribute(core.BOUND_ATTRIBUTE)) {
+    if (!container) {
+      return;
+    }
+    // STASHED BEFORE THE ALREADY-BOUND GATE, because teardown cannot re-derive
+    // it: it reaches the container through the machine table, and a teardown
+    // that fires while NetSuite is replacing that table finds it detached — the
+    // closest() walk answers null, the release below no-ops, and the LIVE
+    // container keeps this attribute and all five delegated listeners, so a
+    // resize gesture can still fire and still write storage after the feature is
+    // off. The node this mount actually bound is the only reliable handle on it.
+    boundContainer = container;
+    if (container.hasAttribute(core.BOUND_ATTRIBUTE)) {
       return;
     }
     container.setAttribute(core.BOUND_ATTRIBUTE, "");
@@ -1210,7 +1352,18 @@
       }
       activeTable = table;
       nativeColumnIds = columnIds;
-      scopeKey = resolveScopeKey();
+      // LATCHED FOR THE LIFE OF THE MOUNT, exactly as the axis pin is and for the
+      // same reason (currentColumnIds' mismatch branch): resolveScopeKey falls
+      // back to a hostname-shaped key whenever the session-status script is not
+      // in the document, and installs are repaint-driven, so one that lands while
+      // NetSuite is rewriting <head> resolves the fallback for a mount that
+      // already has a real key. Adopting the new one silently would relabel the
+      // user's saved layout — the stored entry reads empty under it, the reseed
+      // below (which is armed: no gesture is pending) empties hiddenColumns, every
+      // hidden column pops back with no toast to say why, and every later gesture
+      // persists under the shadow key, where core's single-entry eviction can
+      // drop the real one. Only teardown clears this.
+      scopeKey = scopeKey ?? resolveScopeKey();
       ensureMountMarker(container);
       ensureControls(container);
       ensureBindings(container);
@@ -1281,7 +1434,12 @@
       // noteDeferredHide, which writes no DOM at all.
       noteDeferredHide();
       renderChips(table, current);
-      if (renderSignature(table, current) === targetSignature(table, current)) {
+      // `hideIncomplete` first, because the signature cannot see what it hides: a
+      // refused applyHidden leaves the header saying "done" over rows that are
+      // not, and the two signatures then agree forever. It is cleared by the very
+      // next applyCurrentHidden, so this costs one extra apply after a failure
+      // and nothing at all otherwise.
+      if (!hideIncomplete && renderSignature(table, current) === targetSignature(table, current)) {
         return true;
       }
       if (isLineOpen()) {
@@ -1297,11 +1455,12 @@
   }
 
   function removeEditGrid() {
+    // Hoisted out of the try so the layout clear below can reach it whatever
+    // happens inside: everything from here to the catch is DOM work that may
+    // throw on a machine being replaced underneath us.
+    let table = null;
     try {
-      const table = activeTable ?? machineTable();
-      const container = machineContainer(table);
-      releaseBindings(container);
-      clearAxisStamp(container);
+      table = activeTable ?? machineTable();
       // Dropped BEFORE handleResizeUp so the teardown takes the document drag
       // listeners and the body cursor off without queueing a save for a mount
       // that is being dismantled: a gesture cannot outlive its own mount.
@@ -1314,10 +1473,12 @@
       columnWidths = {};
       // The column menu is NOT closed here. It is an owned node and the
       // OWNED_SELECTOR sweep below removes it, `controlButtons = null` drops the
-      // handle, and its only listener is bound to the node itself so it dies
+      // handle, and its `change` listener is bound to the node itself so it dies
       // with it. A closeColumnMenu() call here would be a line no mutation can
       // kill and no reader can trust — the same objection adjudication #19 raised
-      // against the reveal's unreachable header gate.
+      // against the reveal's unreachable header gate. Its DOCUMENT-level
+      // dismissal pair is the one part that cannot die with a node, so that comes
+      // off by name below, with the flush timer.
       //
       // No axis, by adjudication #19, and for the same reason as the line above:
       // teardown runs after the pin has been dropped, and a mount that can no
@@ -1328,19 +1489,52 @@
       hiddenColumns = new Set();
       // M6 appends the filter reset, M7 the native row order.
     } catch {}
+    // OUTSIDE the try and off the STASH, not off a container re-derived from the
+    // table: a teardown that lands while NetSuite is replacing the machine finds
+    // the table detached, closest() answers null, and everything this feature put
+    // on the live container survives the mount that owns it.
+    //
+    // BOTH LINES ARE THE LAST RESORT FOR WHAT THEY REMOVE, which is why neither
+    // can be left inside the try. The sweep below is document-scoped but its
+    // selector is the EXACT attribute [data-suitemate-v3-edit-grid], and the axis
+    // stamp is a different attribute name (data-suitemate-v3-edit-grid-axis —
+    // deliberately distinct, and pinned as distinct by the frozen-contract test),
+    // so the sweep cannot reach it: clearAxisStamp is its only remover. The bound
+    // stamp and the five delegated listeners have no other remover either.
+    //
+    // They carry different weights, and the comment should not flatten them. The
+    // listeners are FUNCTIONAL: a resize gesture on a feature that is off still
+    // runs and still writes storage. The stamp is DISCLOSURE HYGIENE: a page with
+    // no feature on it goes on advertising the axis that mount pinned.
+    releaseBindings(boundContainer);
+    clearAxisStamp(boundContainer);
+    // The menu's node is swept below; these are on the document and are not.
+    releaseMenuDismissal();
     for (const node of document.querySelectorAll(OWNED_SELECTOR)) {
       node.remove();
     }
     activeTable = null;
+    boundContainer = null;
+    hideIncomplete = false;
     nativeColumnIds = null;
     pinnedColumnIds = null;
     appliedOrder = null;
     axisMismatch = false;
     scopeKey = null;
     entry = {};
+    // The layout comes off HERE as well as through applyWidths' restore above,
+    // because a teardown that lands mid-buildtable finds the header row already
+    // gone with the <tbody> — core.applyWidths returns false at its header gate
+    // (core.js:871-873) and never reaches the line that clears `table-layout`
+    // (core.js:886-888), which would leave `fixed` on a table no mount owns
+    // while the state below empties.
+    if (table?.style) {
+      table.style.tableLayout = "";
+    }
     columnWidths = {};
     frozenWidths = {};
     naturalWidths = {};
+    ownsLayout = false;
     hiddenColumns = new Set();
     // The bar and the menu were just swept as owned NODES; this drops the mount's
     // handle on them, so the next install builds its own rather than adopting a

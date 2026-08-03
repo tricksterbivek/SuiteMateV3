@@ -2387,6 +2387,12 @@ function createRuntimeHarness({
   const harness = {
     container,
     table,
+    // The page the runtime is actually running against. Exposed so a test can
+    // take something AWAY from it mid-session — the session-status script the
+    // scope key is resolved from is the case that needs it, and a document that
+    // could only be read at construction time cannot model a <head> NetSuite
+    // rewrites under a settled mount.
+    sandbox,
     counts,
     toasts,
     errors,
@@ -2415,7 +2421,15 @@ function createRuntimeHarness({
     // `on` names the node whose OWN listeners receive the event instead of the
     // delegated pair — the column menu is the only such node, because it lives
     // on <body> where the container's delegation cannot reach it.
-    fire(type, { target, on, ...init } = {}) {
+    //
+    // `outside` says the event did not land inside the container at all, so the
+    // container's delegated listeners do not see it and only the document-level
+    // ones do. Delegation is containment in a real DOM; this stub cannot derive
+    // containment for a machine cell (a cell knows its table, not its parents),
+    // so the caller states it. It is what makes the menu's own dismissal
+    // testable: on the real page a click on the menu — or on anything else on
+    // the page — never reaches the container's handler.
+    fire(type, { target, on, outside = false, ...init } = {}) {
       const event = {
         type,
         button: 0,
@@ -2432,7 +2446,9 @@ function createRuntimeHarness({
           event.propagationStopped = true;
         }
       };
-      const bound = on ? on.listeners ?? [] : [...documentListeners, ...container.listeners];
+      const bound = on
+        ? on.listeners ?? []
+        : [...documentListeners, ...(outside ? [] : container.listeners)];
       for (const entry of bound) {
         if (entry.type === type) {
           entry.handler(event);
@@ -2647,9 +2663,20 @@ test("mounts one hidden marker, binds once and writes nothing", async () => {
   // reaches any machine cell and the machine keeps its own layout. The 28
   // screenshot baselines depend on this staying true for every user who has
   // never dragged a column edge.
+  // The breadth here used to be `classNames()` deepEqual [] on every cell, which
+  // M3's hidden seed made false — the hide is applied on install and IS a class.
+  // Restated as an allowlist rather than dropped: whatever a machine cell
+  // carries after an install must be one of THIS feature's own names. It is the
+  // only assertion in the file that watches every cell of every row at once, so
+  // a stray class — another feature's, a typo'd one, a NetSuite name we wrote
+  // back — is caught here or nowhere.
+  const ownClasses = new Set(Object.values(createApi().CLASSES));
   for (const row of harness.table.rows) {
     for (const cell of row.cells) {
       assert.equal(cell.style.width, "");
+      for (const name of cell.classNames()) {
+        assert.equal(ownClasses.has(name), true, `a class this feature does not own reached a machine cell: ${name}`);
+      }
     }
   }
   assert.equal(harness.table.style.tableLayout, "");
@@ -3038,6 +3065,10 @@ test("an install whose second axis read comes back empty never reaches applyAll,
       scopeKey: null,
       entry: {},
       pendingApply: false,
+      // False, which is the state that lets the signature pair decide. The
+      // install consults it before that pair — a refused applyHidden must not be
+      // hidden behind a header-only signature — and this slice is about the axis.
+      hideIncomplete: false,
       warnedNewerSchema: false,
       // A gesture's width, already in module state when this install starts.
       columnWidths: { quantity: 161 },
@@ -4214,12 +4245,17 @@ test("every width apply hands core the pinned axis, and only teardown clears wit
   assert.doesNotMatch(move, /core\.readColumnIds/);
 });
 
-test("typing into the permanent entry row reads as dirty, and an open line still governs", () => {
-  // THE M2 DECISION, pinned. isDirty()'s FOCUSED_ROW_SELECTOR is deliberately
-  // unqualified: the permanent entry row is always focused, so a user halfway
-  // through typing a new line reads as dirty — which is the mitigation, not the
-  // defect. It has no caller until M3, so this drives the SHIPPED predicate
-  // sliced out of runtime.js rather than a re-typed one.
+test("typing into the permanent entry row reads as dirty, and so does a row nobody focused", () => {
+  // THE M2 DECISION, pinned: the permanent entry row is always focused, so a
+  // user halfway through typing a new line reads as dirty — the mitigation, not
+  // the defect. This drives the SHIPPED predicate sliced out of runtime.js
+  // rather than a re-typed one.
+  //
+  // The second half is the sweep's finding: spec §6 promises "the open row AND
+  // any dirty row" and the body delivered only the first focused row. The
+  // "an open line governs" claim this test used to carry described WHICH row the
+  // old body read, not a rule anyone wanted — and where it mattered it was
+  // wrong: a dirty entry row under a pristine open line was reported clean.
   const [predicate] = runtimeSource.match(/ {2}function isDirty\(\) \{[\s\S]*?\n {2}\}/) ?? [];
   const [helper] = runtimeSource.match(/ {2}function fieldIsDirty\(field\) \{[\s\S]*?\n {2}\}/) ?? [];
   const [scan] = runtimeSource.match(/ {2}function rowIsDirty\(row\) \{[\s\S]*?\n {2}\}/) ?? [];
@@ -4246,15 +4282,28 @@ test("typing into the permanent entry row reads as dirty, and an open line still
   const entryPristine = focusedRow("", [field("", ""), field("1", "1")]);
   const entryTyped = focusedRow("", [field("SKU-1", ""), field("1", "1")]);
 
-  assert.equal(dirty([header]), false, "no focused row at all");
+  assert.equal(dirty([header]), false, "a machine with no editable field at all");
   assert.equal(dirty([header, entryPristine]), false, "an untouched entry row is not dirty");
   assert.equal(dirty([header, entryTyped]), true, "typing into the permanent entry row reads as dirty");
-  // An open numbered line renders ABOVE the entry row, so it is the row
-  // querySelector finds first and the one that governs.
+  // A row NOBODY focused, carrying an edit — the case the focused-row read could
+  // not see, and the one where the old body let a hide take a cell whose value
+  // still submits.
+  const committed = createRow({ id: "item_row_1", className: "uir-machine-row" });
+  committed.querySelectorAll = () => [field("9", "2")];
+  const committedClean = createRow({ id: "item_row_1", className: "uir-machine-row" });
+  committedClean.querySelectorAll = () => [field("2", "2")];
+  assert.equal(dirty([header, committed]), true, "an edited row nobody focused read clean");
+  assert.equal(dirty([header, committedClean]), false, "a committed row nobody edited is not dirty");
+  // An open numbered line renders ABOVE the entry row, and it no longer decides
+  // for it: whichever row carries the edit, the answer is dirty.
   const openClean = focusedRow("item_row_2", [field("2", "2")], "listfocusedrow");
   const openTyped = focusedRow("item_row_2", [field("9", "2")], "listfocusedrow");
-  assert.equal(dirty([header, openClean, entryTyped]), false);
+  assert.equal(dirty([header, openClean, entryTyped]), true,
+    "a dirty entry row under a pristine open line was reported clean");
   assert.equal(dirty([header, openTyped, entryPristine]), true);
+  // And everything pristine is still clean, or the predicate exempts the whole
+  // machine forever and no column can ever be hidden.
+  assert.equal(dirty([header, openClean, entryPristine]), false);
 });
 
 // ===== M3: the hide/show gesture, the control bar and force-reveal =====
@@ -4507,8 +4556,147 @@ test("ADJUDICATION #20 SURVIVES A REPAINT — no width is ever measured once the
   harness.pointer("pointermove", { clientX: rect.right - 1 + 10, clientY: rect.top + 4 });
   harness.pointer("pointerup", { clientX: rect.right - 1 + 10, clientY: rect.top + 4 });
   await harness.tick();
-  assert.equal(plain(harness.writes.at(-1)[EDIT_STORAGE_KEY].grids[SCOPE].widths).quantity, 110,
+  assert.deepEqual(plain(harness.writes.at(-1)[EDIT_STORAGE_KEY].grids[SCOPE].widths), { rate: 140, quantity: 110 },
     "a drag on the revealed column seeded from a post-repaint measurement");
+});
+
+test("ADJUDICATION #20 SURVIVES A TEARDOWN — a dead mount's `fixed` never starves the next one", async () => {
+  // CRITICAL from the re-review, and D1's laundering shape reaching storage for
+  // the FOURTH time — this time through the guard that closed the third. That
+  // guard read `table-layout: fixed` and took it to mean "we set this", but the
+  // layout sits on the <table>, which outlives the <tbody> and can outlive a
+  // whole mount. A teardown that lands MID-BUILDTABLE is where the two come
+  // apart: the header row has already gone with the <tbody>, so the null-plan
+  // clear refuses at core's header gate (core.js:871-873) and never reaches the
+  // restore that clears the layout (core.js:886-888) — while the state clears,
+  // which run outside that try, empty the maps regardless.
+  //
+  // The next install then meets `fixed` with an EMPTY naturalWidths: it refuses
+  // to measure forever, `freezing` is permanently false, and the plan degrades
+  // to the user's widths alone — the PARTIAL plan core.js:949-966 says it must
+  // never be handed twice. A hidden column renders 0, takes core's 50px floor,
+  // and a reveal-then-drag stores 60 where the truth is 72.
+  //
+  // Driven through the REAL teardown and a real remount rather than through the
+  // state, because the state clears were never the defect: they ran correctly
+  // the whole time, and that is precisely what left the machine laid out by a
+  // feature no longer installed.
+  const core = createApi();
+  const harness = createRuntimeHarness({
+    stored: { schemaVersion: 1, grids: { [SCOPE]: { widths: { rate: 140 }, hidden: ["quantity"] } } }
+  });
+  await harness.flush();
+  assert.equal(harness.table.style.tableLayout, "fixed", "the stored width did not freeze the machine");
+  assert.deepEqual(hiddenHeader(core, harness), [false, true, false]);
+
+  // THE WINDOW ITSELF: buildtable() has taken the header row and the teardown
+  // fires against what is left, so every apply the teardown makes is refused.
+  const [header] = harness.table.rows.splice(0, 1);
+  assert.equal(core.headerRow(harness.table), null, "the fixture is not modelling a detached header");
+  harness.lifecycle.registration.cleanup({ id: "record.edit-grid", reason: "paused" });
+  // The layout comes off BY NAME, not as a side effect of an apply that cannot
+  // run here. A mount that cannot undo its own layout must not leave one behind.
+  assert.equal(harness.table.style.tableLayout, "",
+    "a torn-down mount left the machine in ITS layout, with no mount left to undo it");
+
+  // The repaint completes: the header is back, carrying no inline widths and
+  // none of our classes, and every column renders the 62px an unstyled machine
+  // gives here — the fresh mount's ground truth.
+  harness.table.rows.unshift(header);
+  repaintHeader(harness, core, 62);
+  await harness.run("repaint");
+  assert.deepEqual(hiddenHeader(core, harness), [false, true, false], "the stored hide did not survive the remount");
+
+  // The new mount MEASURED, and it is the UNCONDITIONAL CLEAR above that bought
+  // it — not the ownership half of the guard, which this sequence never reaches:
+  // teardown handed the machine back its own layout, so `fixed` is simply false
+  // here and the measurement runs on the plain reading. The ownership half is
+  // what saves a mount that meets a `fixed` NOBODY cleared, and it is pinned by
+  // its own test below. Naming the wrong half here would leave the guard's
+  // predicate looking covered when only one of its two terms is.
+  harness.click(harness.owned("chip")[0]);
+  await harness.tick();
+  assert.deepEqual(hiddenHeader(core, harness), [false, false, false]);
+  assert.equal(headerOf(harness, core)[1].style.width, "62px",
+    "the revealed column came back at the clamp floor: the fresh mount never measured at all");
+
+  const revealed = headerOf(harness, core)[1];
+  const rect = revealed.getBoundingClientRect();
+  harness.pointer("pointerdown", { target: revealed, clientX: rect.right - 1, clientY: rect.top + 4 });
+  harness.pointer("pointermove", { clientX: rect.right - 1 + 10, clientY: rect.top + 4 });
+  harness.pointer("pointerup", { clientX: rect.right - 1 + 10, clientY: rect.top + 4 });
+  await harness.tick();
+  // 72, not 60: the truth is the 62 the column rendered plus the 10 the user
+  // dragged. 60 is the 50px floor plus the same 10, and it is what a mount
+  // starved into a partial plan stores.
+  assert.deepEqual(plain(harness.writes.at(-1)[EDIT_STORAGE_KEY].grids[SCOPE].widths), { rate: 140, quantity: 72 },
+    "a drag on the revealed column seeded from the floor a partial plan left behind");
+});
+
+test("ADJUDICATION #20 SURVIVES A LEFTOVER LAYOUT — a `fixed` this mount did not set never blocks the measurement", async () => {
+  // THE OWNERSHIP HALF OF rememberNaturalWidths' GUARD, and the only test that
+  // reaches it. The two tests above pin the `fixed` half and the teardown clear;
+  // both still pass with `ownsLayout &&` deleted, because in both sequences the
+  // layout on the table is one THIS mount set. This one is the other case, and
+  // it needs no teardown at all: the machine is ALREADY laid out when the mount
+  // arrives — a dead mount's leftover, a mid-buildtable teardown that could not
+  // reach its own restore, anything at all that is not us.
+  //
+  // Read `fixed` alone there and the mount is starved for its whole life:
+  // naturalWidths never gets a single measurement, `freezing` can never be true
+  // (the table is already fixed), and the plan degrades to the stored widths
+  // alone — the partial plan core.js:949-966 forbids handing over twice. The
+  // trail with the guard read that way, measured: ["62px","62px","140px"] after
+  // the repaint, the revealed column at 50px, and 60 stored where the user's own
+  // column measured 100.
+  //
+  // The stored WIDTH is what keeps the leftover alive and is not decoration: it
+  // makes the mount's first plan non-null, so core never takes the restore route
+  // that would have cleared the layout for us.
+  const core = createApi();
+  const harness = createRuntimeHarness({
+    stored: { schemaVersion: 1, grids: { [SCOPE]: { widths: { rate: 140 } } } }
+  });
+  // Before the first apply of this mount, and by something that is not it.
+  harness.table.style.tableLayout = "fixed";
+  await harness.flush();
+  // The stored width lands and the other two keep what they render. This is the
+  // setup, NOT the finding: a mount that refused to measure writes these same
+  // three strings, because core's rendered-width fallback and the measurement
+  // agree while the machine still renders 100. The refusal only becomes visible
+  // once the repaint below moves what "rendered" means.
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["100px", "100px", "140px"],
+    "the stored width did not reach the machine");
+
+  await toggleColumn(harness, "quantity", false);
+  assert.deepEqual(hiddenHeader(core, harness), [false, true, false]);
+
+  // The repaint the leftover was hiding behind: inline widths gone, our classes
+  // gone with the nodes that carried them, every column redistributed to 62px.
+  repaintHeader(harness, core, 62);
+  assert.equal(harness.table.style.tableLayout, "fixed", "the fixed layout must survive the tbody swap");
+  await harness.run("repaint");
+  // 100, not 62. Now the guard IS right to refuse — this mount owns the layout —
+  // and what it re-applies is the measurement it took while it did not.
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["100px", "100px", "140px"],
+    "the plan came back from the redistribution instead of the mount's own measurement");
+
+  harness.click(harness.owned("chip")[0]);
+  await harness.tick();
+  assert.deepEqual(hiddenHeader(core, harness), [false, false, false]);
+  assert.equal(headerOf(harness, core)[1].style.width, "100px",
+    "the revealed column came back at the clamp floor a partial plan leaves behind");
+
+  const revealed = headerOf(harness, core)[1];
+  const rect = revealed.getBoundingClientRect();
+  harness.pointer("pointerdown", { target: revealed, clientX: rect.right - 1, clientY: rect.top + 4 });
+  harness.pointer("pointermove", { clientX: rect.right - 1 + 10, clientY: rect.top + 4 });
+  harness.pointer("pointerup", { clientX: rect.right - 1 + 10, clientY: rect.top + 4 });
+  await harness.tick();
+  // 110 — the column's own 100 plus the 10 the user dragged. 60 is the 50px
+  // floor plus the same 10, and it is what a starved mount stores.
+  assert.deepEqual(plain(harness.writes.at(-1)[EDIT_STORAGE_KEY].grids[SCOPE].widths), { rate: 140, quantity: 110 },
+    "a drag on the revealed column seeded from the floor a starved mount left behind");
 });
 
 test("the Columns menu fails closed on a machine whose axis cannot be read", async () => {
@@ -4674,6 +4862,22 @@ test("FORCE-REVEAL reaches the permanent entry row, including a row whose only e
   assert.deepEqual(hiddenHeader(core, harness), [false, true, false]);
   assert.equal(harness.counts.writes, 0);
 
+  // THE OTHER QUADRANT, and it was uncovered: a box the markup ships TICKED and
+  // the user has UNTICKED. `checked !== defaultChecked` is a two-sided
+  // comparison and every case above enters it from the same side, so a mutation
+  // narrowing it to "ticked where the markup was not" (`checked && !default`)
+  // survived the whole suite. NetSuite defaults plenty of line boxes on — Tax,
+  // Print — and clearing one is as much a half-typed line as ticking one.
+  box.defaultChecked = true;
+  await harness.run("entry-row-untick");
+  assert.deepEqual(hiddenHeader(core, harness), [false, false, false],
+    "a box the user cleared from its default read clean");
+  assert.equal(harness.counts.writes, 0);
+  // And ticked back to its default, it is pristine again from that side too.
+  box.checked = true;
+  await harness.run("entry-row-restored");
+  assert.deepEqual(hiddenHeader(core, harness), [false, true, false]);
+
   // AND RADIO, which is the other half of the same defect and was uncovered:
   // `defaultValue` on a radio is its value attribute too, so a mutation that
   // keeps the checkbox fix and reverts ONLY radio survived the entire suite —
@@ -4688,8 +4892,12 @@ test("FORCE-REVEAL reaches the permanent entry row, including a row whose only e
     "a new line whose only edit is a radio kept the columns it still needs hidden");
   assert.equal(harness.counts.writes, 0);
   // Both types read through `checked`, so a radio the user has NOT moved is
-  // clean even though its value and defaultValue differ from the ticked one.
-  harness.table.rows[3].querySelectorAll = () => [{ ...dial, checked: false, defaultChecked: false }];
+  // clean even though its value and its defaultValue DIFFER — which they must,
+  // or this fixture claims a distinction it does not carry: with the two equal,
+  // the inherited `value !== defaultValue` comparison answers clean as well and
+  // a radio that fell through to it would look pinned when it is not.
+  harness.table.rows[3].querySelectorAll = () =>
+    [{ ...dial, checked: false, defaultChecked: false, defaultValue: "a" }];
   await harness.run("entry-row-radio-pristine");
   assert.deepEqual(hiddenHeader(core, harness), [false, true, false]);
 });
@@ -4923,38 +5131,237 @@ test("an install landing in a hide's save gap does not discard the gesture", asy
   assert.deepEqual(hiddenHeader(core, harness), [false, true, true]);
 });
 
-test("forcedRows delivers the dirty half its comment promises, not only the focused one", async () => {
-  // The body used to return the focused rows alone. On THIS machine the two sets
-  // coincide — only a focused row carries fields at all — so it was a superset
-  // by accident, for a reason nothing stated and nothing pinned. It stops being
-  // an accident on any machine that renders fields in an unfocused row.
+test("the scope key is latched: an install that cannot read the session keeps the user's key", async () => {
+  // resolveScopeKey falls back to a hostname-shaped key whenever the session
+  // status script is not in the document, and installs are repaint-driven, so
+  // one can land while NetSuite is rewriting <head>. Re-resolving there relabels
+  // the user's saved layout: the stored entry reads EMPTY under the fallback
+  // key, the reseed guard is armed (no gesture is pending) so hiddenColumns is
+  // emptied from it, every hidden column pops back with nothing to say why, and
+  // every later gesture persists under the shadow key — where core's
+  // single-entry eviction can drop the real one under quota pressure.
+  //
+  // Latched exactly like the axis pin, and pinned here the same way: through a
+  // real repaint-driven re-install, not by calling the resolver.
+  const core = createApi();
+  const harness = createRuntimeHarness({
+    stored: { schemaVersion: 1, grids: { [SCOPE]: { hidden: ["quantity"] } } }
+  });
+  await harness.flush();
+  assert.deepEqual(hiddenHeader(core, harness), [false, true, false]);
+
+  // The script leaves the document. Everything else about the page is unchanged,
+  // so the ONLY thing this repaint can change is the key.
+  const query = harness.sandbox.document.querySelector;
+  harness.sandbox.document.querySelector = (selector) =>
+    (String(selector).startsWith("script[") ? null : query(selector));
+  await harness.run("repaint");
+
+  assert.deepEqual(hiddenHeader(core, harness), [false, true, false],
+    "an install that lost the session script revealed the user's hidden column");
+  assert.deepEqual(storedHidden(harness), ["quantity"], "the stored set moved under a re-resolved key");
+  // And the next gesture still writes where the user's layout lives — one grid
+  // in the container, not the real one plus a shadow.
+  await toggleColumn(harness, "rate", false);
+  assert.deepEqual(Object.keys(harness.writes.at(-1)[EDIT_STORAGE_KEY].grids), [SCOPE],
+    "a gesture after the session script vanished wrote under a second, shadow key");
+  assert.deepEqual(storedHidden(harness), ["quantity", "rate"]);
+});
+
+test("a hide that only got half-way is re-applied, not sealed in by the header-only signature", async () => {
+  // core.applyHidden walks EVERY row and swallows a mid-walk throw — the machine
+  // being replaced under it — returning false with the header and the first rows
+  // hidden and the rest not. renderSignature reads the HEADER alone, so that
+  // half-applied machine compares EQUAL to the target and every later install
+  // takes the early return: the columns stay half-hidden for the life of the
+  // mount. The boolean was being discarded; recording it is what makes the next
+  // pass try again.
+  // BOTH GATES, because there are two and they must not drift: the install's and
+  // handleFocusIn's, which its own comment calls "the same early return the
+  // install takes". A user who clicks into a line is the likeliest next event
+  // after the repaint that interrupted the walk, so the focus path is the one
+  // most likely to meet the half-applied machine first.
+  const core = createApi();
+  const halfApplied = async () => {
+    const harness = createRuntimeHarness();
+    await harness.flush();
+    // ONE cell refuses the class, which is all a mid-walk throw is from here: the
+    // walk reaches row 2, throws inside it, and core answers false with row 2
+    // still showing. Narrow on purpose — applyHidden is the only caller of
+    // classList.toggle on a machine cell, so nothing else here is stubbed.
+    const victim = harness.table.rows[2].cells[1];
+    const realToggle = victim.classList.toggle;
+    victim.classList.toggle = () => { throw new Error("the machine was replaced mid-walk"); };
+    await toggleColumn(harness, "quantity", false);
+
+    // The half-applied state itself, which is the precondition both halves rest
+    // on: the header says done over a row that is not.
+    assert.deepEqual(hiddenHeader(core, harness), [false, true, false], "the header was not reached");
+    assert.deepEqual(hiddenFlags(core, harness.table.rows[1]), [false, true, false]);
+    assert.deepEqual(hiddenFlags(core, harness.table.rows[2]), [false, false, false],
+      "the fixture is not modelling a walk that stopped part-way");
+    // The machine settles: nothing about the HEADER changes from here, so the
+    // signature pair agrees and only the recorded refusal can reopen the apply.
+    victim.classList.toggle = realToggle;
+    return harness;
+  };
+  const repaired = (harness, path) => {
+    for (const row of alignedRows(core, harness.table)) {
+      assert.deepEqual(hiddenFlags(core, row), [false, true, false],
+        `${path}: a row the failed walk never reached is still showing a column the user hid`);
+    }
+    // One gesture, still exactly one write: the retry is an APPLY, not a save.
+    assert.equal(harness.counts.writes, 1);
+  };
+
+  // (1) A repaint re-installs.
+  const byRepaint = await halfApplied();
+  await byRepaint.run("repaint");
+  repaired(byRepaint, "install");
+
+  // (2) NO repaint at all — focus moves into the machine, which is the gate that
+  // kept the bare signature check after the install's had been fixed.
+  const byFocus = await halfApplied();
+  byFocus.fire("focusin", { target: byFocus.table.rows[1].cells[0] });
+  await byFocus.tick();
+  repaired(byFocus, "focusin");
+});
+
+test("the column menu closes on an outside click and on Escape, and leaves no listener behind", async () => {
+  // The menu is absolutely positioned on <body>, so the container's own click
+  // handler cannot see a click that lands anywhere else on the page: without
+  // these it stays up over whatever the user does next. Bound at open, off at
+  // close, and off at teardown — the drag pair's own lifecycle, which is the
+  // only precedent in this runtime for a document-level listener.
+  const harness = createRuntimeHarness();
+  await harness.flush();
+  assert.deepEqual(harness.documentListeners.map(({ type }) => type), [],
+    "the runtime bound a document listener before anything was open");
+
+  openMenu(harness);
+  assert.equal(harness.owned("menu").length, 1);
+  assert.deepEqual(harness.documentListeners.map(({ type }) => type), ["click", "keydown"]);
+
+  // THE BUTTON IS EXEMPT, and this is the assertion that proves it: the dismissal
+  // runs in the capture phase, ahead of the container's delegated click, so a
+  // handler that closed here would leave that one seeing no menu and re-opening
+  // it — a Columns button that can never close what it opened.
+  harness.click(harness.owned("columns-button")[0]);
+  assert.deepEqual(plain(harness.owned("menu")), [], "the Columns button no longer closes its own menu");
+  assert.deepEqual(harness.documentListeners, []);
+
+  // A click that misses the machine entirely — `outside`, so the container's
+  // delegated handler never sees it and this dismissal is the only one that can
+  // fire. That is the live shape: the bar dismisses what lands on the machine,
+  // and nothing dismissed what landed anywhere else.
+  openMenu(harness);
+  harness.fire("click", { target: harness.body, outside: true });
+  assert.deepEqual(plain(harness.owned("menu")), [], "a click outside the menu left it standing");
+  assert.deepEqual(harness.documentListeners, [], "the dismissal pair outlived the menu");
+
+  // A click INSIDE it is not a dismissal. The menu lives on <body>, so this one
+  // is `outside` the container too — and on a checkbox the browser fires click
+  // BEFORE change, so a dismissal without this exemption would tear the menu
+  // down under the pointer on every single tick.
+  openMenu(harness);
+  harness.fire("click", { target: harness.owned("column-toggle")[0], outside: true });
+  assert.equal(harness.owned("menu").length, 1, "a click on a checkbox dismissed the menu");
+
+  harness.fire("keydown", { key: "Escape" });
+  assert.deepEqual(plain(harness.owned("menu")), [], "Escape left the menu standing");
+  assert.deepEqual(harness.documentListeners, []);
+
+  // Any other key is not Escape.
+  openMenu(harness);
+  harness.fire("keydown", { key: "a" });
+  assert.equal(harness.owned("menu").length, 1, "an ordinary keystroke closed the menu");
+
+  // Teardown with the menu STANDING: the node is swept as an owned node, but
+  // these two are on the document and can only come off by name — the same
+  // reason the flush timer does.
+  harness.lifecycle.registration.cleanup({ id: "record.edit-grid", reason: "paused" });
+  assert.deepEqual(harness.documentListeners, [], "the menu's dismissal pair outlived its mount");
+  assert.deepEqual(plain(harness.owned("menu")), []);
+});
+
+test("teardown releases the bindings even when the machine table is already detached", async () => {
+  // The same class as the layout defect above, on the other half of the mount.
+  // removeEditGrid used to re-derive the container from the table, and a
+  // teardown that lands while NetSuite is replacing the machine finds it
+  // detached: closest() answers null, the release no-ops, and the LIVE container
+  // keeps the bound stamp, the axis stamp and all five delegated listeners. The
+  // listeners are the sharp half — a resize gesture on a feature that is off
+  // still runs, and still writes storage.
   const core = createApi();
   const harness = createRuntimeHarness();
   await harness.flush();
-  const [predicate] = runtimeSource.match(/ {2}function forcedRows\(\) \{[\s\S]*?\n {2}\}/) ?? [];
-  const [scan] = runtimeSource.match(/ {2}function rowIsDirty\(row\) \{[\s\S]*?\n {2}\}/) ?? [];
-  const [helper] = runtimeSource.match(/ {2}function fieldIsDirty\(field\) \{[\s\S]*?\n {2}\}/) ?? [];
-  assert.equal(Boolean(predicate), true, "forcedRows is no longer a named function in runtime.js");
+  assert.equal(harness.container.hasAttribute(BOUND_ATTRIBUTE), true);
+  assert.equal(harness.container.listeners.length > 0, true);
 
-  // The DIRTY row is put FIRST and the focused row second, deliberately: with
-  // the focused row first, `[...focused, ...dirty]` and document order agree and
-  // the ordering claim is unpinned. This arrangement is the only one that can
-  // tell them apart.
-  const unfocusedDirty = harness.table.rows[1];
-  unfocusedDirty.querySelectorAll = () => [{ tagName: "INPUT", value: "9", defaultValue: "2" }];
-  const focused = focusLine(harness, { line: 2, fields: [] });
-  const sandbox = { core, activeTable: harness.table, machineTable: () => harness.table };
-  sandbox.globalThis = sandbox;
-  runInNewContext(`${helper}\n${scan}\n${predicate}\nglobalThis.result = forcedRows();`, sandbox);
-  assert.equal(sandbox.result.length, 2, "forcedRows missed a row it promises to exempt");
-  assert.equal(sandbox.result[0], unfocusedDirty, "the dirty half is still only a comment");
-  assert.equal(sandbox.result[1], focused, "forcedRows returned focused-then-dirty, not DOCUMENT order");
+  // Detached: the table is no longer reachable from anything above it.
+  harness.table.closest = () => null;
+  harness.lifecycle.registration.cleanup({ id: "record.edit-grid", reason: "paused" });
+  assert.equal(harness.container.hasAttribute(BOUND_ATTRIBUTE), false,
+    "the container is still stamped as bound by a mount that is gone");
+  assert.equal(harness.container.hasAttribute(AXIS_ATTRIBUTE), false,
+    "a torn-down page still advertises a live axis");
+  assert.deepEqual(harness.container.listeners, [],
+    "the delegated listeners outlived the mount that bound them");
 
-  // A pristine unfocused row is not forced — otherwise every row is exempt and
-  // the set means nothing.
-  unfocusedDirty.querySelectorAll = () => [{ tagName: "INPUT", value: "2", defaultValue: "2" }];
-  runInNewContext(`${helper}\n${scan}\n${predicate}\nglobalThis.result = forcedRows();`, sandbox);
-  assert.equal(sandbox.result.length, 1);
+  // The behavioural half: a full drag on the dead machine writes NOTHING.
+  const cells = headerOf(harness, core);
+  const box = cells[1].getBoundingClientRect();
+  harness.pointer("pointerdown", { target: cells[1], clientX: box.right - 1, clientY: box.top + 4 });
+  harness.pointer("pointermove", { clientX: box.right + 40, clientY: box.top + 4 });
+  harness.pointer("pointerup", { clientX: box.right + 40, clientY: box.top + 4 });
+  await harness.tick();
+  assert.equal(harness.counts.writes, 0, "a gesture on a torn-down mount reached storage");
+});
+
+test("a row NOBODY focused, carrying an edit, forces the hidden columns back", async () => {
+  // THE DIRTY HALF OF SPEC §6, wired. It used to live in forcedRows() — a
+  // tested function with ZERO production call sites, which is a claim about the
+  // source and not about the feature. forcedRows is deleted and the exemption
+  // now runs where the hide is decided, so this pins it the way the rest of M3
+  // is pinned: through the registration and the listeners the runtime bound.
+  //
+  // On the locked SO form the two sets coincide — only a focused row carries
+  // widgets, a committed row is plain text — so nothing changes there. They come
+  // apart on any machine that renders fields in an unfocused row (a read-only
+  // variant, a custom form, a row the user edited and clicked away from), and
+  // there the hide was taking a cell whose value still SUBMITS.
+  const core = createApi();
+  const harness = createRuntimeHarness({
+    stored: { schemaVersion: 1, grids: { [SCOPE]: { hidden: ["quantity"] } } }
+  });
+  await harness.flush();
+  assert.deepEqual(hiddenHeader(core, harness), [false, true, false]);
+  assert.deepEqual(harness.toasts, []);
+
+  // An edited value in a row that carries no focus class at all.
+  const unfocused = harness.table.rows[1];
+  assert.equal(/focused/.test(unfocused.className), false, "the fixture's row is focused after all");
+  unfocused.querySelectorAll = () => [{ tagName: "INPUT", value: "9", defaultValue: "2" }];
+  await harness.run("row-edited");
+  for (const row of alignedRows(core, harness.table)) {
+    assert.deepEqual(hiddenFlags(core, row), [false, false, false],
+      "a column stayed hidden over a row the user had already edited");
+  }
+  // A force-reveal, not a gesture: nothing is written and the stored set stands.
+  assert.equal(harness.counts.writes, 0);
+  assert.deepEqual(storedHidden(harness), ["quantity"]);
+  // And the user is told why their columns came back, exactly once.
+  assert.deepEqual(harness.toasts, [
+    { message: "Hidden columns are shown while you edit a line.", type: "info" }
+  ]);
+
+  // Reverted to its committed value, the row is pristine again and the hide
+  // returns — otherwise the first edit of a session exempts the machine forever.
+  unfocused.querySelectorAll = () => [{ tagName: "INPUT", value: "2", defaultValue: "2" }];
+  await harness.run("row-reverted");
+  assert.deepEqual(hiddenHeader(core, harness), [false, true, false]);
+  assert.equal(harness.counts.writes, 0);
+  assert.equal(harness.toasts.length, 1);
 });
 
 test("runtime owns no observer, no HTML sink and no View Mode storage", () => {

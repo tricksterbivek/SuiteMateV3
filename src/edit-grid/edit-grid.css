@@ -58,9 +58,18 @@
    same netsuite.css: bare div child -> none, bare div child with a plain
    !important class -> STILL none, this rule -> inline-flex.
 
+   WHAT PINS WHICH HALF, stated exactly, because this rule is only as safe as
+   the check that outlives it. The ARITHMETIC — that this selector out-specifies
+   the hostile one, and that a bare class rule does not — is pinned by the
+   SIGHTING FOUR test in tests/edit-grid.test.mjs, which computes both
+   specificities from the two sheets rather than matching a selector string. The
+   COMPUTED DISPLAY is not, and cannot be: that suite runs in a sandbox with no
+   cascade in it. It is measured at Tier 2, on the served fixture, which is the
+   tier whose standing rule is to assert at computed style or bounding rect.
+
    Only the bar needs this. The chips strip and the buttons are not direct
-   children of the container and compute inline-flex without it — asserted, not
-   assumed, by the computed-display sweep in tests/edit-grid.test.mjs. */
+   children of the container, and the same Tier 2 pass is where they were seen
+   computing inline-flex without an anchored rule of their own. */
 html .uir-machine-table-container>div.suitemate-v3-edit-grid-controls[data-suitemate-v3-edit-grid] {
     display: inline-flex !important
 }
