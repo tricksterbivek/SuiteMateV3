@@ -259,8 +259,18 @@
   // ===== Serialized save queue =====
   let saveQueue = Promise.resolve();
   function enqueueSave(operation) {
-    saveQueue = saveQueue.then(operation, operation);
-    return saveQueue;
+    // Two promises, deliberately. `next` is the CALLER'S: it carries the
+    // operation's own rejection, so a caller that awaits still sees its failure.
+    // The STORED chain is `next` with that rejection swallowed, so one failed
+    // write can neither reject the queue for the operation behind it nor
+    // surface as an unhandled rejection when the caller fires and forgets —
+    // and a writer that fires and forgets is exactly what M2 wires.
+    // The (operation, operation) pair stays the serializer: belt and braces now
+    // that the stored chain cannot reject, and the thing that keeps ordering
+    // correct if saveQueue is ever assigned from anywhere but here.
+    const next = saveQueue.then(operation, operation);
+    saveQueue = next.catch(() => {});
+    return next;
   }
 
   // ===== Apply =====
@@ -391,6 +401,14 @@
     entry = {};
     pendingApply = false;
     warnedNewerSchema = false;
+    // Module state like the eight above it, and it buys exactly one thing: an
+    // operation queued before teardown that resumes AFTER it finds a fresh
+    // queue and cannot chain the next mount's writes behind the old mount's.
+    // That is ALL. The in-flight operation is not cancelled and is not
+    // generation-checked here — whether a write that outlives its own teardown
+    // may still touch storage is the WRITER's problem, and M2's runtime task
+    // owns that isCurrent/generation guard. Do not read this as one.
+    saveQueue = Promise.resolve();
   }
 
   // ===== Relevance: stamp exclusion =====

@@ -1757,6 +1757,84 @@ test("an install whose second axis read comes back empty never reaches applyAll"
   assert.deepEqual(plain(applying.applied), [["item", "quantity", "rate"]]);
 });
 
+test("the save queue survives a rejected operation and a teardown", async () => {
+  // save/CHECKPOINTS.md "Next: M2 preconditions" #7, carried from M1 as "MUST
+  // close before M2 wires the first writer". enqueueSave still has no caller,
+  // so this drives the SHIPPED statements sliced out of runtime.js rather than
+  // re-typed ones — including the teardown reset, lifted from removeEditGrid's
+  // own body so the test cannot pass against a runtime that stopped resetting.
+  const [declaration] = runtimeSource.match(/^ {2}let saveQueue = .*$/m) ?? [];
+  const [enqueue] = runtimeSource.match(/ {2}function enqueueSave\(operation\) \{[\s\S]*?\n {2}\}/) ?? [];
+  const [teardown] = runtimeSource.match(/ {2}function removeEditGrid\(\) \{[\s\S]*?\n {2}\}/) ?? [];
+  assert.equal(Boolean(declaration), true, "saveQueue is no longer a module-scoped let in runtime.js");
+  assert.equal(Boolean(enqueue), true, "enqueueSave is no longer a named function in runtime.js");
+  const [reset] = teardown.match(/^ *saveQueue = .*$/m) ?? [];
+  assert.equal(Boolean(reset), true, "removeEditGrid no longer resets saveQueue");
+  // Built in THIS realm, not a vm context: process-level unhandledRejection
+  // tracking and promise identity both have to be the real ones.
+  const build = () => new Function(`
+    ${declaration}
+    ${enqueue}
+    return {
+      enqueue: enqueueSave,
+      peek: () => saveQueue,
+      teardown: () => { ${reset.trim()} }
+    };
+  `)();
+  const drain = async (rounds = 3) => {
+    for (let index = 0; index < rounds; index += 1) {
+      await new Promise((done) => setImmediate(done));
+    }
+  };
+
+  // Two detectors, and the honest note about which one wins: node:test fails a
+  // test on ANY rejection that escapes it, and on the drop-the-swallow mutation
+  // it does so — naming "dropped rejection" — before the assertion below can
+  // run. The explicit capture is kept because it STATES the invariant and
+  // proves zero events on the green path; it is the belt, not the braces.
+  const unhandled = [];
+  const record = (reason) => unhandled.push(reason);
+  process.on("unhandledRejection", record);
+  try {
+    const queue = build();
+    const order = [];
+
+    // A caller that AWAITS still sees its own failure — the swallow is on the
+    // stored chain, never on the promise handed back.
+    await assert.rejects(
+      queue.enqueue(() => { order.push("awaited"); return Promise.reject(new Error("write failed")); }),
+      /write failed/
+    );
+    // A caller that FIRES AND FORGETS — what M2 wires — must not poison the
+    // process. Drained before the next enqueue on purpose: a handler attached
+    // in the same turn would hide the missing swallow.
+    queue.enqueue(() => { order.push("dropped"); return Promise.reject(new Error("dropped rejection")); });
+    await drain();
+    // A synchronous throw takes the same path (.then turns it into a rejection).
+    queue.enqueue(() => { order.push("threw"); throw new Error("sync throw"); });
+    await drain();
+    assert.deepEqual(unhandled, [], "a failed save left an unhandled rejection behind");
+
+    // The queue is still serialized and still running work after all three.
+    assert.equal(await queue.enqueue(() => { order.push("after"); return "ok"; }), "ok");
+    assert.deepEqual(order, ["awaited", "dropped", "threw", "after"]);
+    // And the stored chain itself never rejects, so nothing downstream inherits
+    // a poisoned queue.
+    await queue.peek();
+
+    // Teardown swaps the chain for a fresh one: a continuation queued before it
+    // cannot chain the next mount's writes behind the old mount's.
+    const before = queue.peek();
+    queue.teardown();
+    assert.notEqual(queue.peek(), before, "teardown did not reset the save queue");
+    assert.equal(await queue.enqueue(() => "remounted"), "remounted");
+    await drain();
+    assert.deepEqual(unhandled, []);
+  } finally {
+    process.off("unhandledRejection", record);
+  }
+});
+
 test("every axis read in the runtime goes through the pin", () => {
   // The hazard is a caller that asks core directly while an order is applied.
   // There is exactly ONE core.readColumnIds call site and — since T6a — exactly
