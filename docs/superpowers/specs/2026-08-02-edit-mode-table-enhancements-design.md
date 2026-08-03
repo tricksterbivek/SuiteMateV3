@@ -438,3 +438,65 @@ These three rows replace their §8 counterparts. Every other row is unchanged.
 - **U4 — answered negative for this form** (probe 6b); the unconditional refusal is retained.
 - **New — U6: P-MONO portability, and it is the highest carried risk in this design.** The correlator is correct only under **P-MONO** — rendered column order is a monotone subsequence of `{machine}fields` order (A1.2). It holds on the one probed form, and NetSuite appears to generate both orders from the same form column list, but **that is one form's evidence and P-MONO cannot be checked from the DOM**. Our own violation of it (M4 permuting columns) is closed by construction through axis pinning. A *form's* violation is not: a custom Sales Order form whose sublist layout order differs from its field order would mis-key silently — 43 well-formed, unique, wrong ids — and persist that. Consequences, all binding: no generalization beyond the probed Sales Order form ships without re-verifying P-MONO on the target form; any future work that reorders columns must go through the pin, never through re-derivation; and M4 cannot ship without Gate A′, which exists partly to prove the pin holds.
 - **New — U7: correlation portability (benign half).** On an unrecognised locale, a machine with no rendered lines, or a paged machine whose rendered row numbering does not index `{machine}data`, the ambiguity gate declines. That is safe but silent: the first symptom of an unsupported form is "nothing appears". A user-visible diagnostic is deliberately **not** added in M1.5.
+
+---
+
+## Amendment 2 — width applies during an open line (2026-08-03)
+
+Status: binding. Amends **§6:122** and **§7:145** only. Nothing else in §6 or §7 changes,
+and nothing shipped is reverted. Source of authority: **adjudication #16**, taken on the
+M2 Task 12 measurement below and an independent review of the apply's mechanics.
+
+### A2.1 What the queue-while-open rule assumed, and what is true
+
+§6:122 and §7:145 name **width** alongside hide/show and filter as queued while a line is
+open, on the reasoning that an apply landing mid-edit yanks the table under the user. For
+width that reasoning inverts, because of a fact about the mechanism that was not known
+when §6 was written:
+
+**`table-layout: fixed` is set on the `<table>`, and the `<table>` survives the machine's
+`<tbody>` regeneration; the header cells' inline widths do not.** Between a repaint and
+the next apply the machine is therefore laid out as *fixed with no column widths*, which
+the browser resolves by distributing the available width **equally**. Measured on
+`tests/fixtures/sales-order-edit.html` (2026-08-03, Task 12): opening a line collapsed all
+twelve columns from `203/109/80/84/130/89/147/51/325/94/50/82` px to **120 px each**, and
+they stayed collapsed for as long as the line stayed open. Skipping the apply *is* the
+yank; re-applying the same pixels is invisible.
+
+### A2.2 The amended rules
+
+**§6:122 is replaced by:**
+
+- **hide/show and filter changes are queued** and flushed on removal of the focused-row
+  state; **width applies are exempt and run while a line is open** (A2.1, adjudication #16).
+
+**§7:145 is replaced by:**
+
+| Condition | Behaviour |
+|---|---|
+| A line is open — hide/show or filter requested | Queued; flushed when the line closes; identity re-derived before the flush. |
+| A line is open — width apply | **Applied, not queued.** Header-row `style.width` only; no row is moved, revealed, hidden or re-parented, and no widget is touched. Identity is the pinned axis, re-derived per install as always. |
+
+Everything else in §7 is unchanged. In particular **reorder and sort are still refused
+outright** while a line is open, and the open row and any dirty row remain force-revealed
+and exempt from every hide/filter/move set.
+
+### A2.3 Why the exemption is safe, not merely convenient
+
+- **Style-only, header-row-only.** A width apply writes `style.width` on the visible
+  header cells and `style.tableLayout` on the table. It does not add, remove, move,
+  reveal or hide a row or a cell, and it never touches a materialised widget — so it
+  cannot disturb the caret, the selection, or an uncommitted value.
+- **No focus movement**, so the open line cannot be closed or committed by it.
+- **No observer feedback.** The lifecycle registration observes `childList` only, so the
+  attribute writes an apply performs cannot schedule another install.
+- **Scoped to widths by construction.** The exemption is implemented as a call to
+  `applyCurrentWidths`, *not* `applyAll`; `pendingApply` still latches, so M3's hide/show
+  and M6's filter sets inherit the queue unchanged when they are built.
+
+### A2.4 What M3 and later inherit
+
+M3, M6 and M7 read the amended text: **width is the only exempt set.** A later milestone
+that wants a second exemption needs its own amendment and its own measurement — the
+grounds here are specific to a freeze whose absence is itself a visible layout change, and
+they do not generalise to a set that moves or removes rows.

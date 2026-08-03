@@ -414,17 +414,29 @@
   }
 
   function applyWhileLineOpen(table, columnIds) {
-    // The queue-while-open rule (spec section 8) governs hide, filter, reorder
-    // and sort — every set that MOVES or REMOVES a row under the caret. Widths
-    // are the exception, and skipping them is the harm the rule exists to
-    // prevent: with `table-layout: fixed` still on the <table> and the header
-    // cells' inline widths gone with the repaint, an apply that does not run
-    // leaves the browser redistributing the machine into equal columns. Measured
+    // The queue-while-open rule is spec section 6, the open-line state machine
+    // (design :119-122), and its fail-closed row at :145. It named width
+    // alongside hide/show and filter; SPEC AMENDMENT 2 (adjudication #16) takes
+    // width out of that set and this is the code it amends to. Hide/show and
+    // filter are still queued, reorder and sort are still refused outright.
+    //
+    // The grounds: `table-layout: fixed` is set on the <table> and the <table>
+    // survives the <tbody> regeneration while the header cells' inline widths do
+    // not, so between a repaint and the next apply the machine is laid out as
+    // fixed-with-no-widths and the browser distributes the space equally. An
+    // apply that does not run IS the yank the rule exists to prevent — measured
     // on the fixture: opening a line collapsed all twelve columns to 120px and
     // they stayed collapsed until the line was closed. Re-applying the same
-    // pixels is invisible; skipping is the yank. pendingApply still latches, and
-    // it is what M3+ flushes for the sets that genuinely have to wait.
+    // pixels is invisible: style.width on the header row and nothing else, no
+    // row moved, revealed or hidden, no widget touched, no focus moved, and the
+    // observer watches childList only so it cannot feed back.
     pendingApply = true;
+    // Latched here and cleared only by queueApply and removeEditGrid, so in
+    // practice it latches until teardown: nothing flushes it yet, because the
+    // sets that need flushing do not exist yet. Deliberately left that way —
+    // M3 owns the flush trigger (focusin, or the line-closed repaint) and
+    // designing it here would be pre-empting a decision with no caller. Widths
+    // do not depend on it: they are applied on the line below, not queued.
     applyCurrentWidths(table, columnIds);
   }
 

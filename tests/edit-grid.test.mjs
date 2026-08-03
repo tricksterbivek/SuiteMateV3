@@ -2663,6 +2663,49 @@ test("the target signature predicts what core writes, zero-rendered column inclu
     "the first apply's target left the zero-rendered column unpredicted");
 });
 
+test("each gesture writes its own snapshot, never a map a later gesture has moved", async () => {
+  // Two gestures land before the queue drains either of them — one drag, then
+  // another on a different column, with nothing awaited in between. That is a
+  // fast user and a slow chrome.storage.sync, and it is what separates a
+  // snapshot captured at ENQUEUE time from module state read when the operation
+  // finally runs: a run-time read sees the LATEST map, so gesture A writes
+  // gesture B's state.
+  //
+  // The severe form of the same defect is silent data loss, not a stale write.
+  // An install landing in the same gap reseeds columnWidths from storage, and
+  // for a user with no saved widths yet that is {} — so a run-time read hands
+  // core.withWidths a null, and the entry the gesture was trying to create is
+  // DELETED. The capture is what makes that unreachable.
+  const core = createApi();
+  const harness = createRuntimeHarness();
+  await harness.flush();
+  const cells = headerOf(harness, core);
+  const drag = (index, by) => {
+    const box = cells[index].getBoundingClientRect();
+    harness.pointer("pointerdown", { target: cells[index], clientX: box.right - 1, clientY: box.top + 4 });
+    harness.pointer("pointermove", { clientX: box.right - 1 + by, clientY: box.top + 4 });
+    harness.pointer("pointerup", { clientX: box.right - 1 + by, clientY: box.top + 4 });
+  };
+  drag(1, 60);
+  drag(2, 40);
+  assert.equal(harness.counts.writes, 0, "neither save has run yet — that is the whole setup");
+  await harness.tick();
+
+  assert.equal(harness.counts.writes, 2, "two gestures are two writes");
+  assert.deepEqual(
+    plain(harness.writes[0][EDIT_STORAGE_KEY].grids[SCOPE].widths),
+    { quantity: 160 },
+    "the first gesture wrote a map that only existed after the second one"
+  );
+  assert.deepEqual(
+    plain(harness.writes[1][EDIT_STORAGE_KEY].grids[SCOPE].widths),
+    { quantity: 160, rate: 140 },
+    "the second gesture must still carry both"
+  );
+  // Storage ends where the user left it, in order, with nothing dropped.
+  assert.deepEqual(plain(storedWidths(harness)), { quantity: 160, rate: 140 });
+});
+
 test("a save whose mount was torn down before it ran writes nothing", async () => {
   // The queue's own guarantee is narrow (see enqueueSave): a continuation that
   // resumes after a teardown finds a FRESH chain, and nothing more. The
