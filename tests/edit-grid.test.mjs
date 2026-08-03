@@ -1391,9 +1391,14 @@ test("hides a column across the header and every aligned row, and nothing else",
   // (no {machine}fields input), so an implementation that reached for
   // readColumnIds internally would refuse every call this test makes.
   assert.deepEqual(plain(core.readColumnIds(table)), [], "the fixture became self-deriving");
-  const displays = () => plain(core.tableRows(table)
-    .map((row) => Array.from(row.cells).map((cell) => cell.style.display)));
-  const nativeDisplays = displays();
+  // Every channel other than our own class that could make a cell invisible, or
+  // make an invisible one visible. `style.display` is the axis-bearing one; the
+  // `hidden` PROPERTY is the second, and it has its own recorded cost in this
+  // repo (`save/CHECKPOINTS.md:972` — display-defeats-hidden), which is why the
+  // pin is "our class and nothing else" rather than "no inline display".
+  const written = () => plain(core.tableRows(table)
+    .map((row) => Array.from(row.cells).map((cell) => [cell.style.display, cell.hidden ?? null])));
+  const native = written();
 
   assert.equal(core.applyHidden(table, ["quantity"], EDIT_AXIS), true);
   assert.deepEqual(hiddenFlags(core, table.rows[0]), [false, true, false], "the header cell is hidden too");
@@ -1411,7 +1416,7 @@ test("hides a column across the header and every aligned row, and nothing else",
   // how NetSuite hides its OWN cells — drops the hidden cell, the column leaves
   // the axis, and the next install keys storage by a two-column axis. That is
   // laundering our own output into column IDENTITY, strictly worse than a width.
-  assert.deepEqual(displays(), nativeDisplays, "applyHidden wrote an inline display");
+  assert.deepEqual(written(), native, "applyHidden wrote outside its own class");
   // Which is the same statement, made positively: the column is still on the axis.
   assert.equal(core.alignsToHeader(table.rows[1], EDIT_AXIS), true);
   assert.equal(core.visibleCells(table.rows[0]).length, 3);
@@ -1440,7 +1445,7 @@ test("hides a column across the header and every aligned row, and nothing else",
   assert.equal(core.applyHidden(table, [], EDIT_AXIS), true);
   assert.deepEqual(hiddenFlags(core, table.rows[1]), [false, false, false]);
   assert.equal(anythingClassed(core, table), false, "a reveal left a class behind");
-  assert.deepEqual(displays(), nativeDisplays, "a reveal wrote an inline display");
+  assert.deepEqual(written(), native, "a reveal wrote outside its own class");
   assert.equal(core.applyHidden(null, ["quantity"], EDIT_AXIS), false);
 });
 
@@ -1525,8 +1530,39 @@ test("ADJUDICATION #19: the reveal is unconditional — a stale class comes off 
   assert.equal(core.applyHidden(swapped, [], EDIT_AXIS), true);
   assert.equal(swapped.rows[1].cells[1].classList.contains(HIDDEN_CLASS), false,
     "a class was stranded on a cell NetSuite hid after the apply");
+  // And the OTHER half of that same state, which the first version of this test
+  // reached and then declined to measure. The laundering hazard is symmetric: a
+  // reveal that cleared inline display only where it found its own class would be
+  // a no-op everywhere except right here — and here it clears NETSUITE'S `none`,
+  // the cell rejoins visibleCells, readColumnIds derives a LONGER axis, and that
+  // axis keys storage on the next install. Shortening the axis (M5/M21/M22) and
+  // lengthening it are the same defect wearing opposite signs.
+  assert.equal(swapped.rows[1].cells[1].style.display, "none",
+    "the reveal cleared NetSuite's OWN inline display");
+  assert.equal(core.visibleCells(swapped.rows[1]).length, 2,
+    "a NetSuite-hidden cell was resurrected onto the axis");
 
-  // 5. The floor: no machine at all is still a refusal, not a vacuous success.
+  // 5. A set whose every entry is falsy takes the RESTORE route, not the active
+  // one. With a usable axis the two are indistinguishable — the active path would
+  // match no id and toggle everything off — so the routing has to be measured
+  // where they diverge: a BROKEN axis, where restore clears and returns true
+  // while the active path refuses and strands.
+  const falsy = stale();
+  assert.equal(core.applyHidden(falsy, [null, "", undefined, 0, false], null), true,
+    "an all-falsy set was routed into the active path");
+  assert.equal(anythingClassed(core, falsy), false);
+
+  // 6. The sweep does not consult isExcludedRow, and must not: that predicate
+  // fails CLOSED (it answers true for a row it cannot interrogate), so a row that
+  // throws at teardown would keep its class forever behind an exclusion the
+  // reveal never needed to ask about.
+  const hostile = stale();
+  hostile.rows[1].matches = () => { throw new Error("hostile"); };
+  assert.equal(core.isExcludedRow(hostile.rows[1]), true, "the fixture is not failing closed");
+  assert.equal(core.applyHidden(hostile, [], EDIT_AXIS), true);
+  assert.equal(anythingClassed(core, hostile), false, "a class was stranded on a fail-closed row");
+
+  // 7. The floor: no machine at all is still a refusal, not a vacuous success.
   // There is nothing to sweep and a null reference is a caller defect, so the
   // carve-out does not extend to inventing a success signal for it.
   assert.equal(core.applyHidden(null, [], EDIT_AXIS), false);
@@ -1713,6 +1749,12 @@ test("readHeaderLabels reads both header shapes, strips injections, and never op
   // argument and refuses a machine whose header has a hole.
   assert.equal(plain(core.readHeaderLabels(table))[3], "");
   assert.deepEqual(plain(core.readColumnIds(table)), [], "a fallback label reopened the A1.2 blank gate");
+  // A non-array axis is not an axis. Without the `Array.isArray` guard a string
+  // indexes like one: `"quantitybilled"[3]` is `"n"`, and Task 16's control bar
+  // would label a column with a single letter. Task 16 is the first two-argument
+  // caller, so this guard has had no caller to be wrong for until now.
+  assert.equal(plain(core.readHeaderLabels(table, "quantitybilled"))[3], "");
+  assert.equal(plain(core.readHeaderLabels(table, { 3: "quantitybilled" }))[3], "");
   // A short axis fills what it has and leaves the rest blank — never an index shift.
   assert.deepEqual(plain(core.readHeaderLabels(table, ["item"])), blanked.map((label, index) =>
     (index === 3 ? "" : label)));
