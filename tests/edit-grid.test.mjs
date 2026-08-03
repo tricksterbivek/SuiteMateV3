@@ -1239,7 +1239,10 @@ test("applyWidths' minimums parameter is provably inert — nothing passed there
   }
 
   // The same holds on the rendered-fallback path, where there is no stored width
-  // to dominate the floor — the case a re-admitted floor would bite first.
+  // to dominate the floor — the case a re-admitted floor would bite first, and
+  // (review addendum) the load-bearing half against a floor gated on a stored
+  // width's ABSENCE, which the hostile loop above cannot reach at all because
+  // every column in it carries one.
   const unplanned = createMachine();
   unplanned.rows[1].cells[1] = createCell({ text: "2", spanId: "item_quantity1_fs", widget: 180 });
   assert.equal(core.applyWidths(unplanned, { item: 240 }, { quantity: 5000, rate: 5000 }, columnIds), true);
@@ -1247,6 +1250,26 @@ test("applyWidths' minimums parameter is provably inert — nothing passed there
     plain(core.visibleCells(unplanned.rows[0]).map((cell) => cell.style.width)),
     ["240px", "100px", "100px"],
     "an unplanned column took a floor instead of what it renders"
+  );
+
+  // And on a LONGER axis, so the pin is not proven over one geometry. Everything
+  // above runs on the three-column stub, and so does every other test that hands
+  // applyWidths a non-empty minimums map — the twelve-column machine is only ever
+  // given `{}`. A floor re-admitted for wide machines alone
+  // (`columnIds.length > 3 ? minimums?.[id] : 0`) therefore survives the whole
+  // suite without this. Contrived rather than plausible, but it is one case.
+  const wide = createLiveMachine();
+  const wideAxis = plain(core.readColumnIds(wide));
+  assert.deepEqual(wideAxis, LIVE_AXIS, "the live machine's axis moved — re-check the indices below");
+  const wideFloors = Object.fromEntries(wideAxis.map((id) => [id, 5000]));
+  assert.equal(core.applyWidths(wide, { rate: 240 }, wideFloors, wideAxis), true);
+  const wideHeader = core.visibleCells(wide.rows[0]);
+  const rateAt = wideAxis.indexOf("rate");
+  assert.equal(wideHeader[rateAt].style.width, "240px", "the planned column moved on a twelve-column axis");
+  assert.deepEqual(
+    plain(wideHeader.filter((_, index) => index !== rateAt).map((cell) => cell.style.width)),
+    new Array(wideAxis.length - 1).fill("100px"),
+    "a 5000px floor moved a column on a twelve-column axis"
   );
 });
 
