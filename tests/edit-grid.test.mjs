@@ -4912,11 +4912,77 @@ test("every stylesheet rule is scoped to the feature and every hide rule wins", 
   for (const group of selectors.flatMap((selector) => selector.split(","))) {
     assert.match(group, /suitemate-v3-edit-grid/, `${group.trim()} can match a View Mode node`);
   }
-  // display-defeats-hidden has three recorded sightings; all three hide rules
+  // display-defeats-hidden has FOUR recorded sightings; all three hide rules
   // and the [hidden] guard carry !important.
   assert.match(stylesheet, /\[data-suitemate-v3-edit-grid\]\[hidden\]\s*\{\s*display: none !important/);
   assert.match(stylesheet, /\.suitemate-v3-edit-grid-col-hidden\s*\{\s*display: none !important/);
   assert.match(stylesheet, /\.suitemate-v3-edit-grid-row-filtered\s*\{\s*display: none !important/);
+  // SIGHTING FOUR: the doctrine reads BOTH ways. A rule of ours that makes an
+  // injected node VISIBLE is exposed to the same hostile cascade as one that
+  // hides, so every `display` this sheet sets carries !important — not just the
+  // none ones.
+  for (const [, value] of stylesheet.matchAll(/\n\s*(display:[^;\n}]+)/g)) {
+    assert.match(value, /!important/, `a display rule without !important: ${value}`);
+  }
+});
+
+test("SIGHTING FOUR: the control bar out-specifies the rule that was hiding it", async () => {
+  // THE LIVE BUG. The bar mounted and computed `display: none` on the real page.
+  // The rule that killed it is `.uir-machine-table-container>div` inside a
+  // `display: none !important` list — and it is in SuiteMate's OWN View Mode
+  // restyling sheet, reaching into Edit Mode through a View Mode selector. That
+  // file is out of bounds, so the override belongs in ours.
+  //
+  // !important ALONE IS NOT THE FIX, and that is the half a doctrine stated as
+  // "carry !important" does not cover: both rules are !important, so SPECIFICITY
+  // decides, and a bare class rule loses. Measured on the fixture — a bare div
+  // child of the container computes `none` even with a plain !important class.
+  //
+  // Pinned by computing specificity rather than by matching a selector string: a
+  // string assertion passes the moment someone rewrites the selector into
+  // something equally pretty and equally losing, which is exactly the failure
+  // mode recorded at CHECKPOINTS.md:973 — an assertion that held while the pixels
+  // were absent.
+  const netsuiteCss = await readFile(resolve(root, "src/styles/netsuite.css"), "utf8");
+  // (ids, classes/attrs/pseudo-classes, elements/pseudo-elements). :not() itself
+  // adds nothing; its argument counts, which is why `html:not(.ext-f)` is one
+  // class and one element.
+  const specificity = (selector) => {
+    const flat = selector.replace(/:not\(|:is\(|\)/g, " ");
+    return [
+      (flat.match(/#[\w-]+/g) ?? []).length,
+      (flat.match(/\.[\w-]+|\[[^\]]+\]|:[\w-]+/g) ?? []).length,
+      (flat.match(/(?:^|[\s>+~])([a-z][\w-]*)/g) ?? []).length
+    ];
+  };
+  const beats = (a, b) => {
+    for (let i = 0; i < 3; i += 1) {
+      if (a[i] !== b[i]) {
+        return a[i] > b[i];
+      }
+    }
+    return false;
+  };
+  // The hostile selector, located in the sheet rather than quoted from memory —
+  // if it is ever removed this test says so instead of silently passing.
+  const hostile = netsuiteCss
+    .split("\n")
+    .map((line) => line.trim().replace(/,$/, ""))
+    .find((line) => /\.uir-machine-table-container>div$/.test(line));
+  assert.equal(Boolean(hostile), true,
+    "the rule that hid the control bar is gone from netsuite.css — re-check whether the override is still needed");
+  // Our override, likewise found rather than quoted.
+  const override = stylesheet
+    .split("\n")
+    .map((line) => line.trim().replace(/\s*\{$/, ""))
+    .find((line) => /uir-machine-table-container.*suitemate-v3-edit-grid-controls/.test(line));
+  assert.equal(Boolean(override), true, "the control bar has no container-anchored show rule");
+  assert.equal(beats(specificity(override), specificity(hostile)), true,
+    `the control bar's show rule (${specificity(override)}) does not out-specify the rule that hides it (${specificity(hostile)})`);
+  // Not vacuous: the bare class rule that shipped and was invisible does NOT beat
+  // it, which is the whole finding.
+  assert.equal(beats(specificity(".suitemate-v3-edit-grid-controls"), specificity(hostile)), false,
+    "the fixture's own measurement says a bare class rule loses — this arithmetic disagrees");
 });
 
 test("the bound-attribute rule is anchored where the runtime actually stamps", () => {

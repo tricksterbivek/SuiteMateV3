@@ -1,7 +1,28 @@
 /* SuiteMate V3 — Sales Order Edit Mode grid (src/edit-grid/*).
    Every rule is scoped to this feature's own attribute or classes; nothing here
-   may match a View Mode node. Hide rules carry !important: display-defeats-
-   hidden has three recorded sightings (CHECKPOINTS.md:858, :972, :1143). */
+   may match a View Mode node.
+
+   THE DOCTRINE READS BOTH WAYS. Hide rules carry !important — display-defeats-
+   hidden has three recorded sightings (CHECKPOINTS.md:858, :972, :1143) — and so
+   do SHOW rules, because the hazard is a hostile cascade in BOTH directions.
+   SIGHTING FOUR is what taught us the second half: the control bar mounted and
+   computed `display: none` on the live page, and the doctrine had been applied
+   to hide rules only.
+
+   AND !important IS NOT ENOUGH ON ITS OWN — measured, not assumed. The rule that
+   kills the bar is src/styles/netsuite.css:152, `.uir-machine-table-container>div`
+   in a `display: none !important` list, specificity (0,2,2). A bare
+   `.suitemate-v3-edit-grid-controls { display: inline-flex !important }` is
+   (0,1,0) and LOSES to it: both are !important, so specificity decides. A show
+   rule that has to survive that list must out-specify it as well as shout, which
+   is why the controls rule below is anchored at the container and carries the
+   ownership stamp. Verified on the fixture: plain !important on a bare div child
+   still computes none; the anchored form computes inline-flex.
+
+   Note also whose sheet that is. It is not NetSuite's — it is SuiteMate's own
+   View Mode restyling sheet, reaching into Edit Mode through a selector written
+   for View Mode. That file is out of bounds (global constraints: View Mode files
+   are untouched), so the fix belongs here, in our own sheet, every time. */
 
 [data-suitemate-v3-edit-grid][hidden] {
     display: none !important
@@ -16,7 +37,7 @@
 }
 
 .suitemate-v3-edit-grid-controls {
-    display: inline-flex;
+    display: inline-flex !important;
     flex-wrap: wrap;
     max-width: 100%;
     box-sizing: border-box;
@@ -26,8 +47,26 @@
     vertical-align: middle
 }
 
+/* SIGHTING FOUR. The control bar is a <div> prepended directly into
+   .uir-machine-table-container, which is exactly what netsuite.css:152 hides
+   with `display: none !important`. That selector is (0,2,2); the class rule
+   above is (0,1,0), so !important alone is a tie-break it cannot reach. This
+   one is (0,3,2) — container class, our class, our stamp, over `html` and
+   `div` — so it wins on specificity and then on !important.
+
+   Measured on the fixture, which reproduces the bug because it loads the very
+   same netsuite.css: bare div child -> none, bare div child with a plain
+   !important class -> STILL none, this rule -> inline-flex.
+
+   Only the bar needs this. The chips strip and the buttons are not direct
+   children of the container and compute inline-flex without it — asserted, not
+   assumed, by the computed-display sweep in tests/edit-grid.test.mjs. */
+html .uir-machine-table-container>div.suitemate-v3-edit-grid-controls[data-suitemate-v3-edit-grid] {
+    display: inline-flex !important
+}
+
 .suitemate-v3-edit-grid-button {
-    display: inline-flex;
+    display: inline-flex !important;
     align-items: center;
     gap: 4px;
     padding: 2px 8px;
@@ -45,7 +84,7 @@
 }
 
 .suitemate-v3-edit-grid-chip {
-    display: inline-flex;
+    display: inline-flex !important;
     align-items: center;
     gap: 4px;
     padding: 1px 6px;
@@ -81,6 +120,7 @@ body.suitemate-v3-edit-grid-resizing {
 }
 
 .suitemate-v3-edit-grid-menu {
+    display: block !important;
     position: absolute;
     z-index: 9999;
     max-height: 320px;
@@ -98,7 +138,7 @@ html.isDarkMode .suitemate-v3-edit-grid-menu {
 }
 
 .suitemate-v3-edit-grid-menu label {
-    display: flex;
+    display: flex !important;
     align-items: center;
     gap: 6px;
     padding: 2px 4px;
