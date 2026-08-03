@@ -51,7 +51,6 @@
   let appliedOrder = null;
   let axisMismatch = false;
   let entry = {};
-  let pendingApply = false;
   // The container this mount BOUND, kept as a handle rather than re-derived at
   // teardown — see ensureBindings.
   let boundContainer = null;
@@ -119,12 +118,6 @@
   // is an owned NODE and dies with the sweep; these listeners are not, so they
   // come off by name — see closeColumnMenu and the teardown.
   let menuDismissBound = false;
-  // One explanation per mount for why a stored hide is not being rendered. The
-  // force-reveal below flips on and off with the open-line state, and a toast
-  // per flip is a storm for the exact user it exists to inform.
-  let revealToasted = false;
-  // The deferred flush's timer handle, so teardown can drop it.
-  let flushTimer = null;
   // The live gesture, or null. Never a cached column minimum — see handleResizeMove.
   let resizing = null;
   // Bumped by every teardown, captured by every save operation at ENQUEUE time.
@@ -257,94 +250,42 @@
     return derived;
   }
 
-  function isLineOpen() {
-    const table = activeTable ?? machineTable();
-    if (!table) {
-      return false;
-    }
-    // Live 2026-08-02: the permanent entry row ALWAYS carries
-    // uir-machine-row-focused and its uir-machine-button-row is ALWAYS attached,
-    // so "any focused row or any button row" is true for the entire session and
-    // every queued apply starves. An open EXISTING line is a focused row that
-    // also carries a numbered {machine}_row_{n} id.
-    const machineId = core.machineIdFromTable(table);
-    return Array.from(table.querySelectorAll(core.FOCUSED_ROW_SELECTOR))
-      .some((row) => core.rowLineNumber(row, machineId) !== null);
-  }
-
-  function fieldIsDirty(field) {
-    const type = String(field.type ?? "").toLowerCase();
-    if (type === "checkbox" || type === "radio") {
-      // `defaultValue` on a checkbox or radio is its VALUE attribute — "on"
-      // when the markup names none — and NOT its pristine checked state, so the
-      // inherited `value !== defaultValue` comparison is equal for every box in
-      // every state and reports a ticked one as CLEAN. The pristine state is
-      // `defaultChecked`. Load-bearing from M3 on: isDirty is what tells the
-      // force-reveal that the user is part-way through a new line, and a machine
-      // whose only edited field is a checkbox would otherwise keep the columns
-      // that line still needs hidden.
-      return Boolean(field.checked) !== Boolean(field.defaultChecked);
-    }
-    if (field.tagName !== "SELECT") {
-      return field.value !== field.defaultValue;
-    }
-    // HTMLSelectElement has no defaultValue, so comparing against it reports
-    // every untouched select as dirty — and a machine row always has selects.
-    // The pristine value is the defaultSelected option, or the first option
-    // when the markup names none.
-    const options = Array.from(field.options ?? []);
-    const pristine = options.find((option) => option.defaultSelected) ?? options[0];
-    return field.value !== (pristine?.value ?? "");
-  }
-
-  function isDirty() {
-    // ENTRY-ROW DIRTINESS — decided at M2 Task 12, KEPT unqualified, and this is
-    // the record. FOCUSED_ROW_SELECTOR matches the permanent entry row too (live
-    // 2026-08-02: it is always present and always focused), so with no line open
-    // this answers about the entry row, and a user who has typed into it reads as
-    // dirty. That is the MITIGATION, not the defect: a half-typed new line is
-    // exactly the state that must not have an apply yank the table out from under
-    // it, and the cost of the alternative — qualifying the selector to numbered
-    // rows — is that mid-typing users get their layout rewritten under the caret.
-    // querySelector takes the FIRST focused row in document order, so an open
-    // numbered line (which renders above the entry row) still governs whenever
-    // there is one.
-    //
-    // AND EVERY OTHER ROW WITH IT, which is spec section 6's own wording — "the
-    // open row AND any dirty row" — finally wired instead of promised. This used
-    // to read the FIRST focused row and nothing else, which on the locked SO form
-    // is the same set (only a focused row carries widgets at all, a committed row
-    // is plain text) and stops being the same set the moment a machine renders
-    // fields in an unfocused row: a read-only variant, a custom form, a row the
-    // user edited and then clicked away from. There the hide took a cell whose
-    // value is still going to SUBMIT, which is the one outcome section 6 exists
-    // to prevent. Scanning every row costs one querySelectorAll per row per
-    // apply on a table that already gets one per cell, and it fails SAFE — the
-    // wrong answer shows a column the user hid rather than hiding one they are
-    // editing.
-    //
-    // core.tableRows is every <tr>, deliberately unfiltered: the button row and
-    // the totals row carry no editable field, so excluding them would buy nothing
-    // and would exclude the permanent entry row on any machine that renders it
-    // last (`tr.uir-machine-row-last` is in EXCLUDED_ROW_SELECTOR) — the exact
-    // row this predicate was built for.
-    const table = activeTable ?? machineTable();
-    if (!table) {
-      return false;
-    }
-    return core.tableRows(table).some(rowIsDirty);
-  }
-
-  function rowIsDirty(row) {
-    return Array.from(row?.querySelectorAll?.("input, select, textarea") ?? []).some(fieldIsDirty);
-  }
-
-  // forcedRows() lived here and is GONE. It answered "which rows are exempt from
-  // a hide" for a caller that never arrived: M3 hides by COLUMN, so the exemption
-  // it modelled is delivered whole-table by isDirty above, and M4's row moves are
-  // not built. It was a tested function with zero production call sites — the
-  // same objection adjudication #19 raised against teardown's closeColumnMenu,
-  // and the same remedy. Its test now pins the wired behaviour instead.
+  // THE OPEN-LINE AND DIRTY PREDICATES LIVED HERE AND ARE GONE — isLineOpen,
+  // isDirty, rowIsDirty and fieldIsDirty, with forcedRows before them.
+  //
+  // OWNER DIRECTIVE 2026-08-04, second half, from live use: once a user hides a
+  // column it stays hidden AT ALL TIMES — editing an existing line, adding a new
+  // one, selecting an item, changing a value, and through every repaint those
+  // cause. It changes only when the user changes their column personalization.
+  // That deletes the force-reveal, and the force-reveal was the sole consumer of
+  // all four: nothing in this runtime now asks whether a line is open or whether
+  // a field has been touched. Zero call sites is deletion, which is the ruling
+  // forcedRows took and for the same reason.
+  //
+  // WHAT THEY KNEW, kept because it was measured live and the next reader should
+  // not have to buy it a second time.
+  //   Live 2026-08-02: the permanent entry row ALWAYS carries
+  //   `uir-machine-row-focused` and its button row is ALWAYS attached, so "any
+  //   focused row" is true for the whole session. An open EXISTING line is a
+  //   focused row that ALSO carries a numbered {machine}_row_{n} id, and a
+  //   predicate missing that qualifier starves every queued apply for the life
+  //   of the mount.
+  //   `defaultValue` on a checkbox or a radio is its VALUE attribute, not its
+  //   pristine checked state, so `value !== defaultValue` calls a ticked box
+  //   clean; the pristine state is `defaultChecked`. A <select> has no
+  //   defaultValue at all — its pristine option is `defaultSelected`, or the
+  //   first option when the markup names none.
+  //
+  // WHAT THE REVEAL PROTECTED IS NOT LOST, it is delivered upstream and by a
+  // stronger mechanism. readRequiredColumns refuses to hide a column NetSuite
+  // stars AT ALL (the same directive's first half, 08e3c1e), so the required-
+  // field trap the reveal existed for cannot be entered. Live probe 11 measured
+  // the rest: a line commits cleanly with a column hidden and its value
+  // preserved, because widgets materialise PER CELL on click — a hidden cell's
+  // widget never exists, so it can trap neither focus nor validation. The
+  // residual is a custom client script validating a NON-starred field the user
+  // chose to hide: an accepted trade, recorded in the M3 ledger, and NetSuite's
+  // own alert for it is visible whatever we hide.
 
   // ===== Resize =====
   function headerCellsOf(table) {
@@ -654,42 +595,15 @@
     return true;
   }
 
-  function applyWhileLineOpen(table, columnIds) {
-    // The queue-while-open rule is spec section 6, the open-line state machine
-    // (design :119-122), and its fail-closed row at :145. It named width
-    // alongside hide/show and filter; SPEC AMENDMENT 2 (adjudication #16) takes
-    // width out of that set and this is the code it amends to. Hide/show and
-    // filter are still queued, reorder and sort are still refused outright.
-    //
-    // The grounds: `table-layout: fixed` is set on the <table> and the <table>
-    // survives the <tbody> regeneration while the header cells' inline widths do
-    // not, so between a repaint and the next apply the machine is laid out as
-    // fixed-with-no-widths and the browser distributes the space equally. An
-    // apply that does not run IS the yank the rule exists to prevent — measured
-    // on the fixture: opening a line collapsed all twelve columns to 120px and
-    // they stayed collapsed until the line was closed. Re-applying the same
-    // pixels is invisible: style.width on the header row and nothing else, no
-    // row moved, revealed or hidden, no widget touched, no focus moved, and the
-    // observer watches childList only so it cannot feed back.
-    //
-    // M3'S ADDITION, and it is NOT a second exemption. The hide/show set is
-    // still queued — A2.4 says width is the only exempt set and a second needs
-    // its own amendment. What runs below is the FORCE-REVEAL, which spec section
-    // 7 lists as its own row ("focus enters a hidden cell, or the open line
-    // fails validation → force-reveal; the layout change is dropped, not the
-    // user's edit") precisely because it is the opposite of the queued case.
-    // And it is a reveal BY CONSTRUCTION, not by policy: effectiveHidden()
-    // answers the empty set while a line is open, so the call below takes
-    // core.applyHidden's unconditional restore route and can only ever REMOVE
-    // this feature's class. There is no path here that can hide a column.
-    //
-    // pendingApply — the record that a stored hide is being suppressed — is set
-    // inside applyCurrentHidden, and flushed by scheduleFlush (the click that
-    // closed the line) and by handleFocusIn. That is the flush trigger M1.5 and
-    // M2 deferred to M3.
-    applyCurrentWidths(table, columnIds);
-    applyCurrentHidden(table, columnIds);
-  }
+  // applyWhileLineOpen() lived here and is GONE. It ran a DIFFERENT apply while
+  // a line was open — widths yes, hide/show no — and after the owner directive
+  // there is no difference left for it to run: its body and applyAll's became
+  // character-identical, because the whole of the difference had always lived in
+  // effectiveHidden's open-line answer and never in these two bodies. A branch
+  // whose arms are the same is a line no mutation can kill and no reader can
+  // trust, which is adjudication #19's objection and its remedy. applyAll is now
+  // the only apply there is, it runs whatever the machine is doing, and the two
+  // rules that used to be stated here are stated there.
 
   // The ONE write site in this runtime, shared by every field that persists.
   // `writeField` is handed the raw stored container and this mount's scope key
@@ -861,9 +775,11 @@
       // A3.2 GESTURE SEEDING. The tick seeds from `hiddenColumns` — this
       // feature's own stored model — and never from what the column RENDERS.
       // Rendered visibility is this feature's own output twice over (our class,
-      // our `display: none !important`) and while a line is open it says
-      // "visible" for a column the user has hidden, so a menu seeded from it
-      // would hand the next gesture a state the user never chose.
+      // our `display: none !important`) and it says "visible" for a column the
+      // user hid for the whole of every repaint window — our class dies with the
+      // tbody and comes back only when the install's apply lands, and this menu
+      // opens on a click that needs no install at all. A menu seeded from the
+      // rendering would hand the next gesture a state the user never chose.
       box.checked = !hiddenColumns.has(columnId);
       box.setAttribute(core.DATA_ATTRIBUTE, "column-toggle");
       box.dataset.columnId = columnId;
@@ -925,9 +841,12 @@
       return;
     }
     const labels = core.readHeaderLabels(table, columnIds);
-    // The chips show what the user has STORED, never what is currently
-    // rendered: while a force-reveal is running the columns are all visible and
-    // the chips are the only thing still saying which ones the user hid.
+    // The chips show what the user has STORED, never what is currently rendered.
+    // The two agree now that the reveal is gone, and the rule stands anyway: a
+    // repaint destroys our class, so between the tbody regeneration and the
+    // install's apply the machine renders nothing hidden while the user's
+    // preference is unchanged, and chips derived from the rendering would blink
+    // out with it.
     for (const columnId of shown) {
       const index = columnIds.indexOf(columnId);
       const chip = ownedButton("chip", `${(index >= 0 ? labels[index] : columnId) || columnId} ✕`);
@@ -937,7 +856,7 @@
     }
   }
 
-  // ===== Hide, show and force-reveal =====
+  // ===== Hide and show =====
   function readRequiredColumns(table, columnIds) {
     // OWNER DIRECTIVE 2026-08-04, from live use: the columns NetSuite stars are
     // the ones a line cannot be saved without, and a user who hides one has
@@ -960,6 +879,14 @@
     // The stored set MINUS what this form makes mandatory, and the single place
     // that subtraction happens — every consumer of "what is hidden" reads this.
     //
+    // IT IS ALSO THE HIDDEN SET AS RENDERED, and the two are now one function
+    // rather than two (OWNER DIRECTIVE 2026-08-04). effectiveHidden() used to sit
+    // between this and the apply, answering the EMPTY set while a line was open;
+    // with the reveal deleted it answered exactly this and nothing else, so it is
+    // gone and its callers read this directly. Model and rendering agreeing is
+    // the whole of the directive — "hidden at all times" is not a rule this
+    // runtime applies, it is a shape it no longer has anywhere to break.
+    //
     // RETAINED, NOT REWRITTEN (spec section 7's retention doctrine). The stored
     // container keeps a required id exactly as the user left it: the same id may
     // be freely hideable on another form variant, on another record type, or
@@ -969,86 +896,42 @@
     return new Set([...hiddenColumns].filter((id) => !requiredColumns.has(id)));
   }
 
-  function forceRevealed() {
-    // FORCE-REVEAL, and the whole of it. Spec section 6 states two rules; live
-    // probe 11 killed the first and this subsumes the second.
-    //
-    // Rule 1 — "focusin landing inside a hidden cell reveals that column" — is
-    // UNIMPLEMENTABLE, not merely awkward. Widgets materialise PER CELL on
-    // click (probe 11, design doc :431), so a hidden cell's widget never
-    // materialises and there is nothing inside it that can take focus. The rule
-    // describes an event that cannot fire.
-    //
-    // Rule 2 — "a validation failure on the open line reveals all hidden
-    // columns" — is delivered here by PREVENTION rather than detection. A line
-    // that fails validation stays open, so it is already inside this predicate;
-    // and because every column is reachable for the whole time the line is
-    // open, a field cannot be unreachable when validation runs in the first
-    // place. Detecting the failure instead would mean guessing how many ticks
-    // NetSuite takes to close a committed line, and guessing wrong reveals
-    // every column on every successful OK.
-    //
-    // The dirty clause covers the machine's PERMANENT entry row, which
-    // isLineOpen deliberately excludes (it is always focused, so counting it
-    // would starve every apply for the whole session). A user part-way through
-    // a new line needs the fields that line still wants, and cannot click into
-    // a hidden one to get them.
-    //
-    // Both reads are A3.2-legal and this is why: `uir-machine-row-focused` and a
-    // field's value/defaultValue are NetSuite's own state, on nodes this feature
-    // never writes either property to. What is forbidden is seeding from what
-    // WE rendered — computed display, our own class — and neither appears here.
-    return isLineOpen() || isDirty();
-  }
-
-  function effectiveHidden() {
-    // The hidden set as RENDERED, derived from the model alone: the stored set,
-    // suppressed in whole while a force-reveal is running.
-    //
-    // This is also where the queue-while-open rule is ENFORCED rather than
-    // merely obeyed. Amendment 2 exempted widths and A2.4 says a second
-    // exemption needs its own amendment; hide/show has none, so a hide must not
-    // reach the machine while a line is open. Because this answers the EMPTY set
-    // whenever a line is open, no code path exists that could hide one — the
-    // apply that runs during an open line takes core.applyHidden's unconditional
-    // restore route and can only ever REMOVE this feature's class.
-    //
-    // The required exemption lands in hideableHidden rather than here, because
-    // this is not the only consumer that must not claim a required column is
-    // hidden — the chips and the deferred-hide note must not either.
-    return forceRevealed() ? new Set() : hideableHidden();
-  }
-
-  function noteDeferredHide() {
-    // The record that what the user STORED is not what is rendered, plus the one
-    // explanation they get for it. Exact rather than conservative: the only thing
-    // that can suppress a stored hide is a force-reveal, and an empty stored set
-    // has nothing to suppress.
-    //
-    // Called from the apply AND from every install, including one that applies
-    // nothing — which is not belt-and-braces but the main path. Opening a line
-    // regenerates the tbody, so our classes are already gone by the time the
-    // install runs and the target says "reveal": the two signatures AGREE and the
-    // install returns early. The reveal has effectively already happened, but the
-    // user's hide is still suppressed and still owed an explanation, and
-    // pendingApply is still the thing the flush reads.
-    // hideableHidden, not the raw stored set: a required id is not suppressed by
-    // the force-reveal, it is not rendered hidden at any other time either, so
-    // there is nothing about it to defer and nothing to explain. Counting it
-    // would toast a user whose only stored hide this form refuses anyway.
-    pendingApply = forceRevealed() && hideableHidden().size > 0;
-    if (pendingApply && !revealToasted) {
-      revealToasted = true;
-      showToast("Hidden columns are shown while you edit a line.", "info");
-    }
-  }
+  // forceRevealed(), effectiveHidden() and noteDeferredHide() lived here and are
+  // GONE, and with them pendingApply, revealToasted and the toast that read
+  // "Hidden columns are shown while you edit a line." — a sentence this feature
+  // can no longer truthfully say. Spec section 6's two force-reveal rules are
+  // WITHDRAWN by the owner directive rather than left unimplemented, and their
+  // as-built history is worth one paragraph so nobody re-derives it:
+  //   Rule 1 — "focusin landing inside a hidden cell reveals that column" — was
+  //   already unimplementable, not merely dropped. Widgets materialise PER CELL
+  //   on click (live probe 11, design doc :431), so a hidden cell's widget never
+  //   materialises and nothing inside it can take focus. The rule described an
+  //   event that cannot fire, and that same fact is now what makes hiding safe.
+  //   Rule 2 — "a validation failure on the open line reveals all hidden
+  //   columns" — was delivered by prevention: every column was reachable for the
+  //   whole time a line was open, so a field could not be unreachable when
+  //   validation ran. What replaces it is the required-column exemption, which
+  //   removes the trap instead of unspringing it: NetSuite's own starred fields
+  //   cannot be hidden at all, so validation cannot ask for one that is.
+  //
+  // NOTHING SUPPRESSES A STORED HIDE ANY MORE, which is why the note and its
+  // toast go rather than shrink. They explained a divergence this feature CHOSE
+  // — a hide the user made and we refused to render — and no such choice is left
+  // to explain. The repaint window still diverges (our class dies with the tbody
+  // and returns when the apply lands, which is what the A3.2 seeding rule is
+  // about), but that is a transient the very next apply closes, not a policy,
+  // and a toast per repaint is the storm the latch existed to guard. The one
+  // thing the user is still owed — WHICH columns they hid — is the chips, which
+  // have always rendered from the model and still do.
 
   function applyCurrentHidden(table, columnIds) {
-    const wanted = effectiveHidden();
+    const wanted = hideableHidden();
     // Adjudication #14: the axis is a PARAMETER and every ACTIVE apply hands
-    // core the pinned one. The reveal takes none (adjudication #19) — passing
+    // core the pinned one. The RESTORE takes none (adjudication #19) — passing
     // one would be harmless but misleading, since core ignores it on that route
-    // and teardown genuinely has no pin left to hand over.
+    // and teardown genuinely has no pin left to hand over. It is reached by an
+    // empty hidden set now, and by nothing else: the force-reveal that used to
+    // route every open-line apply through it is gone.
     const applied = wanted.size
       ? core.applyHidden(table, [...wanted], columnIds)
       : core.applyHidden(table, [], null);
@@ -1060,7 +943,6 @@
     // repaint happens to change the header. Recording the refusal is what makes
     // the next pass re-apply instead (see installEditGrid).
     hideIncomplete = !applied;
-    noteDeferredHide();
     renderChips(table, columnIds);
     return applied;
   }
@@ -1070,9 +952,10 @@
     // gesture's starting state is `hiddenColumns`, the feature's own stored
     // model. It is never the rendered visibility of the column — that is this
     // feature's own output (our class plus our `display: none !important`), and
-    // during a force-reveal it disagrees with the model on purpose. M2 lost a
-    // user's width to exactly this shape: a handler that seeded from the inline
-    // style the apply path had just written.
+    // it disagrees with the model for the whole of every repaint window, which
+    // begins the instant NetSuite regenerates the tbody and ends when the
+    // install's apply lands. M2 lost a user's width to exactly this shape: a
+    // handler that seeded from the inline style the apply path had just written.
     if (typeof columnId !== "string" || !columnId) {
       return;
     }
@@ -1082,7 +965,7 @@
     // required id is DISABLED, so no gesture can reach this line, and a toast on
     // a path a user cannot take would need its own latch to guard a storm that
     // cannot happen. It stands as the choke point's own guarantee, not as
-    // feedback: the affordance already says it, and the reveal direction is
+    // feedback: the affordance already says it, and the SHOW direction is
     // untouched (a required column is never hidden, so there is nothing to show).
     if (hidden && requiredColumns.has(columnId)) {
       return;
@@ -1109,32 +992,27 @@
     setColumnHidden(box.dataset?.columnId, !box.checked);
   }
 
-  function scheduleFlush() {
-    // THE FLUSH TRIGGER M1.5 and M2 left to M3 (see applyWhileLineOpen). A click
-    // on the machine's own OK or Cancel closes the line INSIDE NetSuite's
-    // handler, which runs after ours has returned, so the open-line state is
-    // re-read one tick later rather than now. Armed only when something is
-    // actually deferred, so an ordinary click costs nothing.
-    if (!pendingApply || flushTimer !== null) {
-      return;
-    }
-    flushTimer = setTimeout(() => {
-      flushTimer = null;
-      // queueApply re-reads the state itself and re-defers if the line is still
-      // open, so a mistimed flush is a no-op rather than a premature hide.
-      if (pendingApply && (activeTable ?? machineTable())?.isConnected) {
-        queueApply("line-closed");
-      }
-    }, 0);
-  }
+  // scheduleFlush() and its flushTimer lived here and are GONE with pendingApply.
+  // It was THE flush trigger M1.5 and M2 left to M3: a click on the machine's own
+  // OK or Cancel closes the line inside NetSuite's handler, which runs after ours
+  // has returned, so a deferred hide had to be re-checked one tick later. Nothing
+  // is deferred any more — a hide/show gesture applies on the spot whatever the
+  // machine is doing — so the timer had no state left to flush, and a timer that
+  // outlives its own mount is the shape this file has been bitten by twice. The
+  // one repair path that survives is handleFocusIn's, below, and it is repairing
+  // something else entirely.
 
   function handleFocusIn(event) {
-    // NOT spec section 6's force-reveal rule 1 — see forceRevealed for why that
-    // rule cannot be implemented. Focus is used here for the one thing it can
-    // still tell us: it moved inside the machine, so the open-line state may
-    // just have changed and the rendered hidden set may no longer match the
-    // target. This is the second half of the flush trigger, and the half that
-    // covers a line the user opened without the machine repainting.
+    // NOT a reveal-on-focus repair, and no longer a flush trigger either: both
+    // are deleted above. Focus is used here for the ONE thing it still buys —
+    // the machine's rendering can drift from the target without the observer
+    // seeing it, and a user clicking into a line is the likeliest next event
+    // after the drift. Two drifts are reachable. A refused applyHidden leaves a
+    // PARTIAL machine whose header agrees with the target (hideIncomplete, the
+    // first conjunct below). And this runtime observes childList only, so a
+    // rewrite that changes a cell's attributes without adding or removing a node
+    // never schedules an install at all. Both are repaired here at the cost of
+    // one signature compare per focus movement.
     const table = event.target?.closest?.(core.MACHINE_TABLE_SELECTOR);
     if (!table) {
       return;
@@ -1183,10 +1061,11 @@
       setColumnHidden(owned.dataset?.columnId, false);
       return;
     }
-    // Any other click inside the machine: dismiss the menu, and re-check the
-    // open-line state once NetSuite's own handler has had its tick.
+    // Any other click inside the machine: dismiss the menu, and nothing else.
+    // A deferred-hide flush used to be armed here (scheduleFlush, deleted above);
+    // with nothing ever deferred, an ordinary click inside the machine costs the
+    // menu teardown and no apply at all.
     closeColumnMenu();
-    scheduleFlush();
   }
 
   // ===== Delegated listeners (one per event type, on the container) =====
@@ -1352,7 +1231,7 @@
     // that disagree is the state core.applyHidden refuses on, and a target of a
     // different length there would compare unequal for a reason that has
     // nothing to do with what is hidden.
-    const wanted = effectiveHidden();
+    const wanted = hideableHidden();
     // MEMBER ORDER IS LOAD-BEARING. Both signatures are compared as JSON
     // STRINGS and JSON.stringify emits keys in insertion order, so `hidden`
     // last here because it is last there. Re-ordering one side alone makes the
@@ -1375,32 +1254,49 @@
   }
 
   function applyAll(table, columnIds) {
-    // M6 appends applyCurrentFilters, M7 applyCurrentSort.
+    // THE ONLY APPLY, and it runs whatever the machine is doing — no open-line
+    // branch, because there is no longer anything to branch to. The two rules
+    // that used to be stated over in applyWhileLineOpen are stated here, because
+    // this is now the code that carries them.
+    //
+    // WIDTHS, SPEC AMENDMENT 2 (adjudication #16). The queue-while-open rule of
+    // spec section 6 named width alongside hide/show and filter; Amendment 2 took
+    // width out of that set. The grounds: `table-layout: fixed` sits on the
+    // <table> and the <table> survives the <tbody> regeneration while the header
+    // cells' inline widths do not, so between a repaint and the next apply the
+    // machine is laid out fixed-with-no-widths and the browser distributes the
+    // space equally. An apply that does not run IS the yank the rule exists to
+    // prevent — measured on the fixture: opening a line collapsed all twelve
+    // columns to 120px and they stayed collapsed until the line closed.
+    //
+    // HIDE/SHOW, OWNER DIRECTIVE 2026-08-04, which is the amendment that follows
+    // it. A column the user hid stays hidden while a line is open, while a new
+    // line is typed, and across every repaint those cause, so this apply carries
+    // the hidden set unconditionally too. What made that safe is the required-
+    // column exemption (08e3c1e) plus probe 11's per-cell widget materialisation
+    // — see the tombstone where forceRevealed used to live.
+    //
+    // Re-applying is invisible either way: style.width on the header row and our
+    // own class, no row moved, no widget touched, no focus moved, and the
+    // observer watches childList only so it cannot feed back.
+    //
+    // M6 appends applyCurrentFilters, M7 applyCurrentSort — and each has to
+    // decide its OWN open-line policy at that point (A2.4: filter queues, sort
+    // and reorder are refused outright). Neither inherits one from here.
     applyCurrentWidths(table, columnIds);
     applyCurrentHidden(table, columnIds);
   }
 
   function queueApply(reason) {
-    // Read first, gate second: the open-line path applies the widths too and
-    // needs the same table and the same pinned axis the full apply would use.
+    // Read first, gate second: every caller needs the same table and the same
+    // pinned axis, and an apply keyed to a freshly derived axis is the silent
+    // mis-key spec A1.2 rule 3 forbids.
     const table = machineTable();
     const columnIds = table ? currentColumnIds(table) : [];
     if (!table || columnIds.length < 2) {
       return;
     }
     activeTable = table;
-    if (isLineOpen()) {
-      // Hide/show and filter changes queue while a line is open and flush when it
-      // closes; reorder and sort are refused outright (M4/M7). Widths are applied
-      // — see applyWhileLineOpen.
-      applyWhileLineOpen(table, columnIds);
-      return;
-    }
-    // pendingApply is NOT cleared here. applyCurrentHidden computes it from the
-    // model on every apply, and it has ONE owner for a reason: a line can be
-    // closed while the permanent entry row is still half-typed, which is still a
-    // force-reveal and still a deferred hide. Clearing it on the way past would
-    // strand that hide until the next unrelated gesture.
     applyAll(table, columnIds);
     void reason;
   }
@@ -1486,7 +1382,7 @@
       }
       // Re-derived HERE, with identity and against the same axis read, because a
       // repaint rebuilds the header and the star goes with it — and because
-      // everything below reads it: the signature pair through effectiveHidden,
+      // everything below reads it: the signature pair through hideableHidden,
       // the chips, and the menu the next click builds.
       requiredColumns = readRequiredColumns(table, current);
       // Storage is authoritative on every install, not only the first: installs
@@ -1515,12 +1411,12 @@
         hiddenColumns = new Set(entry.hidden ?? []);
       }
       // The chips render from the model, so they must be re-rendered even on an
-      // install that applies nothing: seeded storage plus an already-correct
-      // machine is precisely the reload case, and it is the one where the user
-      // most needs to see which columns they hid. Our own node, never a machine
-      // cell, so the zero-DOM-writes property below is untouched. Same for
-      // noteDeferredHide, which writes no DOM at all.
-      noteDeferredHide();
+      // install that applies nothing: an already-correct machine takes the early
+      // return below, and ensureControls builds an EMPTY chip row whenever the
+      // bar it holds is no longer connected, so the two together are a mount
+      // showing a stored hide with nothing left saying which columns it is. Our
+      // own node, never a machine cell, so the zero-DOM-writes property below is
+      // untouched.
       renderChips(table, current);
       // `hideIncomplete` first, because the signature cannot see what it hides: a
       // refused applyHidden leaves the header saying "done" over rows that are
@@ -1530,10 +1426,9 @@
       if (!hideIncomplete && renderSignature(table, current) === targetSignature(table, current)) {
         return true;
       }
-      if (isLineOpen()) {
-        applyWhileLineOpen(table, current);
-        return true;
-      }
+      // Unconditional, and the open-line branch that used to sit here is gone
+      // with applyWhileLineOpen: an install landing while a line is open applies
+      // the same widths and the same hidden set as any other.
       applyAll(table, current);
       return !signal.aborted && isCurrent();
     } catch (error) {
@@ -1566,7 +1461,8 @@
       // kill and no reader can trust — the same objection adjudication #19 raised
       // against the reveal's unreachable header gate. Its DOCUMENT-level
       // dismissal pair is the one part that cannot die with a node, so that comes
-      // off by name below, with the flush timer.
+      // off by name below — and it is now the ONLY thing that does, the flush
+      // timer it used to keep company having gone with the force-reveal.
       //
       // No axis, by adjudication #19, and for the same reason as the line above:
       // teardown runs after the pin has been dropped, and a mount that can no
@@ -1633,17 +1529,11 @@
     // handle on them, so the next install builds its own rather than adopting a
     // detached one.
     controlButtons = null;
-    revealToasted = false;
     resizing = null;
-    pendingApply = false;
-    // A flush queued by the mount being dismantled must not fire into the next
-    // one. pendingApply is already false above, which would make the callback a
-    // no-op, but a timer outliving its own mount is the shape this file has been
-    // bitten by twice and it comes off by name.
-    if (flushTimer !== null) {
-      clearTimeout(flushTimer);
-      flushTimer = null;
-    }
+    // revealToasted, pendingApply and the flush timer were cleared here and are
+    // gone with the force-reveal. No timer this runtime sets can outlive its own
+    // mount any more, because it sets none: the resize pair is the only remaining
+    // document-level state and it comes off through handleResizeUp above.
     warnedNewerSchema = false;
     // The counter is mount-scoped: every operation this mount enqueued balances
     // itself in its own `finally`, so this only matters for one that never
