@@ -1561,12 +1561,25 @@ test("a hidden column stays on the axis, measured on the live twelve-column mach
   // storage on the next install.
   assert.deepEqual(plain(core.readColumnIds(table)), LIVE_AXIS, "hiding moved the column axis");
   assert.deepEqual(plain(core.readHeaderLabels(table)), LIVE_LABELS);
+  // The same statement one level down, at the function that computes the axis:
+  // a hidden cell is still a VISIBLE cell as far as visibleCells is concerned,
+  // because visibleCells reads inline display and this feature writes none.
+  const widths = () => plain(core.tableRows(table).map((row) => core.visibleCells(row).length));
+  assert.deepEqual(widths(), [12, 12, 12], "a hidden cell dropped off the axis");
   const expected = LIVE_AXIS.map((id) => id === "quantity" || id === "rate");
   for (const row of core.tableRows(table)) {
     assert.deepEqual(hiddenFlags(core, row), expected, "the wrong columns hid on a twelve-column axis");
   }
   // An id that is not on the axis is ignored, not an error and not an extra hide.
   assert.equal(expected.filter(Boolean).length, 2);
+
+  // The round trip, because the hazard is asymmetric: an inline write left behind
+  // by a reveal is exactly as laundering as one written by a hide, and a class
+  // removed is not obviously the inverse of a class added.
+  assert.equal(core.applyHidden(table, [], LIVE_AXIS), true);
+  assert.deepEqual(widths(), [12, 12, 12], "a cell left the axis across the round trip");
+  assert.deepEqual(plain(core.readColumnIds(table)), LIVE_AXIS, "revealing moved the column axis");
+  assert.deepEqual(plain(core.readHeaderLabels(table)), LIVE_LABELS);
 });
 
 test("readCellText reads NetSuite's own text and never a node SuiteMate injected", () => {
