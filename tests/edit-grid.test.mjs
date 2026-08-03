@@ -29,8 +29,17 @@ function plain(value) {
 // Rows carry extra system cells with inline display:none, _fs spans, an
 // item_row_N id, a machineButtonRow and a totals row — the shapes that make
 // every View Mode row predicate match zero rows (spec H1).
-function createCell({ text = "", spanId = null, systemHidden = false, width = 100 } = {}) {
+function createCell({ text = "", spanId = null, systemHidden = false, width = 100, widget = 0 } = {}) {
   const classes = new Set();
+  // The machine's materialised field widgets. Live 2026-08-02: only the OPEN line
+  // carries them and they are materialised PER CELL, which is why columnMinimums
+  // measures per cell rather than per row. A number is one widget; an array is
+  // several, so "the widest one wins" is measured rather than assumed, and an
+  // array entry may be hostile (NaN, a string) to prove a bad offsetWidth cannot
+  // poison the minimum.
+  const widgets = (Array.isArray(widget) ? widget : [widget])
+    .filter((size) => size !== 0)
+    .map((size) => ({ offsetWidth: size }));
   return {
     nodeType: 1,
     textContent: text,
@@ -52,7 +61,8 @@ function createCell({ text = "", spanId = null, systemHidden = false, width = 10
     },
     getBoundingClientRect: () => ({ width }),
     classNames: () => Array.from(classes),
-    querySelector: (selector) => (spanId && selector.includes("_fs") ? { id: spanId } : null)
+    querySelector: (selector) => (spanId && selector.includes("_fs") ? { id: spanId } : null),
+    querySelectorAll: (selector) => (String(selector).includes("input") ? widgets : [])
   };
 }
 
@@ -256,6 +266,9 @@ test("exports a frozen core with the Edit Mode storage and DOM contract", () => 
   // adjudication #13 as the fix for the live mini-form boundary failure.
   // M2-T0 adds ONE more — AXIS_ATTRIBUTE, 51 -> 52 — the checkpoint's MAIN-world
   // axis-evidence precondition (save/CHECKPOINTS.md "Next: M2 preconditions" #1).
+  // M2 Task 11 adds TWO — columnMinimums and applyWidths, 52 -> 54 — the two names
+  // the task brief's Step 4 sanctions ("Add `columnMinimums,` and `applyWidths,`
+  // to the frozen export object beside `isOrderedMachine`").
   // deepEqual on the NAMES, not a count: a count passes when one export is
   // renamed and another added, which is precisely the drift this guards.
   assert.deepEqual(Object.keys(core), [
@@ -271,7 +284,7 @@ test("exports a frozen core with the Edit Mode storage and DOM contract", () => 
     "clampWidth", "normalizeStored", "refusesNewerSchema", "withOrder", "withHidden", "withWidths",
     "machineIdFromTable", "rowLineNumber", "columnIdFromSpanId", "visibleCells", "tableRows",
     "headerRow", "isExcludedRow", "alignsToHeader", "isDataRow", "readColumnIds", "readColumnIdsFrom",
-    "isOrderedMachine",
+    "isOrderedMachine", "columnMinimums", "applyWidths",
     "parseMachineFieldData", "readMachineFieldData", "collapseDisplayTwins", "readHeaderLabels",
     "readSampleRowTexts", "labelAffinity", "correlateColumnIds"
   ]);
@@ -845,6 +858,132 @@ test("quota eviction spares other scopes on a clearing write and refuses an over
   assert.equal(core.withHidden(undefined, "1:2:salesord:edit", oversized), null);
 });
 
+// ===== M2: width planning =====
+test("derives a per-column minimum from the widest widget in that column", () => {
+  const core = createApi();
+  const table = createMachine();
+  // Live 2026-08-02: static cells are bare text and widgets are materialised PER
+  // CELL on the open line only, so the minimum is measured cell by cell across
+  // every aligned row rather than read off one designated row.
+  table.rows[1].cells[1] = createCell({ text: "2", spanId: "item_quantity1_fs", widget: 180 });
+  // The WIDEST across rows survives, not the last one seen.
+  table.rows[2].cells[1] = createCell({ text: "4", spanId: "item_quantity2_fs", widget: 90 });
+  // A cell may materialise more than one widget — a field plus its popup trigger.
+  // A hostile offsetWidth contributes 0, never NaN: a poisoned minimum would come
+  // back out of clampWidth as the floor for every column that shares it.
+  table.rows[1].cells[2] = createCell({ text: "$11.00", widget: [40, 120, NaN, "abc"] });
+  // A header widget is never a column minimum: the header row is skipped outright.
+  table.rows[0].cells[1] = createCell({ text: "Quantity", widget: 999 });
+  // A row that does not align to the header is skipped, so a ragged row caught
+  // mid-repaint cannot contribute a 900px floor to a column it is not under.
+  table.rows.push(createRow({
+    id: "item_row_9",
+    className: "uir-machine-row",
+    cells: [createCell({ text: "?" }), createCell({ text: "?", widget: 900 })]
+  }));
+
+  const columnIds = ["item", "quantity", "rate"];
+  assert.deepEqual(plain(core.columnMinimums(table, columnIds)), { item: 0, quantity: 180, rate: 120 });
+  // Every id on the axis is present, including the ones with no widget at all —
+  // applyWidths indexes this map positionally and a hole would read as undefined.
+  assert.deepEqual(Object.keys(core.columnMinimums(table, columnIds)), columnIds);
+  // The button row and the totals row carry one cell each, so alignsToHeader
+  // already excludes them; this pins that they are counted by nobody.
+  assert.equal(core.columnMinimums(table, columnIds).item, 0);
+  // Fail closed on an unusable axis and on an unreadable table — never throw.
+  assert.deepEqual(plain(core.columnMinimums(table, [])), {});
+  assert.deepEqual(plain(core.columnMinimums(table, null)), {});
+  assert.deepEqual(plain(core.columnMinimums(table, "item,quantity")), {});
+  assert.deepEqual(plain(core.columnMinimums(null, columnIds)), { item: 0, quantity: 0, rate: 0 });
+  assert.deepEqual(plain(core.columnMinimums({}, columnIds)), { item: 0, quantity: 0, rate: 0 });
+});
+
+test("applies widths to header cells only, clamped per column, and restores on clear", () => {
+  const core = createApi();
+  const table = createMachine();
+  table.rows[1].cells[1] = createCell({ text: "2", spanId: "item_quantity1_fs", widget: 180 });
+  // The axis is HANDED to core, never derived inside it: core's only route to the
+  // identity inputs is table.closest("form"), which live lands in NetSuite's
+  // machine mini-form and holds nothing (M1.5), and re-deriving under a
+  // permutation is never correct (spec A1.2 rule 3). runtime applyAll holds the
+  // pin and passes it. Pinned as a behaviour in the next test.
+  const columnIds = ["item", "quantity", "rate"];
+  const minimums = core.columnMinimums(table, columnIds);
+  assert.deepEqual(plain(minimums), { item: 0, quantity: 180, rate: 0 });
+
+  assert.equal(core.applyWidths(table, { item: 240, quantity: 60, rate: 20 }, minimums, columnIds), true);
+  const header = core.visibleCells(table.rows[0]);
+  // 240 as stored; quantity floored at its 180px widget, never at 30 or 50;
+  // rate floored at the absolute 50px input floor.
+  assert.deepEqual(plain(header.map((cell) => cell.style.width)), ["240px", "180px", "50px"]);
+  assert.equal(table.style.tableLayout, "fixed");
+  // table.style.width is left unset so the machine keeps its own sizing.
+  assert.equal(table.style.width, "");
+  // Body cells are never touched: fixed layout makes row 1 authoritative.
+  assert.deepEqual(plain(core.visibleCells(table.rows[1]).map((cell) => cell.style.width)), ["", "", ""]);
+  // The system cells are off the axis and never receive a width, in either row.
+  assert.equal(table.rows[0].cells[3].style.width, "");
+  assert.equal(table.rows[1].cells[3].style.width, "");
+
+  // EVERY column is frozen, not just the stored ones: a column with no stored
+  // width takes its currently rendered width, which is what makes the flip to
+  // fixed layout pixel-identical instead of a reflow.
+  assert.equal(core.applyWidths(table, { quantity: 300 }, minimums, columnIds), true);
+  assert.deepEqual(plain(header.map((cell) => cell.style.width)), ["100px", "300px", "100px"]);
+  // A hostile stored width falls back to that same rendered freeze rather than
+  // to "NaNpx" or to an unfrozen column — Number(null) is 0, not absent.
+  assert.equal(core.applyWidths(table, { item: "abc", quantity: null, rate: 240 }, minimums, columnIds), true);
+  assert.deepEqual(plain(header.map((cell) => cell.style.width)), ["100px", "180px", "240px"]);
+
+  // Clearing restores the native layout, and needs no axis: teardown calls it
+  // with three arguments after the pin has already been dropped.
+  assert.equal(core.applyWidths(table, null, minimums, columnIds), true);
+  assert.deepEqual(plain(header.map((cell) => cell.style.width)), ["", "", ""]);
+  assert.equal(table.style.tableLayout, "");
+  assert.equal(core.applyWidths(table, { item: 240 }, minimums, columnIds), true);
+  assert.equal(core.applyWidths(table, {}, minimums, columnIds), true, "an empty width set clears too");
+  assert.deepEqual(plain(header.map((cell) => cell.style.width)), ["", "", ""]);
+  assert.equal(core.applyWidths(table, { item: 240 }, minimums, columnIds), true);
+  assert.equal(core.applyWidths(table, null, {}), true, "the teardown call shape carries no axis");
+  assert.deepEqual(plain(header.map((cell) => cell.style.width)), ["", "", ""]);
+  assert.equal(table.style.tableLayout, "");
+
+  // Fail closed, and write NOTHING when refusing.
+  assert.equal(core.applyWidths(null, { item: 100 }, {}, columnIds), false);
+  assert.equal(core.applyWidths(undefined, { item: 100 }, {}, columnIds), false);
+  assert.equal(core.applyWidths({}, { item: 100 }, {}, columnIds), false, "a table with no header row");
+  // An ACTIVE apply with no usable axis is refused outright — never re-derived.
+  assert.equal(core.applyWidths(table, { item: 100 }, {}), false, "no axis");
+  assert.equal(core.applyWidths(table, { item: 100 }, {}, []), false, "empty axis");
+  assert.equal(core.applyWidths(table, { item: 100 }, {}, "item,quantity,rate"), false, "not an array");
+  // An axis that does not align to the visible header cannot be indexed onto it.
+  assert.equal(core.applyWidths(table, { item: 100 }, {}, ["item", "quantity"]), false, "short axis");
+  assert.equal(
+    core.applyWidths(table, { item: 100 }, {}, ["item", "quantity", "rate", "sys"]),
+    false,
+    "an axis counting the hidden system cell"
+  );
+  assert.deepEqual(plain(header.map((cell) => cell.style.width)), ["", "", ""]);
+  assert.equal(table.style.tableLayout, "");
+});
+
+test("applyWidths keys widths by the axis it is handed, never by one it derives", () => {
+  const core = createApi();
+  const table = createLiveMachine();
+  // This machine's own hidden inputs DO decode through core, so a re-deriving
+  // implementation would find a perfectly good — and wrong — axis here.
+  assert.deepEqual(plain(core.readColumnIds(table)), LIVE_AXIS);
+  // The M4 condition: a stored non-native order is applied, so the pin says
+  // visible column 0 is now "rate". Re-deriving would key 240px onto "item" and
+  // silently resize the wrong column (spec A1.2 rule 3, measured never-correct).
+  const permuted = [LIVE_AXIS[11], ...LIVE_AXIS.slice(0, 11)];
+  assert.equal(core.applyWidths(table, { rate: 240 }, {}, permuted), true);
+  const header = core.visibleCells(table.rows[0]);
+  assert.equal(header[0].style.width, "240px", "the handed axis governs, not the derivable one");
+  assert.equal(header[11].style.width, "100px", "the natively-eleventh column is not the one resized");
+  assert.deepEqual(plain(header.slice(1).map((cell) => cell.style.width)), new Array(11).fill("100px"));
+});
+
 test("core has no DOM, storage, bridge or network authority", () => {
   assert.doesNotMatch(source, /document\.|chrome\.|fetch\(|XMLHttpRequest|innerHTML|localStorage|sessionStorage/);
   assert.doesNotMatch(source, /suiteMateV3ColumnOrder/);
@@ -860,7 +999,7 @@ const SETTINGS_STORAGE_KEY = "suiteMateV3Style";
 const DATA_ATTRIBUTE = "data-suitemate-v3-edit-grid";
 const BOUND_ATTRIBUTE = "data-suitemate-v3-edit-grid-bound";
 const AXIS_ATTRIBUTE = "data-suitemate-v3-edit-grid-axis";
-const RECORD_PATH ="https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl";
+const RECORD_PATH = "https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl";
 const EDIT_URL = `${RECORD_PATH}?id=16342809&e=T`;
 const READ_ONLY_EDIT_URL = `${RECORD_PATH}?id=16342809&e=F`;
 const VIEW_URL = `${RECORD_PATH}?id=16342809`;

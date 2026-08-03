@@ -696,6 +696,127 @@
     }
   }
 
+  // ===== Widths =====
+  // The per-column floor a width may never go under: the widest widget the
+  // machine has materialised in that column. Live 2026-08-02, probe 7: static
+  // cells are bare text and widgets exist only on the OPEN line, materialised per
+  // cell — so this is measured cell by cell across every aligned row, not read
+  // off one designated row, and a machine with no line open legitimately answers
+  // 0 for every column. clampWidth then floors those at ABSOLUTE_MIN_COLUMN_WIDTH.
+  //
+  // The axis is a PARAMETER, never derived here (spec Amendment A1.2 rule 3): the
+  // caller holds the pinned axis, and re-deriving under a permutation is never
+  // correct.
+  function columnMinimums(table, columnIds) {
+    const minimums = {};
+    if (!Array.isArray(columnIds) || !columnIds.length) {
+      return minimums;
+    }
+    for (const id of columnIds) {
+      if (id) {
+        // Seeded for every column on the axis, including the ones that carry no
+        // widget: applyWidths indexes this map positionally and a hole reads as
+        // undefined, which clampWidth would silently treat as "no floor".
+        minimums[id] = 0;
+      }
+    }
+    try {
+      const header = headerRow(table);
+      for (const row of tableRows(table)) {
+        // A row that does not align to the header cannot be indexed against it —
+        // that is what keeps the button row, the totals row and any ragged row
+        // caught mid-repaint from contributing a floor to a column they are not
+        // under. The header itself is skipped so its own furniture never counts.
+        if (row === header || !alignsToHeader(row, columnIds)) {
+          continue;
+        }
+        visibleCells(row).forEach((cell, index) => {
+          const id = columnIds[index];
+          if (!id) {
+            return;
+          }
+          for (const widget of Array.from(cell?.querySelectorAll?.("input, select, textarea") ?? [])) {
+            // `|| 0` and not `??`: a hostile or unmeasured offsetWidth arrives as
+            // NaN, which survives Math.max silently and would come back out of
+            // clampWidth as a poisoned floor for that column.
+            minimums[id] = Math.max(minimums[id] ?? 0, Number(widget?.offsetWidth) || 0);
+          }
+        });
+      }
+    } catch {}
+    return minimums;
+  }
+
+  // Freezes the header row's widths and flips the machine to fixed layout, which
+  // is the whole mechanism: live 2026-08-02 the machine carries no <colgroup>, no
+  // width attributes and table-layout:auto, and every repaint discards whatever
+  // we set — so re-applying a frozen row 1 is the only sizing that survives.
+  // `null`/`{}` widths restores the native layout.
+  //
+  // The axis is a PARAMETER. Two independent reasons, both binding:
+  //   1. Core reaches the machine's identity inputs only through
+  //      table.closest("form"), and live 2026-08-03 that route lands in
+  //      NetSuite's machine mini-form (form[name="item_form"]), which never holds
+  //      them — the M1.5 MOUNT FAIL fixed at dd8143a. A readColumnIds call in
+  //      here would answer [] on every real install and refuse every width.
+  //   2. Spec Amendment A1.2 rule 3: while a non-native order is applied the
+  //      pinned axis is reused verbatim and readColumnIds is NOT called, because
+  //      re-deriving from a permuted rendering is never correct (measured on the
+  //      live payload: 55% decline, 45% silent mis-key, 0% correct).
+  // The caller — runtime applyAll, which is handed the pin — already has it.
+  function applyWidths(table, widths, minimums, columnIds) {
+    try {
+      const header = headerRow(table);
+      if (!header) {
+        return false;
+      }
+      const cells = visibleCells(header);
+      const active = isPlainObject(widths) && Object.keys(widths).length > 0;
+      if (!active) {
+        // The restore path needs no axis at all, and must not: teardown calls it
+        // as applyWidths(table, null, {}) after the pin has already been dropped,
+        // and a mount that cannot key its columns must still be able to undo
+        // whatever it set.
+        for (const cell of cells) {
+          if (cell.style) {
+            cell.style.width = "";
+          }
+        }
+        if (table.style) {
+          table.style.tableLayout = "";
+        }
+        return true;
+      }
+      if (!alignsToHeader(header, columnIds)) {
+        return false;
+      }
+      // Freeze EVERY column at its stored or currently rendered width so the flip
+      // to fixed layout is pixel-identical; fixed layout then reads row 1 only, so
+      // repainted data cells cannot disturb the columns. table.style.width is
+      // deliberately left unset so the machine keeps its own sizing.
+      cells.forEach((cell, index) => {
+        const id = columnIds[index];
+        const stored = id ? Number(widths[id]) : Number.NaN;
+        const rendered = Math.round(cell.getBoundingClientRect?.().width ?? 0);
+        // `stored > 0`, not merely finite: Number(null) is 0, and a 0 target skips
+        // the assignment below and leaves that ONE column unfrozen under fixed
+        // layout — the partial freeze this mechanism exists to prevent. No real
+        // value is lost, because a width storage can hold is already clamped to
+        // [ABSOLUTE_MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH] before it is written.
+        const target = Number.isFinite(stored) && stored > 0 ? stored : rendered;
+        if (target > 0 && cell.style) {
+          cell.style.width = `${clampWidth(target, minimums?.[id])}px`;
+        }
+      });
+      if (table.style) {
+        table.style.tableLayout = "fixed";
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   // ===== Frozen export surface =====
   Object.defineProperty(globalScope, "SuiteMateV3EditGridCore", {
     value: Object.freeze({
@@ -744,6 +865,8 @@
       readColumnIds,
       readColumnIdsFrom,
       isOrderedMachine,
+      columnMinimums,
+      applyWidths,
       parseMachineFieldData,
       readMachineFieldData,
       collapseDisplayTwins,
