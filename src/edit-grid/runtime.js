@@ -605,6 +605,10 @@
     bar.setAttribute(core.DATA_ATTRIBUTE, "controls");
     const columnsButton = ownedButton("columns-button", "Columns");
     const chips = document.createElement("span");
+    // The bar's own class, reused: it is what lays a row of chips out with a gap
+    // (edit-grid.css `.suitemate-v3-edit-grid-controls`), and a bare <span> would
+    // leave them inline and touching. Deliberate reuse rather than a second class
+    // and a second rule for one identical declaration block.
     chips.className = core.CLASSES.controls;
     chips.setAttribute(core.DATA_ATTRIBUTE, "chips");
     bar.append(columnsButton, chips);
@@ -673,6 +677,14 @@
     }
     while (chips.firstChild) {
       chips.firstChild.remove();
+    }
+    // The clear above is unconditional; the header read is not. This runs on
+    // every install, and core.readHeaderLabels CLONES every header cell (that is
+    // how readCellText reads past another feature's injected nodes without
+    // destroying them), so reading it for a machine with nothing hidden is a
+    // clone per column per repaint bought for nothing.
+    if (!hiddenColumns.size) {
+      return;
     }
     const labels = core.readHeaderLabels(table, columnIds);
     // The chips show what the user has STORED, never what is currently
@@ -847,12 +859,16 @@
   function handleContainerClick(event) {
     const owned = event.target?.closest?.(`[${core.DATA_ATTRIBUTE}]`);
     const role = owned?.getAttribute?.(core.DATA_ATTRIBUTE) ?? null;
-    const table = machineTable();
-    if (role === "columns-button" && table) {
+    if (role === "columns-button") {
       event.preventDefault?.();
       if (controlButtons?.menu) {
         closeColumnMenu();
-      } else {
+        return;
+      }
+      // Resolved HERE and not above: this is the only branch that needs the
+      // machine, and a click anywhere in the container runs this handler.
+      const table = machineTable();
+      if (table) {
         openColumnMenu(table, currentColumnIds(table));
       }
       return;

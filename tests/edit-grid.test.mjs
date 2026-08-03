@@ -4304,6 +4304,24 @@ test("hiding a column through the menu writes once, hides BY CLASS, and never mo
   assert.deepEqual(hiddenHeader(core, harness), [false, true, false]);
 });
 
+test("the Columns menu fails closed on a machine whose axis cannot be read", async () => {
+  // The same usability gate the install fails closed on, at the one control that
+  // can be clicked after the machine has moved underneath us. A menu built
+  // against an unreadable axis lists columns by an index that is not what is
+  // rendered, and every tick in it would key a stored hide to the wrong column.
+  const harness = createRuntimeHarness();
+  await harness.flush();
+  assert.equal(harness.owned("columns-button").length, 1);
+
+  // A repaint caught mid-flight: the header is gone, so the axis reads empty and
+  // currentColumnIds declines WITHOUT discarding the pin.
+  harness.table.rows.splice(0, 1);
+  harness.click(harness.owned("columns-button")[0]);
+  assert.deepEqual(plain(harness.owned("menu")), [], "a menu was built against an unreadable axis");
+  assert.deepEqual(plain(harness.owned("column-toggle")), []);
+  assert.equal(harness.counts.writes, 0);
+});
+
 test("a chip reveals its column, and neither direction writes an inline display", async () => {
   const core = createApi();
   const harness = createRuntimeHarness({
