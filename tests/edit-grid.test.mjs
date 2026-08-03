@@ -9,6 +9,11 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const source = await readFile(resolve(root, "src/edit-grid/core.js"), "utf8");
 const runtimeSource = await readFile(resolve(root, "src/edit-grid/runtime.js"), "utf8");
 const stylesheet = await readFile(resolve(root, "src/edit-grid/edit-grid.css"), "utf8");
+// View Mode's own feature, READ ONLY and never executed against its runtime: the
+// cross-mode isolation tests below need both sides of the boundary in one file,
+// and so-columns is a View Mode file the plan forbids modifying.
+const soColumnsSource = await readFile(resolve(root, "src/so-columns/core.js"), "utf8");
+const soColumnsRuntimeSource = await readFile(resolve(root, "src/so-columns/runtime.js"), "utf8");
 const sharedSources = Object.fromEntries(await Promise.all(
   ["src/shared/utilities.js", "src/shared/routes.js", "src/shared/settings.js"]
     .map(async (file) => [file, await readFile(resolve(root, file), "utf8")])
@@ -19,6 +24,34 @@ function createApi() {
   sandbox.globalThis = sandbox;
   runInNewContext(source, sandbox);
   return sandbox.SuiteMateV3EditGridCore;
+}
+
+function createSoColumnsApi() {
+  const sandbox = { TextEncoder };
+  sandbox.globalThis = sandbox;
+  runInNewContext(soColumnsSource, sandbox);
+  return sandbox.SuiteMateV3SoColumnsCore;
+}
+
+// A View Mode header table, in the shape so-columns' own applyWidths reads it:
+// keyed by the header's visible LABEL, not by a column id. Deliberately minimal —
+// it exists to prove the two key spaces are disjoint, not to re-test so-columns.
+function createSoColumnsTable(labels, rendered) {
+  const cells = labels.map((label) => ({
+    textContent: label,
+    style: {},
+    classList: { contains: () => false },
+    querySelector: () => null,
+    getBoundingClientRect: () => ({ width: rendered })
+  }));
+  const headerRow = { className: "uir-machine-headerrow", cells };
+  return {
+    style: {},
+    cells,
+    widths: () => cells.map((cell) => cell.style.width ?? ""),
+    querySelector: (selector) =>
+      (String(selector).includes("uir-machine-headerrow") ? headerRow : null)
+  };
 }
 
 function plain(value) {
@@ -1076,6 +1109,76 @@ test("core has no DOM, storage, bridge or network authority", () => {
   assert.doesNotMatch(source, /document\.|chrome\.|fetch\(|XMLHttpRequest|innerHTML|localStorage|sessionStorage/);
   assert.doesNotMatch(source, /suiteMateV3ColumnOrder/);
   assert.doesNotMatch(source, /SuiteMateV3SoColumnsCore/);
+});
+
+test("neither mode can read the other's storage key, in EITHER direction", () => {
+  // The forward half (edit-grid never names View Mode's key) is asserted above
+  // and in the runtime purity test. The REVERSE half was missing, and its absence
+  // is why a View Mode width delta could be suspected of being an edit-grid leak
+  // at all: nothing in the suite said View Mode cannot see this feature's key.
+  // Both directions now, so the isolation is a proven property rather than an
+  // argument that has to be re-made from the source each time it is doubted.
+  assert.doesNotMatch(soColumnsSource, /suiteMateV3EditColumns/,
+    "so-columns/core.js names Edit Mode's storage key");
+  assert.doesNotMatch(soColumnsRuntimeSource, /suiteMateV3EditColumns/,
+    "so-columns/runtime.js names Edit Mode's storage key");
+  // The cross-core handles too: neither feature may reach the other's API object.
+  assert.doesNotMatch(soColumnsSource, /SuiteMateV3EditGridCore/);
+  assert.doesNotMatch(soColumnsRuntimeSource, /SuiteMateV3EditGridCore/);
+  // Not vacuous — each file really does name its OWN key, so these regexes are
+  // looking at source that would match if the string were there.
+  assert.match(soColumnsSource, /suiteMateV3ColumnOrder/);
+  assert.match(source, /suiteMateV3EditColumns/);
+  // And the two keys are genuinely different constants, not one aliased twice.
+  const soColumns = createSoColumnsApi();
+  assert.equal(createApi().STORAGE_KEY, "suiteMateV3EditColumns");
+  assert.equal(soColumns.STORAGE_KEY, "suiteMateV3ColumnOrder");
+  assert.notEqual(createApi().STORAGE_KEY, soColumns.STORAGE_KEY);
+});
+
+test("the two modes write widths to disjoint key spaces, and neither reads the other's", () => {
+  // The DOM-writing layer of both features, side by side. This is the level at
+  // which a leak would actually be VISIBLE — a width appearing on a table the
+  // other mode owns — and both applyWidths functions are pure DOM, so it needs no
+  // runtime harness. (A full runtime-level cross-mode mount does: so-columns has
+  // no vm harness anywhere in the suite, only core tests and the browser fixture.
+  // ESCALATED as disproportionate rather than half-built.)
+  const core = createApi();
+  const soColumns = createSoColumnsApi();
+
+  // Edit Mode keys by COLUMN ID, decoded from _fs spans. View Mode keys by the
+  // header's visible LABEL. The two key spaces cannot collide, and that is the
+  // structural reason a stored width cannot cross: "quantity" is not "Quantity".
+  const machine = createMachine();
+  const editWidths = { item: 240, quantity: 161, rate: 137 };
+  const viewWidths = { Item: 310, Quantity: 222, Rate: 199 };
+  assert.equal(core.applyWidths(machine, editWidths, {}, ["item", "quantity", "rate"]), true);
+  const applied = core.visibleCells(machine.rows[0]).map((cell) => cell.style.width);
+  assert.deepEqual(plain(applied), ["240px", "161px", "137px"], "Edit Mode wrote its own widths");
+  // Not one of View Mode's numbers reached the machine table.
+  for (const width of Object.values(viewWidths)) {
+    assert.equal(applied.includes(`${width}px`), false, `a View Mode width (${width}px) landed in Edit Mode`);
+  }
+
+  // Handing Edit Mode's core the View Mode map keys NOTHING: every column falls
+  // back to its rendered width. A shared key space would have resized three.
+  const crossed = createMachine();
+  assert.equal(core.applyWidths(crossed, viewWidths, {}, ["item", "quantity", "rate"]), true);
+  assert.deepEqual(
+    plain(core.visibleCells(crossed.rows[0]).map((cell) => cell.style.width)),
+    ["100px", "100px", "100px"],
+    "a View Mode width map resized an Edit Mode column"
+  );
+
+  // And the mirror: so-columns handed Edit Mode's id-keyed map freezes every
+  // column at what it renders and honours none of the ids.
+  const viewTable = createSoColumnsTable(["Item", "Quantity", "Rate"], 80);
+  assert.equal(soColumns.applyWidths(viewTable, editWidths), true);
+  assert.deepEqual(viewTable.widths(), ["80px", "80px", "80px"],
+    "an Edit Mode width map resized a View Mode column");
+  // Non-vacuous: its OWN label-keyed map is honoured on the very same table.
+  assert.equal(soColumns.applyWidths(viewTable, viewWidths), true);
+  assert.deepEqual(viewTable.widths(), ["310px", "222px", "199px"]);
 });
 
 // ===== Runtime harness =====
