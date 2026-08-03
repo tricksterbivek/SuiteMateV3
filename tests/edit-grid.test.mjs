@@ -72,6 +72,17 @@ function plain(value) {
 // same residual blindness diagnosed in the so-columns stub and fixed there first
 // (tests/so-columns.test.mjs createMeasuredTable), left here by oversight.
 function renderedWidth(cell) {
+  // A cell THIS FEATURE has hidden measures ZERO. `display: none !important`
+  // removes it from layout entirely, so its border box has no width at all —
+  // and that zero is an artifact of our own rendering, not a fact about the
+  // column. Modelled here because adjudication #20's whole hazard is a
+  // measurement taken in this state: without it the stub reports a hidden
+  // column at its full offsetWidth, no apply can ever read the floor, and the
+  // defect is unreachable by any test (A3.3 — a stub that flattens a quantity
+  // the production code derives from its own output is blindness).
+  if (cell.classList?.contains?.("suitemate-v3-edit-grid-col-hidden") === true) {
+    return 0;
+  }
   const styled = Number.parseInt(cell.style?.width ?? "", 10);
   return cell.rectDelta === null || cell.rectDelta === undefined || !Number.isFinite(styled)
     ? cell.offsetWidth
@@ -1250,11 +1261,40 @@ test("applyWidths is idempotent under a TOTAL plan, and walks the columns a PART
   // so the partial-plan path above is unreachable from the second apply onward.
   const [planner] = runtimeSource.match(/ {2}function plannedWidths\(\) \{[\s\S]*?\n {2}\}/) ?? [];
   assert.equal(Boolean(planner), true, "plannedWidths is no longer a named function in runtime.js");
-  const sandbox = { frozenWidths: { item: 120, quantity: 160, rate: 100 }, columnWidths: { quantity: 160 } };
-  sandbox.globalThis = sandbox;
-  runInNewContext(`${planner}\nglobalThis.result = plannedWidths();`, sandbox);
-  assert.deepEqual(Object.keys(plain(sandbox.result)).sort(), [...columnIds].sort(),
+  const plan = (state) => {
+    const sandbox = { naturalWidths: {}, frozenWidths: {}, columnWidths: {}, ...state };
+    sandbox.globalThis = sandbox;
+    runInNewContext(`${planner}\nglobalThis.result = plannedWidths();`, sandbox);
+    return plain(sandbox.result);
+  };
+  assert.deepEqual(
+    Object.keys(plan({ frozenWidths: { item: 120, quantity: 160, rate: 100 }, columnWidths: { quantity: 160 } })).sort(),
+    [...columnIds].sort(),
     "plannedWidths stopped naming every column — the partial-plan walk above becomes reachable");
+  // ADJUDICATION #20 keeps that precondition rather than breaking it. A column
+  // the runtime is hiding is absent from frozenWidths BY CONSTRUCTION (the freeze
+  // refuses to record one), so if the plan simply omitted it — the ruling's
+  // literal shape — this precondition would fail and core's partial-plan walk
+  // would become reachable on every apply. naturalWidths is what keeps the plan
+  // total, and what it contributes is a measurement taken while the column was
+  // NOT hidden.
+  assert.deepEqual(
+    plan({
+      naturalWidths: { item: 120, quantity: 74, rate: 100 },
+      frozenWidths: { item: 120, rate: 100 },
+      columnWidths: { rate: 100 }
+    }),
+    { item: 120, quantity: 74, rate: 100 },
+    "a hidden column left the plan, or entered it at anything but its last unhidden width");
+  // Precedence, weakest first: last-unhidden, then this mount's freeze, then the
+  // user's own gesture.
+  assert.deepEqual(
+    plan({
+      naturalWidths: { item: 1, quantity: 2, rate: 3 },
+      frozenWidths: { item: 10, quantity: 20 },
+      columnWidths: { item: 100 }
+    }),
+    { item: 100, quantity: 20, rate: 3 });
 });
 
 test("applyWidths' minimums parameter is provably inert — nothing passed there can move a width", () => {
@@ -3913,6 +3953,7 @@ test("the target signature predicts what core writes, zero-rendered column inclu
     headerCellsOf: (target) => core.visibleCells(core.headerRow(target)),
     columnWidths: { rate: 240 },
     frozenWidths: {},
+    naturalWidths: {},
     // M3 gave the target a `hidden` member. It is stubbed AWAY here rather than
     // driven, because this test is about the width prediction alone; the hidden
     // member has its own pins.
@@ -4062,6 +4103,14 @@ test("teardown restores the native layout, drops a live gesture and forgets the 
   await harness.run("resumed");
   assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["100px", "100px", "240px"]);
   assert.equal(harness.counts.writes, 0);
+  // Every session-only width record is mount-scoped, naturalWidths included
+  // (adjudication #20). Asserted at the SOURCE and disclosed as such: the leak is
+  // self-healing behaviourally — every mount re-records before it hides anything,
+  // so a stale entry is overwritten before it can be read — which makes it
+  // unreachable by test and exactly the kind of module state this file has twice
+  // been bitten by leaving behind.
+  const [teardown] = runtimeSource.match(/ {2}function removeEditGrid\(\) \{[\s\S]*?\n {2}\}/) ?? [];
+  assert.match(teardown, /naturalWidths = \{\};/, "removeEditGrid no longer resets naturalWidths");
 });
 
 test("every width apply hands core the pinned axis, and only teardown clears without one", () => {
@@ -4100,7 +4149,11 @@ test("every width apply hands core the pinned axis, and only teardown clears wit
     },
     headerCellsOf: () => cells,
     columnWidths: { quantity: 160 },
-    frozenWidths: {}
+    frozenWidths: {},
+    naturalWidths: {},
+    // Stubbed away: this test is about the axis core is HANDED, and the natural
+    // width record has its own pins.
+    rememberNaturalWidths() {}
   };
   sandbox.globalThis = sandbox;
   runInNewContext(`${planner}\n${applier}\nglobalThis.run = applyCurrentWidths;`, sandbox);
@@ -4331,6 +4384,64 @@ test("hiding a column through the menu writes once, hides BY CLASS, and never mo
   await harness.run("repaint");
   assert.equal(harness.counts.writes, 1, "a repaint wrote storage");
   assert.deepEqual(hiddenHeader(core, harness), [false, true, false]);
+});
+
+test("ADJUDICATION #20: a width is never planned from a column we are hiding", async () => {
+  // THE DEFECT, measured on the fixture before it was ruled: Quantity's natural
+  // width 74px -> hide it -> its header cell renders 0 -> the session's FIRST
+  // width gesture, on ANOTHER column, runs the freeze -> core.applyWidths'
+  // rendered-width fallback sees 0 and writes the static floor -> Quantity is
+  // 50px for the rest of the session, and a later drag on it seeds from that
+  // floor and stores a width the user never chose. Same transitive laundering as
+  // defect D1, different collapse: our own `display: none !important` is what
+  // zeroes the box.
+  const core = createApi();
+  const harness = createRuntimeHarness();
+  await harness.flush();
+  const natural = plain(headerOf(harness, core).map((cell) => Math.round(cell.getBoundingClientRect().width)));
+  assert.deepEqual(natural, [100, 100, 100], "the fixture is not modelling a natural layout");
+
+  await toggleColumn(harness, "quantity", false);
+  assert.deepEqual(hiddenHeader(core, harness), [false, true, false]);
+  // The hidden column now measures nothing. That zero is OUR OUTPUT, and this is
+  // the precondition the rest of the test depends on.
+  assert.equal(Math.round(headerOf(harness, core)[1].getBoundingClientRect().width), 0,
+    "the harness is not modelling a hidden cell as zero-width");
+
+  // The session's first width gesture, on a DIFFERENT column. This is the apply
+  // that freezes the machine.
+  const cells = headerOf(harness, core);
+  const box = cells[2].getBoundingClientRect();
+  harness.pointer("pointerdown", { target: cells[2], clientX: box.right - 1, clientY: box.top + 4 });
+  harness.pointer("pointermove", { clientX: box.right - 1 + 40, clientY: box.top + 4 });
+  harness.pointer("pointerup", { clientX: box.right - 1 + 40, clientY: box.top + 4 });
+  await harness.tick();
+  assert.equal(harness.table.style.tableLayout, "fixed", "the gesture did not freeze the machine");
+
+  // (b) The hidden column never reaches storage as a consequence of another
+  // column's gesture.
+  assert.deepEqual(plain(harness.writes.at(-1)[EDIT_STORAGE_KEY].grids[SCOPE].widths), { rate: 140 },
+    "a column nobody dragged reached storage");
+
+  // (a) Revealed, it renders at its NATURAL width — never the floor.
+  harness.click(harness.owned("chip")[0]);
+  await harness.tick();
+  assert.deepEqual(hiddenHeader(core, harness), [false, false, false]);
+  assert.equal(headerOf(harness, core)[1].style.width, "100px",
+    "the revealed column came back at the clamp floor, not its own width");
+  assert.equal(headerOf(harness, core)[0].style.width, "100px", "an untouched column moved");
+  assert.equal(headerOf(harness, core)[2].style.width, "140px", "the dragged column lost its width");
+
+  // And a drag on the revealed column now starts from its own width, so what it
+  // stores is what the user chose — the storage half of the same defect.
+  const revealed = headerOf(harness, core)[1];
+  const rect = revealed.getBoundingClientRect();
+  harness.pointer("pointerdown", { target: revealed, clientX: rect.right - 1, clientY: rect.top + 4 });
+  harness.pointer("pointermove", { clientX: rect.right - 1 + 10, clientY: rect.top + 4 });
+  harness.pointer("pointerup", { clientX: rect.right - 1 + 10, clientY: rect.top + 4 });
+  await harness.tick();
+  assert.deepEqual(plain(harness.writes.at(-1)[EDIT_STORAGE_KEY].grids[SCOPE].widths), { rate: 140, quantity: 110 },
+    "a drag on a revealed column seeded from the floor instead of its own width");
 });
 
 test("the Columns menu fails closed on a machine whose axis cannot be read", async () => {

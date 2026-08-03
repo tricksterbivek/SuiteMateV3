@@ -914,6 +914,20 @@
         // untouched: that one keeps Number(null) === 0 from beating the rendered
         // width, and it is pinned by its own mutation.
         //
+        // #15 AND #20 PARTITION ON ONE QUESTION — is this column currently
+        // RENDERING? #15 is the rule for a column that renders and measures 0: it
+        // participates in the fixed layout, so leaving it at width:"" shifts
+        // pixels, and flooring it is the remedy. A column the RUNTIME is hiding
+        // participates in nothing (`display: none !important` removes it from the
+        // fixed-layout calculation), so #15's harm cannot arise and this same
+        // floor becomes the damage — it makes our own rendering the column's width
+        // for the session and, through handleResizeDown's seed, for storage.
+        // That case is handled where the hidden set lives, in the runtime
+        // (adjudication #20, runtime.js plannedWidths / the freeze's exclusion),
+        // and NOT here: this function is axis-taking and hidden-set-blind by
+        // design. Do not collapse the two rules — the clamp is right for #15 and
+        // wrong for #20, and only the caller can tell them apart.
+        //
         // `clampWidth(target, 0)` — the STATIC bounds only, never a per-column
         // widget floor. M2 Task 13 live gate, defect D1: this line used to pass
         // `minimums?.[id]`, and because the runtime handed it a freshly measured

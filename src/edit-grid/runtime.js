@@ -66,6 +66,20 @@
   // frozen while the machine still had its own layout is what makes widths
   // survive a repaint at all.
   let frozenWidths = {};
+  // ADJUDICATION #20. The width each column had the last time this mount saw it
+  // NOT hidden by us. Session-only, never persisted, and never written while a
+  // column is hidden — that is the whole point.
+  //
+  // A cell we are hiding carries `display: none !important`, so its border box
+  // has NO width: it measures 0, and core.applyWidths' rendered-width fallback
+  // turns that 0 into the static floor. The 0 is not a fact about the column, it
+  // is an artifact of our own rendering, so a plan built from it launders our
+  // output into a width exactly as defect D1 did — and worse, the frozen floor
+  // then seeds the next drag on that column (handleResizeDown reads
+  // cell.style.width), so it reaches STORAGE. Measured on the fixture: Quantity
+  // natural 74px, hidden, another column resized, revealed at 50px, dragged +10,
+  // stored as 60.
+  let naturalWidths = {};
   // The columns THIS mount will hide, by column id: seeded from the stored entry
   // on install under the same reseed guard the widths take, replaced by a
   // hide/show gesture, emptied on teardown. Only these are ever persisted, and
@@ -445,7 +459,46 @@
     // The user's widths over the ones this mount froze. Nothing is planned at all
     // until the user has set one: a machine nobody has resized keeps its own
     // layout, which is what leaves the 28 screenshot baselines untouched.
-    return Object.keys(columnWidths).length ? { ...frozenWidths, ...columnWidths } : null;
+    // ADJUDICATION #20, and the ORDER is the ruling. Weakest first: the last
+    // width we saw a column render while we were not hiding it, then what this
+    // mount's freeze recorded, then the user's own gesture. A hidden column is
+    // absent from `frozenWidths` by construction (the freeze refuses to record
+    // one) and absent from `columnWidths` unless the user dragged it while it was
+    // visible, so what it contributes here is always `naturalWidths` — a
+    // measurement taken when the column was NOT hidden.
+    //
+    // WHY THE PLAN STILL NAMES IT, rather than omitting it as the ruling's
+    // literal shape read. Omitting is necessary but not sufficient, and this was
+    // measured rather than reasoned: core.applyWidths writes to EVERY visible
+    // header cell, and a class-hidden cell is still a visible cell (that is the
+    // A3.2 carve-out — we hide by class precisely so the column stays on the
+    // axis). A column the plan omits therefore takes core's `rendered` fallback,
+    // which for a hidden cell is 0, which clamps to the floor — the identical
+    // 50px the ruling exists to prevent, now reached by a different line. The
+    // exclusion that does the work is the one at the FREEZE, and the plan carries
+    // the last honest measurement instead. It also keeps the plan TOTAL, which
+    // core.applyWidths' partial-plan walk requires (M2 Task 13a's precondition).
+    return Object.keys(columnWidths).length
+      ? { ...naturalWidths, ...frozenWidths, ...columnWidths }
+      : null;
+  }
+
+  function rememberNaturalWidths(table, columnIds) {
+    // Measured ONLY where we are not hiding, which is what makes this a record of
+    // NetSuite's own layout rather than of ours. Runs before the hide pass of the
+    // same apply (see applyAll), so on a fresh mount every column is recorded
+    // before anything is hidden, and a column already hidden keeps whatever was
+    // recorded the last time it was not.
+    headerCellsOf(table).forEach((cell, index) => {
+      const id = columnIds[index];
+      if (!id || cell.classList?.contains?.(core.CLASSES.colHidden) === true) {
+        return;
+      }
+      const width = Math.round(cell.getBoundingClientRect?.().width ?? 0);
+      if (width > 0) {
+        naturalWidths[id] = width;
+      }
+    });
   }
 
   function applyCurrentWidths(table, columnIds) {
@@ -458,6 +511,11 @@
     // what turned every apply into a re-measurement of the live table and walked
     // every widget-bearing column wider each time. The floor lives at the choice
     // — handleResizeMove — and an apply now reproduces plannedWidths() exactly.
+    //
+    // Recorded BEFORE the plan is built and before the freeze measures anything:
+    // this is the only moment in an apply where a column we are about to hide is
+    // still rendering NetSuite's own layout (adjudication #20).
+    rememberNaturalWidths(table, columnIds);
     const planned = plannedWidths();
     // Whether this apply is the one that takes the machine OUT of its own layout.
     // Only that one may record what it froze: a later apply runs against a table
@@ -476,6 +534,23 @@
       const frozen = {};
       headerCellsOf(table).forEach((cell, index) => {
         const id = columnIds[index];
+        // ADJUDICATION #20 — THE EXCLUSION THAT DOES THE WORK. A column we are
+        // hiding contributes nothing to the freeze: the width core just wrote to
+        // it is the static floor it derived from a zero border box, and recording
+        // that would make this mount's own rendering the column's width for the
+        // rest of the session. plannedWidths falls back to naturalWidths for it.
+        //
+        // THIS DOES NOT CONTRADICT ADJUDICATION #15, and the two partition on one
+        // question — is this column currently RENDERING? #15 governs a column that
+        // renders and measures 0: it participates in the fixed layout, so leaving
+        // it unfrozen shifts pixels, and flooring it is the remedy. A column we
+        // have hidden participates in nothing — `display: none !important` takes
+        // it out of the fixed-layout calculation entirely — so #15's harm cannot
+        // occur here and #15's remedy is what does the damage. Do not collapse
+        // these into one rule; the same clamp is right there and wrong here.
+        if (cell.classList?.contains?.(core.CLASSES.colHidden) === true) {
+          return;
+        }
         const width = Number.parseInt(cell.style?.width ?? "", 10);
         if (id && Number.isFinite(width) && width > 0) {
           frozen[id] = width;
@@ -1243,6 +1318,7 @@
     entry = {};
     columnWidths = {};
     frozenWidths = {};
+    naturalWidths = {};
     hiddenColumns = new Set();
     // The bar and the menu were just swept as owned NODES; this drops the mount's
     // handle on them, so the next install builds its own rather than adopting a
