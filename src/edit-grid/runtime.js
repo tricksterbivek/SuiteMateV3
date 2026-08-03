@@ -66,6 +66,20 @@
   // frozen while the machine still had its own layout is what makes widths
   // survive a repaint at all.
   let frozenWidths = {};
+  // The columns THIS mount will hide, by column id: seeded from the stored entry
+  // on install under the same reseed guard the widths take, replaced by a
+  // hide/show gesture, emptied on teardown. Only these are ever persisted, and
+  // they are the ONLY seed a hide/show gesture may read (spec Amendment A3.2).
+  let hiddenColumns = new Set();
+  // The control bar this mount owns: { bar, columnsButton, chips, menu }, or
+  // null before the first install and after teardown.
+  let controlButtons = null;
+  // One explanation per mount for why a stored hide is not being rendered. The
+  // force-reveal below flips on and off with the open-line state, and a toast
+  // per flip is a storm for the exact user it exists to inform.
+  let revealToasted = false;
+  // The deferred flush's timer handle, so teardown can drop it.
+  let flushTimer = null;
   // The live gesture, or null. Never a cached column minimum — see handleResizeMove.
   let resizing = null;
   // Bumped by every teardown, captured by every save operation at ENQUEUE time.
@@ -214,6 +228,18 @@
   }
 
   function fieldIsDirty(field) {
+    const type = String(field.type ?? "").toLowerCase();
+    if (type === "checkbox" || type === "radio") {
+      // `defaultValue` on a checkbox or radio is its VALUE attribute — "on"
+      // when the markup names none — and NOT its pristine checked state, so the
+      // inherited `value !== defaultValue` comparison is equal for every box in
+      // every state and reports a ticked one as CLEAN. The pristine state is
+      // `defaultChecked`. Load-bearing from M3 on: isDirty is what tells the
+      // force-reveal that the user is part-way through a new line, and a machine
+      // whose only edited field is a checkbox would otherwise keep the columns
+      // that line still needs hidden.
+      return Boolean(field.checked) !== Boolean(field.defaultChecked);
+    }
     if (field.tagName !== "SELECT") {
       return field.value !== field.defaultValue;
     }
@@ -244,13 +270,33 @@
     if (!openRow) {
       return false;
     }
-    return Array.from(openRow.querySelectorAll("input, select, textarea")).some(fieldIsDirty);
+    return rowIsDirty(openRow);
+  }
+
+  function rowIsDirty(row) {
+    return Array.from(row?.querySelectorAll?.("input, select, textarea") ?? []).some(fieldIsDirty);
   }
 
   function forcedRows() {
-    // The open row and any dirty row are exempt from every hide/filter/move set.
+    // The open row and any dirty row are exempt from every hide/filter/move set
+    // (spec section 6, the open-line state machine).
+    //
+    // The dirty half is now DELIVERED and not merely promised. The body used to
+    // return the focused rows alone and the comment named two sets; on THIS
+    // machine the two coincide — only a focused row carries fields at all, a
+    // committed row is plain text — so the old body was a superset by accident,
+    // for a reason nothing stated and nothing pinned. It stops being an accident
+    // on any machine that renders fields in an unfocused row (a read-only
+    // variant, a custom form), and a hide that took a user's uncommitted edit
+    // with it is not a failure worth inheriting from a comment.
     const table = activeTable ?? machineTable();
-    return Array.from(table?.querySelectorAll?.(core.FOCUSED_ROW_SELECTOR) ?? []);
+    if (!table) {
+      return [];
+    }
+    const focused = new Set(Array.from(table.querySelectorAll?.(core.FOCUSED_ROW_SELECTOR) ?? []));
+    // Document order, not focused-then-dirty: a caller indexing these against
+    // the rendered table must not have to re-sort them.
+    return core.tableRows(table).filter((row) => focused.has(row) || rowIsDirty(row));
   }
 
   // ===== Resize =====
@@ -457,36 +503,50 @@
     // pixels is invisible: style.width on the header row and nothing else, no
     // row moved, revealed or hidden, no widget touched, no focus moved, and the
     // observer watches childList only so it cannot feed back.
-    pendingApply = true;
-    // Latched here and cleared only by queueApply and removeEditGrid, so in
-    // practice it latches until teardown: nothing flushes it yet, because the
-    // sets that need flushing do not exist yet. Deliberately left that way —
-    // M3 owns the flush trigger (focusin, or the line-closed repaint) and
-    // designing it here would be pre-empting a decision with no caller. Widths
-    // do not depend on it: they are applied on the line below, not queued.
+    //
+    // M3'S ADDITION, and it is NOT a second exemption. The hide/show set is
+    // still queued — A2.4 says width is the only exempt set and a second needs
+    // its own amendment. What runs below is the FORCE-REVEAL, which spec section
+    // 7 lists as its own row ("focus enters a hidden cell, or the open line
+    // fails validation → force-reveal; the layout change is dropped, not the
+    // user's edit") precisely because it is the opposite of the queued case.
+    // And it is a reveal BY CONSTRUCTION, not by policy: effectiveHidden()
+    // answers the empty set while a line is open, so the call below takes
+    // core.applyHidden's unconditional restore route and can only ever REMOVE
+    // this feature's class. There is no path here that can hide a column.
+    //
+    // pendingApply — the record that a stored hide is being suppressed — is set
+    // inside applyCurrentHidden, and flushed by scheduleFlush (the click that
+    // closed the line) and by handleFocusIn. That is the flush trigger M1.5 and
+    // M2 deferred to M3.
     applyCurrentWidths(table, columnIds);
+    applyCurrentHidden(table, columnIds);
   }
 
-  function saveWidths() {
+  // The ONE write site in this runtime, shared by every field that persists.
+  // `writeField` is handed the raw stored container and this mount's scope key
+  // and returns the next container, or a falsy value the caller must refuse on —
+  // it is the only thing a caller supplies, and it closes over a snapshot the
+  // caller took at ENQUEUE time.
+  //
+  // Shared rather than copied per field on purpose. A second writer with its own
+  // copy of the generation guard, the double check around the await and the
+  // refusal toast is three chances to drift from the first, and the width writer
+  // was where every one of those clauses was paid for.
+  function saveField(writeField) {
     // Everything the operation needs is captured HERE, at enqueue time: the queue
     // hands the operation `undefined` (the stored chain resolves to nothing and
     // its rejections are swallowed), so nothing may be read off the chain, and
     // module state read at run time would be the NEXT mount's, not this gesture's.
     const generation = mountGeneration;
     const scope = scopeKey;
-    const widths = Object.keys(columnWidths).length ? { ...columnWidths } : null;
-    // Both halves of the reseed guard are armed HERE, at enqueue, for the same
-    // reason the snapshot is taken here: the gesture is over the moment
-    // pointerup returns, and an install that lands from now until this operation
-    // finishes is looking at storage that predates it.
-    pendingWrites += 1;
-    saveEpoch += 1;
     return enqueueSave(async () => {
+      // Checked twice — once before the read and once after it — because the
+      // await is where a teardown lands. Without this a gesture interrupted by
+      // a settings toggle, a pagehide or a remount would write the dead mount's
+      // state, and with the module's own copy already emptied it would write a
+      // CLEAR.
       try {
-        // Checked twice — once before the read and once after it — because the
-        // await is where a teardown lands. Without this a gesture interrupted by
-        // a settings toggle, a pagehide or a remount would write the dead mount's
-        // widths, and with columnWidths already emptied it would write a CLEAR.
         if (!scope || generation !== mountGeneration) {
           return;
         }
@@ -494,7 +554,7 @@
         if (generation !== mountGeneration) {
           return;
         }
-        const next = core.withWidths(stored[core.STORAGE_KEY], scope, widths);
+        const next = writeField(stored[core.STORAGE_KEY], scope);
         if (!next) {
           showToast("Column layout could not be saved.", "warning");
           return;
@@ -502,27 +562,331 @@
         await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
       } catch {
         showToast("Column layout could not be saved.", "warning");
-      } finally {
-        // Every enqueue is balanced here, including the ones that return early
-        // on a dead generation: the operation always runs, because the queue
-        // chains it with (operation, operation) and a teardown replaces the
-        // module's chain without unchaining what is already on it. Floored at 0
-        // so the teardown reset below cannot drive the counter negative.
-        pendingWrites = Math.max(0, pendingWrites - 1);
       }
     });
+  }
+
+  function saveWidths() {
+    // Snapshotted at enqueue, for the same reason the generation is: the gesture
+    // is over the moment pointerup returns, and columnWidths read at run time
+    // would be whatever the NEXT gesture or the next mount had left there.
+    const widths = Object.keys(columnWidths).length ? { ...columnWidths } : null;
+    return saveField((stored, scope) => core.withWidths(stored, scope, widths));
+  }
+
+  function saveHidden() {
+    // The second writer, and the reason the reseed guard moved into enqueueSave:
+    // a writer that armed only the width half would let an install landing in
+    // THIS operation's gap reseed hiddenColumns from a pre-write snapshot, and
+    // core.withHidden replaces the stored list wholesale — defect D2 for a new
+    // field, by exactly the mechanism that deleted a width.
+    const hidden = hiddenColumns.size ? [...hiddenColumns] : null;
+    return saveField((stored, scope) => core.withHidden(stored, scope, hidden));
+  }
+
+  // ===== Control bar =====
+  function ownedButton(role, text) {
+    const button = document.createElement("button");
+    // type="button" is safety-critical inside main_form: a bare <button>
+    // defaults to submit and would save the record.
+    button.type = "button";
+    button.className = core.CLASSES.button;
+    button.setAttribute(core.DATA_ATTRIBUTE, role);
+    button.textContent = text;
+    return button;
+  }
+
+  function ensureControls(container) {
+    if (controlButtons?.bar?.isConnected) {
+      return controlButtons;
+    }
+    const bar = document.createElement("div");
+    bar.className = core.CLASSES.controls;
+    bar.setAttribute(core.DATA_ATTRIBUTE, "controls");
+    const columnsButton = ownedButton("columns-button", "Columns");
+    const chips = document.createElement("span");
+    chips.className = core.CLASSES.controls;
+    chips.setAttribute(core.DATA_ATTRIBUTE, "chips");
+    bar.append(columnsButton, chips);
+    container.prepend(bar);
+    controlButtons = { bar, columnsButton, chips, menu: null };
+    return controlButtons;
+  }
+
+  function closeColumnMenu() {
+    controlButtons?.menu?.remove();
+    if (controlButtons) {
+      controlButtons.menu = null;
+    }
+  }
+
+  function openColumnMenu(table, columnIds) {
+    closeColumnMenu();
+    if (!controlButtons || columnIds.length < 2) {
+      return;
+    }
+    const labels = core.readHeaderLabels(table, columnIds);
+    const menu = document.createElement("div");
+    menu.className = core.CLASSES.menu;
+    menu.setAttribute(core.DATA_ATTRIBUTE, "menu");
+    columnIds.forEach((columnId, index) => {
+      const row = document.createElement("label");
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      // A3.2 GESTURE SEEDING. The tick seeds from `hiddenColumns` — this
+      // feature's own stored model — and never from what the column RENDERS.
+      // Rendered visibility is this feature's own output twice over (our class,
+      // our `display: none !important`) and while a line is open it says
+      // "visible" for a column the user has hidden, so a menu seeded from it
+      // would hand the next gesture a state the user never chose.
+      box.checked = !hiddenColumns.has(columnId);
+      box.setAttribute(core.DATA_ATTRIBUTE, "column-toggle");
+      box.dataset.columnId = columnId;
+      const text = document.createElement("span");
+      text.textContent = labels[index] || columnId;
+      row.append(box, text);
+      menu.append(row);
+    });
+    // The menu is absolutely positioned on <body> because the machine container
+    // scrolls and would clip it. Its `change` listener therefore cannot be the
+    // container's — it is bound to the menu node itself, which is created and
+    // destroyed as ONE node by closeColumnMenu and by the OWNED_SELECTOR sweep,
+    // so it can neither accumulate nor leak. That is the same guarantee the
+    // container rule buys, not an exception to it: the rule bans binding to ROWS
+    // and CELLS, which a repaint destroys underneath us.
+    menu.addEventListener("change", handleMenuChange);
+    const rect = controlButtons.columnsButton.getBoundingClientRect?.() ?? null;
+    if (rect) {
+      // A sandboxed window reports no scroll offset at all; `undefined` here
+      // would render as "NaNpx" and drop the menu at the origin.
+      menu.style.left = `${Math.round(rect.left + (Number(window.scrollX) || 0))}px`;
+      menu.style.top = `${Math.round(rect.bottom + (Number(window.scrollY) || 0) + 2)}px`;
+    }
+    document.body?.append?.(menu);
+    controlButtons.menu = menu;
+  }
+
+  function renderChips(table, columnIds) {
+    const chips = controlButtons?.chips;
+    if (!chips) {
+      return;
+    }
+    while (chips.firstChild) {
+      chips.firstChild.remove();
+    }
+    const labels = core.readHeaderLabels(table, columnIds);
+    // The chips show what the user has STORED, never what is currently
+    // rendered: while a force-reveal is running the columns are all visible and
+    // the chips are the only thing still saying which ones the user hid.
+    for (const columnId of hiddenColumns) {
+      const index = columnIds.indexOf(columnId);
+      const chip = ownedButton("chip", `${(index >= 0 ? labels[index] : columnId) || columnId} ✕`);
+      chip.className = core.CLASSES.chip;
+      chip.dataset.columnId = columnId;
+      chips.append(chip);
+    }
+  }
+
+  // ===== Hide, show and force-reveal =====
+  function forceRevealed() {
+    // FORCE-REVEAL, and the whole of it. Spec section 6 states two rules; live
+    // probe 11 killed the first and this subsumes the second.
+    //
+    // Rule 1 — "focusin landing inside a hidden cell reveals that column" — is
+    // UNIMPLEMENTABLE, not merely awkward. Widgets materialise PER CELL on
+    // click (probe 11, design doc :431), so a hidden cell's widget never
+    // materialises and there is nothing inside it that can take focus. The rule
+    // describes an event that cannot fire.
+    //
+    // Rule 2 — "a validation failure on the open line reveals all hidden
+    // columns" — is delivered here by PREVENTION rather than detection. A line
+    // that fails validation stays open, so it is already inside this predicate;
+    // and because every column is reachable for the whole time the line is
+    // open, a field cannot be unreachable when validation runs in the first
+    // place. Detecting the failure instead would mean guessing how many ticks
+    // NetSuite takes to close a committed line, and guessing wrong reveals
+    // every column on every successful OK.
+    //
+    // The dirty clause covers the machine's PERMANENT entry row, which
+    // isLineOpen deliberately excludes (it is always focused, so counting it
+    // would starve every apply for the whole session). A user part-way through
+    // a new line needs the fields that line still wants, and cannot click into
+    // a hidden one to get them.
+    //
+    // Both reads are A3.2-legal and this is why: `uir-machine-row-focused` and a
+    // field's value/defaultValue are NetSuite's own state, on nodes this feature
+    // never writes either property to. What is forbidden is seeding from what
+    // WE rendered — computed display, our own class — and neither appears here.
+    return isLineOpen() || isDirty();
+  }
+
+  function effectiveHidden() {
+    // The hidden set as RENDERED, derived from the model alone: the stored set,
+    // suppressed in whole while a force-reveal is running.
+    //
+    // This is also where the queue-while-open rule is ENFORCED rather than
+    // merely obeyed. Amendment 2 exempted widths and A2.4 says a second
+    // exemption needs its own amendment; hide/show has none, so a hide must not
+    // reach the machine while a line is open. Because this answers the EMPTY set
+    // whenever a line is open, no code path exists that could hide one — the
+    // apply that runs during an open line takes core.applyHidden's unconditional
+    // restore route and can only ever REMOVE this feature's class.
+    return forceRevealed() ? new Set() : new Set(hiddenColumns);
+  }
+
+  function noteDeferredHide() {
+    // The record that what the user STORED is not what is rendered, plus the one
+    // explanation they get for it. Exact rather than conservative: the only thing
+    // that can suppress a stored hide is a force-reveal, and an empty stored set
+    // has nothing to suppress.
+    //
+    // Called from the apply AND from every install, including one that applies
+    // nothing — which is not belt-and-braces but the main path. Opening a line
+    // regenerates the tbody, so our classes are already gone by the time the
+    // install runs and the target says "reveal": the two signatures AGREE and the
+    // install returns early. The reveal has effectively already happened, but the
+    // user's hide is still suppressed and still owed an explanation, and
+    // pendingApply is still the thing the flush reads.
+    pendingApply = forceRevealed() && hiddenColumns.size > 0;
+    if (pendingApply && !revealToasted) {
+      revealToasted = true;
+      showToast("Hidden columns are shown while you edit a line.", "info");
+    }
+  }
+
+  function applyCurrentHidden(table, columnIds) {
+    const wanted = effectiveHidden();
+    // Adjudication #14: the axis is a PARAMETER and every ACTIVE apply hands
+    // core the pinned one. The reveal takes none (adjudication #19) — passing
+    // one would be harmless but misleading, since core ignores it on that route
+    // and teardown genuinely has no pin left to hand over.
+    const applied = wanted.size
+      ? core.applyHidden(table, [...wanted], columnIds)
+      : core.applyHidden(table, [], null);
+    noteDeferredHide();
+    renderChips(table, columnIds);
+    return applied;
+  }
+
+  function setColumnHidden(columnId, hidden) {
+    // A3.2 GESTURE SEEDING, stated as A3.2 requires of every new handler: this
+    // gesture's starting state is `hiddenColumns`, the feature's own stored
+    // model. It is never the rendered visibility of the column — that is this
+    // feature's own output (our class plus our `display: none !important`), and
+    // during a force-reveal it disagrees with the model on purpose. M2 lost a
+    // user's width to exactly this shape: a handler that seeded from the inline
+    // style the apply path had just written.
+    if (typeof columnId !== "string" || !columnId) {
+      return;
+    }
+    if (hidden === hiddenColumns.has(columnId)) {
+      // Already in the requested state. One gesture is one write, and a gesture
+      // that changes nothing is not a gesture.
+      return;
+    }
+    if (hidden) {
+      hiddenColumns.add(columnId);
+    } else {
+      hiddenColumns.delete(columnId);
+    }
+    queueApply("hide-toggle");
+    saveHidden();
+  }
+
+  function handleMenuChange(event) {
+    const box = event.target?.closest?.(`[${core.DATA_ATTRIBUTE}="column-toggle"]`);
+    if (!box) {
+      return;
+    }
+    setColumnHidden(box.dataset?.columnId, !box.checked);
+  }
+
+  function scheduleFlush() {
+    // THE FLUSH TRIGGER M1.5 and M2 left to M3 (see applyWhileLineOpen). A click
+    // on the machine's own OK or Cancel closes the line INSIDE NetSuite's
+    // handler, which runs after ours has returned, so the open-line state is
+    // re-read one tick later rather than now. Armed only when something is
+    // actually deferred, so an ordinary click costs nothing.
+    if (!pendingApply || flushTimer !== null) {
+      return;
+    }
+    flushTimer = setTimeout(() => {
+      flushTimer = null;
+      // queueApply re-reads the state itself and re-defers if the line is still
+      // open, so a mistimed flush is a no-op rather than a premature hide.
+      if (pendingApply && (activeTable ?? machineTable())?.isConnected) {
+        queueApply("line-closed");
+      }
+    }, 0);
+  }
+
+  function handleFocusIn(event) {
+    // NOT spec section 6's force-reveal rule 1 — see forceRevealed for why that
+    // rule cannot be implemented. Focus is used here for the one thing it can
+    // still tell us: it moved inside the machine, so the open-line state may
+    // just have changed and the rendered hidden set may no longer match the
+    // target. This is the second half of the flush trigger, and the half that
+    // covers a line the user opened without the machine repainting.
+    const table = event.target?.closest?.(core.MACHINE_TABLE_SELECTOR);
+    if (!table) {
+      return;
+    }
+    const columnIds = currentColumnIds(table);
+    if (columnIds.length < 2) {
+      return;
+    }
+    // The same early return the install takes, and for the same reason: focus
+    // moves constantly inside a machine, and a re-apply per movement would make
+    // "zero DOM writes when nothing changed" untrue for the whole session.
+    if (renderSignature(table, columnIds) === targetSignature(table, columnIds)) {
+      return;
+    }
+    queueApply("focus-moved");
+  }
+
+  function handleContainerClick(event) {
+    const owned = event.target?.closest?.(`[${core.DATA_ATTRIBUTE}]`);
+    const role = owned?.getAttribute?.(core.DATA_ATTRIBUTE) ?? null;
+    const table = machineTable();
+    if (role === "columns-button" && table) {
+      event.preventDefault?.();
+      if (controlButtons?.menu) {
+        closeColumnMenu();
+      } else {
+        openColumnMenu(table, currentColumnIds(table));
+      }
+      return;
+    }
+    if (role === "chip") {
+      event.preventDefault?.();
+      // Dismissed first: an open menu's ticks were built from the hidden set as
+      // it was when the menu opened, and this click is about to change it. A
+      // menu left standing would show the column unticked while the chip for it
+      // has just disappeared.
+      closeColumnMenu();
+      setColumnHidden(owned.dataset?.columnId, false);
+      return;
+    }
+    // Any other click inside the machine: dismiss the menu, and re-check the
+    // open-line state once NetSuite's own handler has had its tick.
+    closeColumnMenu();
+    scheduleFlush();
   }
 
   // ===== Delegated listeners (one per event type, on the container) =====
   const DELEGATED_LISTENERS = [
     ["pointermove", handleResizeHover],
     ["pointerleave", handleResizeLeave],
-    ["pointerdown", handleResizeDown]
-    // M3 adds focusin, M5 the control clicks, M6/M7 the header menu. Nothing is
-    // bound per row: rows are destroyed on every repaint and per-row binding is
-    // how duplicate handlers accumulate. The drag pair (pointermove/pointerup
-    // under capture) is bound on the document for the life of one gesture only,
-    // by handleResizeDown, and removed by handleResizeUp.
+    ["pointerdown", handleResizeDown],
+    ["focusin", handleFocusIn],
+    ["click", handleContainerClick]
+    // M5 reuses the click handler for Personalize/Done/Reset; M6/M7 for the
+    // header menu. Nothing is bound per row: rows are destroyed on every repaint
+    // and per-row binding is how duplicate handlers accumulate. The drag pair
+    // (pointermove/pointerup under capture) is bound on the document for the
+    // life of one gesture only, by handleResizeDown, and removed by
+    // handleResizeUp; the column menu's own `change` is bound to the menu node
+    // and dies with it (see openColumnMenu).
   ];
 
   function ensureBindings(container) {
@@ -586,7 +950,41 @@
     // The (operation, operation) pair stays the serializer: belt and braces now
     // that the stored chain cannot reject, and the thing that keeps ordering
     // correct if saveQueue is ever assigned from anywhere but here.
-    const next = saveQueue.then(operation, operation);
+    //
+    // BOTH HALVES OF THE RESEED GUARD ARE ARMED HERE, and this is where they
+    // belong now that there is a second writer. They used to be armed by the
+    // width writer itself, which made "increment at your own enqueue" a rule a
+    // new field's writer had to know and could silently skip — and skipping it
+    // reintroduces defect D2 for that field, because an install landing in the
+    // write's gap reseeds from a snapshot the write has not reached and core's
+    // writers replace their field wholesale. Arming it in the queue makes the
+    // guard a property of writing at all.
+    //   pendingWrites — saves enqueued and not yet finished.
+    //   saveEpoch     — monotonic, so an install can tell that a save COMPLETED
+    //                   inside its own await.
+    // Both are armed synchronously, before this call returns: the gesture is
+    // over the moment its handler returns, and an install that lands from now
+    // until the operation finishes is looking at storage that predates it.
+    pendingWrites += 1;
+    saveEpoch += 1;
+    // Every enqueue is balanced, including operations that return early on a
+    // dead generation: the operation always runs, because the queue chains it
+    // with (operation, operation) and a teardown replaces the module's chain
+    // without unchaining what is already on it. Floored at 0 so the teardown
+    // reset cannot drive the counter negative.
+    const settle = () => {
+      pendingWrites = Math.max(0, pendingWrites - 1);
+    };
+    const next = saveQueue.then(operation, operation).then(
+      (value) => {
+        settle();
+        return value;
+      },
+      (error) => {
+        settle();
+        throw error;
+      }
+    );
     saveQueue = next.catch(() => {});
     return next;
   }
@@ -599,7 +997,13 @@
     return JSON.stringify({
       ids: columnIds,
       layout: table?.style?.tableLayout ?? "",
-      widths: headerCellsOf(table).map((cell) => cell.style?.width ?? "")
+      widths: headerCellsOf(table).map((cell) => cell.style?.width ?? ""),
+      // Reading back our OWN class here is a comparison, not a seed, and the
+      // distinction is the whole of A3.1/A3.2: nothing on this line reaches
+      // storage or a gesture's starting state. It answers one question — is the
+      // machine already rendering what the model says — exactly as the widths
+      // member above it has since M2.
+      hidden: headerCellsOf(table).map((cell) => cell.classList?.contains?.(core.CLASSES.colHidden) === true)
     });
   }
 
@@ -616,6 +1020,16 @@
     // defect D1) for exactly that reason: leave it here alone and the signature
     // predicts a width core no longer writes, so every install re-applies forever.
     const planned = plannedWidths();
+    // Indexed over the HEADER CELLS and not over the axis, so the two members
+    // are the same length whatever the machine is doing: an axis and a header
+    // that disagree is the state core.applyHidden refuses on, and a target of a
+    // different length there would compare unequal for a reason that has
+    // nothing to do with what is hidden.
+    const wanted = effectiveHidden();
+    // MEMBER ORDER IS LOAD-BEARING. Both signatures are compared as JSON
+    // STRINGS and JSON.stringify emits keys in insertion order, so `hidden`
+    // last here because it is last there. Re-ordering one side alone makes the
+    // two never equal and every install re-apply forever.
     return JSON.stringify({
       ids: columnIds,
       layout: planned ? "fixed" : "",
@@ -628,13 +1042,15 @@
         const rendered = Math.round(cell.getBoundingClientRect?.().width ?? 0);
         const target = Number.isFinite(stored) && stored > 0 ? stored : rendered;
         return `${core.clampWidth(target, 0)}px`;
-      })
+      }),
+      hidden: headerCellsOf(table).map((cell, index) => wanted.has(columnIds[index]))
     });
   }
 
   function applyAll(table, columnIds) {
-    // M3 appends applyCurrentHidden, M6 applyCurrentFilters, M7 applyCurrentSort.
+    // M6 appends applyCurrentFilters, M7 applyCurrentSort.
     applyCurrentWidths(table, columnIds);
+    applyCurrentHidden(table, columnIds);
   }
 
   function queueApply(reason) {
@@ -653,7 +1069,11 @@
       applyWhileLineOpen(table, columnIds);
       return;
     }
-    pendingApply = false;
+    // pendingApply is NOT cleared here. applyCurrentHidden computes it from the
+    // model on every apply, and it has ONE owner for a reason: a line can be
+    // closed while the permanent entry row is still half-typed, which is still a
+    // force-reveal and still a deferred hide. Clearing it on the way past would
+    // strand that hide until the next unrelated gesture.
     applyAll(table, columnIds);
     void reason;
   }
@@ -679,6 +1099,7 @@
       nativeColumnIds = columnIds;
       scopeKey = resolveScopeKey();
       ensureMountMarker(container);
+      ensureControls(container);
       ensureBindings(container);
       stampAxis(container, columnIds);
       // Captured BEFORE the await, because the await is the gap a gesture lands
@@ -732,7 +1153,21 @@
       // column, and a storage read that predates a gesture never outranks it.
       if (pendingWrites === 0 && saveEpoch === epoch) {
         columnWidths = { ...(entry.widths ?? {}) };
+        // INSIDE the guard, with the widths and for the identical reason. A
+        // reseed of the hidden set from a snapshot older than a gesture is
+        // defect D2 for this field, and core.withHidden replaces the stored list
+        // wholesale exactly as core.withWidths replaces the map — so the next
+        // gesture's write would delete the column this reseed dropped.
+        hiddenColumns = new Set(entry.hidden ?? []);
       }
+      // The chips render from the model, so they must be re-rendered even on an
+      // install that applies nothing: seeded storage plus an already-correct
+      // machine is precisely the reload case, and it is the one where the user
+      // most needs to see which columns they hid. Our own node, never a machine
+      // cell, so the zero-DOM-writes property below is untouched. Same for
+      // noteDeferredHide, which writes no DOM at all.
+      noteDeferredHide();
+      renderChips(table, current);
       if (renderSignature(table, current) === targetSignature(table, current)) {
         return true;
       }
@@ -764,7 +1199,21 @@
       // longer key its columns must still be able to undo what it set.
       core.applyWidths(table, null, {});
       columnWidths = {};
-      // M3 appends the hidden reset, M6 the filter reset, M7 the native row order.
+      // The column menu is NOT closed here. It is an owned node and the
+      // OWNED_SELECTOR sweep below removes it, `controlButtons = null` drops the
+      // handle, and its only listener is bound to the node itself so it dies
+      // with it. A closeColumnMenu() call here would be a line no mutation can
+      // kill and no reader can trust — the same objection adjudication #19 raised
+      // against the reveal's unreachable header gate.
+      //
+      // No axis, by adjudication #19, and for the same reason as the line above:
+      // teardown runs after the pin has been dropped, and a mount that can no
+      // longer key its columns must still be able to strip its own class. Left
+      // behind, that class springs the column back hidden by `!important` the
+      // moment NetSuite re-renders, with no feature left to un-hide it.
+      core.applyHidden(table, [], null);
+      hiddenColumns = new Set();
+      // M6 appends the filter reset, M7 the native row order.
     } catch {}
     for (const node of document.querySelectorAll(OWNED_SELECTOR)) {
       node.remove();
@@ -778,8 +1227,22 @@
     entry = {};
     columnWidths = {};
     frozenWidths = {};
+    hiddenColumns = new Set();
+    // The bar and the menu were just swept as owned NODES; this drops the mount's
+    // handle on them, so the next install builds its own rather than adopting a
+    // detached one.
+    controlButtons = null;
+    revealToasted = false;
     resizing = null;
     pendingApply = false;
+    // A flush queued by the mount being dismantled must not fire into the next
+    // one. pendingApply is already false above, which would make the callback a
+    // no-op, but a timer outliving its own mount is the shape this file has been
+    // bitten by twice and it comes off by name.
+    if (flushTimer !== null) {
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    }
     warnedNewerSchema = false;
     // The counter is mount-scoped: every operation this mount enqueued balances
     // itself in its own `finally`, so this only matters for one that never
