@@ -166,9 +166,11 @@
         // Real lines from the locked record, in record order. Lines 1 and 2 are
         // byte-identical to LIVE_LINE_1/LIVE_LINE_2 in tests/edit-grid.test.mjs
         // — including line 2's own pricelevels list, which is the only field the
-        // two live lines disagree on; the rest come from the same payload, so
-        // add-line and insert-line grow the machine with live data rather than
-        // with invented values.
+        // two live lines disagree on that makeLine was not ALREADY threading (the
+        // item code, id, description, availability, quantity, rate and amount all
+        // differ too, and all of them arrive as arguments); the rest come from the
+        // same payload, so add-line and insert-line grow the machine with live
+        // data rather than with invented values.
         const RECORDS = [
           { code: "MCH376", itemId: "4998", description: "Magic Makeup Blender with Hard Case", available: "82", quantity: "1", rate: "14.545", amount: "14.55" },
           { code: "MCH214", itemId: "1405", description: "Everyday 6 Piece Essentials Set", available: "1701", quantity: "1", rate: "30.909", amount: "30.91", pricelevels: `1${ENQ}22${ENQ}-1` },
@@ -289,6 +291,17 @@
           // can never reach (M1 Task 7 fix 4), and M2's perColumnMin measures the
           // widest widget in a column. defaultSelected is the `selected`
           // ATTRIBUTE, so an untouched select reads pristine, not dirty.
+          //
+          // It is ALSO the fixture's one widget that is deliberately WIDER than
+          // the column that holds it (M2 Task 13, defect D1). The Units column
+          // renders "Ea" and freezes at about forty pixels; a <select> is as wide
+          // as its widest OPTION, and the unselected labels below are long enough
+          // that it cannot fit. Until this the twelve columns were all wider than
+          // their own widgets, so the round trip was green by geometry luck: no
+          // apply had a floor above its plan to be raised to, and the walk that
+          // took Units from 75px to 213px live had nothing here to walk. The
+          // option labels are already synthetic — only the SELECTED one is real
+          // machine data — so widening them costs no fidelity.
           const select = document.createElement("select");
           select.id = "units_display";
           select.name = "units_display";
@@ -297,7 +310,7 @@
             option.value = value;
             option.textContent = value === line.units && line.units_display
               ? line.units_display
-              : `Unit ${value}`;
+              : `Unit of Measure ${value}`;
             option.defaultSelected = value === line.units;
             select.append(option);
           }

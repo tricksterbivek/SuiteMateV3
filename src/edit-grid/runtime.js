@@ -74,6 +74,23 @@
   // in-flight operation nor checks whose mount it belongs to. This is that
   // check, and it is the writer's, exactly as the queue's comment says.
   let mountGeneration = 0;
+  // The two halves of the reseed guard (M2 Task 13 verdict, defect D2). An
+  // install re-seeds columnWidths from a storage snapshot taken BEFORE its own
+  // await, so a gesture that lands inside that await is newer than the snapshot
+  // and must outrank it — live, a reseed in that gap dropped Quantity's 119px
+  // from module state, and the NEXT gesture's write then replaced entry.widths
+  // wholesale (core writeField) with a map the lost column was no longer in.
+  //   pendingWrites — saves this mount has enqueued and not yet finished. A
+  //     reseed while one is in flight is reading storage the write has not
+  //     reached yet, by definition.
+  //   saveEpoch — monotonic, bumped at every enqueue. An install captures it
+  //     before its await and refuses the reseed if it moved, which covers the
+  //     narrower gap where the save COMPLETED during the await and the install's
+  //     own snapshot is simply older than the write.
+  // Both are needed: the counter cannot see a save that has already finished,
+  // and the epoch cannot see one that has not started writing yet.
+  let pendingWrites = 0;
+  let saveEpoch = 0;
   const RESIZE_EDGE_PX = 5;
 
   function showToast(message, type) {
@@ -343,16 +360,27 @@
     // calc(100% - 21px) of its own cell, so a column minimum is a function of the
     // width the column HAS when it is measured: a floor captured at pointerdown
     // would sit 21px under the starting width and refuse every shrink for the
-    // rest of the gesture, and a floor cached across a line close would raise a
-    // later freeze by whatever the open line happened to be (task-11-report.md
-    // open item 2; the reviewer's +108px demonstration).
+    // rest of the gesture (task-11-report.md open item 2).
+    //
+    // The other half of that note — that a floor cached across a line close
+    // would raise a later FREEZE — no longer describes this code and is left
+    // here only to be struck: an apply takes no floor at all now, so a stale
+    // minimum cannot reach one. It is quoted because the assumption behind it,
+    // that a raise on the apply path is transient and self-correcting, is what
+    // concealed defect D1 through an entire task and a live gate.
+    //
+    // This is the ONLY floor in the feature (M2 Task 13 verdict, defect D1): the
+    // widget minimum applies where the user is CHOOSING a width and nowhere else.
+    // An apply is a pure function of the widths it is handed — see
+    // core.applyWidths' clamp — so the value floored here is the value stored,
+    // re-applied and re-restored, unchanged, for the rest of the session.
     const minimums = core.columnMinimums(resizing.table, columnIds);
     const next = core.clampWidth(
       resizing.startWidth + (event.clientX - resizing.startX),
       minimums[resizing.columnId]
     );
     columnWidths = { ...columnWidths, [resizing.columnId]: next };
-    applyCurrentWidths(resizing.table, columnIds, minimums);
+    applyCurrentWidths(resizing.table, columnIds);
   }
 
   function handleResizeUp() {
@@ -374,26 +402,25 @@
     return Object.keys(columnWidths).length ? { ...frozenWidths, ...columnWidths } : null;
   }
 
-  function applyCurrentWidths(table, columnIds, minimums) {
+  function applyCurrentWidths(table, columnIds) {
     // Adjudication #14: the axis is a PARAMETER of core.applyWidths and every
-    // apply hands it the pinned one — core never derives its own. The minimums
-    // default to a fresh measurement; the drag path passes the one it already
-    // measured for its own clamp so a move measures once rather than twice.
+    // apply hands it the pinned one — core never derives its own.
+    //
+    // No minimums are measured here, and core is handed the same empty map the
+    // teardown clear passes (M2 Task 13 verdict, defect D1). This function used
+    // to hand core a FRESH core.columnMinimums on every non-drag apply, which is
+    // what turned every apply into a re-measurement of the live table and walked
+    // every widget-bearing column wider each time. The floor lives at the choice
+    // — handleResizeMove — and an apply now reproduces plannedWidths() exactly.
     const planned = plannedWidths();
     // Whether this apply is the one that takes the machine OUT of its own layout.
     // Only that one may record what it froze: a later apply runs against a table
-    // the browser has already redistributed, and a minimum measured there is
-    // inflated by the redistribution itself (netsuite.css:2999-3001 sizes a
-    // widget at calc(100% - 21px) of its own cell, so a widget in a temporarily
-    // 120px-wide column measures 99px). Recording that would make a transient
-    // inflation permanent for the session — the reviewer's +108px demonstration.
+    // the browser has already redistributed into equal columns, so the width it
+    // would record for an unresized column is the redistribution's, not the
+    // machine's own. Recording that would make a transient collapse permanent for
+    // the session — the 325px Description that came back as 111px.
     const freezing = planned !== null && table?.style?.tableLayout !== "fixed";
-    const applied = core.applyWidths(
-      table,
-      planned,
-      minimums ?? core.columnMinimums(table, columnIds),
-      columnIds
-    );
+    const applied = core.applyWidths(table, planned, {}, columnIds);
     if (!applied) {
       return false;
     }
@@ -448,6 +475,12 @@
     const generation = mountGeneration;
     const scope = scopeKey;
     const widths = Object.keys(columnWidths).length ? { ...columnWidths } : null;
+    // Both halves of the reseed guard are armed HERE, at enqueue, for the same
+    // reason the snapshot is taken here: the gesture is over the moment
+    // pointerup returns, and an install that lands from now until this operation
+    // finishes is looking at storage that predates it.
+    pendingWrites += 1;
+    saveEpoch += 1;
     return enqueueSave(async () => {
       try {
         // Checked twice — once before the read and once after it — because the
@@ -469,6 +502,13 @@
         await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
       } catch {
         showToast("Column layout could not be saved.", "warning");
+      } finally {
+        // Every enqueue is balanced here, including the ones that return early
+        // on a dead generation: the operation always runs, because the queue
+        // chains it with (operation, operation) and a teardown replaces the
+        // module's chain without unchaining what is already on it. Floored at 0
+        // so the teardown reset below cannot drive the counter negative.
+        pendingWrites = Math.max(0, pendingWrites - 1);
       }
     });
   }
@@ -566,14 +606,16 @@
   function targetSignature(table, columnIds) {
     // The exact strings applyCurrentWidths WILL leave behind, computed the same
     // way core.applyWidths computes them — stored width when there is one, the
-    // currently rendered width otherwise, clamped against a minimum measured
-    // right now, and NOT gated on a positive target: a zero-rendered column
-    // takes the clamp floor there (adjudication #15) and must take it here too.
+    // currently rendered width otherwise, clamped to the STATIC bounds only, and
+    // NOT gated on a positive target: a zero-rendered column takes the clamp
+    // floor there (adjudication #15) and must take it here too.
     // The two must not drift in either direction: a target core cannot reproduce
     // means every install re-applies forever, and a target that overstates what
-    // core writes means an apply that is genuinely needed never runs.
+    // core writes means an apply that is genuinely needed never runs. The
+    // per-column widget floor came out of BOTH sides together (M2 Task 13 verdict,
+    // defect D1) for exactly that reason: leave it here alone and the signature
+    // predicts a width core no longer writes, so every install re-applies forever.
     const planned = plannedWidths();
-    const minimums = core.columnMinimums(table, columnIds);
     return JSON.stringify({
       ids: columnIds,
       layout: planned ? "fixed" : "",
@@ -585,7 +627,7 @@
         const stored = Number(planned[id]);
         const rendered = Math.round(cell.getBoundingClientRect?.().width ?? 0);
         const target = Number.isFinite(stored) && stored > 0 ? stored : rendered;
-        return `${core.clampWidth(target, minimums[id])}px`;
+        return `${core.clampWidth(target, 0)}px`;
       })
     });
   }
@@ -639,6 +681,9 @@
       ensureMountMarker(container);
       ensureBindings(container);
       stampAxis(container, columnIds);
+      // Captured BEFORE the await, because the await is the gap a gesture lands
+      // in and this is what tells the reseed below that it did (defect D2).
+      const epoch = saveEpoch;
       const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
       if (signal.aborted || !isCurrent() || !table.isConnected) {
         return false;
@@ -654,10 +699,6 @@
         return true;
       }
       entry = core.normalizeStored(stored[core.STORAGE_KEY]).grids[scopeKey] ?? {};
-      // Storage is authoritative on every install, not only the first: installs
-      // are repaint-driven, and a copy that drifted from the stored entry would
-      // re-apply a width the user's last gesture had already replaced.
-      columnWidths = { ...(entry.widths ?? {}) };
       // Identity re-derivation: Add/Insert/Remove renumbers every row id and
       // _fs span, so identity is re-read here on every install and a surviving
       // stamp on a <td> is never trusted as identity.
@@ -672,6 +713,25 @@
       // stored entry are already in place, and the next repaint re-reads.
       if (current.length < 2) {
         return true;
+      }
+      // Storage is authoritative on every install, not only the first: installs
+      // are repaint-driven, and a copy that drifted from the stored entry would
+      // re-apply a width the user's last gesture had already replaced.
+      //
+      // It lands HERE, below the usability gate, and not beside the read that
+      // produced it (M2 Task 13 verdict, defect D2). Two things were wrong with
+      // the old position. It ran before the install had decided it was usable,
+      // so an install that refuses above still mutated the one record of the
+      // user's gestures. And it ran unconditionally, so a snapshot taken before
+      // the await outranked a gesture made during it: live, an install in that
+      // gap dropped Quantity's 119px from columnWidths while leaving the DOM
+      // alone, the next gesture's snapshot was therefore missing it, and
+      // core.withWidths replaced entry.widths wholesale — so gesture 2's write
+      // DELETED gesture 1's column. The invariant: a width the user has set
+      // leaves columnWidths only via teardown or a newer value for the same
+      // column, and a storage read that predates a gesture never outranks it.
+      if (pendingWrites === 0 && saveEpoch === epoch) {
+        columnWidths = { ...(entry.widths ?? {}) };
       }
       if (renderSignature(table, current) === targetSignature(table, current)) {
         return true;
@@ -721,6 +781,12 @@
     resizing = null;
     pendingApply = false;
     warnedNewerSchema = false;
+    // The counter is mount-scoped: every operation this mount enqueued balances
+    // itself in its own `finally`, so this only matters for one that never
+    // settles at all — without it, such an operation would refuse the reseed for
+    // every future mount. saveEpoch is deliberately NOT reset: it is monotonic,
+    // and each install captures it fresh, so there is nothing for a reset to buy.
+    pendingWrites = 0;
     // Retires every save this mount enqueued. saveWidths captured the old value,
     // so an operation the queue has not reached yet — or one parked on its own
     // storage read — now finds a generation that moved and writes nothing.

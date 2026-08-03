@@ -201,7 +201,18 @@ function createTable(rows, { id = "item_splits", className = "uir-machine-table"
 // one id. `form` carries the hidden {machine}fields / {machine}data inputs the
 // M1.5 axis is decoded from; it defaults to null so a bare createMachine() is
 // the M1 live condition — a machine whose axis cannot be read at all.
-function createMachine({ lines = 2, className, container = null, spans = true, duplicate = false, form = null } = {}) {
+//
+// `widgets` maps a column id to the offsetWidth of a materialised widget in that
+// column, present from the moment the machine is built. It models the fact this
+// harness had no way to express before M2 Task 13, and whose absence is what made
+// defect D1 unreachable by any runtime test: NetSuite's entry row is PERMANENT
+// and always materialised, so live a widget-bearing column has a non-zero
+// columnMinimums floor on every single apply — not only while a numbered line is
+// open. Every column defaults to 0, which is the pre-M2 model, so no existing
+// test changes shape.
+function createMachine({
+  lines = 2, className, container = null, spans = true, duplicate = false, form = null, widgets = {}
+} = {}) {
   const header = createRow({
     className: "uir-machine-headerrow",
     cells: [
@@ -218,9 +229,13 @@ function createMachine({ lines = 2, className, container = null, spans = true, d
       id: `item_row_${line}`,
       className: "uir-machine-row",
       cells: [
-        createCell({ text: `SKU-100${line}`, spanId: spanId("item") }),
-        createCell({ text: String(line * 2), spanId: spanId(duplicate ? "item" : "quantity") }),
-        createCell({ text: `$1${line}.00`, spanId: spanId("rate") }),
+        createCell({ text: `SKU-100${line}`, spanId: spanId("item"), widget: widgets.item ?? 0 }),
+        createCell({
+          text: String(line * 2),
+          spanId: spanId(duplicate ? "item" : "quantity"),
+          widget: widgets.quantity ?? 0
+        }),
+        createCell({ text: `$1${line}.00`, spanId: spanId("rate"), widget: widgets.rate ?? 0 }),
         createCell({ text: "sys", spanId: spanId("sys"), systemHidden: true })
       ]
     });
@@ -936,7 +951,7 @@ test("derives a per-column minimum from the widest widget in that column", () =>
   assert.deepEqual(plain(core.columnMinimums({}, columnIds)), { item: 0, quantity: 0, rate: 0 });
 });
 
-test("applies widths to header cells only, clamped per column, and restores on clear", () => {
+test("applies widths to header cells only, clamped to the static bounds, and restores on clear", () => {
   const core = createApi();
   const table = createMachine();
   table.rows[1].cells[1] = createCell({ text: "2", spanId: "item_quantity1_fs", widget: 180 });
@@ -946,14 +961,32 @@ test("applies widths to header cells only, clamped per column, and restores on c
   // permutation is never correct (spec A1.2 rule 3). runtime applyAll holds the
   // pin and passes it. Pinned as a behaviour in the next test.
   const columnIds = ["item", "quantity", "rate"];
+  // A REAL, non-zero floor is handed to every call below, so the assertions that
+  // it changes nothing are not vacuous — parameter 3 is still #14's ruled
+  // signature slot, and core is proven to ignore it rather than to have been
+  // handed nothing to ignore.
   const minimums = core.columnMinimums(table, columnIds);
   assert.deepEqual(plain(minimums), { item: 0, quantity: 180, rate: 0 });
 
   assert.equal(core.applyWidths(table, { item: 240, quantity: 60, rate: 20 }, minimums, columnIds), true);
   const header = core.visibleCells(table.rows[0]);
-  // 240 as stored; quantity floored at its 180px widget, never at 30 or 50;
-  // rate floored at the absolute 50px input floor.
-  assert.deepEqual(plain(header.map((cell) => cell.style.width)), ["240px", "180px", "50px"]);
+  // 240 and 60 exactly as handed; rate's 20 floored at the absolute 50px input
+  // floor. Quantity is NOT raised to its 180px widget — an apply clamps to the
+  // static bounds and nothing else (M2 Task 13 verdict, defect D1). The widget
+  // floor belongs to handleResizeMove, where a width is chosen; here it would
+  // widen a column on a plan that never asked for it, on every single apply.
+  assert.deepEqual(plain(header.map((cell) => cell.style.width)), ["240px", "60px", "50px"]);
+  // The pin, stated as the invariant rather than as a consequence: whatever a
+  // caller puts in parameter 3, an apply cannot widen a column past its plan.
+  // A 5000px "minimum" is refused as flatly as the real 180px one.
+  assert.equal(core.applyWidths(table, { item: 240, quantity: 60, rate: 20 }, { quantity: 5000 }, columnIds), true);
+  assert.deepEqual(plain(header.map((cell) => cell.style.width)), ["240px", "60px", "50px"]);
+  // And it is IDEMPOTENT: two consecutive applies of the same plan leave
+  // byte-identical strings. This is what walked live — Committed 72 -> 111 ->
+  // 174px — because each apply's output was the next measurement's input.
+  const first = plain(header.map((cell) => cell.style.width));
+  assert.equal(core.applyWidths(table, { item: 240, quantity: 60, rate: 20 }, minimums, columnIds), true);
+  assert.deepEqual(plain(header.map((cell) => cell.style.width)), first);
   assert.equal(table.style.tableLayout, "fixed");
   // table.style.width is left unset so the machine keeps its own sizing.
   assert.equal(table.style.width, "");
@@ -970,12 +1003,12 @@ test("applies widths to header cells only, clamped per column, and restores on c
   assert.deepEqual(plain(header.map((cell) => cell.style.width)), ["100px", "300px", "100px"]);
   // A hostile stored width falls back to that same rendered freeze rather than
   // to "NaNpx" or to an unfrozen column — Number(null) is 0, not absent. Item
-  // carries the 0 and has NO per-column minimum, so the fallback is visible:
-  // the rendered 100px, never the 50px floor a 0 target would land on. That is
-  // what keeps the inner `stored > 0` guard observable now that the assignment
-  // itself is unconditional (adjudication #15).
+  // carries the 0, so the fallback is visible: the rendered 100px, never the
+  // 50px floor a 0 target would land on. That is what keeps the inner
+  // `stored > 0` guard observable now that the assignment itself is
+  // unconditional (adjudication #15).
   assert.equal(core.applyWidths(table, { item: null, quantity: "abc", rate: 240 }, minimums, columnIds), true);
-  assert.deepEqual(plain(header.map((cell) => cell.style.width)), ["100px", "180px", "240px"]);
+  assert.deepEqual(plain(header.map((cell) => cell.style.width)), ["100px", "100px", "240px"]);
 
   // A header cell that measures 0 and has no stored width takes the clamp floor,
   // never `width: ""` (adjudication #15). Left unfrozen it would be the ONE
@@ -1301,8 +1334,15 @@ function createRuntimeHarness({
   const lifecycle = createLifecycleStub();
   const location = createLocation(url);
   let settingsValue = settings;
-  let releaseRead = null;
-  let readGate = holdRead ? new Promise((done) => { releaseRead = done; }) : null;
+  // How many upcoming edit-key reads must park, and the resolvers of the ones
+  // that already have. A count rather than one shared promise (M2 Task 13): with
+  // a single gate every parked read is released together, and a test cannot put
+  // a save's read and an install's read on opposite sides of the same write —
+  // which is the only way to tell the two halves of the reseed guard apart.
+  // gateReads() with no argument gates every read until releaseRead(), exactly
+  // as the single-gate version did.
+  let gatedReads = holdRead ? Number.POSITIVE_INFINITY : 0;
+  let parkedReads = [];
 
   const sandbox = {
     URL,
@@ -1367,8 +1407,19 @@ function createRuntimeHarness({
               if (readError) {
                 throw readError;
               }
-              await readGate;
-              return { [key]: stored };
+              // Snapshotted at CALL time, which is what a real request does: a
+              // write that lands while this read is in flight does not
+              // retroactively change the answer it already committed to. That
+              // staleness IS defect D2's hazard, so a stub that resolved with
+              // whatever storage held at RELEASE time could not model it.
+              const snapshot = stored;
+              if (gatedReads > 0) {
+                gatedReads -= 1;
+                await new Promise((done) => {
+                  parkedReads.push(done);
+                });
+              }
+              return { [key]: snapshot };
             }
             counts.settingsReads += 1;
             return { [key]: settingsValue };
@@ -1429,11 +1480,16 @@ function createRuntimeHarness({
     documentListeners,
     bodyClasses: () => Array.from(bodyClasses),
     storedNow: () => stored,
-    // Re-arms the edit-key read gate so the NEXT read parks. holdRead gates the
-    // install's read; this gates a save's own read, which is where the second
-    // half of the writer's generation guard lives.
-    gateReads() {
-      readGate = new Promise((done) => { releaseRead = done; });
+    // Replaces the container the next install will read WITHOUT going through a
+    // save — storage changing under a settled mount, which is the only way to
+    // prove that an install still reads it once the reseed guard has disarmed.
+    setStored: (next) => { stored = next; },
+    // Re-arms the edit-key read gate so the NEXT `count` reads park. holdRead
+    // gates the install's read; this gates a save's own read, which is where the
+    // second half of the writer's generation guard lives. A finite count parks
+    // only the reads a test names and lets the rest run to completion.
+    gateReads(count = Number.POSITIVE_INFINITY) {
+      gatedReads += count;
     },
     // Dispatches to what the runtime actually bound, in the order a real DOM
     // would deliver it: the document's capture-phase drag pair first, then the
@@ -1484,7 +1540,15 @@ function createRuntimeHarness({
       }
       await harness.tick();
     },
-    releaseRead: () => releaseRead?.(),
+    // Opens the gate and lets every parked read through, oldest first.
+    releaseRead() {
+      gatedReads = 0;
+      const waiting = parkedReads;
+      parkedReads = [];
+      for (const done of waiting) {
+        done();
+      }
+    },
     pagehide: (persisted) =>
       windowListeners.filter(({ type }) => type === "pagehide").forEach(({ handler }) => handler({ persisted })),
     mounts: () => container.querySelectorAll(`[${DATA_ATTRIBUTE}]`)
@@ -1963,7 +2027,7 @@ test("teardown clears the pinned axis, the applied order and the mismatch latch"
   assert.equal((runtimeSource.match(/(?<!let )axisMismatch = false/g) ?? []).length, 1);
 });
 
-test("an install whose second axis read comes back empty never reaches applyAll", async () => {
+test("an install whose second axis read comes back empty never reaches applyAll, and reseeds nothing", async () => {
   // save/CHECKPOINTS.md "Next: M2 preconditions" #3. The install reads the axis
   // TWICE, and the second read sits after the awaited storage read: a repaint
   // that lands mid-await can change the machine's own axis, latch the mismatch
@@ -2004,7 +2068,11 @@ test("an install whose second axis read comes back empty never reaches applyAll"
       scopeKey: null,
       entry: {},
       pendingApply: false,
-      warnedNewerSchema: false
+      warnedNewerSchema: false,
+      // A gesture's width, already in module state when this install starts.
+      columnWidths: { quantity: 161 },
+      pendingWrites: 0,
+      saveEpoch: 0
     };
     sandbox.globalThis = sandbox;
     runInNewContext(
@@ -2024,11 +2092,28 @@ test("an install whose second axis read comes back empty never reaches applyAll"
 
   // A one-column second read is refused on the same gate the install's own
   // identity check uses — never applied against a machine with nothing to key.
-  assert.deepEqual((await run([["item", "quantity", "rate"], ["item"]])).applied, []);
+  const short = await run([["item", "quantity", "rate"], ["item"]]);
+  assert.deepEqual(short.applied, []);
 
-  // Not vacuous: the identical install DOES apply when the second read holds.
+  // M2 Task 13 verdict, defect D2, second clause: a REFUSING install has mutated
+  // nothing the user owns. The reseed used to sit above this gate, so an install
+  // that gave up here had already replaced columnWidths — the sole record of the
+  // user's gestures — with a storage snapshot, and the next gesture's write then
+  // carried a map the lost column was no longer in. Both refusal shapes are
+  // checked: the empty second read and the one-column one.
+  assert.deepEqual(plain(latched.sandbox.columnWidths), { quantity: 161 },
+    "an install that refused on an empty second axis read still reseeded columnWidths");
+  assert.deepEqual(plain(short.sandbox.columnWidths), { quantity: 161 },
+    "an install that refused on a one-column second axis read still reseeded columnWidths");
+
+  // Not vacuous: the identical install DOES apply when the second read holds —
+  // and THAT one reseeds, because storage is authoritative on every install that
+  // gets far enough to use what it read. The stub's storage is empty, so the
+  // gesture's 161px is correctly dropped here and only here.
   const applying = await run([["item", "quantity", "rate"], ["item", "quantity", "rate"]]);
   assert.deepEqual(plain(applying.applied), [["item", "quantity", "rate"]]);
+  assert.deepEqual(plain(applying.sandbox.columnWidths), {},
+    "a usable install must still take storage as authoritative");
 });
 
 test("the save queue survives a rejected operation and a teardown", async () => {
@@ -2474,13 +2559,19 @@ test("a repaint restores the widths the mount froze, never a re-measured redistr
   assert.deepEqual(written, [], "a restored layout re-applied itself, which is how a width drifts");
 });
 
-test("a floor measured on a redistributed table never becomes the mount's frozen width", async () => {
+test("a widget wider than its column never raises that column, and never becomes its frozen width", async () => {
   // The self-referential minimum (ledger note to probe 9): netsuite.css:2999-3001
   // sizes a materialised widget at calc(100% - 21px) of its own cell, so a widget
-  // measured while its column is temporarily wide reports a large minimum, and
-  // clampWidth then RAISES that column. The raise is transient by nature — the
-  // widget dies with the open line — so it must never be recorded as the width
-  // this mount froze, or the reviewer's +108px becomes permanent for the session.
+  // measured while its column is temporarily wide reports a large minimum.
+  //
+  // MEANING CHANGED at M2 Task 13 (defect D1). This test used to assert that an
+  // apply HONOURED that minimum — "the floor is honoured while it stands" — and
+  // only that the raise was never recorded as a frozen width. Live, that was the
+  // defect: the raise is not transient at all, because NetSuite's entry row is
+  // permanent and always materialised, so every apply re-measured, re-raised, and
+  // fed its own output back into the next measurement. The assertion below is now
+  // the opposite one — an apply reproduces the plan and nothing else — and the
+  // frozen-set half it was written for stands unchanged underneath it.
   const core = createApi();
   const harness = createRuntimeHarness({
     stored: { schemaVersion: 1, grids: { [SCOPE]: { widths: { rate: 60 } } } }
@@ -2493,15 +2584,224 @@ test("a floor measured on a redistributed table never becomes the mount's frozen
   harness.table.rows[1].cells[2] = createCell({ text: "$11.00", widget: 200 });
   repaintHeader(harness, core, 200);
   await harness.run("line-open");
-  assert.equal(headerOf(harness, core)[2].style.width, "200px", "the floor is honoured while it stands");
+  assert.equal(headerOf(harness, core)[2].style.width, "60px",
+    "a widget widened a column the user had already sized");
 
-  // The line closes, the widget goes with it, and the column returns to the 60px
-  // the user actually stored — it did not inherit the transient floor.
+  // The line closes, the widget goes with it, and the column is still the 60px
+  // the user actually stored — it never inherited the floor in the first place.
   harness.table.rows[1].cells[2] = createCell({ text: "$11.00" });
   repaintHeader(harness, core);
   await harness.run("line-closed");
   assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["100px", "100px", "60px"]);
   assert.equal(harness.counts.writes, 0, "a clamp is not a user decision and is never persisted");
+});
+
+test("a restore never widens a column nobody dragged, and re-applying it writes the same bytes", async () => {
+  // M2 Task 13 LIVE GATE, defect D1, and the regression net the suite did not
+  // have. `rate` renders at 100px and carries a 260px widget from the moment the
+  // machine is built — the live shape, because NetSuite's entry row is permanent
+  // and always materialised, so the floor is there on EVERY apply. Nobody ever
+  // drags rate in this test. Live, that column class went 72 -> 111 -> 174px.
+  const core = createApi();
+  const harness = createRuntimeHarness({ machine: { widgets: { rate: 260 } } });
+  await harness.flush();
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["", "", ""],
+    "a machine nobody has resized keeps its own layout");
+
+  // One gesture, on QUANTITY. The freeze it triggers covers every column, and
+  // rate must be frozen at the 100px it renders — not at its widget.
+  const cells = headerOf(harness, core);
+  const box = cells[1].getBoundingClientRect();
+  harness.pointer("pointerdown", { target: cells[1], clientX: box.right - 1, clientY: box.top + 4 });
+  harness.pointer("pointermove", { clientX: box.right - 1 + 60, clientY: box.top + 4 });
+  harness.pointer("pointerup", { clientX: box.right - 1 + 60, clientY: box.top + 4 });
+  await harness.tick();
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["100px", "160px", "100px"],
+    "the freezing apply widened a column the gesture never touched");
+  assert.deepEqual(plain(storedWidths(harness)), { quantity: 160 });
+
+  // Three restores in a row. Each used to re-measure the floor and hand it to
+  // core, and because a widget is sized off its own cell, each apply's output
+  // was the next measurement's input — that is the WALK, not a one-off raise.
+  const seen = [];
+  for (let round = 0; round < 3; round += 1) {
+    repaintHeader(harness, core);
+    await harness.run("repaint");
+    seen.push(plain(headerOf(harness, core).map((cell) => cell.style.width)));
+  }
+  assert.deepEqual(seen, [
+    ["100px", "160px", "100px"],
+    ["100px", "160px", "100px"],
+    ["100px", "160px", "100px"]
+  ], "a restore widened a column nobody dragged");
+  assert.equal(harness.counts.writes, 1, "the walk never reached storage, and neither does the fix");
+
+  // IDEMPOTENCE, asserted on the assignments themselves rather than on the state
+  // they leave behind: two consecutive applies of the same plan write
+  // byte-identical strings to every cell.
+  const written = [];
+  for (const cell of headerOf(harness, core)) {
+    let value = cell.style.width;
+    Object.defineProperty(cell.style, "width", {
+      configurable: true,
+      get: () => value,
+      set: (next) => {
+        written.push(next);
+        value = next;
+      }
+    });
+  }
+  repaintHeader(harness, core);
+  await harness.run("repaint");
+  const firstPass = written.splice(0);
+  repaintHeader(harness, core);
+  await harness.run("repaint");
+  // The three "" are repaintHeader wiping the inline widths, the three pixel
+  // values are the apply that follows. Pinned literally so an apply that writes
+  // nothing at all cannot pass this as "identical".
+  assert.deepEqual(firstPass, ["", "", "", "100px", "160px", "100px"]);
+  assert.deepEqual(written, firstPass, "two applies of the same plan disagreed");
+
+  // And the settled layout is STABLE: an install against it writes nothing at
+  // all. The floor came out of core and out of targetSignature together, and
+  // this is the assertion that holds them together — a column with a widget
+  // wider than itself is exactly where the two can drift, and a signature that
+  // predicts 260px for a cell core writes 100px to never converges, so every
+  // repaint-driven install re-applies forever.
+  written.length = 0;
+  await harness.run("mutation");
+  await harness.run("mutation");
+  assert.deepEqual(written, [], "the target signature and core disagree about a widget-bearing column");
+
+  // The floor still exists where a width is CHOSEN: a drag cannot pull rate
+  // under its own 260px widget, which is the whole reason a floor is measured.
+  const rate = headerOf(harness, core)[2].getBoundingClientRect();
+  harness.pointer("pointerdown", { target: headerOf(harness, core)[2], clientX: rate.right - 1, clientY: rate.top + 4 });
+  harness.pointer("pointermove", { clientX: rate.right - 90, clientY: rate.top + 4 });
+  harness.pointer("pointerup", { clientX: rate.right - 90, clientY: rate.top + 4 });
+  await harness.tick();
+  assert.deepEqual(plain(storedWidths(harness)), { quantity: 160, rate: 260 },
+    "the widget floor was dropped from the gesture as well as from the apply");
+});
+
+test("an install landing between pointerup and the write does not discard the gesture", async () => {
+  // M2 Task 13 LIVE GATE, defect D2 — the data-loss one. Live, Quantity's 119px
+  // was set, an install landed before the write, and the width was gone after a
+  // reload while Item's 200px survived. Nothing in the suite modelled an install
+  // INTERLEAVED with a gesture: the I-2 snapshot pin runs two gestures with
+  // nothing at all between them.
+  const core = createApi();
+  const harness = createRuntimeHarness();
+  await harness.flush();
+  const cells = headerOf(harness, core);
+  const drag = (index, by) => {
+    const box = cells[index].getBoundingClientRect();
+    harness.pointer("pointerdown", { target: cells[index], clientX: box.right - 1, clientY: box.top + 4 });
+    harness.pointer("pointermove", { clientX: box.right - 1 + by, clientY: box.top + 4 });
+    harness.pointer("pointerup", { clientX: box.right - 1 + by, clientY: box.top + 4 });
+  };
+
+  // An install starts and parks on its storage read. Its snapshot is the
+  // PRE-gesture value, because nothing has been written yet — that is the whole
+  // hazard: the reseed at the far side of this await is about to be handed a
+  // picture of the world that is one gesture out of date.
+  harness.gateReads();
+  const reads = harness.counts.editReads;
+  const install = harness.lifecycle.run("install-in-the-save-gap");
+  await harness.tick();
+  assert.equal(harness.counts.editReads, reads + 1, "the install should be parked on its own read");
+
+  // Gesture A lands inside that gap.
+  drag(1, 60);
+  await harness.tick();
+  assert.equal(harness.counts.writes, 0, "the save has not run yet — that is the gap");
+
+  // Everything resumes: the install first, then the save behind it.
+  harness.releaseRead();
+  await install;
+  await harness.tick();
+  assert.equal(harness.counts.writes, 1);
+  assert.deepEqual(plain(harness.writes[0][EDIT_STORAGE_KEY].grids[SCOPE].widths), { quantity: 160 });
+
+  // Gesture B, on a different column. Its snapshot is the whole of columnWidths
+  // and core.withWidths replaces entry.widths WHOLESALE, so if the install had
+  // reseeded quantity out of module state this write is what deletes it from
+  // storage — a second gesture destroying the first one's column, which is
+  // exactly what the live record showed.
+  drag(2, 40);
+  await harness.tick();
+  assert.equal(harness.counts.writes, 2);
+  assert.deepEqual(
+    plain(harness.writes[1][EDIT_STORAGE_KEY].grids[SCOPE].widths),
+    { quantity: 160, rate: 140 },
+    "an install in the save gap discarded the gesture before it, and the next write deleted it"
+  );
+  assert.deepEqual(plain(storedWidths(harness)), { quantity: 160, rate: 140 });
+  assert.deepEqual(harness.toasts, []);
+
+  // Not vacuous: once the writes are done and no gesture has happened since, an
+  // install DOES take storage as authoritative again. A guard that simply never
+  // reseeded would pass everything above and fail here.
+  harness.setStored({ schemaVersion: 1, grids: { [SCOPE]: { widths: { quantity: 160, rate: 140, item: 210 } } } });
+  await harness.run("mutation");
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["210px", "160px", "140px"],
+    "a settled install stopped reading storage");
+  assert.equal(harness.counts.writes, 2, "a restore is not a write");
+});
+
+test("both halves of the reseed guard are load-bearing: a save in flight, and a save already done", async () => {
+  // The verdict mandates a counter AND a belt, and they cover different gaps.
+  // Each is given the case where it is the ONLY thing standing between the user
+  // and a deleted column, so neither can rot into unpinned dead weight.
+  const core = createApi();
+  const drag = (harness, index, by) => {
+    const cells = headerOf(harness, core);
+    const box = cells[index].getBoundingClientRect();
+    harness.pointer("pointerdown", { target: cells[index], clientX: box.right - 1, clientY: box.top + 4 });
+    harness.pointer("pointermove", { clientX: box.right - 1 + by, clientY: box.top + 4 });
+    harness.pointer("pointerup", { clientX: box.right - 1 + by, clientY: box.top + 4 });
+  };
+  const bothColumns = (harness) =>
+    plain(harness.writes[1]?.[EDIT_STORAGE_KEY]?.grids?.[SCOPE]?.widths);
+
+  // THE COUNTER, alone. The install starts AFTER the gesture, so it captures the
+  // epoch the gesture already bumped and the belt is inert by construction. It
+  // parks before the save's own read is even issued, so it resumes first — with
+  // a snapshot that predates the write, and with that write still in flight.
+  const inFlight = createRuntimeHarness();
+  await inFlight.flush();
+  inFlight.gateReads();
+  drag(inFlight, 1, 60);
+  const installA = inFlight.lifecycle.run("install-after-the-gesture");
+  await inFlight.tick();
+  assert.equal(inFlight.counts.writes, 0, "the save must still be in flight for this half to mean anything");
+  inFlight.releaseRead();
+  await installA;
+  await inFlight.tick();
+  drag(inFlight, 2, 40);
+  await inFlight.tick();
+  assert.deepEqual(bothColumns(inFlight), { quantity: 160, rate: 140 },
+    "a reseed from a snapshot older than a save STILL IN FLIGHT dropped the gesture");
+
+  // THE BELT, alone. Only the install's read parks, so the gesture that lands
+  // inside its await runs its save all the way to completion — the counter is
+  // back at zero by the time the install resumes, and the only thing that knows
+  // the install's snapshot is out of date is the epoch it captured beforehand.
+  const settled = createRuntimeHarness();
+  await settled.flush();
+  settled.gateReads(1);
+  const installB = settled.lifecycle.run("install-before-the-gesture");
+  await settled.tick();
+  drag(settled, 1, 60);
+  await settled.tick();
+  assert.equal(settled.counts.writes, 1, "the save must have finished for this half to mean anything");
+  settled.releaseRead();
+  await installB;
+  await settled.tick();
+  drag(settled, 2, 40);
+  await settled.tick();
+  assert.deepEqual(bothColumns(settled), { quantity: 160, rate: 140 },
+    "a reseed from a snapshot older than a COMPLETED save dropped the gesture");
 });
 
 test("a header index is only a column key while the axis and the header are the same width", () => {
@@ -2791,12 +3091,13 @@ test("every width apply hands core the pinned axis, and only teardown clears wit
   // has applyCurrentWidths calling with three arguments; that shape would refuse
   // every active apply, because core fails closed on a missing axis.
   const [applier] = runtimeSource.match(
-    / {2}function applyCurrentWidths\(table, columnIds, minimums\) \{[\s\S]*?\n {2}\}/
+    / {2}function applyCurrentWidths\(table, columnIds\) \{[\s\S]*?\n {2}\}/
   ) ?? [];
   const [planner] = runtimeSource.match(/ {2}function plannedWidths\(\) \{[\s\S]*?\n {2}\}/) ?? [];
   assert.equal(Boolean(applier), true, "applyCurrentWidths is no longer a named function in runtime.js");
   assert.equal(Boolean(planner), true, "plannedWidths is no longer a named function in runtime.js");
   const calls = [];
+  const measured = [];
   const cells = [{ style: { width: "" } }, { style: { width: "" } }, { style: { width: "" } }];
   const table = { style: { tableLayout: "" } };
   const sandbox = {
@@ -2810,7 +3111,14 @@ test("every width apply hands core the pinned axis, and only teardown clears wit
         table.style.tableLayout = widths ? "fixed" : "";
         return true;
       },
-      columnMinimums: (target, ids) => Object.fromEntries(ids.map((id) => [id, 0]))
+      // Answers a REAL floor for every column, and is expected never to be
+      // called. The all-zeros stub that used to sit here is what made defect D1
+      // structurally invisible to every runtime test: with no floor in the model
+      // there was nothing for the apply path to widen (M2 Task 13 verdict).
+      columnMinimums: (target, ids) => {
+        measured.push(ids);
+        return Object.fromEntries(ids.map((id) => [id, 400]));
+      }
     },
     headerCellsOf: () => cells,
     columnWidths: { quantity: 160 },
@@ -2824,7 +3132,12 @@ test("every width apply hands core the pinned axis, and only teardown clears wit
   assert.equal(calls[0].length, 4, "core.applyWidths is the four-argument, axis-TAKING signature");
   assert.deepEqual(plain(calls[0][3]), axis, "the axis is the fourth argument");
   assert.deepEqual(plain(calls[0][1]), { quantity: 160 });
-  assert.deepEqual(plain(calls[0][2]), { item: 0, quantity: 0, rate: 0 }, "measured, not omitted");
+  // Parameter 3 is the empty map, and columnMinimums was never called at all:
+  // the apply path stopped measuring the live table (M2 Task 13 verdict, defect
+  // D1). It measured on EVERY apply before, which is what handed core a
+  // non-zero floor for every widget-bearing column and walked them wider.
+  assert.deepEqual(plain(calls[0][2]), {}, "the apply path measured a floor");
+  assert.deepEqual(measured, [], "the apply path called core.columnMinimums");
   // The freezing apply — the one that took the machine out of its own layout —
   // records what it froze for EVERY column, so a repaint that wipes the inline
   // widths while table-layout:fixed survives it can be restored without
@@ -2834,8 +3147,8 @@ test("every width apply hands core the pinned axis, and only teardown clears wit
   // A later apply runs against an already-fixed table and records NOTHING: a
   // minimum measured there is inflated by the redistribution itself.
   sandbox.columnWidths = { quantity: 300 };
-  sandbox.run(table, axis, { quantity: 180 });
-  assert.deepEqual(plain(calls[1][2]), { quantity: 180 }, "a caller that already measured is not made to measure twice");
+  sandbox.run(table, axis);
+  assert.deepEqual(plain(calls[1][2]), {}, "a later apply measured a floor");
   assert.deepEqual(plain(calls[1][1]), { item: 100, quantity: 300, rate: 100 }, "the user's width wins over the frozen one");
   assert.deepEqual(plain(sandbox.frozenWidths), { item: 100, quantity: 160, rate: 100 }, "a restore re-recorded the frozen set");
 

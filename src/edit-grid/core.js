@@ -704,6 +704,14 @@
   // off one designated row, and a machine with no line open legitimately answers
   // 0 for every column. clampWidth then floors those at ABSOLUTE_MIN_COLUMN_WIDTH.
   //
+  // "widgets exist only on the OPEN line" is probe 7's reading and it is WRONG as
+  // a statement about the machine as a whole (M2 Task 13 live gate): NetSuite's
+  // permanent entry row is always focused and always materialised, so on a real
+  // machine this answers non-zero for every widget-bearing column, always. That
+  // is why it has exactly one caller — handleResizeMove, where a user is choosing
+  // a width — and why no apply may consult it: a floor that is always there is a
+  // floor that widens every column on every apply. See core.applyWidths' clamp.
+  //
   // The axis is a PARAMETER, never derived here (spec Amendment A1.2 rule 3): the
   // caller holds the pinned axis, and re-deriving under a permutation is never
   // correct.
@@ -715,7 +723,7 @@
     for (const id of columnIds) {
       if (id) {
         // Seeded for every column on the axis, including the ones that carry no
-        // widget: applyWidths indexes this map positionally and a hole reads as
+        // widget: the caller looks a column up by id and a hole reads as
         // undefined, which clampWidth would silently treat as "no floor".
         minimums[id] = 0;
       }
@@ -771,6 +779,12 @@
   // "derive it if the caller passed none" fallback here: a silent re-derivation
   // is the A1.2 rule-4 back door and must not exist. An active apply with no
   // usable axis fails closed instead.
+  //
+  // `minimums` is parameter 3 because adjudication #14 ruled this signature, and
+  // it is deliberately NOT read: see the clamp below. Retained rather than
+  // removed so #14's shape — and the three call-site pins that assert it — stand
+  // unchanged; a caller that still measures a floor is neither obeyed nor
+  // punished here, because the floor is not this function's to apply.
   function applyWidths(table, widths, minimums, columnIds) {
     try {
       const header = headerRow(table);
@@ -819,8 +833,28 @@
         // and lands on the floor instead. The `stored > 0` guard above is
         // untouched: that one keeps Number(null) === 0 from beating the rendered
         // width, and it is pinned by its own mutation.
+        //
+        // `clampWidth(target, 0)` — the STATIC bounds only, never a per-column
+        // widget floor. M2 Task 13 live gate, defect D1: this line used to pass
+        // `minimums?.[id]`, and because the runtime handed it a freshly measured
+        // map on every apply, every widget-bearing column was widened past its
+        // plan on every apply — to a floor that NetSuite's permanent, always
+        // materialised entry row guarantees is non-zero. It WALKED, because
+        // netsuite.css:2999-3001 sizes a widget at calc(100% - 21px) of its own
+        // cell: each apply's output is the next measurement's input. Live it took
+        // Committed 72 -> 111 -> 174px and Units 75 -> 213px, neither ever
+        // dragged. frozenWidths could not stop it — the freezing gate in
+        // applyCurrentWidths guards RECORDING, not APPLYING.
+        //
+        // The invariant this restores: an apply is a PURE FUNCTION of the widths
+        // it is handed. It never widens a column the user did not drag, and two
+        // consecutive applies of the same plan leave byte-identical style.width
+        // on every cell. The widget floor still exists, at the only place a width
+        // is actually CHOSEN — handleResizeMove's clamp — so a user cannot drag a
+        // column under its own widget, and what reaches storage is already
+        // floored at the moment the choice was made.
         if (cell.style) {
-          cell.style.width = `${clampWidth(target, minimums?.[id])}px`;
+          cell.style.width = `${clampWidth(target, 0)}px`;
         }
       });
       if (table.style) {
