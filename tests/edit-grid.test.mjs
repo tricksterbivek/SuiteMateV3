@@ -40,11 +40,17 @@ function createCell({ text = "", spanId = null, systemHidden = false, width = 10
   const widgets = (Array.isArray(widget) ? widget : [widget])
     .filter((size) => size !== 0)
     .map((size) => ({ offsetWidth: size }));
-  return {
+  const cell = {
     nodeType: 1,
     textContent: text,
     style: { display: systemHidden ? "none" : "", width: "" },
     offsetWidth: width,
+    // Delegated handlers reach the machine through event.target.closest(), so a
+    // cell has to know its own table exactly as a real <td> does. createTable
+    // adopts every cell it is handed; a cell built after the fact has no owner
+    // and answers null, which is what an orphaned node does live too.
+    owner: null,
+    closest: (selector) => cell.owner?.closest?.(selector) ?? null,
     classList: {
       add: (name) => classes.add(name),
       remove: (name) => classes.delete(name),
@@ -64,6 +70,32 @@ function createCell({ text = "", spanId = null, systemHidden = false, width = 10
     querySelector: (selector) => (spanId && selector.includes("_fs") ? { id: spanId } : null),
     querySelectorAll: (selector) => (String(selector).includes("input") ? widgets : [])
   };
+  return cell;
+}
+
+// Gives a row's VISIBLE cells real page coordinates, left to right. The resize
+// edge is a 5px zone hanging off a header cell's right edge, so without this the
+// geometry the gesture is built on does not exist and every hit test answers
+// false for the wrong reason. System-hidden cells occupy no space, exactly as
+// display:none does live.
+function layoutCells(cells, { top = 0, height = 20 } = {}) {
+  let left = 0;
+  for (const cell of cells) {
+    if (cell.style?.display === "none") {
+      cell.getBoundingClientRect = () => ({ width: 0, height: 0, left, right: left, top, bottom: top });
+      continue;
+    }
+    const box = {
+      width: cell.offsetWidth,
+      height,
+      left,
+      right: left + cell.offsetWidth,
+      top,
+      bottom: top + height
+    };
+    cell.getBoundingClientRect = () => ({ ...box });
+    left += cell.offsetWidth;
+  }
 }
 
 function classMatcher(className) {
@@ -153,6 +185,11 @@ function createTable(rows, { id = "item_splits", className = "uir-machine-table"
     querySelector: (selector) => rows.find((row) => row.matches(selector)) ?? null,
     querySelectorAll: (selector) => rows.filter((row) => row.matches(selector))
   };
+  for (const row of rows) {
+    for (const cell of row.cells ?? []) {
+      cell.owner = table;
+    }
+  }
   container?.adopt?.(table);
   return table;
 }
@@ -932,9 +969,26 @@ test("applies widths to header cells only, clamped per column, and restores on c
   assert.equal(core.applyWidths(table, { quantity: 300 }, minimums, columnIds), true);
   assert.deepEqual(plain(header.map((cell) => cell.style.width)), ["100px", "300px", "100px"]);
   // A hostile stored width falls back to that same rendered freeze rather than
-  // to "NaNpx" or to an unfrozen column — Number(null) is 0, not absent.
-  assert.equal(core.applyWidths(table, { item: "abc", quantity: null, rate: 240 }, minimums, columnIds), true);
+  // to "NaNpx" or to an unfrozen column — Number(null) is 0, not absent. Item
+  // carries the 0 and has NO per-column minimum, so the fallback is visible:
+  // the rendered 100px, never the 50px floor a 0 target would land on. That is
+  // what keeps the inner `stored > 0` guard observable now that the assignment
+  // itself is unconditional (adjudication #15).
+  assert.equal(core.applyWidths(table, { item: null, quantity: "abc", rate: 240 }, minimums, columnIds), true);
   assert.deepEqual(plain(header.map((cell) => cell.style.width)), ["100px", "180px", "240px"]);
+
+  // A header cell that measures 0 and has no stored width takes the clamp floor,
+  // never `width: ""` (adjudication #15). Left unfrozen it would be the ONE
+  // column still fluid under fixed layout — the partial freeze this function
+  // exists to prevent — and the runtime's targetSignature carries the same
+  // folded shape so the two cannot disagree about what an apply will write.
+  const zeroRendered = createMachine();
+  zeroRendered.rows[0].cells[0] = createCell({ text: "Item", width: 0 });
+  assert.equal(core.applyWidths(zeroRendered, { rate: 240 }, {}, columnIds), true);
+  assert.deepEqual(
+    plain(core.visibleCells(zeroRendered.rows[0]).map((cell) => cell.style.width)),
+    ["50px", "100px", "240px"]
+  );
 
   // Clearing restores the native layout, and needs no axis: teardown calls it
   // with three arguments after the pin has already been dropped.
@@ -1231,16 +1285,24 @@ function createRuntimeHarness({
     ? { itemfields: machineFields, itemdata: machineData }
     : null;
   const table = machine ? createMachine({ ...machine, container, form }) : null;
+  if (table) {
+    // The header row is the only row the resize gesture measures, and it is the
+    // only row core.applyWidths writes to.
+    layoutCells(table.rows[0].cells);
+  }
   const counts = { editReads: 0, settingsReads: 0, writes: 0 };
   const toasts = [];
   const errors = [];
+  const writes = [];
   const storageListeners = [];
   const windowListeners = [];
+  const documentListeners = [];
+  const bodyClasses = new Set();
   const lifecycle = createLifecycleStub();
   const location = createLocation(url);
   let settingsValue = settings;
   let releaseRead = null;
-  const readGate = holdRead ? new Promise((done) => { releaseRead = done; }) : null;
+  let readGate = holdRead ? new Promise((done) => { releaseRead = done; }) : null;
 
   const sandbox = {
     URL,
@@ -1250,6 +1312,26 @@ function createRuntimeHarness({
     document: {
       readyState: "complete",
       documentElement: { dataset: {} },
+      // The drag cursor lands on <body> for the life of a gesture, and the drag
+      // pair is bound on the document under capture — neither exists in the M1
+      // stub, and a runtime that reached for either would have thrown.
+      body: {
+        classList: {
+          add: (name) => bodyClasses.add(name),
+          remove: (name) => bodyClasses.delete(name),
+          contains: (name) => bodyClasses.has(name)
+        }
+      },
+      addEventListener(type, handler, options) {
+        documentListeners.push({ type, handler, options });
+      },
+      removeEventListener(type, handler, options) {
+        const at = documentListeners.findIndex((entry) =>
+          entry.type === type && entry.handler === handler && entry.options === options);
+        if (at >= 0) {
+          documentListeners.splice(at, 1);
+        }
+      },
       querySelector(selector) {
         if (selector === "#item_splits") {
           return table;
@@ -1273,8 +1355,7 @@ function createRuntimeHarness({
         return null;
       },
       querySelectorAll: (selector) => container.querySelectorAll(selector),
-      createElement: (tagName) => createOwnedNode(tagName),
-      addEventListener() {}
+      createElement: (tagName) => createOwnedNode(tagName)
     },
     chrome: {
       runtime: {},
@@ -1292,8 +1373,15 @@ function createRuntimeHarness({
             counts.settingsReads += 1;
             return { [key]: settingsValue };
           },
-          async set() {
+          async set(items) {
             counts.writes += 1;
+            // Recorded AND kept: the container a write leaves behind is what the
+            // next install reads, so a round trip through this stub is the
+            // "seeded storage re-applies with zero writes" claim in miniature.
+            writes.push(plain(items));
+            if (EDIT_STORAGE_KEY in items) {
+              stored = plain(items)[EDIT_STORAGE_KEY];
+            }
           }
         },
         onChanged: {
@@ -1335,8 +1423,45 @@ function createRuntimeHarness({
     counts,
     toasts,
     errors,
+    writes,
     lifecycle,
     windowListeners,
+    documentListeners,
+    bodyClasses: () => Array.from(bodyClasses),
+    storedNow: () => stored,
+    // Re-arms the edit-key read gate so the NEXT read parks. holdRead gates the
+    // install's read; this gates a save's own read, which is where the second
+    // half of the writer's generation guard lives.
+    gateReads() {
+      readGate = new Promise((done) => { releaseRead = done; });
+    },
+    // Dispatches to what the runtime actually bound, in the order a real DOM
+    // would deliver it: the document's capture-phase drag pair first, then the
+    // container's delegated listener. Nothing is invoked by name.
+    pointer(type, { target, ...init } = {}) {
+      const event = {
+        type,
+        button: 0,
+        clientX: 0,
+        clientY: 0,
+        ...init,
+        target: target ?? container,
+        defaultPrevented: false,
+        propagationStopped: false,
+        preventDefault() {
+          event.defaultPrevented = true;
+        },
+        stopPropagation() {
+          event.propagationStopped = true;
+        }
+      };
+      for (const entry of [...documentListeners, ...container.listeners]) {
+        if (entry.type === type) {
+          entry.handler(event);
+        }
+      }
+      return event;
+    },
     // tick() drains microtasks without awaiting the install: an install parked
     // on a held storage read would deadlock flush().
     async tick(rounds = 4) {
@@ -1509,18 +1634,27 @@ test("mounts one hidden marker, binds once and writes nothing", async () => {
   assert.equal(harness.counts.editReads, 1);
   // Seeded storage plus install is a read, never a write (spec: count writes).
   assert.equal(harness.counts.writes, 0);
-  // M1 is invisible: no class and no inline width reaches any machine cell.
+  // A stored entry that carries no widths applies NOTHING: no class and no
+  // inline width reaches any machine cell, and the machine keeps its own layout.
+  // The 28 screenshot baselines depend on this staying true for every user who
+  // has never dragged a column edge.
   for (const row of harness.table.rows) {
     for (const cell of row.cells) {
       assert.deepEqual(cell.classNames(), []);
       assert.equal(cell.style.width, "");
     }
   }
+  assert.equal(harness.table.style.tableLayout, "");
   // A repaint re-installs: the marker, the binding and the axis stamp stay
   // singular. The stamp is re-derived through the pin, so it cannot drift.
   await harness.run("mutation");
   assert.equal(harness.mounts().length, 1);
-  assert.equal(harness.container.listeners.length, 0);
+  // One listener per event type, bound once — a second install must not stack a
+  // second copy of the delegated set on the container.
+  assert.deepEqual(
+    harness.container.listeners.map(({ type }) => type),
+    ["pointermove", "pointerleave", "pointerdown"]
+  );
   assert.equal(harness.container.getAttribute(AXIS_ATTRIBUTE), "item,quantity,rate");
   assert.equal(harness.counts.writes, 0);
 });
@@ -2093,9 +2227,647 @@ test("an untouched select in the open row is not dirty", () => {
   assert.equal(sandbox.fieldIsDirty({ tagName: "TEXTAREA", value: "x", defaultValue: "x" }), false);
 });
 
+// ===== M2: the resize gesture and width persistence =====
+// The seams M1 shipped without callers — applyAll, enqueueSave — get them here,
+// so these drive the runtime through the registration and the delegated
+// listeners it actually bound (the standing M2 slice -> behavioural obligation).
+const SCOPE = "FIXTURE:2462:salesord:edit";
+
+function headerOf(harness, core) {
+  return core.visibleCells(core.headerRow(harness.table));
+}
+
+function storedWidths(harness) {
+  return harness.storedNow()?.grids?.[SCOPE]?.widths ?? null;
+}
+
+test("a drag on a header edge resizes that column, freezes the machine and writes once", async () => {
+  const core = createApi();
+  const harness = createRuntimeHarness();
+  await harness.flush();
+  const cells = headerOf(harness, core);
+  const quantity = cells[1].getBoundingClientRect();
+  assert.deepEqual(plain(cells.map((cell) => cell.style.width)), ["", "", ""], "nothing is applied before a gesture");
+
+  const down = harness.pointer("pointerdown", {
+    target: cells[1],
+    clientX: quantity.right - 1,
+    clientY: quantity.top + 4
+  });
+  // The 5px zone is ours; the rest of the header cell stays native. Both are
+  // needed: NetSuite's own field help lives on .listheader inside the cell.
+  assert.equal(down.defaultPrevented, true);
+  assert.equal(down.propagationStopped, true);
+  assert.deepEqual(harness.bodyClasses(), ["suitemate-v3-edit-grid-resizing"]);
+  assert.deepEqual(harness.documentListeners.map(({ type }) => type), ["pointermove", "pointerup"]);
+  assert.equal(harness.counts.writes, 0);
+
+  harness.pointer("pointermove", { clientX: quantity.right + 60, clientY: quantity.top + 4 });
+  // 100 rendered + 61 dragged. EVERY column is frozen, not just the dragged one:
+  // a partial freeze under table-layout:fixed is the reflow this exists to stop.
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["100px", "161px", "100px"]);
+  assert.equal(harness.table.style.tableLayout, "fixed");
+  assert.equal(harness.counts.writes, 0, "a move is a repaint, never a write");
+
+  harness.pointer("pointerup", { clientX: quantity.right + 60, clientY: quantity.top + 4 });
+  assert.equal(harness.counts.writes, 0, "the save is queued, never synchronous");
+  await harness.tick();
+
+  // ONE write for the whole gesture, under this feature's own key, keyed by the
+  // column id the PINNED axis puts under the pointer — not by a visible index
+  // and not by a freshly derived axis.
+  assert.equal(harness.counts.writes, 1);
+  assert.deepEqual(harness.writes, [{
+    [EDIT_STORAGE_KEY]: { schemaVersion: 1, grids: { [SCOPE]: { widths: { quantity: 161 } } } }
+  }]);
+  assert.deepEqual(harness.bodyClasses(), []);
+  assert.deepEqual(harness.documentListeners, [], "the drag pair is unbound the moment the gesture ends");
+  assert.deepEqual(harness.toasts, []);
+
+  // A repaint-driven install re-applies from storage and writes NOTHING more.
+  await harness.run("mutation");
+  assert.equal(harness.counts.writes, 1);
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["100px", "161px", "100px"]);
+
+  // A SECOND gesture starts from the width that was APPLIED, not from the one
+  // the machine renders. Live, collapsed borders render ~2px over the style
+  // value, so a rect-based start would hand every gesture a 2px head start and
+  // walk the column wider every time it is touched. Modelled here by rendering
+  // the frozen 161px column at 163px and dragging it by nothing at all.
+  cells[1].offsetWidth = 163;
+  layoutCells(harness.table.rows[0].cells);
+  const drifted = cells[1].getBoundingClientRect();
+  assert.equal(drifted.width, 163, "the stub must render wider than the applied width for this to mean anything");
+  harness.pointer("pointerdown", { target: cells[1], clientX: drifted.right - 1, clientY: drifted.top + 4 });
+  harness.pointer("pointermove", { clientX: drifted.right - 1, clientY: drifted.top + 4 });
+  harness.pointer("pointerup", { clientX: drifted.right - 1, clientY: drifted.top + 4 });
+  await harness.tick();
+  assert.equal(harness.counts.writes, 2, "the second gesture is its own single write");
+  assert.deepEqual(
+    plain(harness.writes[1][EDIT_STORAGE_KEY].grids[SCOPE].widths),
+    { quantity: 161 },
+    "a zero-pixel drag moved the column, so the gesture started from the rect"
+  );
+});
+
+test("only the 5px edge zone starts a gesture, and the hover marker never lingers", async () => {
+  const core = createApi();
+  const harness = createRuntimeHarness();
+  await harness.flush();
+  const cells = headerOf(harness, core);
+  const quantity = cells[1].getBoundingClientRect();
+  const marks = () => cells.map((cell) => cell.classNames());
+  const hover = (clientX, clientY = quantity.top + 4) =>
+    harness.pointer("pointermove", { target: cells[1], clientX, clientY });
+
+  // Six pixels in is native territory: no marker, and no gesture starts there.
+  hover(quantity.right - 6);
+  assert.deepEqual(plain(marks()), [[], [], []]);
+  harness.pointer("pointerdown", { target: cells[1], clientX: quantity.right - 6, clientY: quantity.top + 4 });
+  assert.deepEqual(harness.documentListeners, [], "a click 6px inside the cell started a resize");
+  assert.deepEqual(harness.bodyClasses(), []);
+
+  // Five pixels in is the zone, and it marks exactly one cell.
+  hover(quantity.right - 5);
+  assert.deepEqual(plain(marks()), [[], ["suitemate-v3-edit-grid-resize-edge"], []]);
+  // Above or below the header row is not the zone at all.
+  hover(quantity.right - 1, quantity.bottom + 1);
+  assert.deepEqual(plain(marks()), [[], [], []]);
+  // The left edge belongs to the PREVIOUS column, which is what makes the zone
+  // unambiguous when two cells meet.
+  hover(cells[1].getBoundingClientRect().left);
+  assert.deepEqual(plain(marks()), [["suitemate-v3-edit-grid-resize-edge"], [], []]);
+
+  // Leaving the container clears the marker: pointermove stops firing at the
+  // boundary, so without pointerleave the bar stays painted on a cold table.
+  hover(quantity.right - 1);
+  assert.deepEqual(plain(marks()), [[], ["suitemate-v3-edit-grid-resize-edge"], []]);
+  harness.pointer("pointerleave");
+  assert.deepEqual(plain(marks()), [[], [], []]);
+
+  // A non-primary button never resizes, and a pointer over the container but
+  // outside the machine is not a header edge at all.
+  harness.pointer("pointerdown", {
+    target: cells[1],
+    clientX: quantity.right - 1,
+    clientY: quantity.top + 4,
+    button: 2
+  });
+  assert.deepEqual(harness.documentListeners, []);
+  harness.pointer("pointerdown", { clientX: quantity.right - 1, clientY: quantity.top + 4 });
+  assert.deepEqual(harness.documentListeners, []);
+  assert.equal(harness.counts.writes, 0, "nothing so far was a gesture, so nothing was written");
+
+  // The marker survives a pointerleave DURING a gesture. Dragging out past the
+  // edge of the container is how a column gets wider, and the marker is the
+  // user's evidence of which edge they have hold of.
+  hover(quantity.right - 1);
+  harness.pointer("pointerdown", { target: cells[1], clientX: quantity.right - 1, clientY: quantity.top + 4 });
+  harness.pointer("pointerleave");
+  assert.deepEqual(plain(marks()), [[], ["suitemate-v3-edit-grid-resize-edge"], []]);
+  harness.pointer("pointerup", { clientX: quantity.right - 1, clientY: quantity.top + 4 });
+  await harness.tick();
+  // A zero-pixel drag is still a gesture, and a gesture is still exactly one write.
+  assert.equal(harness.counts.writes, 1);
+});
+
+test("the column floor is measured at the moment of the clamp, never carried from pointerdown", async () => {
+  // task-11-report.md open item 2 and the reviewer's +108px demonstration:
+  // netsuite.css:2999-3001 sizes a materialised widget at calc(100% - 21px) of
+  // its own cell, so a column minimum is a function of the width the column HAS
+  // when it is measured. With no line open every minimum is 0.
+  const core = createApi();
+  const harness = createRuntimeHarness();
+  await harness.flush();
+  const cells = headerOf(harness, core);
+  const quantity = cells[1].getBoundingClientRect();
+  harness.pointer("pointerdown", { target: cells[1], clientX: quantity.right - 1, clientY: quantity.top + 4 });
+  // A first move with no line open: every minimum is 0 and clampWidth floors at
+  // the absolute 50px.
+  harness.pointer("pointermove", { clientX: quantity.right - 90, clientY: quantity.top + 4 });
+  assert.equal(headerOf(harness, core)[1].style.width, "50px");
+  // NOW the line opens — live, widgets materialise per cell on the open line
+  // only — and the very next move must see the floor that did not exist one
+  // move ago. A minimum captured at pointerdown, or memoised on the first move,
+  // is still 0 here and lets the column shrink under its own widget.
+  harness.table.rows[1].cells[1] = createCell({ text: "2", widget: 180 });
+  harness.pointer("pointermove", { clientX: quantity.right - 90, clientY: quantity.top + 4 });
+  harness.pointer("pointerup", { clientX: quantity.right - 90, clientY: quantity.top + 4 });
+  await harness.tick();
+  // 100 - 89 = 11px asked for, floored at the 180px widget: never at 50, never
+  // at the 30 View Mode uses, and never at the 0 pointerdown would have cached.
+  assert.deepEqual(plain(storedWidths(harness)), { quantity: 180 });
+  assert.equal(headerOf(harness, core)[1].style.width, "180px");
+  assert.equal(harness.counts.writes, 1);
+});
+
+test("stored widths are restored on install, applied through the pinned axis, and cost no write", async () => {
+  const core = createApi();
+  const harness = createRuntimeHarness({
+    stored: { schemaVersion: 1, grids: { [SCOPE]: { widths: { rate: 240, quantity: 20 } } } }
+  });
+  await harness.flush();
+  // rate takes its stored 240; quantity's 20 was already raised to the absolute
+  // 50px floor on the way into storage; item, with nothing stored, is frozen at
+  // what it renders so the flip to fixed layout moves nothing.
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["100px", "50px", "240px"]);
+  assert.equal(harness.table.style.tableLayout, "fixed");
+  assert.equal(harness.table.style.width, "", "the machine keeps its own overall sizing");
+  // Body cells are never touched: under fixed layout row 1 is authoritative.
+  assert.deepEqual(plain(core.visibleCells(harness.table.rows[1]).map((cell) => cell.style.width)), ["", "", ""]);
+  assert.equal(harness.counts.writes, 0, "seeded storage plus install is a read, never a write");
+});
+
+// A repaint, modelled exactly as the machine performs it (probe 7: every row
+// object is replaced, the header included): the header cells lose their inline
+// widths, and `table.style.tableLayout` — which sits on the <table>, not on the
+// <tbody> — does NOT. Measured on the fixture, the browser then redistributes
+// the machine into equal columns, so `rendered` reads the redistribution rather
+// than the machine's own layout; the stub models that by re-rendering every
+// column at the same width.
+function repaintHeader(harness, core, width = 120) {
+  for (const cell of core.visibleCells(core.headerRow(harness.table))) {
+    cell.style.width = "";
+    cell.offsetWidth = width;
+  }
+  layoutCells(harness.table.rows[0].cells);
+}
+
+test("a repaint restores the widths the mount froze, never a re-measured redistribution", async () => {
+  const core = createApi();
+  const harness = createRuntimeHarness({
+    stored: { schemaVersion: 1, grids: { [SCOPE]: { widths: { quantity: 160 } } } }
+  });
+  await harness.flush();
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["100px", "160px", "100px"]);
+  assert.equal(harness.table.style.tableLayout, "fixed");
+
+  repaintHeader(harness, core);
+  assert.equal(harness.table.style.tableLayout, "fixed", "the fixed layout survives a tbody swap");
+  await harness.run("repaint");
+  // 100px, not the 120px the redistributed table now renders: a re-measuring
+  // apply is what collapsed a 325px Description to 111px on the fixture.
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["100px", "160px", "100px"]);
+  assert.equal(harness.counts.writes, 0);
+  // And again, so the frozen set cannot decay one repaint at a time.
+  repaintHeader(harness, core, 140);
+  await harness.run("repaint");
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["100px", "160px", "100px"]);
+  // The restored layout is also STABLE: the target the next install computes
+  // equals what the cells already carry, so it applies nothing further even
+  // though the machine now renders every column at a different width than it
+  // was frozen at — the live border-collapse divergence, which would otherwise
+  // walk the columns 2px wider on every repaint.
+  const written = [];
+  for (const cell of headerOf(harness, core)) {
+    let value = cell.style.width;
+    Object.defineProperty(cell.style, "width", {
+      configurable: true,
+      get: () => value,
+      set: (next) => {
+        written.push(next);
+        value = next;
+      }
+    });
+  }
+  await harness.run("repaint");
+  assert.deepEqual(written, [], "a restored layout re-applied itself, which is how a width drifts");
+});
+
+test("a floor measured on a redistributed table never becomes the mount's frozen width", async () => {
+  // The self-referential minimum (ledger note to probe 9): netsuite.css:2999-3001
+  // sizes a materialised widget at calc(100% - 21px) of its own cell, so a widget
+  // measured while its column is temporarily wide reports a large minimum, and
+  // clampWidth then RAISES that column. The raise is transient by nature — the
+  // widget dies with the open line — so it must never be recorded as the width
+  // this mount froze, or the reviewer's +108px becomes permanent for the session.
+  const core = createApi();
+  const harness = createRuntimeHarness({
+    stored: { schemaVersion: 1, grids: { [SCOPE]: { widths: { rate: 60 } } } }
+  });
+  await harness.flush();
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["100px", "100px", "60px"]);
+
+  // A line opens in the rate column while the machine is mid-redistribution, so
+  // the widget measures the 200px the column momentarily has.
+  harness.table.rows[1].cells[2] = createCell({ text: "$11.00", widget: 200 });
+  repaintHeader(harness, core, 200);
+  await harness.run("line-open");
+  assert.equal(headerOf(harness, core)[2].style.width, "200px", "the floor is honoured while it stands");
+
+  // The line closes, the widget goes with it, and the column returns to the 60px
+  // the user actually stored — it did not inherit the transient floor.
+  harness.table.rows[1].cells[2] = createCell({ text: "$11.00" });
+  repaintHeader(harness, core);
+  await harness.run("line-closed");
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["100px", "100px", "60px"]);
+  assert.equal(harness.counts.writes, 0, "a clamp is not a user decision and is never persisted");
+});
+
+test("a header index is only a column key while the axis and the header are the same width", () => {
+  // The gesture keys itself by the visible index of the cell under the pointer.
+  // A 43-id axis indexed onto a 42-cell header caught mid-repaint would resize a
+  // neighbouring column and store the width under the wrong id — the silent
+  // mis-key class A1.2 exists to refuse.
+  const [helper] = runtimeSource.match(
+    / {2}function columnIdOfHeaderCell\(table, cell\) \{[\s\S]*?\n {2}\}/
+  ) ?? [];
+  assert.equal(Boolean(helper), true, "columnIdOfHeaderCell is no longer a named function in runtime.js");
+  const cells = [createCell(), createCell(), createCell()];
+  const ask = (columnIds, cell) => {
+    const sandbox = {
+      cell,
+      currentColumnIds: () => columnIds,
+      headerCellsOf: () => cells
+    };
+    sandbox.globalThis = sandbox;
+    runInNewContext(`${helper}\nglobalThis.result = columnIdOfHeaderCell(null, cell);`, sandbox);
+    return sandbox.result;
+  };
+  assert.equal(ask(["item", "quantity", "rate"], cells[1]), "quantity");
+  assert.equal(ask(["item", "quantity"], cells[1]), null, "a short axis must not key by index");
+  assert.equal(ask(["item", "quantity", "rate", "sys"], cells[1]), null, "a long axis must not key by index");
+  assert.equal(ask([], cells[1]), null);
+  assert.equal(ask(["item", "quantity", "rate"], createCell()), null, "a cell that is not in the header");
+});
+
+test("a repaint with a line open still restores the widths", async () => {
+  const core = createApi();
+  const harness = createRuntimeHarness({
+    stored: { schemaVersion: 1, grids: { [SCOPE]: { widths: { quantity: 160 } } } }
+  });
+  await harness.flush();
+  // Line 1 opens: the row keeps its numbered id and gains the focused classes,
+  // and the machine rebuilds the whole tbody around it.
+  harness.table.rows[1] = createRow({
+    id: "item_row_1",
+    className: "uir-machine-row uir-machine-row-focused listfocusedrow",
+    cells: harness.table.rows[1].cells
+  });
+  repaintHeader(harness, core);
+  await harness.run("line-open");
+  // Skipping the apply here is not caution, it is the yank: the machine is in
+  // fixed layout with no widths, which is what collapsed all twelve fixture
+  // columns to 120px until the line was closed again.
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["100px", "160px", "100px"]);
+  assert.equal(harness.counts.writes, 0);
+  // Everything that MOVES or REMOVES a row still queues — that is what
+  // pendingApply carries, and both gates route through the same helper so they
+  // cannot drift apart.
+  const [helper] = runtimeSource.match(/ {2}function applyWhileLineOpen\(table, columnIds\) \{[\s\S]*?\n {2}\}/) ?? [];
+  assert.equal(Boolean(helper), true, "applyWhileLineOpen is no longer a named function in runtime.js");
+  assert.match(helper, /pendingApply = true;/);
+  assert.match(helper, /applyCurrentWidths\(table, columnIds\);/);
+  const [install] = runtimeSource.match(
+    / {2}async function installEditGrid\(\{ signal, isCurrent \}\) \{[\s\S]*?\n {2}\}/
+  ) ?? [];
+  const [queue] = runtimeSource.match(/ {2}function queueApply\(reason\) \{[\s\S]*?\n {2}\}/) ?? [];
+  assert.match(install, /applyWhileLineOpen\(table, current\);/);
+  assert.match(queue, /applyWhileLineOpen\(table, columnIds\);/);
+});
+
+test("an install whose rendering already equals the target touches no cell", async () => {
+  const core = createApi();
+  const harness = createRuntimeHarness({
+    stored: { schemaVersion: 1, grids: { [SCOPE]: { widths: { rate: 240 } } } }
+  });
+  await harness.flush();
+  const cells = headerOf(harness, core);
+  assert.deepEqual(plain(cells.map((cell) => cell.style.width)), ["100px", "100px", "240px"]);
+  // Every width assignment from here on is recorded. renderSignature and
+  // targetSignature agree once the layout is applied, so the next install must
+  // perform ZERO DOM writes — that agreement is what makes "one gesture = one
+  // write, then flat for 500ms" measurable at all.
+  const written = [];
+  for (const cell of cells) {
+    let value = cell.style.width;
+    Object.defineProperty(cell.style, "width", {
+      configurable: true,
+      get: () => value,
+      set: (next) => {
+        written.push(next);
+        value = next;
+      }
+    });
+  }
+  await harness.run("mutation");
+  await harness.run("mutation");
+  assert.deepEqual(written, [], "an install re-applied a layout that was already correct");
+  assert.equal(harness.counts.writes, 0);
+  // Not vacuous: a width the DOM does not carry yet IS applied through the very
+  // same recorder.
+  harness.table.rows[0].cells[0].style.width = "";
+  await harness.run("mutation");
+  assert.deepEqual(written, ["", "100px", "100px", "240px"]);
+});
+
+test("the target signature predicts what core writes, zero-rendered column included", async () => {
+  // Adjudication #15 lands in TWO files — core stopped gating the assignment on
+  // a positive target, and targetSignature stopped gating the predicted string
+  // the same way. Unfold either one alone and the two disagree about the
+  // zero-rendered column forever: the signatures never converge, so every
+  // repaint-driven install re-applies. Counted here through getBoundingClientRect,
+  // which targetSignature reads once per header cell and core.applyWidths reads
+  // once more — so an install that only computes the signature is n reads and one
+  // that also applies is 2n, whether or not the apply changes anything.
+  const core = createApi();
+  const harness = createRuntimeHarness({
+    stored: { schemaVersion: 1, grids: { [SCOPE]: { widths: { rate: 240 } } } }
+  });
+  harness.table.rows[0].cells[0] = createCell({ text: "Item", width: 0 });
+  layoutCells(harness.table.rows[0].cells);
+  await harness.flush();
+  const cells = headerOf(harness, core);
+  // The zero-rendered column is frozen at the absolute floor, not left fluid.
+  assert.deepEqual(plain(cells.map((cell) => cell.style.width)), ["50px", "100px", "240px"]);
+
+  let reads = 0;
+  for (const cell of cells) {
+    const measure = cell.getBoundingClientRect;
+    cell.getBoundingClientRect = (...args) => {
+      reads += 1;
+      return measure.apply(cell, args);
+    };
+  }
+  await harness.run("repaint");
+  assert.equal(reads, cells.length, "the install re-applied a layout it had already applied");
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["50px", "100px", "240px"]);
+  assert.equal(harness.counts.writes, 0);
+
+  // The counter above catches an unfolded CORE (it would leave the column at
+  // width:"" while the target says 50px, and the two would never converge). The
+  // signature side needs its own pin, because once a mount has frozen a layout
+  // every axis column has a positive planned width and the zero branch is no
+  // longer reachable through an install: it is the FIRST apply, with nothing
+  // frozen yet, that has to predict the floor for a column measuring nothing.
+  const [signature] = runtimeSource.match(
+    / {2}function targetSignature\(table, columnIds\) \{[\s\S]*?\n {2}\}/
+  ) ?? [];
+  const [planner] = runtimeSource.match(/ {2}function plannedWidths\(\) \{[\s\S]*?\n {2}\}/) ?? [];
+  assert.equal(Boolean(signature), true, "targetSignature is no longer a named function in runtime.js");
+  const fresh = createMachine();
+  fresh.rows[0].cells[0] = createCell({ text: "Item", width: 0 });
+  const sandbox = {
+    core,
+    headerCellsOf: (target) => core.visibleCells(core.headerRow(target)),
+    columnWidths: { rate: 240 },
+    frozenWidths: {},
+    table: fresh
+  };
+  sandbox.globalThis = sandbox;
+  runInNewContext(
+    `${planner}\n${signature}\nglobalThis.result = targetSignature(table, ["item", "quantity", "rate"]);`,
+    sandbox
+  );
+  assert.deepEqual(JSON.parse(sandbox.result).widths, ["50px", "100px", "240px"],
+    "the first apply's target left the zero-rendered column unpredicted");
+});
+
+test("a save whose mount was torn down before it ran writes nothing", async () => {
+  // The queue's own guarantee is narrow (see enqueueSave): a continuation that
+  // resumes after a teardown finds a FRESH chain, and nothing more. The
+  // operation is neither cancelled nor generation-checked there, so this is the
+  // writer's guard — checked before the read AND after it, because the await is
+  // exactly where a teardown lands.
+  const core = createApi();
+  const drag = (harness) => {
+    const cells = headerOf(harness, core);
+    const box = cells[1].getBoundingClientRect();
+    harness.pointer("pointerdown", { target: cells[1], clientX: box.right - 1, clientY: box.top + 4 });
+    harness.pointer("pointermove", { clientX: box.right + 40, clientY: box.top + 4 });
+    harness.pointer("pointerup", { clientX: box.right + 40, clientY: box.top + 4 });
+  };
+
+  // 1. Torn down before the queue reaches the operation at all.
+  const early = createRuntimeHarness();
+  await early.flush();
+  const readsBefore = early.counts.editReads;
+  drag(early);
+  assert.equal(early.counts.writes, 0);
+  await early.changeSettings({ salesOrderColumnsEdit: false });
+  await early.tick();
+  assert.equal(early.counts.writes, 0, "a save outlived its own mount");
+  // Not even the READ happens: an operation that already knows its mount is gone
+  // has no business touching storage at all, which is what the check in front of
+  // the read buys over the one behind it.
+  assert.equal(early.counts.editReads, readsBefore, "an abandoned save still read storage");
+  assert.deepEqual(early.toasts, [], "an abandoned save is silent, not a failure");
+
+  // 2. Torn down while the operation is parked on its OWN storage read.
+  const parked = createRuntimeHarness();
+  await parked.flush();
+  parked.gateReads();
+  drag(parked);
+  await parked.tick();
+  assert.equal(parked.counts.writes, 0, "the operation should be parked on its read");
+  await parked.changeSettings({ salesOrderColumnsEdit: false });
+  parked.releaseRead();
+  await parked.tick();
+  assert.equal(parked.counts.writes, 0, "a save parked on its read wrote after its mount was gone");
+
+  // 3. Not vacuous: the identical gesture on a mount that is still standing
+  //    writes exactly once.
+  const standing = createRuntimeHarness();
+  await standing.flush();
+  drag(standing);
+  await standing.tick();
+  assert.equal(standing.counts.writes, 1);
+});
+
+test("teardown restores the native layout, drops a live gesture and forgets the widths", async () => {
+  const core = createApi();
+  const harness = createRuntimeHarness({
+    stored: { schemaVersion: 1, grids: { [SCOPE]: { widths: { rate: 240 } } } }
+  });
+  await harness.flush();
+  assert.equal(harness.table.style.tableLayout, "fixed");
+  const cells = headerOf(harness, core);
+  // A gesture is in flight when the teardown lands.
+  const box = cells[1].getBoundingClientRect();
+  harness.pointer("pointerdown", { target: cells[1], clientX: box.right - 1, clientY: box.top + 4 });
+  assert.deepEqual(harness.bodyClasses(), ["suitemate-v3-edit-grid-resizing"]);
+
+  harness.lifecycle.registration.cleanup({ reason: "paused" });
+  assert.deepEqual(plain(cells.map((cell) => cell.style.width)), ["", "", ""]);
+  assert.equal(harness.table.style.tableLayout, "");
+  assert.deepEqual(harness.documentListeners, [], "the drag pair survived a teardown");
+  assert.deepEqual(harness.bodyClasses(), [], "the drag cursor survived a teardown");
+  assert.equal(harness.counts.writes, 0, "teardown is not a save");
+  // A pointerup arriving after the teardown finds no gesture and writes nothing.
+  harness.pointer("pointerup", { clientX: box.right + 40, clientY: box.top + 4 });
+  await harness.tick();
+  assert.equal(harness.counts.writes, 0);
+  // And the remount re-reads storage rather than replaying a stale in-memory map.
+  await harness.run("resumed");
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["100px", "100px", "240px"]);
+  assert.equal(harness.counts.writes, 0);
+});
+
+test("every width apply hands core the pinned axis, and only teardown clears without one", () => {
+  // Adjudication #14: core.applyWidths is axis-TAKING. The brief predates it and
+  // has applyCurrentWidths calling with three arguments; that shape would refuse
+  // every active apply, because core fails closed on a missing axis.
+  const [applier] = runtimeSource.match(
+    / {2}function applyCurrentWidths\(table, columnIds, minimums\) \{[\s\S]*?\n {2}\}/
+  ) ?? [];
+  const [planner] = runtimeSource.match(/ {2}function plannedWidths\(\) \{[\s\S]*?\n {2}\}/) ?? [];
+  assert.equal(Boolean(applier), true, "applyCurrentWidths is no longer a named function in runtime.js");
+  assert.equal(Boolean(planner), true, "plannedWidths is no longer a named function in runtime.js");
+  const calls = [];
+  const cells = [{ style: { width: "" } }, { style: { width: "" } }, { style: { width: "" } }];
+  const table = { style: { tableLayout: "" } };
+  const sandbox = {
+    core: {
+      applyWidths: (target, widths, minimums, columnIds) => {
+        calls.push([target, widths, minimums, columnIds]);
+        // Stands in for core: freeze the header, flip the layout.
+        cells.forEach((cell, index) => {
+          cell.style.width = `${(widths ?? {})[columnIds[index]] ?? 100}px`;
+        });
+        table.style.tableLayout = widths ? "fixed" : "";
+        return true;
+      },
+      columnMinimums: (target, ids) => Object.fromEntries(ids.map((id) => [id, 0]))
+    },
+    headerCellsOf: () => cells,
+    columnWidths: { quantity: 160 },
+    frozenWidths: {}
+  };
+  sandbox.globalThis = sandbox;
+  runInNewContext(`${planner}\n${applier}\nglobalThis.run = applyCurrentWidths;`, sandbox);
+  const axis = ["item", "quantity", "rate"];
+
+  sandbox.run(table, axis);
+  assert.equal(calls[0].length, 4, "core.applyWidths is the four-argument, axis-TAKING signature");
+  assert.deepEqual(plain(calls[0][3]), axis, "the axis is the fourth argument");
+  assert.deepEqual(plain(calls[0][1]), { quantity: 160 });
+  assert.deepEqual(plain(calls[0][2]), { item: 0, quantity: 0, rate: 0 }, "measured, not omitted");
+  // The freezing apply — the one that took the machine out of its own layout —
+  // records what it froze for EVERY column, so a repaint that wipes the inline
+  // widths while table-layout:fixed survives it can be restored without
+  // re-measuring a table the browser has already redistributed.
+  assert.deepEqual(plain(sandbox.frozenWidths), { item: 100, quantity: 160, rate: 100 });
+
+  // A later apply runs against an already-fixed table and records NOTHING: a
+  // minimum measured there is inflated by the redistribution itself.
+  sandbox.columnWidths = { quantity: 300 };
+  sandbox.run(table, axis, { quantity: 180 });
+  assert.deepEqual(plain(calls[1][2]), { quantity: 180 }, "a caller that already measured is not made to measure twice");
+  assert.deepEqual(plain(calls[1][1]), { item: 100, quantity: 300, rate: 100 }, "the user's width wins over the frozen one");
+  assert.deepEqual(plain(sandbox.frozenWidths), { item: 100, quantity: 160, rate: 100 }, "a restore re-recorded the frozen set");
+
+  // With nothing the user set, core is handed null — the CLEAR shape, never a {}
+  // that would freeze a machine nobody has resized — and the frozen set goes too.
+  sandbox.columnWidths = {};
+  sandbox.run(table, axis);
+  assert.equal(calls[2][1], null);
+  assert.deepEqual(plain(sandbox.frozenWidths), {});
+
+  // The only other call site is the teardown clear, which carries no axis by
+  // design: the pin is dropped in the same function and a mount that can no
+  // longer key its columns must still be able to undo what it set.
+  assert.equal((runtimeSource.match(/core\.applyWidths\(/g) ?? []).length, 2);
+  const [teardown] = runtimeSource.match(/ {2}function removeEditGrid\(\) \{[\s\S]*?\n {2}\}/) ?? [];
+  assert.match(teardown, /core\.applyWidths\(table, null, \{\}\);/);
+  // Every axis that reaches an apply comes from the pin, never from core.
+  const [move] = runtimeSource.match(/ {2}function handleResizeMove\(event\) \{[\s\S]*?\n {2}\}/) ?? [];
+  assert.match(move, /currentColumnIds\(resizing\.table\)/);
+  assert.doesNotMatch(move, /core\.readColumnIds/);
+});
+
+test("typing into the permanent entry row reads as dirty, and an open line still governs", () => {
+  // THE M2 DECISION, pinned. isDirty()'s FOCUSED_ROW_SELECTOR is deliberately
+  // unqualified: the permanent entry row is always focused, so a user halfway
+  // through typing a new line reads as dirty — which is the mitigation, not the
+  // defect. It has no caller until M3, so this drives the SHIPPED predicate
+  // sliced out of runtime.js rather than a re-typed one.
+  const [predicate] = runtimeSource.match(/ {2}function isDirty\(\) \{[\s\S]*?\n {2}\}/) ?? [];
+  const [helper] = runtimeSource.match(/ {2}function fieldIsDirty\(field\) \{[\s\S]*?\n {2}\}/) ?? [];
+  assert.equal(Boolean(predicate), true, "isDirty is no longer a named function in runtime.js");
+  assert.equal(Boolean(helper), true, "fieldIsDirty is no longer a named function in runtime.js");
+  // The decision is recorded where it is implemented, not only in a report.
+  assert.match(predicate, /ENTRY-ROW DIRTINESS/);
+  const core = createApi();
+  const dirty = (rows) => {
+    const table = createTable(rows);
+    const sandbox = { core, activeTable: table, machineTable: () => table };
+    sandbox.globalThis = sandbox;
+    runInNewContext(`${helper}\n${predicate}\nglobalThis.result = isDirty();`, sandbox);
+    return sandbox.result;
+  };
+  const field = (value, defaultValue) => ({ tagName: "INPUT", value, defaultValue });
+  const focusedRow = (id, fields, extra = "") => {
+    const row = createRow({ id, className: `uir-machine-row uir-machine-row-focused ${extra}`.trim() });
+    row.querySelectorAll = () => fields;
+    return row;
+  };
+  const header = createRow({ className: "uir-machine-headerrow", cells: [createCell()] });
+  const entryPristine = focusedRow("", [field("", ""), field("1", "1")]);
+  const entryTyped = focusedRow("", [field("SKU-1", ""), field("1", "1")]);
+
+  assert.equal(dirty([header]), false, "no focused row at all");
+  assert.equal(dirty([header, entryPristine]), false, "an untouched entry row is not dirty");
+  assert.equal(dirty([header, entryTyped]), true, "typing into the permanent entry row reads as dirty");
+  // An open numbered line renders ABOVE the entry row, so it is the row
+  // querySelector finds first and the one that governs.
+  const openClean = focusedRow("item_row_2", [field("2", "2")], "listfocusedrow");
+  const openTyped = focusedRow("item_row_2", [field("9", "2")], "listfocusedrow");
+  assert.equal(dirty([header, openClean, entryTyped]), false);
+  assert.equal(dirty([header, openTyped, entryPristine]), true);
+});
+
 test("runtime owns no observer, no HTML sink and no View Mode storage", () => {
   assert.doesNotMatch(runtimeSource, /innerHTML|new MutationObserver|suiteMateV3ColumnOrder|SuiteMateV3SoColumnsCore/);
-  assert.doesNotMatch(runtimeSource, /chrome\.storage\.sync\.set/, "M1 performs no storage writes");
+  // M2 is the first milestone that writes. Exactly ONE write site, inside
+  // saveWidths, serialized through enqueueSave, and it writes only this
+  // feature's own key — "one gesture = exactly one write" is not measurable
+  // against a runtime with a second, unqueued writer somewhere else.
+  assert.equal((runtimeSource.match(/chrome\.storage\.sync\.set\(/g) ?? []).length, 1);
+  const [writer] = runtimeSource.match(/ {2}function saveWidths\(\) \{[\s\S]*?\n {2}\}/) ?? [];
+  assert.equal(Boolean(writer), true, "saveWidths is no longer a named function in runtime.js");
+  assert.match(writer, /await chrome\.storage\.sync\.set\(\{ \[core\.STORAGE_KEY\]: next \}\)/);
+  assert.match(writer, /return enqueueSave\(/);
+  assert.doesNotMatch(runtimeSource, /chrome\.storage\.local/);
   assert.match(runtimeSource, /startPaused: true/);
   assert.match(runtimeSource, /capability: routeApi\.CAPABILITIES\.TRANSACTION_COLUMN_PERSONALIZATION_EDIT/);
 });

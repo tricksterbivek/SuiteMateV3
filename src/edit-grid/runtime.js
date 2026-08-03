@@ -51,6 +51,30 @@
   let pendingApply = false;
   let installErrorLogged = false;
   let warnedNewerSchema = false;
+  // The widths THIS mount will apply, keyed by column id: seeded from the stored
+  // entry on install, replaced wholesale by a resize gesture, emptied on teardown.
+  // Only these are ever persisted.
+  let columnWidths = {};
+  // What the first freeze of this mount actually put on the header cells, for
+  // EVERY column — the user's and the ones that merely kept what they rendered.
+  // Session-only and never written to storage. Measured 2026-08-03 on the
+  // fixture: `table-layout: fixed` lives on the <table> and survives the <tbody>
+  // repaint, while the header cells' inline widths do not, so between a repaint
+  // and the next apply the browser redistributes the machine into equal columns.
+  // An apply that re-measured then would freeze THOSE — a 325px Description
+  // collapsed to 111px on the first repaint after a resize. Re-applying what was
+  // frozen while the machine still had its own layout is what makes widths
+  // survive a repaint at all.
+  let frozenWidths = {};
+  // The live gesture, or null. Never a cached column minimum — see handleResizeMove.
+  let resizing = null;
+  // Bumped by every teardown, captured by every save operation at ENQUEUE time.
+  // The queue's own reset (see enqueueSave) only guarantees that an operation
+  // resuming after a teardown finds a FRESH chain; it neither cancels the
+  // in-flight operation nor checks whose mount it belongs to. This is that
+  // check, and it is the writer's, exactly as the queue's comment says.
+  let mountGeneration = 0;
+  const RESIZE_EDGE_PX = 5;
 
   function showToast(message, type) {
     globalThis.SuiteMateV3Notifications?.showToast(message, { type });
@@ -186,6 +210,18 @@
   }
 
   function isDirty() {
+    // ENTRY-ROW DIRTINESS — decided at M2 Task 12, KEPT unqualified, and this is
+    // the record. FOCUSED_ROW_SELECTOR matches the permanent entry row too (live
+    // 2026-08-02: it is always present and always focused), so with no line open
+    // this answers about the entry row, and a user who has typed into it reads as
+    // dirty. That is the MITIGATION, not the defect: a half-typed new line is
+    // exactly the state that must not have an apply yank the table out from under
+    // it, and the cost of the alternative — qualifying the selector to numbered
+    // rows — is that mid-typing users get their layout rewritten under the caret.
+    // querySelector takes the FIRST focused row in document order, so an open
+    // numbered line (which renders above the entry row) still governs whenever
+    // there is one. Pinned behaviourally by "typing into the permanent entry row
+    // reads as dirty, and an open line still governs" in tests/edit-grid.test.mjs.
     const table = activeTable ?? machineTable();
     const openRow = table?.querySelector?.(core.FOCUSED_ROW_SELECTOR);
     if (!openRow) {
@@ -200,11 +236,241 @@
     return Array.from(table?.querySelectorAll?.(core.FOCUSED_ROW_SELECTOR) ?? []);
   }
 
+  // ===== Resize =====
+  function headerCellsOf(table) {
+    return core.visibleCells(core.headerRow(table));
+  }
+
+  function resizeEdgeCell(table, event) {
+    // A 5px zone on the right edge of a header cell. NetSuite's own field help
+    // lives on .listheader inside the cell, so anything outside this zone stays
+    // native (src/styles/netsuite.css:1616-1623).
+    for (const cell of headerCellsOf(table)) {
+      const rect = cell.getBoundingClientRect?.();
+      if (
+        rect
+        && event.clientX >= rect.right - RESIZE_EDGE_PX
+        && event.clientX <= rect.right + 1
+        && event.clientY >= rect.top
+        && event.clientY <= rect.bottom
+      ) {
+        return cell;
+      }
+    }
+    return null;
+  }
+
+  function columnIdOfHeaderCell(table, cell) {
+    // currentColumnIds, never core.readColumnIds: the pin is the only sanctioned
+    // axis read in this runtime (spec A1.2 rule 3, and the "every axis read goes
+    // through the pin" test), and a gesture keyed to a freshly derived axis would
+    // resize a different column than the one under the pointer.
+    const columnIds = currentColumnIds(table);
+    const cells = headerCellsOf(table);
+    const index = cells.indexOf(cell);
+    // The visible index is only a key while the axis and the rendered header are
+    // the same width — the very gate core.applyWidths refuses on. A 43-id axis
+    // indexed onto a 42-cell header caught mid-repaint would silently key the
+    // gesture to a neighbouring column.
+    if (index < 0 || cells.length !== columnIds.length) {
+      return null;
+    }
+    return columnIds[index] ?? null;
+  }
+
+  function handleResizeHover(event) {
+    const table = event.target?.closest?.(core.MACHINE_TABLE_SELECTOR);
+    if (!table || resizing) {
+      return;
+    }
+    const edge = resizeEdgeCell(table, event);
+    for (const cell of headerCellsOf(table)) {
+      cell.classList.toggle(core.CLASSES.resizeEdge, cell === edge);
+    }
+  }
+
+  function handleResizeLeave() {
+    // pointermove stops firing the moment the pointer leaves the container, so
+    // without this the edge marker (a 3px inset bar, edit-grid.css) stays painted
+    // on whichever cell was under the pointer as it left. Third delegated type,
+    // still one handler per type on the container — the rule is one listener per
+    // event type, not two events total.
+    if (resizing) {
+      return;
+    }
+    for (const cell of headerCellsOf(activeTable ?? machineTable())) {
+      cell.classList.remove(core.CLASSES.resizeEdge);
+    }
+  }
+
+  function handleResizeDown(event) {
+    try {
+      const table = event.target?.closest?.(core.MACHINE_TABLE_SELECTOR);
+      if (!table || event.button !== 0) {
+        return;
+      }
+      const cell = resizeEdgeCell(table, event);
+      const columnId = cell ? columnIdOfHeaderCell(table, cell) : null;
+      if (!cell || !columnId) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      // Prefer the applied style width: live NetSuite collapsed borders render
+      // ~2px over the style value and re-measuring rects would accumulate it.
+      const styleWidth = Number.parseInt(cell.style?.width ?? "", 10);
+      resizing = {
+        table,
+        columnId,
+        startX: event.clientX,
+        startWidth: Number.isFinite(styleWidth) ? styleWidth : cell.getBoundingClientRect().width
+      };
+      document.body?.classList?.add(core.CLASSES.resizing);
+      document.addEventListener("pointermove", handleResizeMove, true);
+      document.addEventListener("pointerup", handleResizeUp, true);
+    } catch {
+      handleResizeUp();
+    }
+  }
+
+  function handleResizeMove(event) {
+    if (!resizing) {
+      return;
+    }
+    const columnIds = currentColumnIds(resizing.table);
+    // MEASURED HERE, on every move, and never carried over from pointerdown.
+    // src/styles/netsuite.css:2999-3001 sizes a materialised widget at
+    // calc(100% - 21px) of its own cell, so a column minimum is a function of the
+    // width the column HAS when it is measured: a floor captured at pointerdown
+    // would sit 21px under the starting width and refuse every shrink for the
+    // rest of the gesture, and a floor cached across a line close would raise a
+    // later freeze by whatever the open line happened to be (task-11-report.md
+    // open item 2; the reviewer's +108px demonstration).
+    const minimums = core.columnMinimums(resizing.table, columnIds);
+    const next = core.clampWidth(
+      resizing.startWidth + (event.clientX - resizing.startX),
+      minimums[resizing.columnId]
+    );
+    columnWidths = { ...columnWidths, [resizing.columnId]: next };
+    applyCurrentWidths(resizing.table, columnIds, minimums);
+  }
+
+  function handleResizeUp() {
+    document.removeEventListener("pointermove", handleResizeMove, true);
+    document.removeEventListener("pointerup", handleResizeUp, true);
+    document.body?.classList?.remove(core.CLASSES.resizing);
+    if (!resizing) {
+      return;
+    }
+    resizing = null;
+    // One gesture, one write. Nothing else in this file writes storage.
+    saveWidths();
+  }
+
+  function plannedWidths() {
+    // The user's widths over the ones this mount froze. Nothing is planned at all
+    // until the user has set one: a machine nobody has resized keeps its own
+    // layout, which is what leaves the 28 screenshot baselines untouched.
+    return Object.keys(columnWidths).length ? { ...frozenWidths, ...columnWidths } : null;
+  }
+
+  function applyCurrentWidths(table, columnIds, minimums) {
+    // Adjudication #14: the axis is a PARAMETER of core.applyWidths and every
+    // apply hands it the pinned one — core never derives its own. The minimums
+    // default to a fresh measurement; the drag path passes the one it already
+    // measured for its own clamp so a move measures once rather than twice.
+    const planned = plannedWidths();
+    // Whether this apply is the one that takes the machine OUT of its own layout.
+    // Only that one may record what it froze: a later apply runs against a table
+    // the browser has already redistributed, and a minimum measured there is
+    // inflated by the redistribution itself (netsuite.css:2999-3001 sizes a
+    // widget at calc(100% - 21px) of its own cell, so a widget in a temporarily
+    // 120px-wide column measures 99px). Recording that would make a transient
+    // inflation permanent for the session — the reviewer's +108px demonstration.
+    const freezing = planned !== null && table?.style?.tableLayout !== "fixed";
+    const applied = core.applyWidths(
+      table,
+      planned,
+      minimums ?? core.columnMinimums(table, columnIds),
+      columnIds
+    );
+    if (!applied) {
+      return false;
+    }
+    if (planned === null) {
+      frozenWidths = {};
+    } else if (freezing) {
+      const frozen = {};
+      headerCellsOf(table).forEach((cell, index) => {
+        const id = columnIds[index];
+        const width = Number.parseInt(cell.style?.width ?? "", 10);
+        if (id && Number.isFinite(width) && width > 0) {
+          frozen[id] = width;
+        }
+      });
+      frozenWidths = frozen;
+    }
+    return true;
+  }
+
+  function applyWhileLineOpen(table, columnIds) {
+    // The queue-while-open rule (spec section 8) governs hide, filter, reorder
+    // and sort — every set that MOVES or REMOVES a row under the caret. Widths
+    // are the exception, and skipping them is the harm the rule exists to
+    // prevent: with `table-layout: fixed` still on the <table> and the header
+    // cells' inline widths gone with the repaint, an apply that does not run
+    // leaves the browser redistributing the machine into equal columns. Measured
+    // on the fixture: opening a line collapsed all twelve columns to 120px and
+    // they stayed collapsed until the line was closed. Re-applying the same
+    // pixels is invisible; skipping is the yank. pendingApply still latches, and
+    // it is what M3+ flushes for the sets that genuinely have to wait.
+    pendingApply = true;
+    applyCurrentWidths(table, columnIds);
+  }
+
+  function saveWidths() {
+    // Everything the operation needs is captured HERE, at enqueue time: the queue
+    // hands the operation `undefined` (the stored chain resolves to nothing and
+    // its rejections are swallowed), so nothing may be read off the chain, and
+    // module state read at run time would be the NEXT mount's, not this gesture's.
+    const generation = mountGeneration;
+    const scope = scopeKey;
+    const widths = Object.keys(columnWidths).length ? { ...columnWidths } : null;
+    return enqueueSave(async () => {
+      try {
+        // Checked twice — once before the read and once after it — because the
+        // await is where a teardown lands. Without this a gesture interrupted by
+        // a settings toggle, a pagehide or a remount would write the dead mount's
+        // widths, and with columnWidths already emptied it would write a CLEAR.
+        if (!scope || generation !== mountGeneration) {
+          return;
+        }
+        const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
+        if (generation !== mountGeneration) {
+          return;
+        }
+        const next = core.withWidths(stored[core.STORAGE_KEY], scope, widths);
+        if (!next) {
+          showToast("Column layout could not be saved.", "warning");
+          return;
+        }
+        await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
+      } catch {
+        showToast("Column layout could not be saved.", "warning");
+      }
+    });
+  }
+
   // ===== Delegated listeners (one per event type, on the container) =====
   const DELEGATED_LISTENERS = [
-    // M2 adds the resize pair, M3 the focusin reveal, M5 the control clicks,
-    // M6/M7 the header menu. Nothing is bound per row: rows are destroyed on
-    // every repaint and per-row binding is how duplicate handlers accumulate.
+    ["pointermove", handleResizeHover],
+    ["pointerleave", handleResizeLeave],
+    ["pointerdown", handleResizeDown]
+    // M3 adds focusin, M5 the control clicks, M6/M7 the header menu. Nothing is
+    // bound per row: rows are destroyed on every repaint and per-row binding is
+    // how duplicate handlers accumulate. The drag pair (pointermove/pointerup
+    // under capture) is bound on the document for the life of one gesture only,
+    // by handleResizeDown, and removed by handleResizeUp.
   ];
 
   function ensureBindings(container) {
@@ -278,36 +544,62 @@
     // Everything the runtime applies MUST appear here. An install whose current
     // signature already equals the target performs zero DOM and zero storage
     // writes — that is what makes "one gesture = exactly one write" testable.
-    return JSON.stringify({ ids: columnIds });
+    return JSON.stringify({
+      ids: columnIds,
+      layout: table?.style?.tableLayout ?? "",
+      widths: headerCellsOf(table).map((cell) => cell.style?.width ?? "")
+    });
   }
 
   function targetSignature(table, columnIds) {
-    void table;
-    return JSON.stringify({ ids: columnIds });
+    // The exact strings applyCurrentWidths WILL leave behind, computed the same
+    // way core.applyWidths computes them — stored width when there is one, the
+    // currently rendered width otherwise, clamped against a minimum measured
+    // right now, and NOT gated on a positive target: a zero-rendered column
+    // takes the clamp floor there (adjudication #15) and must take it here too.
+    // The two must not drift in either direction: a target core cannot reproduce
+    // means every install re-applies forever, and a target that overstates what
+    // core writes means an apply that is genuinely needed never runs.
+    const planned = plannedWidths();
+    const minimums = core.columnMinimums(table, columnIds);
+    return JSON.stringify({
+      ids: columnIds,
+      layout: planned ? "fixed" : "",
+      widths: headerCellsOf(table).map((cell, index) => {
+        if (!planned) {
+          return "";
+        }
+        const id = columnIds[index];
+        const stored = Number(planned[id]);
+        const rendered = Math.round(cell.getBoundingClientRect?.().width ?? 0);
+        const target = Number.isFinite(stored) && stored > 0 ? stored : rendered;
+        return `${core.clampWidth(target, minimums[id])}px`;
+      })
+    });
   }
 
   function applyAll(table, columnIds) {
-    // M2 appends applyCurrentWidths, M3 applyCurrentHidden, M6 applyCurrent
-    // Filters, M7 applyCurrentSort. M1 applies nothing: the foundation must be
-    // invisible so the 28 screenshot baselines cannot move.
-    void table;
-    void columnIds;
+    // M3 appends applyCurrentHidden, M6 applyCurrentFilters, M7 applyCurrentSort.
+    applyCurrentWidths(table, columnIds);
   }
 
   function queueApply(reason) {
-    if (isLineOpen()) {
-      // Hide/show, width and filter changes queue while a line is open and
-      // flush when it closes; reorder and sort are refused outright (M4/M7).
-      pendingApply = true;
-      return;
-    }
-    pendingApply = false;
+    // Read first, gate second: the open-line path applies the widths too and
+    // needs the same table and the same pinned axis the full apply would use.
     const table = machineTable();
     const columnIds = table ? currentColumnIds(table) : [];
     if (!table || columnIds.length < 2) {
       return;
     }
     activeTable = table;
+    if (isLineOpen()) {
+      // Hide/show and filter changes queue while a line is open and flush when it
+      // closes; reorder and sort are refused outright (M4/M7). Widths are applied
+      // — see applyWhileLineOpen.
+      applyWhileLineOpen(table, columnIds);
+      return;
+    }
+    pendingApply = false;
     applyAll(table, columnIds);
     void reason;
   }
@@ -350,6 +642,10 @@
         return true;
       }
       entry = core.normalizeStored(stored[core.STORAGE_KEY]).grids[scopeKey] ?? {};
+      // Storage is authoritative on every install, not only the first: installs
+      // are repaint-driven, and a copy that drifted from the stored entry would
+      // re-apply a width the user's last gesture had already replaced.
+      columnWidths = { ...(entry.widths ?? {}) };
       // Identity re-derivation: Add/Insert/Remove renumbers every row id and
       // _fs span, so identity is re-read here on every install and a surviving
       // stamp on a <td> is never trusted as identity.
@@ -369,7 +665,7 @@
         return true;
       }
       if (isLineOpen()) {
-        pendingApply = true;
+        applyWhileLineOpen(table, current);
         return true;
       }
       applyAll(table, current);
@@ -386,8 +682,17 @@
       const container = machineContainer(table);
       releaseBindings(container);
       clearAxisStamp(container);
-      // M2 appends core.applyWidths(table, null, {}), M3 the hidden reset, M6 the
-      // filter reset, M7 the native row-order restore.
+      // Dropped BEFORE handleResizeUp so the teardown takes the document drag
+      // listeners and the body cursor off without queueing a save for a mount
+      // that is being dismantled: a gesture cannot outlive its own mount.
+      resizing = null;
+      handleResizeUp();
+      // Three arguments deliberately (adjudication #14): the clear path needs no
+      // axis and must not, since the pin is dropped below and a mount that can no
+      // longer key its columns must still be able to undo what it set.
+      core.applyWidths(table, null, {});
+      columnWidths = {};
+      // M3 appends the hidden reset, M6 the filter reset, M7 the native row order.
     } catch {}
     for (const node of document.querySelectorAll(OWNED_SELECTOR)) {
       node.remove();
@@ -399,8 +704,15 @@
     axisMismatch = false;
     scopeKey = null;
     entry = {};
+    columnWidths = {};
+    frozenWidths = {};
+    resizing = null;
     pendingApply = false;
     warnedNewerSchema = false;
+    // Retires every save this mount enqueued. saveWidths captured the old value,
+    // so an operation the queue has not reached yet — or one parked on its own
+    // storage read — now finds a generation that moved and writes nothing.
+    mountGeneration += 1;
     // Module state like the eight above it, and it buys exactly one thing: an
     // operation queued before teardown that resumes AFTER it finds a fresh
     // queue and cannot chain the next mount's writes behind the old mount's.

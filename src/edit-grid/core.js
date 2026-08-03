@@ -811,7 +811,15 @@
         // value is lost, because a width storage can hold is already clamped to
         // [ABSOLUTE_MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH] before it is written.
         const target = Number.isFinite(stored) && stored > 0 ? stored : rendered;
-        if (target > 0 && cell.style) {
+        // No `target > 0` gate on the ASSIGNMENT (adjudication #15, closing the
+        // Task 11 review's zero-rendered minor): a header cell that measures 0 —
+        // and has no stored width to fall back on — would otherwise be the one
+        // column left at width:"" under fixed layout, which is the partial freeze
+        // this function exists to prevent. Zero falls through to clampWidth(0, …)
+        // and lands on the floor instead. The `stored > 0` guard above is
+        // untouched: that one keeps Number(null) === 0 from beating the rendered
+        // width, and it is pinned by its own mutation.
+        if (cell.style) {
           cell.style.width = `${clampWidth(target, minimums?.[id])}px`;
         }
       });
