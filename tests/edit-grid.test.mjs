@@ -1536,10 +1536,22 @@ test("ADJUDICATION #19: the reveal is unconditional — a stale class comes off 
   // a no-op everywhere except right here — and here it clears NETSUITE'S `none`,
   // the cell rejoins visibleCells, readColumnIds derives a LONGER axis, and that
   // axis keys storage on the next install. Shortening the axis (M5/M22) and
-  // lengthening it (M21, and this one) are the same defect wearing opposite
-  // signs — M21 is cited on the lengthening side because that is the side it is
-  // on: it clears NetSuite's own inline display and RESURRECTS a system cell
-  // onto the axis.
+  // lengthening it (M27, which is this state's mutation) are the same defect
+  // wearing opposite signs.
+  //
+  // M27 AND NOT M21, and the difference is the reason these two assertions exist
+  // at all. Both clear inline display on the reveal, but M21 clears it on EVERY
+  // cell in the sweep — so it wipes NetSuite's `none` off the system cells
+  // wholesale and dies instantly on the ordinary three-column snapshot. M27
+  // clears it only where it finds OUR OWN class: a strict subset, a no-op in
+  // every state the suite otherwise inspects, and it survived all 298 tests.
+  // Only M27 reaches the hazard, and only this fixture reaches M27.
+  //
+  // THE GENERAL RULE, because it is not about these two mutations: a mutation
+  // GUARDED BY "only where our own output already is" can be invisible to a suite
+  // that catches its unguarded twin. Mutation-proving that stops at the
+  // unguarded form proves the wrong thing. This state is what exposes the class —
+  // do not simplify it away.
   assert.equal(swapped.rows[1].cells[1].style.display, "none",
     "the reveal cleared NetSuite's OWN inline display");
   assert.equal(core.visibleCells(swapped.rows[1]).length, 2,
@@ -4186,6 +4198,23 @@ test("typing into the permanent entry row reads as dirty, and an open line still
 // get their first real callers here, so the seams M1/M2 could only slice are
 // stated behaviourally from now on (the standing slice -> behavioural
 // obligation).
+//
+// THIS FEATURE'S CHARACTERISTIC BLIND SPOT, stated here because every test below
+// is one of the answers to it. A mutation GUARDED BY "only where our own output
+// already is" can be invisible to a suite that catches its unguarded twin — M27
+// survived 298 tests while M21, its unguarded form, died on the first snapshot
+// (see the reveal test above). Every action in this runtime is scoped to where
+// our own output already is: the control bar, the chips, the force-reveal, the
+// flush. So anyone mutation-proving an edit here must construct the NARROWED
+// form and not stop at the obvious one.
+//
+// The two tests that carry most of that weight are "a mount that lands while a
+// line is open still shows the chips for what is stored" and "a hide requested
+// while a line is open is QUEUED…", because both live on the path where our
+// class is NOT rendered — a repaint has just destroyed it — which is precisely
+// where a narrowed mutation hides. Neither existed until the fixture found the
+// unexplained force-reveal; the unit harness could not reach that state, because
+// its repaint does not destroy classes. Keep them, and keep them on that path.
 function alignedRows(core, table) {
   return core.tableRows(table).filter((row) => core.alignsToHeader(row, EDIT_AXIS));
 }
