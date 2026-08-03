@@ -62,7 +62,25 @@ function plain(value) {
 // Rows carry extra system cells with inline display:none, _fs spans, an
 // item_row_N id, a machineButtonRow and a totals row — the shapes that make
 // every View Mode row predicate match zero rows (spec H1).
-function createCell({ text = "", spanId = null, systemHidden = false, width = 100, widget = 0 } = {}) {
+// What a cell RENDERS, as distinct from what was written on it. `rectDelta: null`
+// — the default — is the flat model every pre-M2 test was built on: the rect is a
+// constant, so nothing an apply writes can feed back into what the next apply
+// measures. A NUMBER makes the rect follow the inline width plus that many pixels,
+// which is what a real cell does (0 = border-box, 2 = this repo's own measured
+// collapsed-border figure, 11 = the View Mode observation). Without it no
+// edit-grid test could model the rect-follows-style feedback loop at all — the
+// same residual blindness diagnosed in the so-columns stub and fixed there first
+// (tests/so-columns.test.mjs createMeasuredTable), left here by oversight.
+function renderedWidth(cell) {
+  const styled = Number.parseInt(cell.style?.width ?? "", 10);
+  return cell.rectDelta === null || cell.rectDelta === undefined || !Number.isFinite(styled)
+    ? cell.offsetWidth
+    : styled + cell.rectDelta;
+}
+
+function createCell({
+  text = "", spanId = null, systemHidden = false, width = 100, widget = 0, rectDelta = null
+} = {}) {
   const classes = new Set();
   // The machine's materialised field widgets. Live 2026-08-02: only the OPEN line
   // carries them and they are materialised PER CELL, which is why columnMinimums
@@ -78,6 +96,7 @@ function createCell({ text = "", spanId = null, systemHidden = false, width = 10
     textContent: text,
     style: { display: systemHidden ? "none" : "", width: "" },
     offsetWidth: width,
+    rectDelta,
     // Delegated handlers reach the machine through event.target.closest(), so a
     // cell has to know its own table exactly as a real <td> does. createTable
     // adopts every cell it is handed; a cell built after the fact has no owner
@@ -98,7 +117,7 @@ function createCell({ text = "", spanId = null, systemHidden = false, width = 10
         return on;
       }
     },
-    getBoundingClientRect: () => ({ width }),
+    getBoundingClientRect: () => ({ width: renderedWidth(cell) }),
     classNames: () => Array.from(classes),
     querySelector: (selector) => (spanId && selector.includes("_fs") ? { id: spanId } : null),
     querySelectorAll: (selector) => (String(selector).includes("input") ? widgets : [])
@@ -118,16 +137,17 @@ function layoutCells(cells, { top = 0, height = 20 } = {}) {
       cell.getBoundingClientRect = () => ({ width: 0, height: 0, left, right: left, top, bottom: top });
       continue;
     }
-    const box = {
-      width: cell.offsetWidth,
-      height,
-      left,
-      right: left + cell.offsetWidth,
-      top,
-      bottom: top + height
+    // The left edge is fixed at layout time; the width and the right edge are
+    // read live. A cached box would be wrong for a rect-following cell — caching
+    // is exactly what would hide the feedback loop renderedWidth exists to model —
+    // and is indistinguishable from live for a flat one, whose renderedWidth is
+    // just its offsetWidth. One path, so there is no branch to get wrong.
+    const at = left;
+    cell.getBoundingClientRect = () => {
+      const measured = renderedWidth(cell);
+      return { width: measured, height, left: at, right: at + measured, top, bottom: top + height };
     };
-    cell.getBoundingClientRect = () => ({ ...box });
-    left += cell.offsetWidth;
+    left += renderedWidth(cell);
   }
 }
 
@@ -243,16 +263,20 @@ function createTable(rows, { id = "item_splits", className = "uir-machine-table"
 // columnMinimums floor on every single apply — not only while a numbered line is
 // open. Every column defaults to 0, which is the pre-M2 model, so no existing
 // test changes shape.
+// `rectDelta` is threaded to the HEADER cells only — they are the only cells
+// core.applyWidths writes to, so they are the only place a written width can feed
+// back into a later measurement. See renderedWidth.
 function createMachine({
-  lines = 2, className, container = null, spans = true, duplicate = false, form = null, widgets = {}
+  lines = 2, className, container = null, spans = true, duplicate = false, form = null,
+  widgets = {}, rectDelta = null
 } = {}) {
   const header = createRow({
     className: "uir-machine-headerrow",
     cells: [
-      createCell({ text: "Item" }),
-      createCell({ text: "Quantity" }),
-      createCell({ text: "Rate" }),
-      createCell({ text: "", systemHidden: true })
+      createCell({ text: "Item", rectDelta }),
+      createCell({ text: "Quantity", rectDelta }),
+      createCell({ text: "Rate", rectDelta }),
+      createCell({ text: "", systemHidden: true, rectDelta })
     ]
   });
   const dataRows = Array.from({ length: lines }, (_, index) => {
@@ -1086,6 +1110,82 @@ test("applies widths to header cells only, clamped to the static bounds, and res
   );
   assert.deepEqual(plain(header.map((cell) => cell.style.width)), ["", "", ""]);
   assert.equal(table.style.tableLayout, "");
+});
+
+test("applyWidths is idempotent under a TOTAL plan, and walks the columns a PARTIAL plan omits", () => {
+  // M2 Task 13a review, Important #2. The D1 fix made an apply a pure function of
+  // the widths it is HANDED — but a column the plan does not name still falls back
+  // to `rendered`, and `rendered` is a border box that includes what the inline
+  // width does not. Apply twice with a partial plan and that column grows by the
+  // difference every time: the same shape as the so-columns defect this task
+  // escalated, sitting in our own core, and stated unconditionally in the comment
+  // until this test was written.
+  //
+  // Production never hits it because plannedWidths() is TOTAL from the freezing
+  // apply onward. That is a runtime property, so it is asserted here as a
+  // PRECONDITION rather than assumed away.
+  const core = createApi();
+  const columnIds = ["item", "quantity", "rate"];
+  const naturals = [120, 90, 100];
+  const build = (rectDelta) => {
+    const table = createMachine();
+    table.rows[0].cells.forEach((cell, index) => {
+      if (index < naturals.length) {
+        cell.offsetWidth = naturals[index];
+        cell.rectDelta = rectDelta;
+      }
+    });
+    return table;
+  };
+  const applyFourTimes = (table, plan) => {
+    const seen = [];
+    for (let round = 0; round < 4; round += 1) {
+      assert.equal(core.applyWidths(table, plan, {}, columnIds), true);
+      seen.push(plain(core.visibleCells(table.rows[0]).map((cell) => cell.style.width)));
+    }
+    return seen;
+  };
+
+  // A TOTAL plan is idempotent at every delta — including the two that model a
+  // real cell. This is the property the runtime actually relies on.
+  for (const rectDelta of [0, 2, 11]) {
+    const total = applyFourTimes(build(rectDelta), { item: 120, quantity: 160, rate: 100 });
+    assert.deepEqual(total, new Array(4).fill(["120px", "160px", "100px"]),
+      `a total plan drifted at rectDelta ${rectDelta}`);
+  }
+
+  // rectDelta 0 — the rect equals the inline width, so even a partial plan is
+  // stable. This isolates the cause: it is the border-box excess, not the
+  // fallback itself.
+  assert.deepEqual(
+    applyFourTimes(build(0), { quantity: 160 }),
+    new Array(4).fill(["120px", "160px", "100px"]),
+    "with rect == style even a partial plan must be stable"
+  );
+
+  // rectDelta 2 and 11 — the unnamed columns walk, by exactly the delta, every
+  // apply. The NAMED column never moves: it is read from the plan, not the
+  // rendering, which is what makes this a fallback defect and not a clamp defect.
+  const twoPx = applyFourTimes(build(2), { quantity: 160 });
+  assert.deepEqual(twoPx.map((widths) => widths[0]), ["120px", "122px", "124px", "126px"]);
+  assert.deepEqual(twoPx.map((widths) => widths[2]), ["100px", "102px", "104px", "106px"]);
+  assert.deepEqual(twoPx.map((widths) => widths[1]), new Array(4).fill("160px"),
+    "the column the plan names must not move at all");
+
+  const elevenPx = applyFourTimes(build(11), { quantity: 160 });
+  assert.deepEqual(elevenPx.map((widths) => widths[0]), ["120px", "131px", "142px", "153px"]);
+  assert.deepEqual(elevenPx.map((widths) => widths[1]), new Array(4).fill("160px"));
+
+  // THE PRECONDITION, asserted rather than assumed: the runtime's own planner
+  // yields a plan that names every column on the axis once a freeze has happened,
+  // so the partial-plan path above is unreachable from the second apply onward.
+  const [planner] = runtimeSource.match(/ {2}function plannedWidths\(\) \{[\s\S]*?\n {2}\}/) ?? [];
+  assert.equal(Boolean(planner), true, "plannedWidths is no longer a named function in runtime.js");
+  const sandbox = { frozenWidths: { item: 120, quantity: 160, rate: 100 }, columnWidths: { quantity: 160 } };
+  sandbox.globalThis = sandbox;
+  runInNewContext(`${planner}\nglobalThis.result = plannedWidths();`, sandbox);
+  assert.deepEqual(Object.keys(plain(sandbox.result)).sort(), [...columnIds].sort(),
+    "plannedWidths stopped naming every column — the partial-plan walk above becomes reachable");
 });
 
 test("applyWidths' minimums parameter is provably inert — nothing passed there can move a width", () => {
@@ -2767,8 +2867,15 @@ test("a restore never widens a column nobody dragged, and re-applying it writes 
   // machine is built — the live shape, because NetSuite's entry row is permanent
   // and always materialised, so the floor is there on EVERY apply. Nobody ever
   // drags rate in this test. Live, that column class went 72 -> 111 -> 174px.
+  //
+  // `rectDelta: 2` runs the WHOLE test with header cells whose rect is two pixels
+  // over whatever was written on them — this repo's own measured collapsed-border
+  // figure. That closes the second feedback loop end-to-end through the runtime:
+  // not just "a floor must not widen a column" but "nothing an apply writes may
+  // come back as the next apply's input", which is the general form of D1 and of
+  // the so-columns defect this task escalated.
   const core = createApi();
-  const harness = createRuntimeHarness({ machine: { widgets: { rate: 260 } } });
+  const harness = createRuntimeHarness({ machine: { widgets: { rate: 260 }, rectDelta: 2 } });
   await harness.flush();
   assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["", "", ""],
     "a machine nobody has resized keeps its own layout");

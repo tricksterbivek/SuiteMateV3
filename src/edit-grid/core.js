@@ -862,13 +862,35 @@
         // dragged. frozenWidths could not stop it — the freezing gate in
         // applyCurrentWidths guards RECORDING, not APPLYING.
         //
-        // The invariant this restores: an apply is a PURE FUNCTION of the widths
-        // it is handed. It never widens a column the user did not drag, and two
-        // consecutive applies of the same plan leave byte-identical style.width
-        // on every cell. The widget floor still exists, at the only place a width
-        // is actually CHOSEN — handleResizeMove's clamp — so a user cannot drag a
-        // column under its own widget, and what reaches storage is already
-        // floored at the moment the choice was made.
+        // The invariant this restores, stated with its precondition because it is
+        // NOT unconditional (M2 Task 13a review, Important #2): for every column
+        // the plan NAMES, an apply is a pure function of the widths it is handed —
+        // it never widens such a column, and two consecutive applies of the same
+        // plan leave byte-identical style.width on it.
+        //
+        // A column the plan does NOT name takes `rendered` on the line above, and
+        // `rendered` is a border box that includes whatever the inline width does
+        // not — so if this function is called twice with a plan that omits a
+        // column, that column grows by the difference each time. Measured: plan
+        // {quantity:160}, naturals [120,90,100], four applies, rect 2px over the
+        // inline value -> item 120/122/124/126; at 11px -> 120/131/142/153. It is
+        // the same shape as the so-columns defect this task escalated, and it is
+        // pinned by its own test rather than left as a claim.
+        //
+        // PRODUCTION IS SAFE BECAUSE THE PLAN IS TOTAL, and that is a property the
+        // runtime maintains, not luck: plannedWidths() is {...frozenWidths,
+        // ...columnWidths}, and the FREEZING apply records frozenWidths for EVERY
+        // header cell (adjudication #15 made the assignment unconditional, so
+        // every cell has a parseable width to record). The only apply that sees a
+        // partial plan is therefore the first one, where falling back to the
+        // rendered width is the intended behaviour — the freeze itself. Any future
+        // caller that can apply a partial plan TWICE reopens this, so it must
+        // bring its own total-plan guarantee.
+        //
+        // The widget floor still exists, at the only place a width is actually
+        // CHOSEN — handleResizeMove's clamp — so a user cannot drag a column under
+        // its own widget, and what reaches storage is already floored at the
+        // moment the choice was made.
         if (cell.style) {
           cell.style.width = `${clampWidth(target, 0)}px`;
         }
