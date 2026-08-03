@@ -780,11 +780,27 @@
   // is the A1.2 rule-4 back door and must not exist. An active apply with no
   // usable axis fails closed instead.
   //
-  // `minimums` is parameter 3 because adjudication #14 ruled this signature, and
-  // it is deliberately NOT read: see the clamp below. Retained rather than
-  // removed so #14's shape — and the three call-site pins that assert it — stand
-  // unchanged; a caller that still measures a floor is neither obeyed nor
-  // punished here, because the floor is not this function's to apply.
+  // `minimums` is parameter 3 and IS DELIBERATELY NEVER READ (adjudication #17).
+  // It is retained, not removed, for three reasons:
+  //
+  //   1. SIGNATURE STABILITY. Adjudication #14 ruled this four-argument shape,
+  //      and three call-site pins assert it. Reversing a ruled signature is a
+  //      doctrine change and needs its own adjudication, not a quiet edit.
+  //   2. ARITY COLLISION — the decisive one. The clear path is called as
+  //      `applyWidths(table, null, {})` with no axis at all. Drop parameter 3
+  //      and any surviving three-argument call silently feeds `columnIds` into
+  //      the minimums slot: a positional shift that type-checks, throws nothing,
+  //      and mis-keys every column. That is the exact bug class this milestone
+  //      was spent on.
+  //   3. It costs one unread parameter, against a silent-failure mode.
+  //
+  // WHAT A FUTURE READER MUST NOT CONCLUDE: that floors still apply here. They
+  // do not. An apply clamps to the static bounds only (see the clamp below);
+  // the per-column widget floor lives at handleResizeMove, where a width is
+  // CHOSEN. This slot is inert, and that inertness is PINNED BY TEST — a hostile
+  // or huge minimums map provably changes nothing this function writes.
+  // Re-admitting an apply-time floor through this slot requires a FRESH
+  // ADJUDICATION, because doing it silently is precisely how defect D1 happened.
   function applyWidths(table, widths, minimums, columnIds) {
     try {
       const header = headerRow(table);

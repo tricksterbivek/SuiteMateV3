@@ -1088,6 +1088,68 @@ test("applies widths to header cells only, clamped to the static bounds, and res
   assert.equal(table.style.tableLayout, "");
 });
 
+test("applyWidths' minimums parameter is provably inert — nothing passed there can move a width", () => {
+  // ADJUDICATION #17. Parameter 3 stays (it holds #14's ruled arity, and dropping
+  // it would let a surviving three-argument call — the clear path is
+  // `applyWidths(table, null, {})` — slide columnIds into the minimums slot and
+  // mis-key every column silently). This is the pin that keeps it HARMLESS:
+  // whatever a caller puts there, the widths written are a function of
+  // (table, widths, columnIds) alone. Without it, an apply-time floor could be
+  // reintroduced through the slot later and nothing would notice — which is
+  // exactly how defect D1 reached a live gate.
+  const core = createApi();
+  const columnIds = ["item", "quantity", "rate"];
+  const widths = { item: 240, quantity: 60, rate: 20 };
+
+  // The control: the empty map every apply call site actually passes.
+  const control = createMachine();
+  control.rows[1].cells[1] = createCell({ text: "2", spanId: "item_quantity1_fs", widget: 180 });
+  assert.equal(core.applyWidths(control, widths, {}, columnIds), true);
+  const expected = plain(core.visibleCells(control.rows[0]).map((cell) => cell.style.width));
+  // Not vacuous: a real apply happened and the numbers are the plan's, clamped
+  // only to the static bounds (rate's 20 floored at the absolute 50px).
+  assert.deepEqual(expected, ["240px", "60px", "50px"]);
+
+  // Every one of these must leave byte-identical output. The measured map is the
+  // real one this machine yields (quantity: 180) — the floor that used to widen
+  // the column; the rest are hostile shapes a future caller might hand over.
+  const hostile = [
+    ["a real measured map", core.columnMinimums(control, columnIds)],
+    ["a huge floor on every column", { item: 5000, quantity: 5000, rate: 5000 }],
+    ["a floor above the maximum", { item: Number.MAX_SAFE_INTEGER }],
+    ["negative and zero floors", { item: -400, quantity: 0, rate: -1 }],
+    ["poisoned numbers", { item: Number.NaN, quantity: Number.POSITIVE_INFINITY, rate: "abc" }],
+    ["floors keyed by index rather than id", { 0: 5000, 1: 5000, 2: 5000 }],
+    ["null and undefined", null],
+    ["undefined", undefined],
+    ["not an object at all", "quantity:5000"],
+    ["an array", [5000, 5000, 5000]],
+    ["a map whose lookups throw", new Proxy({}, { get() { throw new Error("hostile"); } })]
+  ];
+  for (const [label, minimums] of hostile) {
+    const table = createMachine();
+    table.rows[1].cells[1] = createCell({ text: "2", spanId: "item_quantity1_fs", widget: 180 });
+    assert.equal(core.applyWidths(table, widths, minimums, columnIds), true, `${label}: the apply was refused`);
+    assert.deepEqual(
+      plain(core.visibleCells(table.rows[0]).map((cell) => cell.style.width)),
+      expected,
+      `${label}: parameter 3 moved a width`
+    );
+    assert.equal(table.style.tableLayout, "fixed", `${label}: the layout flip changed`);
+  }
+
+  // The same holds on the rendered-fallback path, where there is no stored width
+  // to dominate the floor — the case a re-admitted floor would bite first.
+  const unplanned = createMachine();
+  unplanned.rows[1].cells[1] = createCell({ text: "2", spanId: "item_quantity1_fs", widget: 180 });
+  assert.equal(core.applyWidths(unplanned, { item: 240 }, { quantity: 5000, rate: 5000 }, columnIds), true);
+  assert.deepEqual(
+    plain(core.visibleCells(unplanned.rows[0]).map((cell) => cell.style.width)),
+    ["240px", "100px", "100px"],
+    "an unplanned column took a floor instead of what it renders"
+  );
+});
+
 test("applyWidths keys widths by the axis it is handed, never by one it derives", () => {
   const core = createApi();
   const table = createLiveMachine();
