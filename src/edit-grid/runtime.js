@@ -484,6 +484,28 @@
   }
 
   function rememberNaturalWidths(table, columnIds) {
+    // ONCE THE MACHINE HAS LEFT ITS OWN LAYOUT, NOTHING HERE IS MEASURABLE. This
+    // is the same window frozenWidths documents above (:58-67) and the same one
+    // its `freezing` gate refuses in: after a repaint the header's inline widths
+    // are gone but `table-layout: fixed` survives on the <table>, so the browser
+    // has redistributed the machine into equal columns and every cell reports a
+    // number that is OUR layout's, not NetSuite's.
+    //
+    // Without this the class guard below is not enough and was measured not to
+    // be — CRITICAL from the Task 16 review, D1's laundering shape reaching
+    // storage for the third time. The repaint takes the header row with the
+    // tbody, so OUR CLASS IS GONE too: the guard cannot fire, the redistribution
+    // width overwrites the natural one, and for a column hidden at freeze time
+    // frozenWidths is empty by #20's own exclusion, so nothing masks it and the
+    // plan hands core the redistribution. Live shape: 74 natural, 62 after a
+    // repaint, and a +10 drag then storing 72 where the truth is 84.
+    //
+    // This makes the code match this map's own definition — "the width each
+    // column had the last time this mount saw it NOT hidden" is only meaningful
+    // while the machine still owns its layout.
+    if (table?.style?.tableLayout === "fixed") {
+      return;
+    }
     // Measured ONLY where we are not hiding, which is what makes this a record of
     // NetSuite's own layout rather than of ours. Runs before the hide pass of the
     // same apply (see applyAll), so on a fresh mount every column is recorded

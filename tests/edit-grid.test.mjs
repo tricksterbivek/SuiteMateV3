@@ -3502,10 +3502,22 @@ test("stored widths are restored on install, applied through the pinned axis, an
 // the machine into equal columns, so `rendered` reads the redistribution rather
 // than the machine's own layout; the stub models that by re-rendering every
 // column at the same width.
+// NetSuite regenerating the machine. Live, buildtable() replaces the whole
+// <tbody> and the header row goes with it, so THREE things are true at once and
+// all three matter: the header's inline widths are gone, `table-layout: fixed`
+// survives on the <table> (so the browser has redistributed the columns
+// equally), and EVERY class this feature applied is gone with the nodes that
+// carried it. The third was missing here until the Task 16 review, and its
+// absence is what let a measurement taken in this window look guarded.
 function repaintHeader(harness, core, width = 120) {
   for (const cell of core.visibleCells(core.headerRow(harness.table))) {
     cell.style.width = "";
     cell.offsetWidth = width;
+  }
+  for (const row of core.tableRows(harness.table)) {
+    for (const cell of Array.from(row.cells ?? [])) {
+      cell.classList.remove(HIDDEN_CLASS);
+    }
   }
   layoutCells(harness.table.rows[0].cells);
 }
@@ -4444,6 +4456,61 @@ test("ADJUDICATION #20: a width is never planned from a column we are hiding", a
     "a drag on a revealed column seeded from the floor instead of its own width");
 });
 
+test("ADJUDICATION #20 SURVIVES A REPAINT — no width is ever measured once the machine left its own layout", async () => {
+  // CRITICAL from the Task 16 review, and D1's laundering shape reaching storage
+  // for the THIRD time. #20's first form held with no repaint (74 -> 74) and
+  // failed after one (74 -> 62), because rememberNaturalWidths ran inside the
+  // exact post-repaint window frozenWidths' own comment documents as poisoned:
+  // the header's inline widths are gone, `table-layout: fixed` survives on the
+  // <table> so the browser has redistributed the columns equally, and OUR CLASS
+  // IS GONE with the nodes that carried it — so the class guard never fires and
+  // the redistribution width overwrites the natural one. For a visible column
+  // frozenWidths masks it; for a hidden one #20's own freeze exclusion emptied
+  // frozenWidths, so nothing masks it and the plan hands core the redistribution.
+  //
+  // 313/313 passed with the defect live. The suite could not see it, which is
+  // why this test drives the sequence rather than the state.
+  const core = createApi();
+  const harness = createRuntimeHarness();
+  await harness.flush();
+  const natural = plain(headerOf(harness, core).map((cell) => Math.round(cell.getBoundingClientRect().width)));
+  assert.deepEqual(natural, [100, 100, 100]);
+
+  await toggleColumn(harness, "quantity", false);
+  const cells = headerOf(harness, core);
+  const box = cells[2].getBoundingClientRect();
+  harness.pointer("pointerdown", { target: cells[2], clientX: box.right - 1, clientY: box.top + 4 });
+  harness.pointer("pointermove", { clientX: box.right - 1 + 40, clientY: box.top + 4 });
+  harness.pointer("pointerup", { clientX: box.right - 1 + 40, clientY: box.top + 4 });
+  await harness.tick();
+  assert.equal(harness.table.style.tableLayout, "fixed");
+
+  // THE REPAINT. 62px is a redistribution — not what any column chose, and not
+  // what any column was. It is the number the poisoned read would capture.
+  repaintHeader(harness, core, 62);
+  assert.equal(harness.table.style.tableLayout, "fixed", "the fixed layout must survive the tbody swap");
+  await harness.run("repaint");
+
+  // The hidden column comes back at what it MEASURED when the machine still had
+  // its own layout, never at the redistribution.
+  harness.click(harness.owned("chip")[0]);
+  await harness.tick();
+  assert.deepEqual(hiddenHeader(core, harness), [false, false, false]);
+  assert.equal(headerOf(harness, core)[1].style.width, "100px",
+    "the revealed column came back at a width measured after the machine left its own layout");
+
+  // And the storage half: a drag on it stores what the user chose, from its own
+  // width — ground truth 100 + 10.
+  const revealed = headerOf(harness, core)[1];
+  const rect = revealed.getBoundingClientRect();
+  harness.pointer("pointerdown", { target: revealed, clientX: rect.right - 1, clientY: rect.top + 4 });
+  harness.pointer("pointermove", { clientX: rect.right - 1 + 10, clientY: rect.top + 4 });
+  harness.pointer("pointerup", { clientX: rect.right - 1 + 10, clientY: rect.top + 4 });
+  await harness.tick();
+  assert.equal(plain(harness.writes.at(-1)[EDIT_STORAGE_KEY].grids[SCOPE].widths).quantity, 110,
+    "a drag on the revealed column seeded from a post-repaint measurement");
+});
+
 test("the Columns menu fails closed on a machine whose axis cannot be read", async () => {
   // The same usability gate the install fails closed on, at the one control that
   // can be clicked after the machine has moved underneath us. A menu built
@@ -4606,6 +4673,25 @@ test("FORCE-REVEAL reaches the permanent entry row, including a row whose only e
   await harness.run("entry-row-cleared");
   assert.deepEqual(hiddenHeader(core, harness), [false, true, false]);
   assert.equal(harness.counts.writes, 0);
+
+  // AND RADIO, which is the other half of the same defect and was uncovered:
+  // `defaultValue` on a radio is its value attribute too, so a mutation that
+  // keeps the checkbox fix and reverts ONLY radio survived the entire suite —
+  // there was no radio anywhere in this file. A machine whose only entry-row
+  // edit is a radio would read clean, and the columns that half-typed line needs
+  // would stay hidden, which is precisely what rule 7 exists to prevent now that
+  // isDirty is load-bearing for the force-reveal.
+  const dial = { tagName: "INPUT", type: "radio", value: "b", defaultValue: "b", checked: true, defaultChecked: false };
+  harness.table.rows[3].querySelectorAll = () => [dial];
+  await harness.run("entry-row-radio");
+  assert.deepEqual(hiddenHeader(core, harness), [false, false, false],
+    "a new line whose only edit is a radio kept the columns it still needs hidden");
+  assert.equal(harness.counts.writes, 0);
+  // Both types read through `checked`, so a radio the user has NOT moved is
+  // clean even though its value and defaultValue differ from the ticked one.
+  harness.table.rows[3].querySelectorAll = () => [{ ...dial, checked: false, defaultChecked: false }];
+  await harness.run("entry-row-radio-pristine");
+  assert.deepEqual(hiddenHeader(core, harness), [false, true, false]);
 });
 
 test("A3.2: the menu's tick seeds from the STORED set, never from what the column renders", async () => {
@@ -4850,16 +4936,19 @@ test("forcedRows delivers the dirty half its comment promises, not only the focu
   const [helper] = runtimeSource.match(/ {2}function fieldIsDirty\(field\) \{[\s\S]*?\n {2}\}/) ?? [];
   assert.equal(Boolean(predicate), true, "forcedRows is no longer a named function in runtime.js");
 
-  const focused = focusLine(harness, { line: 1, fields: [] });
-  // Row 2 is NOT focused and carries an edited field.
-  const unfocusedDirty = harness.table.rows[2];
+  // The DIRTY row is put FIRST and the focused row second, deliberately: with
+  // the focused row first, `[...focused, ...dirty]` and document order agree and
+  // the ordering claim is unpinned. This arrangement is the only one that can
+  // tell them apart.
+  const unfocusedDirty = harness.table.rows[1];
   unfocusedDirty.querySelectorAll = () => [{ tagName: "INPUT", value: "9", defaultValue: "2" }];
+  const focused = focusLine(harness, { line: 2, fields: [] });
   const sandbox = { core, activeTable: harness.table, machineTable: () => harness.table };
   sandbox.globalThis = sandbox;
   runInNewContext(`${helper}\n${scan}\n${predicate}\nglobalThis.result = forcedRows();`, sandbox);
   assert.equal(sandbox.result.length, 2, "forcedRows missed a row it promises to exempt");
-  assert.equal(sandbox.result[0], focused);
-  assert.equal(sandbox.result[1], unfocusedDirty, "the dirty half is still only a comment");
+  assert.equal(sandbox.result[0], unfocusedDirty, "the dirty half is still only a comment");
+  assert.equal(sandbox.result[1], focused, "forcedRows returned focused-then-dirty, not DOCUMENT order");
 
   // A pristine unfocused row is not forced — otherwise every row is exempt and
   // the set means nothing.
