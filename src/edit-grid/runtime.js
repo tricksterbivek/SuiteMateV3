@@ -227,6 +227,25 @@
     }
   }
 
+  function stampAxis(container, columnIds) {
+    // Publishes the axis THIS mount pinned onto the bound container, where a
+    // MAIN-world probe can read it (core.AXIS_ATTRIBUTE carries the reasoning
+    // for why that discloses nothing the page does not already hold). Written
+    // only when the value changes: installs are repaint-driven and the pin
+    // cannot change without a teardown, so this is one write per mount.
+    const value = columnIds.join(",");
+    if (container.getAttribute(core.AXIS_ATTRIBUTE) !== value) {
+      container.setAttribute(core.AXIS_ATTRIBUTE, value);
+    }
+  }
+
+  function clearAxisStamp(container) {
+    // The teardown sweep below removes owned NODES; this stamp sits on the
+    // machine's own container, which we do not own and must not remove, so it
+    // comes off by name — exactly like BOUND_ATTRIBUTE.
+    container?.removeAttribute?.(core.AXIS_ATTRIBUTE);
+  }
+
   function ensureMountMarker(container) {
     if (container.querySelector(`:scope > [${core.DATA_ATTRIBUTE}="mount"]`)) {
       return;
@@ -305,6 +324,7 @@
       scopeKey = resolveScopeKey();
       ensureMountMarker(container);
       ensureBindings(container);
+      stampAxis(container, columnIds);
       const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
       if (signal.aborted || !isCurrent() || !table.isConnected) {
         return false;
@@ -324,6 +344,17 @@
       // _fs span, so identity is re-read here on every install and a surviving
       // stamp on a <td> is never trusted as identity.
       const current = currentColumnIds(table);
+      // This second read sits AFTER an awaited storage read, so a repaint that
+      // lands mid-await can change the machine's own axis, latch the mismatch
+      // and answer [] on an install whose first read succeeded. Today the two
+      // signatures below agree on an empty axis and return before applyAll; the
+      // moment M2 gives targetSignature real content they diverge and
+      // applyAll(table, []) — an apply keyed to no columns — becomes reachable.
+      // Refuse here instead. The mount stands: the marker, the bindings and the
+      // stored entry are already in place, and the next repaint re-reads.
+      if (current.length < 2) {
+        return true;
+      }
       if (renderSignature(table, current) === targetSignature(table, current)) {
         return true;
       }
@@ -342,7 +373,9 @@
   function removeEditGrid() {
     try {
       const table = activeTable ?? machineTable();
-      releaseBindings(machineContainer(table));
+      const container = machineContainer(table);
+      releaseBindings(container);
+      clearAxisStamp(container);
       // M2 appends core.applyWidths(table, null, {}), M3 the hidden reset, M6 the
       // filter reset, M7 the native row-order restore.
     } catch {}

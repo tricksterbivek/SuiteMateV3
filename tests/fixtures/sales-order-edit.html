@@ -126,7 +126,14 @@
         // ENQ appears in it on SOME line: a synthetic line without ENQ would
         // silently re-admit unitslist and pricelevels as columns and change the
         // very axis this fixture exists to pin.
-        function makeLine({ code, itemId, description, available, quantity, rate, amount }) {
+        function makeLine({
+          code, itemId, description, available, quantity, rate, amount,
+          // Threaded, not hardcoded: live line 2 carries a DIFFERENT price-level
+          // option list from line 1, and hardcoding line 1's broke the
+          // byte-identity the comment below claims. The default is line 1's own
+          // value, so every generated line still carries an ENQ list.
+          pricelevels = `22${ENQ}50${ENQ}-1`
+        }) {
           return {
             item_display: code,
             item: itemId,
@@ -146,7 +153,7 @@
             description,
             price_display: "Custom",
             price: "-1",
-            pricelevels: `22${ENQ}50${ENQ}-1`,
+            pricelevels,
             custcol_rrp: "",
             rate,
             rateschedule: "",
@@ -157,12 +164,14 @@
         }
 
         // Real lines from the locked record, in record order. Lines 1 and 2 are
-        // byte-identical to LIVE_LINE_1/LIVE_LINE_2 in tests/edit-grid.test.mjs;
-        // the rest come from the same payload, so add-line and insert-line grow
-        // the machine with live data rather than with invented values.
+        // byte-identical to LIVE_LINE_1/LIVE_LINE_2 in tests/edit-grid.test.mjs
+        // — including line 2's own pricelevels list, which is the only field the
+        // two live lines disagree on; the rest come from the same payload, so
+        // add-line and insert-line grow the machine with live data rather than
+        // with invented values.
         const RECORDS = [
           { code: "MCH376", itemId: "4998", description: "Magic Makeup Blender with Hard Case", available: "82", quantity: "1", rate: "14.545", amount: "14.55" },
-          { code: "MCH214", itemId: "1405", description: "Everyday 6 Piece Essentials Set", available: "1701", quantity: "1", rate: "30.909", amount: "30.91" },
+          { code: "MCH214", itemId: "1405", description: "Everyday 6 Piece Essentials Set", available: "1701", quantity: "1", rate: "30.909", amount: "30.91", pricelevels: `1${ENQ}22${ENQ}-1` },
           { code: "MCOL1675", itemId: "7396", description: "Smooth & Style Comb Duo Pack", available: "26", quantity: "1", rate: "9.091", amount: "9.09" },
           { code: "MCH14", itemId: "1328", description: "XtendLashMascara Black", available: "4586", quantity: "1", rate: "25.455", amount: "25.46" },
           { code: "MCH322", itemId: "3109", description: "Hair and Brow Magic Wand", available: "100", quantity: "1", rate: "13.636", amount: "13.64" },
@@ -330,6 +339,12 @@
           // the exact M1 sin. The wrapped variant is covered in the unit stub
           // (tests/edit-grid.test.mjs, wrappedHeaders), where being wrong is free.
           const row = document.createElement("tr");
+          // Live parity: the header row carries id="item_headerrow"
+          // (probe-transcripts.md:15, m15-t6-live-capture.json:144). It matches
+          // no row predicate — hasNumberedRowId wants {machine}_row_{n} — so it
+          // changes nothing today, and M2/M3 selecting the header by id would
+          // otherwise find nothing here and everything live.
+          row.id = "item_headerrow";
           row.className = "uir-machine-headerrow";
           for (const column of COLUMNS) {
             row.append(textCell(column.label));

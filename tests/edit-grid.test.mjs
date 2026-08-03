@@ -206,6 +206,13 @@ test("exports a frozen core with the Edit Mode storage and DOM contract", () => 
   assert.equal(core.DATA_ATTRIBUTE, "data-suitemate-v3-edit-grid");
   assert.equal(core.NATIVE_ROW_ATTRIBUTE, "data-suitemate-v3-edit-grid-native-row");
   assert.equal(core.BOUND_ATTRIBUTE, "data-suitemate-v3-edit-grid-bound");
+  assert.equal(core.AXIS_ATTRIBUTE, "data-suitemate-v3-edit-grid-axis");
+  // Distinct attribute NAMES, not a prefix family: [data-suitemate-v3-edit-grid]
+  // must not select a container carrying only the axis or bound stamp, or the
+  // teardown sweep would remove the machine's own container.
+  assert.equal(core.AXIS_ATTRIBUTE.startsWith(`${core.DATA_ATTRIBUTE}-`), true);
+  assert.notEqual(core.AXIS_ATTRIBUTE, core.DATA_ATTRIBUTE);
+  assert.notEqual(core.AXIS_ATTRIBUTE, core.BOUND_ATTRIBUTE);
   assert.equal(core.FOCUSED_ROW_SELECTOR, "tr.uir-machine-row-focused, tr.listfocusedrow");
   // Union of the spec's four names and the four src/styles/netsuite.css carries,
   // plus tr.uir-machine-row-last, observed live 2026-08-02 and in neither half.
@@ -247,6 +254,8 @@ test("exports a frozen core with the Edit Mode storage and DOM contract", () => 
   // M1 froze 37 names; M1.5 adds exactly the thirteen the amendment enumerates,
   // and T6a adds ONE more — readColumnIdsFrom, 50 -> 51, sanctioned by
   // adjudication #13 as the fix for the live mini-form boundary failure.
+  // M2-T0 adds ONE more — AXIS_ATTRIBUTE, 51 -> 52 — the checkpoint's MAIN-world
+  // axis-evidence precondition (save/CHECKPOINTS.md "Next: M2 preconditions" #1).
   // deepEqual on the NAMES, not a count: a count passes when one export is
   // renamed and another added, which is precisely the drift this guards.
   assert.deepEqual(Object.keys(core), [
@@ -257,7 +266,8 @@ test("exports a frozen core with the Edit Mode storage and DOM contract", () => 
     "DATA_ROW_SELECTOR", "FOCUSED_ROW_SELECTOR", "EXCLUDED_ROW_SELECTOR", "COLUMN_SPAN_SELECTOR",
     "HEADER_LABEL_SELECTOR",
     "FIELD_DELIMITER", "LINE_DELIMITER", "OPTION_DELIMITER",
-    "DATA_ATTRIBUTE", "NATIVE_ROW_ATTRIBUTE", "BOUND_ATTRIBUTE", "FOREIGN_NODE_SELECTOR", "CLASSES",
+    "DATA_ATTRIBUTE", "NATIVE_ROW_ATTRIBUTE", "BOUND_ATTRIBUTE", "AXIS_ATTRIBUTE",
+    "FOREIGN_NODE_SELECTOR", "CLASSES",
     "clampWidth", "normalizeStored", "refusesNewerSchema", "withOrder", "withHidden", "withWidths",
     "machineIdFromTable", "rowLineNumber", "columnIdFromSpanId", "visibleCells", "tableRows",
     "headerRow", "isExcludedRow", "alignsToHeader", "isDataRow", "readColumnIds", "readColumnIdsFrom",
@@ -737,6 +747,37 @@ test("readColumnIdsFrom fails closed on every gate readColumnIds does", () => {
   );
 });
 
+test("clampWidth refuses a non-numeric width and honours the per-column floor", () => {
+  const core = createApi();
+  // normalizeWidths screens with Number.isFinite before it clamps, so these are
+  // M2's DIRECT callers: a measured getBoundingClientRect on a detached cell, a
+  // "" style.width, a parsed data attribute. Every one of them can hand over a
+  // non-number, and NaN survives Math.max/Math.min silently — the poisoned width
+  // only surfaces as `style.width = "NaNpx"` on a real cell.
+  for (const hostile of [NaN, "abc", "", null, undefined, {}, [1, 2], Infinity, -Infinity]) {
+    assert.equal(
+      core.clampWidth(hostile, core.ABSOLUTE_MIN_COLUMN_WIDTH),
+      core.ABSOLUTE_MIN_COLUMN_WIDTH,
+      `clampWidth(${JSON.stringify(hostile)}) did not fail closed onto the minimum`
+    );
+  }
+  // A refusal lands on the FLOOR THAT APPLIES, not on the static one: a column
+  // whose own minimum is larger wins, and the cap still bounds it.
+  assert.equal(core.clampWidth("abc", 120), 120);
+  assert.equal(core.clampWidth(NaN, 5000), core.MAX_COLUMN_WIDTH);
+  // The minimum parameter is the per-column floor, and it beats the static 50
+  // only when it is larger — a caller may never lower the absolute minimum.
+  assert.equal(core.clampWidth(60, 120), 120);
+  assert.equal(core.clampWidth(200, 120), 200);
+  assert.equal(core.clampWidth(10, 20), core.ABSOLUTE_MIN_COLUMN_WIDTH);
+  assert.equal(core.clampWidth(10, undefined), core.ABSOLUTE_MIN_COLUMN_WIDTH);
+  // Ordinary clamping is unchanged: cap, floor, rounding, numeric strings.
+  assert.equal(core.clampWidth(5000, core.ABSOLUTE_MIN_COLUMN_WIDTH), core.MAX_COLUMN_WIDTH);
+  assert.equal(core.clampWidth(120.4, core.ABSOLUTE_MIN_COLUMN_WIDTH), 120);
+  assert.equal(core.clampWidth("120.6", core.ABSOLUTE_MIN_COLUMN_WIDTH), 121);
+  assert.equal(core.clampWidth(-40, core.ABSOLUTE_MIN_COLUMN_WIDTH), core.ABSOLUTE_MIN_COLUMN_WIDTH);
+});
+
 test("normalizes the stored container fail-closed and refuses a newer schema", () => {
   const core = createApi();
   assert.deepEqual(plain(core.normalizeStored(undefined)), { schemaVersion: 1, grids: {} });
@@ -818,7 +859,8 @@ const EDIT_STORAGE_KEY = "suiteMateV3EditColumns";
 const SETTINGS_STORAGE_KEY = "suiteMateV3Style";
 const DATA_ATTRIBUTE = "data-suitemate-v3-edit-grid";
 const BOUND_ATTRIBUTE = "data-suitemate-v3-edit-grid-bound";
-const RECORD_PATH = "https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl";
+const AXIS_ATTRIBUTE = "data-suitemate-v3-edit-grid-axis";
+const RECORD_PATH ="https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl";
 const EDIT_URL = `${RECORD_PATH}?id=16342809&e=T`;
 const READ_ONLY_EDIT_URL = `${RECORD_PATH}?id=16342809&e=F`;
 const VIEW_URL = `${RECORD_PATH}?id=16342809`;
@@ -1188,6 +1230,10 @@ function createRuntimeHarness({
 function assertNotMounted(harness, message) {
   assert.equal(harness.container.children.length, 0, `${message}: a node was mounted`);
   assert.equal(harness.container.hasAttribute(BOUND_ATTRIBUTE), false, `${message}: the container was stamped`);
+  // The axis stamp is the ONLY thing this feature leaves on a node it does not
+  // own, and the owned-node sweep cannot reach it — every teardown path has to
+  // take it off by name or a torn-down page keeps advertising a live axis.
+  assert.equal(harness.container.hasAttribute(AXIS_ATTRIBUTE), false, `${message}: the axis stamp survived`);
   assert.equal(harness.container.listeners.length, 0, `${message}: a listener was bound`);
   assert.equal(harness.counts.writes, 0, `${message}: storage was written`);
 }
@@ -1316,6 +1362,10 @@ test("mounts one hidden marker, binds once and writes nothing", async () => {
   assert.equal(mounted[0].getAttribute(DATA_ATTRIBUTE), "mount");
   assert.equal(mounted[0].hidden, true);
   assert.equal(harness.container.hasAttribute(BOUND_ATTRIBUTE), true);
+  // MAIN-world axis evidence: the pinned axis, comma-joined, on the bound
+  // container — the same three ids the derivation above returns, so a probe
+  // running in page script reads exactly what this mount keyed its storage to.
+  assert.equal(harness.container.getAttribute(AXIS_ATTRIBUTE), "item,quantity,rate");
   assert.equal(harness.counts.editReads, 1);
   // Seeded storage plus install is a read, never a write (spec: count writes).
   assert.equal(harness.counts.writes, 0);
@@ -1326,10 +1376,12 @@ test("mounts one hidden marker, binds once and writes nothing", async () => {
       assert.equal(cell.style.width, "");
     }
   }
-  // A repaint re-installs: the marker and the binding stay singular.
+  // A repaint re-installs: the marker, the binding and the axis stamp stay
+  // singular. The stamp is re-derived through the pin, so it cannot drift.
   await harness.run("mutation");
   assert.equal(harness.mounts().length, 1);
   assert.equal(harness.container.listeners.length, 0);
+  assert.equal(harness.container.getAttribute(AXIS_ATTRIBUTE), "item,quantity,rate");
   assert.equal(harness.counts.writes, 0);
 });
 
@@ -1376,6 +1428,7 @@ test("teardown is synchronous, unstamps the page and can remount afterwards", as
   await harness.run("mutation");
   assert.equal(harness.mounts().length, 1);
   assert.equal(harness.container.hasAttribute(BOUND_ATTRIBUTE), true);
+  assert.equal(harness.container.getAttribute(AXIS_ATTRIBUTE), "item,quantity,rate");
 });
 
 test("turning the setting off tears down and turning it back on remounts", async () => {
@@ -1636,6 +1689,74 @@ test("teardown clears the pinned axis, the applied order and the mismatch latch"
   assert.equal((runtimeSource.match(/(?<!let )axisMismatch = false/g) ?? []).length, 1);
 });
 
+test("an install whose second axis read comes back empty never reaches applyAll", async () => {
+  // save/CHECKPOINTS.md "Next: M2 preconditions" #3. The install reads the axis
+  // TWICE, and the second read sits after the awaited storage read: a repaint
+  // that lands mid-await can change the machine's own axis, latch the mismatch
+  // and answer [] on an install whose first read succeeded. Inert today only
+  // because both signatures stringify {"ids":[]} and return above applyAll —
+  // and inertness is not a guard. Sliced from runtime.js, not re-typed.
+  const [install] = runtimeSource.match(
+    / {2}async function installEditGrid\(\{ signal, isCurrent \}\) \{[\s\S]*?\n {2}\}/
+  ) ?? [];
+  assert.equal(Boolean(install), true, "installEditGrid is no longer a named async function in runtime.js");
+  const core = createApi();
+  const run = async (reads) => {
+    const applied = [];
+    const stamped = [];
+    const pending = [...reads];
+    const container = createContainer();
+    const sandbox = {
+      core,
+      chrome: { storage: { sync: { get: async () => ({}) } } },
+      machineTable: () => ({ isConnected: true }),
+      machineContainer: () => container,
+      currentColumnIds: () => pending.shift() ?? [],
+      resolveScopeKey: () => "FIXTURE:2462:salesord:edit",
+      ensureMountMarker() {},
+      ensureBindings() {},
+      stampAxis: (node, ids) => stamped.push(ids),
+      isLineOpen: () => false,
+      renderSignature: (table, ids) => JSON.stringify({ ids }),
+      // M2's target carries the stored widths, so it stops matching the render
+      // signature the moment anything is stored. Stubbed diverging here: an
+      // equal pair is exactly what hides the defect today.
+      targetSignature: () => '{"target":"diverged"}',
+      applyAll: (table, ids) => applied.push(ids),
+      logOnce: (error) => { throw error; },
+      showToast() {},
+      activeTable: null,
+      nativeColumnIds: null,
+      scopeKey: null,
+      entry: {},
+      pendingApply: false,
+      warnedNewerSchema: false
+    };
+    sandbox.globalThis = sandbox;
+    runInNewContext(
+      `${install}\nglobalThis.result = installEditGrid({ signal: { aborted: false }, isCurrent: () => true });`,
+      sandbox
+    );
+    return { result: await sandbox.result, applied, stamped, sandbox };
+  };
+
+  const latched = await run([["item", "quantity", "rate"], []]);
+  assert.deepEqual(latched.applied, [], "applyAll ran against an empty axis");
+  assert.equal(latched.result, true, "the mount stands — marker, bindings and entry are already in place");
+  // The mount really did happen, so this is the guard firing and not an earlier
+  // decline: the FIRST read passed the identity gate and was stamped.
+  assert.deepEqual(plain(latched.stamped), [["item", "quantity", "rate"]]);
+  assert.deepEqual(plain(latched.sandbox.nativeColumnIds), ["item", "quantity", "rate"]);
+
+  // A one-column second read is refused on the same gate the install's own
+  // identity check uses — never applied against a machine with nothing to key.
+  assert.deepEqual((await run([["item", "quantity", "rate"], ["item"]])).applied, []);
+
+  // Not vacuous: the identical install DOES apply when the second read holds.
+  const applying = await run([["item", "quantity", "rate"], ["item", "quantity", "rate"]]);
+  assert.deepEqual(plain(applying.applied), [["item", "quantity", "rate"]]);
+});
+
 test("every axis read in the runtime goes through the pin", () => {
   // The hazard is a caller that asks core directly while an order is applied.
   // There is exactly ONE core.readColumnIds call site and — since T6a — exactly
@@ -1659,6 +1780,69 @@ test("every axis read in the runtime goes through the pin", () => {
   // route it replaces, and the guard is about the CODE, not the explanation.
   const helperCode = helper.split("\n").filter((line) => !line.trim().startsWith("//")).join("\n");
   assert.doesNotMatch(helperCode, /closest\("form"\)/);
+});
+
+test("a machine id that is not a bare identifier is never spliced into a selector", () => {
+  // save/CHECKPOINTS.md "Next: M2 preconditions" #8. currentColumnIds splices
+  // the machine id into two document-scoped selectors, and the machine id is
+  // read off the TABLE'S OWN id attribute — page-controlled markup. The bare-
+  // identifier test in front of that splice is the whole guard, and it is
+  // dead-defensive only while MACHINE_TABLE_SELECTOR stays the literal
+  // #item_splits: the moment M2+ resolves a machine by any other route, a
+  // hostile id reaches a selector. Pinned here so the guard cannot be dropped
+  // as unused. The ledger's cite (progress.md:37, runtime.js:135) names the
+  // bare-name query — an injection SINK, not the guard; the guard is the
+  // MACHINE_ID_PATTERN test one line below it.
+  const [helper] = runtimeSource.match(/ {2}function currentColumnIds\(table\) \{[\s\S]*?\n {2}\}/) ?? [];
+  const [comparer] = runtimeSource.match(/ {2}function sameColumnIds\(left, right\) \{[\s\S]*?\n {2}\}/) ?? [];
+  assert.equal(Boolean(helper), true, "currentColumnIds is no longer a named function in runtime.js");
+  const core = createApi();
+  const ask = (machineId) => {
+    const selectors = [];
+    const sandbox = {
+      core: {
+        ...core,
+        machineIdFromTable: () => machineId,
+        // The fallback route, stubbed so the answer identifies which path ran.
+        readColumnIds: () => ["item", "quantity", "rate"]
+      },
+      document: {
+        querySelector(selector) {
+          selectors.push(selector);
+          return { value: "" };
+        }
+      },
+      pinnedColumnIds: null,
+      appliedOrder: null,
+      axisMismatch: false
+    };
+    sandbox.globalThis = sandbox;
+    runInNewContext(`${comparer}\n${helper}\nglobalThis.result = currentColumnIds(null);`, sandbox);
+    return { ids: sandbox.result, selectors };
+  };
+
+  // A benign id DOES reach the selector — without this the assertion below
+  // would pass on a runtime that had stopped querying the document entirely.
+  const benign = ask("item");
+  assert.equal(benign.selectors[0], '#main_form input[type="hidden"][name="itemfields"]');
+
+  // Every hostile shape declines to the fallback: no selector is built at all,
+  // nothing throws, and the axis still comes back from core.readColumnIds.
+  for (const hostile of [
+    'item"], script[src="x',            // closes the attribute and adds a selector
+    "item_splits:has(script)",          // a functional pseudo-class
+    "item\\", "item'", "item]", "item ",
+    "1item",                            // a leading digit is not an identifier
+    "", "item-splits"                   // a hyphen is legal in HTML, not in the pattern
+  ]) {
+    const asked = ask(hostile);
+    assert.deepEqual(asked.selectors, [], `${JSON.stringify(hostile)} was spliced into a selector`);
+    assert.deepEqual(plain(asked.ids), ["item", "quantity", "rate"],
+      `${JSON.stringify(hostile)} did not fall back to core.readColumnIds`);
+  }
+  // Asserted on BEHAVIOUR, not on the regex literal: core.js already carries an
+  // identical MACHINE_ID_PATTERN (unexported) that runtime.js re-inlines, and
+  // collapsing the two is an improvement a source-shape assertion would veto.
 });
 
 test("an untouched select in the open row is not dirty", () => {

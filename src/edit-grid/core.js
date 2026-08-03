@@ -50,6 +50,14 @@
   const DATA_ATTRIBUTE = "data-suitemate-v3-edit-grid";
   const NATIVE_ROW_ATTRIBUTE = "data-suitemate-v3-edit-grid-native-row";
   const BOUND_ATTRIBUTE = "data-suitemate-v3-edit-grid-bound";
+  // MAIN-world axis evidence. The runtime derives the column axis in an isolated
+  // world, so page script — and every live verification pass that runs there —
+  // cannot see which axis a mount actually pinned, and from M2 on that axis is
+  // what keys the stored layout. The ids are ALREADY public in-page in the
+  // machine's own {machine}fields hidden input, so republishing them on the
+  // container exposes nothing new; it only makes the pinned axis readable where
+  // the probe runs. Comma-joined, and cleared by removeEditGrid.
+  const AXIS_ATTRIBUTE = "data-suitemate-v3-edit-grid-axis";
   const FOREIGN_NODE_SELECTOR =
     "[data-suitemate-v3-internal-id], [data-suitemate-v3-so-columns], [data-suitemate-v3-form-views], [data-suitemate-v3-edit-grid]";
   const RESERVED_KEYS = Object.freeze(["__proto__", "constructor", "prototype"]);
@@ -117,8 +125,21 @@
   }
 
   function clampWidth(pixels, minimum) {
-    const floor = Math.max(ABSOLUTE_MIN_COLUMN_WIDTH, Math.round(Number(minimum) || 0));
-    return Math.round(Math.min(MAX_COLUMN_WIDTH, Math.max(floor, pixels)));
+    // The floor is the per-column minimum a caller measured, never below the
+    // static one and never above the cap — so the refusal below is bounded too.
+    const floor = Math.min(
+      MAX_COLUMN_WIDTH,
+      Math.max(ABSOLUTE_MIN_COLUMN_WIDTH, Math.round(Number(minimum) || 0))
+    );
+    const width = Number(pixels);
+    // Fail closed on anything that is not a finite number. NaN passes silently
+    // through Math.max/Math.min and comes out of Math.round as NaN, which M2
+    // would write to storage and set as `style.width = "NaNpx"` — a refused
+    // width must land on the minimum, not on a poisoned one.
+    if (!Number.isFinite(width)) {
+      return floor;
+    }
+    return Math.round(Math.min(MAX_COLUMN_WIDTH, Math.max(floor, width)));
   }
 
   function normalizeWidths(value) {
@@ -702,6 +723,7 @@
       DATA_ATTRIBUTE,
       NATIVE_ROW_ATTRIBUTE,
       BOUND_ATTRIBUTE,
+      AXIS_ATTRIBUTE,
       FOREIGN_NODE_SELECTOR,
       CLASSES,
       clampWidth,
