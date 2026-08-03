@@ -268,7 +268,8 @@ test("exports a frozen core with the Edit Mode storage and DOM contract", () => 
   // axis-evidence precondition (save/CHECKPOINTS.md "Next: M2 preconditions" #1).
   // M2 Task 11 adds TWO — columnMinimums and applyWidths, 52 -> 54 — the two names
   // the task brief's Step 4 sanctions ("Add `columnMinimums,` and `applyWidths,`
-  // to the frozen export object beside `isOrderedMachine`").
+  // to the frozen export object beside `isOrderedMachine`"), re-sanctioned by
+  // adjudication #14 together with applyWidths' axis-TAKING signature.
   // deepEqual on the NAMES, not a count: a count passes when one export is
   // renamed and another added, which is precisely the drift this guards.
   assert.deepEqual(Object.keys(core), [

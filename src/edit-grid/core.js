@@ -764,6 +764,13 @@
   //      re-deriving from a permuted rendering is never correct (measured on the
   //      live payload: 55% decline, 45% silent mis-key, 0% correct).
   // The caller — runtime applyAll, which is handed the pin — already has it.
+  //
+  // Sanctioned by adjudication #14, which departs from the task brief's verbatim
+  // Step 4 (an internal readColumnIds call), also sanctions the frozen contract
+  // growing 52 -> 54 for this name and columnMinimums, and explicitly forbids a
+  // "derive it if the caller passed none" fallback here: a silent re-derivation
+  // is the A1.2 rule-4 back door and must not exist. An active apply with no
+  // usable axis fails closed instead.
   function applyWidths(table, widths, minimums, columnIds) {
     try {
       const header = headerRow(table);
