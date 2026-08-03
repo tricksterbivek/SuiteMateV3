@@ -151,7 +151,15 @@ function withInjectedNodes(node, ownText, injected) {
 
 function createCell({
   text = "", spanId = null, systemHidden = false, width = 100, widget = 0, rectDelta = null,
-  injected = []
+  injected = [],
+  // NetSuite's star on a mandatory column: `<span class="listheaderreq"
+  // title="Required Field">` inside the header cell's div.listheader, with the *
+  // itself rendered from CSS rather than written into the text (probed on the
+  // locked order 2026-08-04 — Item and Tax Code carry it there, Quantity does
+  // not). Modelled as a queryable child rather than as text, because that is how
+  // the runtime has to find it and because a text-shaped stub would let a reader
+  // that matched on "*" look correct.
+  required = false
 } = {}) {
   const classes = new Set();
   // The machine's materialised field widgets. Live 2026-08-02: only the OPEN line
@@ -191,7 +199,12 @@ function createCell({
     },
     getBoundingClientRect: () => ({ width: renderedWidth(cell) }),
     classNames: () => Array.from(classes),
-    querySelector: (selector) => (spanId && selector.includes("_fs") ? { id: spanId } : null),
+    querySelector: (selector) => {
+      if (String(selector).includes("listheaderreq")) {
+        return required ? { className: "listheaderreq", title: "Required Field" } : null;
+      }
+      return spanId && selector.includes("_fs") ? { id: spanId } : null;
+    },
     querySelectorAll: (selector) => (String(selector).includes("input") ? widgets : [])
   };
   return injected.length ? withInjectedNodes(cell, text, injected) : cell;
@@ -340,14 +353,21 @@ function createTable(rows, { id = "item_splits", className = "uir-machine-table"
 // back into a later measurement. See renderedWidth.
 function createMachine({
   lines = 2, className, container = null, spans = true, duplicate = false, form = null,
-  widgets = {}, rectDelta = null
+  widgets = {}, rectDelta = null,
+  // Which columns NetSuite has STARRED, by id. Defaults to ["item"] because that
+  // is the live shape — the locked order stars Item and Tax Code and nothing
+  // else, and a machine with no mandatory column at all is a machine this
+  // feature never meets. A test that needs the other arrangements says so:
+  // `required: []` for a form that stars nothing, `["item", "rate"]` for two.
+  required = ["item"]
 } = {}) {
+  const starred = (id) => required.includes(id);
   const header = createRow({
     className: "uir-machine-headerrow",
     cells: [
-      createCell({ text: "Item", rectDelta }),
-      createCell({ text: "Quantity", rectDelta }),
-      createCell({ text: "Rate", rectDelta }),
+      createCell({ text: "Item", rectDelta, required: starred("item") }),
+      createCell({ text: "Quantity", rectDelta, required: starred("quantity") }),
+      createCell({ text: "Rate", rectDelta, required: starred("rate") }),
       createCell({ text: "", systemHidden: true, rectDelta })
     ]
   });
@@ -439,6 +459,12 @@ test("exports a frozen core with the Edit Mode storage and DOM contract", () => 
   assert.equal(core.MAX_MACHINE_FIELDS, 400);
   assert.equal(core.MAX_SAMPLE_ROWS, 8);
   assert.equal(core.HEADER_LABEL_SELECTOR, "div.listheader");
+  // NetSuite's star on a mandatory column, and the whole of the required-column
+  // detection's DOM contract (owner directive 2026-08-04). Pinned as a STRING
+  // because the runtime reads it straight from the header: a rename would
+  // otherwise surface only as "no column is required any more", which renders
+  // exactly like the feature working.
+  assert.equal(core.REQUIRED_FIELD_SELECTOR, "span.listheaderreq");
   assert.equal(core.FIELD_DELIMITER, "\u0001");
   assert.equal(core.LINE_DELIMITER, "\u0002");
   assert.equal(core.OPTION_DELIMITER, "\u0005");
@@ -466,7 +492,7 @@ test("exports a frozen core with the Edit Mode storage and DOM contract", () => 
     "MAX_MACHINE_FIELDS", "MAX_SAMPLE_ROWS",
     "MACHINE_TABLE_SELECTOR", "MACHINE_CONTAINER_SELECTOR", "HEADER_ROW_SELECTOR",
     "DATA_ROW_SELECTOR", "FOCUSED_ROW_SELECTOR", "EXCLUDED_ROW_SELECTOR", "COLUMN_SPAN_SELECTOR",
-    "HEADER_LABEL_SELECTOR",
+    "HEADER_LABEL_SELECTOR", "REQUIRED_FIELD_SELECTOR",
     "FIELD_DELIMITER", "LINE_DELIMITER", "OPTION_DELIMITER",
     "DATA_ATTRIBUTE", "NATIVE_ROW_ATTRIBUTE", "BOUND_ATTRIBUTE", "AXIS_ATTRIBUTE",
     "FOREIGN_NODE_SELECTOR", "CLASSES",
@@ -1940,6 +1966,10 @@ function createOwnedNode(tagName) {
     // inside main_form defaults to submit and would save the record.
     type: "",
     checked: false,
+    // A real property of the boxes this feature builds, and the affordance half
+    // of the required-column rule: a menu that ticked a required column without
+    // disabling it would invite a click it then refuses.
+    disabled: false,
     get isConnected() {
       return node.parent !== null;
     },
@@ -3069,6 +3099,11 @@ test("an install whose second axis read comes back empty never reaches applyAll,
       // install consults it before that pair — a refused applyHidden must not be
       // hidden behind a header-only signature — and this slice is about the axis.
       hideIncomplete: false,
+      // The required-column read is stubbed away for the same reason
+      // rememberNaturalWidths is elsewhere: this slice is about which axis
+      // reaches which call, and the star has its own pins.
+      readRequiredColumns: () => new Set(),
+      requiredColumns: new Set(),
       warnedNewerSchema: false,
       // A gesture's width, already in module state when this install starts.
       columnWidths: { quantity: 161 },
@@ -4919,8 +4954,171 @@ test("A3.2: the menu's tick seeds from the STORED set, never from what the colum
 
   const { box } = openMenu(harness);
   assert.equal(box("quantity").checked, false, "the menu seeded from the rendering, not from the stored set");
-  assert.equal(box("item").checked, true);
+  // Rate is the control for the seeding claim. Item cannot be: the harness
+  // stars it, so its tick comes from the required carve-out and would read true
+  // under either seed — the review's word for that shape was "tautological".
+  assert.equal(box("rate").checked, true, "an unhidden, unstarred column lost its tick");
   assert.equal(harness.counts.writes, 0, "opening the menu wrote storage");
+});
+
+test("a column NetSuite stars is never hidden, whatever the container says — and the container is KEPT", async () => {
+  // OWNER DIRECTIVE 2026-08-04, from live use: a required column must not be
+  // hideable. NetSuite marks them in the header — span.listheaderreq inside
+  // div.listheader, the * drawn by CSS — and on the locked order exactly two
+  // carry it (Item and Tax Code); Quantity does not. The set is a property of
+  // the FORM, so it is read from the DOM every install and never written down.
+  //
+  // The container is RETAINED and not corrected (spec section 7). A stored hide
+  // for a column THIS form stars may be perfectly legitimate on another variant,
+  // on another record type, or after an administrator unstars it — so the mount
+  // filters what it renders and touches nothing the user owns. The last move of
+  // this test is that retention paying off.
+  const core = createApi();
+  const harness = createRuntimeHarness({
+    stored: { schemaVersion: 1, grids: { [SCOPE]: { hidden: ["item", "quantity"] } } }
+  });
+  await harness.flush();
+
+  // PER COLUMN, not globally: the unstarred one the user hid is still hidden.
+  for (const row of alignedRows(core, harness.table)) {
+    assert.deepEqual(hiddenFlags(core, row), [false, true, false],
+      "a starred column was hidden, or the exemption took the whole set with it");
+  }
+  // Byte-untouched: no write at all, and the stored list still holds both ids.
+  assert.equal(harness.counts.writes, 0, "the mount rewrote the user's own container");
+  assert.deepEqual(storedHidden(harness), ["item", "quantity"],
+    "the stored hide for a starred column was silently dropped");
+  // A chip is a claim that the column is hidden. Item is not, so it has none.
+  assert.deepEqual(plain(harness.owned("chip").map((node) => node.textContent)), ["Quantity ✕"]);
+
+  // THE MENU'S CARVE-OUT IN A3.2's SEEDING RULE. Ticked because the column is
+  // shown and always will be — NOT from the container, which says hidden — and
+  // disabled so the affordance cannot promise what the model refuses.
+  const { box } = openMenu(harness);
+  assert.equal(box("item").checked, true, "the required column's tick came from the container");
+  assert.equal(box("item").disabled, true, "a required column could be unticked");
+  assert.equal(box("item").parent.title, "Required column — cannot be hidden");
+  assert.equal(box("quantity").checked, false, "the ordinary tick stopped seeding from the container");
+  assert.equal(box("quantity").disabled, false, "an ordinary column was disabled too");
+
+  // RE-DERIVED, NOT PINNED PER MOUNT: the star leaves the header — an
+  // administrator unstars the field, or NetSuite repaints a different form
+  // variant — and the user's stored hide, which was never thrown away, now
+  // finally renders.
+  harness.table.rows[0].cells[0].querySelector = () => null;
+  await harness.run("repaint");
+  for (const row of alignedRows(core, harness.table)) {
+    assert.deepEqual(hiddenFlags(core, row), [true, true, false],
+      "the required set was decided once per mount instead of once per install");
+  }
+  assert.equal(harness.counts.writes, 0, "re-deriving the required set wrote storage");
+  assert.deepEqual(plain(harness.owned("chip").map((node) => node.textContent)), ["Item ✕", "Quantity ✕"]);
+});
+
+test("the hide choke point refuses a starred column, with no write and no DOM change", async () => {
+  // The disabled box is the affordance; this is the MODEL saying the same thing.
+  // Every hide in this feature passes through setColumnHidden, and anything that
+  // gets past a disabled attribute — an extension, a script, an assistive tool,
+  // a future caller of our own — arrives here.
+  const core = createApi();
+  const harness = createRuntimeHarness();
+  await harness.flush();
+  assert.deepEqual(hiddenHeader(core, harness), [false, false, false]);
+
+  const { menu, box } = openMenu(harness);
+  const target = box("item");
+  assert.equal(target.disabled, true, "the affordance is already open, so this is not the last line of defence");
+  // The change a disabled box cannot raise, raised anyway.
+  target.checked = false;
+  harness.fire("change", { on: menu, target });
+  await harness.tick();
+
+  assert.equal(harness.counts.writes, 0, "a hide for a starred column reached storage");
+  assert.equal(storedHidden(harness), null);
+  assert.deepEqual(hiddenHeader(core, harness), [false, false, false], "a starred column was hidden");
+  assert.deepEqual(plain(harness.owned("chip")), [], "a chip appeared for a column that is not hidden");
+});
+
+test("the choke point is armed BEFORE the install's storage read, not only after it", async () => {
+  // The reviewer's window: ensureControls and ensureBindings run before the
+  // storage await, so the Columns button is clickable while the read is parked
+  // — and on a mount's FIRST install nothing had derived requiredColumns yet.
+  // A gesture landing there stored a hide for a starred column that no UI could
+  // then clear: the box is disabled for the rest of the mount's life, chips
+  // filter required ids, and by the retention doctrine the stray hide WOULD
+  // render on any form variant that does not star the column. The set needs
+  // only the table and the axis, neither of which waits on storage — so the
+  // install derives it before the read too, and this drives that exact window.
+  const core = createApi();
+  const harness = createRuntimeHarness({ holdRead: true });
+  await harness.tick();
+  assert.equal(harness.counts.editReads, 1, "the install never reached its storage read");
+
+  const { menu, box } = openMenu(harness);
+  const target = box("item");
+  assert.equal(target.disabled, true,
+    "the Columns menu opened inside the read window with the starred column enabled");
+  // And the model refuses even the change a disabled box cannot raise.
+  target.checked = false;
+  harness.fire("change", { on: menu, target });
+  await harness.tick();
+  assert.equal(harness.counts.writes, 0,
+    "a hide for a starred column reached storage from the read window");
+
+  harness.releaseRead();
+  await harness.flush();
+  // Steady state agrees with the window: nothing stored, nothing hidden, and
+  // the reopened menu says the same thing the parked one did.
+  assert.equal(harness.counts.writes, 0);
+  assert.equal(storedHidden(harness), null);
+  assert.deepEqual(hiddenHeader(core, harness), [false, false, false]);
+  const reopened = openMenu(harness);
+  assert.equal(reopened.box("item").disabled, true);
+  assert.equal(reopened.box("item").checked, true);
+});
+
+test("a stored hide this form refuses is not a DEFERRED hide, and owes the user no explanation", async () => {
+  // The force-reveal's toast says "hidden columns are shown while you edit a
+  // line". If the only thing the container asks to hide is a column this form
+  // stars, nothing was hidden and nothing is being suppressed — so the toast
+  // would be telling the user about a hide they cannot see because it never
+  // happened. The deferred-hide note counts what CAN hide, for the same reason
+  // the chips and the apply do.
+  const core = createApi();
+  const harness = createRuntimeHarness({
+    stored: { schemaVersion: 1, grids: { [SCOPE]: { hidden: ["item"] } } }
+  });
+  await harness.flush();
+  assert.deepEqual(hiddenHeader(core, harness), [false, false, false]);
+  assert.deepEqual(harness.toasts, []);
+
+  focusLine(harness);
+  await harness.run("line-open");
+  assert.deepEqual(harness.toasts, [],
+    "the user was told their columns came back while a line is open, when none had gone");
+  assert.equal(harness.counts.writes, 0);
+  assert.deepEqual(storedHidden(harness), ["item"], "the refused hide was dropped from the container");
+});
+
+test("the star is read from the FORM, so a machine that stars nothing hides that same column", async () => {
+  // The set must be DERIVED, never a list of ids someone typed. A machine whose
+  // header carries no star at all is the other half of the live shape — the same
+  // sublist on a form variant where Item is not mandatory — and there the user's
+  // hide is theirs to make.
+  const core = createApi();
+  const harness = createRuntimeHarness({
+    machine: { required: [] },
+    stored: { schemaVersion: 1, grids: { [SCOPE]: { hidden: ["item"] } } }
+  });
+  await harness.flush();
+  for (const row of alignedRows(core, harness.table)) {
+    assert.deepEqual(hiddenFlags(core, row), [true, false, false],
+      "a column no form starred was treated as required");
+  }
+  assert.deepEqual(plain(harness.owned("chip").map((node) => node.textContent)), ["Item ✕"]);
+  const { box } = openMenu(harness);
+  assert.equal(box("item").disabled, false, "an unstarred column was disabled");
+  assert.equal(box("item").checked, false, "an unstarred column's tick stopped following the container");
 });
 
 test("a hide requested while a line is open is QUEUED, and flushed when the line closes", async () => {

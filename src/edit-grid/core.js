@@ -38,6 +38,13 @@
   const LINE_DELIMITER = "\u0002";
   const OPTION_DELIMITER = "\u0005";
   const HEADER_LABEL_SELECTOR = "div.listheader";
+  // The star NetSuite puts on a mandatory column, inside that same header label:
+  // `<span class="listheaderreq" title="Required Field">`, with the * glyph
+  // rendered from CSS rather than written into the text (probed on the locked
+  // order 2026-08-04, where exactly two columns carry it — Item at visible index
+  // 0 and Tax Code at 13, while Quantity does not). The SET IS FORM-SPECIFIC, so
+  // it is read from the header every install and never written down anywhere.
+  const REQUIRED_FIELD_SELECTOR = "span.listheaderreq";
   const MAX_MACHINE_FIELDS = 400;
   const MAX_SAMPLE_ROWS = 8;
   const DISPLAY_SUFFIX = "_display";
@@ -1097,6 +1104,7 @@
       EXCLUDED_ROW_SELECTOR,
       COLUMN_SPAN_SELECTOR,
       HEADER_LABEL_SELECTOR,
+      REQUIRED_FIELD_SELECTOR,
       FIELD_DELIMITER,
       LINE_DELIMITER,
       OPTION_DELIMITER,

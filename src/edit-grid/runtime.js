@@ -106,6 +106,12 @@
   // hide/show gesture, emptied on teardown. Only these are ever persisted, and
   // they are the ONLY seed a hide/show gesture may read (spec Amendment A3.2).
   let hiddenColumns = new Set();
+  // The columns THIS FORM makes mandatory, by column id — NetSuite's own star,
+  // read from the header on every install (OWNER DIRECTIVE 2026-08-04: a
+  // required column must not be hideable). Never stored, never seeded from
+  // storage, and never hardcoded: the set is a property of the FORM, and the
+  // same id can be starred on one variant and freely hideable on another.
+  let requiredColumns = new Set();
   // The control bar this mount owns: { bar, columnsButton, chips, menu }, or
   // null before the first install and after teardown.
   let controlButtons = null;
@@ -861,6 +867,18 @@
       box.checked = !hiddenColumns.has(columnId);
       box.setAttribute(core.DATA_ATTRIBUTE, "column-toggle");
       box.dataset.columnId = columnId;
+      // THE ONE CARVE-OUT IN A3.2's SEEDING RULE, and it is deliberate (owner
+      // directive 2026-08-04). For a required column the tick does NOT come from
+      // storage: this form will not hide it whatever the container says, so a box
+      // seeded from a stored hide would render UNTICKED against a column that is
+      // plainly there — the menu claiming a hide the machine is not performing,
+      // which is the same lie A3.2 exists to prevent, told from the other side.
+      // Disabled with it, so the affordance and the model agree.
+      if (requiredColumns.has(columnId)) {
+        box.checked = true;
+        box.disabled = true;
+        row.title = "Required column — cannot be hidden";
+      }
       const text = document.createElement("span");
       text.textContent = labels[index] || columnId;
       row.append(box, text);
@@ -899,14 +917,18 @@
     // how readCellText reads past another feature's injected nodes without
     // destroying them), so reading it for a machine with nothing hidden is a
     // clone per column per repaint bought for nothing.
-    if (!hiddenColumns.size) {
+    // A CHIP IS A CLAIM THAT THE COLUMN IS HIDDEN, and for a required id that
+    // claim is never true — this form will not hide it under any state, so it
+    // gets no chip and no ✕ that would undo nothing.
+    const shown = hideableHidden();
+    if (!shown.size) {
       return;
     }
     const labels = core.readHeaderLabels(table, columnIds);
     // The chips show what the user has STORED, never what is currently
     // rendered: while a force-reveal is running the columns are all visible and
     // the chips are the only thing still saying which ones the user hid.
-    for (const columnId of hiddenColumns) {
+    for (const columnId of shown) {
       const index = columnIds.indexOf(columnId);
       const chip = ownedButton("chip", `${(index >= 0 ? labels[index] : columnId) || columnId} ✕`);
       chip.className = core.CLASSES.chip;
@@ -916,6 +938,37 @@
   }
 
   // ===== Hide, show and force-reveal =====
+  function readRequiredColumns(table, columnIds) {
+    // OWNER DIRECTIVE 2026-08-04, from live use: the columns NetSuite stars are
+    // the ones a line cannot be saved without, and a user who hides one has
+    // hidden the field they are about to be asked for. Derived from the DOM on
+    // every install, exactly like identity and for the same reason — a repaint
+    // rebuilds the header, and a different form variant stars a different set.
+    // Indexed against the PINNED axis over the same header cells the width
+    // record measures, so a cell and an id can never disagree here.
+    const required = new Set();
+    headerCellsOf(table).forEach((cell, index) => {
+      const id = columnIds[index];
+      if (id && cell.querySelector?.(core.REQUIRED_FIELD_SELECTOR)) {
+        required.add(id);
+      }
+    });
+    return required;
+  }
+
+  function hideableHidden() {
+    // The stored set MINUS what this form makes mandatory, and the single place
+    // that subtraction happens — every consumer of "what is hidden" reads this.
+    //
+    // RETAINED, NOT REWRITTEN (spec section 7's retention doctrine). The stored
+    // container keeps a required id exactly as the user left it: the same id may
+    // be freely hideable on another form variant, on another record type, or
+    // after an administrator unstars it, and a mount that silently rewrote the
+    // user's container would destroy a preference this form has no right to an
+    // opinion about. So nothing is deleted anywhere — it is filtered here.
+    return new Set([...hiddenColumns].filter((id) => !requiredColumns.has(id)));
+  }
+
   function forceRevealed() {
     // FORCE-REVEAL, and the whole of it. Spec section 6 states two rules; live
     // probe 11 killed the first and this subsumes the second.
@@ -959,7 +1012,11 @@
     // whenever a line is open, no code path exists that could hide one — the
     // apply that runs during an open line takes core.applyHidden's unconditional
     // restore route and can only ever REMOVE this feature's class.
-    return forceRevealed() ? new Set() : new Set(hiddenColumns);
+    //
+    // The required exemption lands in hideableHidden rather than here, because
+    // this is not the only consumer that must not claim a required column is
+    // hidden — the chips and the deferred-hide note must not either.
+    return forceRevealed() ? new Set() : hideableHidden();
   }
 
   function noteDeferredHide() {
@@ -975,7 +1032,11 @@
     // install returns early. The reveal has effectively already happened, but the
     // user's hide is still suppressed and still owed an explanation, and
     // pendingApply is still the thing the flush reads.
-    pendingApply = forceRevealed() && hiddenColumns.size > 0;
+    // hideableHidden, not the raw stored set: a required id is not suppressed by
+    // the force-reveal, it is not rendered hidden at any other time either, so
+    // there is nothing about it to defer and nothing to explain. Counting it
+    // would toast a user whose only stored hide this form refuses anyway.
+    pendingApply = forceRevealed() && hideableHidden().size > 0;
     if (pendingApply && !revealToasted) {
       revealToasted = true;
       showToast("Hidden columns are shown while you edit a line.", "info");
@@ -1013,6 +1074,17 @@
     // user's width to exactly this shape: a handler that seeded from the inline
     // style the apply path had just written.
     if (typeof columnId !== "string" || !columnId) {
+      return;
+    }
+    // FAIL-CLOSED ON A REQUIRED COLUMN. Every hide in this feature passes through
+    // here, so this is the one place that has to refuse: no model change, no DOM
+    // change, no write. Silent, and that is not laziness — the menu's box for a
+    // required id is DISABLED, so no gesture can reach this line, and a toast on
+    // a path a user cannot take would need its own latch to guard a storm that
+    // cannot happen. It stands as the choke point's own guarantee, not as
+    // feedback: the affordance already says it, and the reveal direction is
+    // untouched (a required column is never hidden, so there is nothing to show).
+    if (hidden && requiredColumns.has(columnId)) {
       return;
     }
     if (hidden === hiddenColumns.has(columnId)) {
@@ -1368,6 +1440,17 @@
       ensureControls(container);
       ensureBindings(container);
       stampAxis(container, columnIds);
+      // Derived BEFORE the await as well as after (post-await site below), and
+      // for the same reason the epoch is: ensureControls and ensureBindings have
+      // just made the Columns button clickable, so the await is a window a
+      // GESTURE can land in — and on a mount's first install requiredColumns is
+      // still empty here, so the choke point's refusal would not fire. A click
+      // in that window could store a hide for a starred column that no UI can
+      // then clear (its box is disabled, it gets no chip), and the retention
+      // doctrine would render it on any form variant that does not star it. The
+      // post-await derivation stays: it re-reads with identity because a repaint
+      // rebuilds the header and the star goes with it.
+      requiredColumns = readRequiredColumns(table, columnIds);
       // Captured BEFORE the await, because the await is the gap a gesture lands
       // in and this is what tells the reseed below that it did (defect D2).
       const epoch = saveEpoch;
@@ -1401,6 +1484,11 @@
       if (current.length < 2) {
         return true;
       }
+      // Re-derived HERE, with identity and against the same axis read, because a
+      // repaint rebuilds the header and the star goes with it — and because
+      // everything below reads it: the signature pair through effectiveHidden,
+      // the chips, and the menu the next click builds.
+      requiredColumns = readRequiredColumns(table, current);
       // Storage is authoritative on every install, not only the first: installs
       // are repaint-driven, and a copy that drifted from the stored entry would
       // re-apply a width the user's last gesture had already replaced.
@@ -1536,6 +1624,11 @@
     naturalWidths = {};
     ownsLayout = false;
     hiddenColumns = new Set();
+    // State hygiene, not load-bearing: every install re-derives this set before
+    // its storage read and again after it, so a stale value can never be
+    // consulted — the mutation that drops this line is equivalent, and disclosed
+    // as such in the M3 checkpoint rather than pinned by a test.
+    requiredColumns = new Set();
     // The bar and the menu were just swept as owned NODES; this drops the mount's
     // handle on them, so the next install builds its own rather than adopting a
     // detached one.
