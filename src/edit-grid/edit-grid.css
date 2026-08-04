@@ -89,10 +89,10 @@ html .uir-machine-table-container>div.suitemate-v3-edit-grid-controls[data-suite
     box-sizing: border-box;
     min-height: 24px;
     padding: 0 10px;
-    border: 1px solid color-mix(in srgb, var(--theme-main, #607799) 38%, var(--field-border-color, #c7c7c7));
+    border: 1px solid color-mix(in srgb, var(--theme-main, #5058f4) 38%, var(--field-border-color, #c7c7c7));
     border-radius: var(--suitemate-radius-compact, 4px);
     background: transparent;
-    color: var(--theme-main, #607799);
+    color: var(--theme-main, #5058f4);
     font-family: var(--normal-font, "Open Sans", Arial, sans-serif);
     font-size: 12px;
     font-weight: 600;
@@ -102,12 +102,12 @@ html .uir-machine-table-container>div.suitemate-v3-edit-grid-controls[data-suite
 }
 
 .suitemate-v3-edit-grid-button:hover {
-    border-color: var(--theme-main, #607799);
+    border-color: var(--theme-main, #5058f4);
     background: var(--theme-secondary-light-light, rgb(0 0 0 / .05))
 }
 
 .suitemate-v3-edit-grid-button:focus-visible {
-    outline: 2px solid var(--theme-main, #607799);
+    outline: 2px solid var(--theme-main, #5058f4);
     outline-offset: 2px
 }
 
@@ -118,10 +118,10 @@ html .uir-machine-table-container>div.suitemate-v3-edit-grid-controls[data-suite
     display: inline-flex !important;
     align-items: center;
     padding: 1px 7px;
-    border: 1px solid var(--theme-main, #607799);
+    border: 1px solid var(--theme-main, #5058f4);
     border-radius: 999px;
     background: transparent;
-    color: var(--theme-main, #607799);
+    color: var(--theme-main, #5058f4);
     font-family: var(--normal-font, "Open Sans", Arial, sans-serif);
     font-size: 10.5px;
     line-height: 16px;
@@ -130,13 +130,13 @@ html .uir-machine-table-container>div.suitemate-v3-edit-grid-controls[data-suite
 }
 
 .suitemate-v3-edit-grid-chip:hover {
-    background: var(--theme-main, #607799);
+    background: var(--theme-main, #5058f4);
     color: #fff
 }
 
 html.isDarkMode .suitemate-v3-edit-grid-chip {
-    border-color: var(--theme-main-light, #607799);
-    color: var(--theme-main-light, #607799)
+    border-color: var(--theme-main-light, #5058f4);
+    color: var(--theme-main-light, #5058f4)
 }
 
 .suitemate-v3-edit-grid-note {
@@ -146,7 +146,7 @@ html.isDarkMode .suitemate-v3-edit-grid-chip {
 
 .suitemate-v3-edit-grid-resize-edge {
     cursor: col-resize !important;
-    box-shadow: inset -3px 0 0 var(--theme-main, #607799) !important
+    box-shadow: inset -3px 0 0 var(--theme-main, #5058f4) !important
 }
 
 body.suitemate-v3-edit-grid-resizing {
@@ -187,7 +187,7 @@ body.suitemate-v3-edit-grid-resizing {
     background: #fff;
     color: #303030;
     border: 1px solid #c9d2dc;
-    border-left: 3px solid var(--theme-main, #607799);
+    border-left: 3px solid var(--theme-main, #5058f4);
     border-radius: var(--suitemate-radius-overlay, 8px);
     box-shadow: 0 8px 24px rgb(0 0 0 / .22);
     font-family: var(--normal-font, "Open Sans", Arial, sans-serif);
@@ -257,11 +257,11 @@ html.isDarkMode .suitemate-v3-edit-grid-menu label:hover {
 
 [data-suitemate-v3-edit-grid="menu-toggle"]:hover {
     background: rgb(0 0 0 / .07);
-    color: var(--theme-main, #607799)
+    color: var(--theme-main, #5058f4)
 }
 
 [data-suitemate-v3-edit-grid="menu-toggle"]:focus-visible {
-    outline: 2px solid var(--theme-main, #607799);
+    outline: 2px solid var(--theme-main, #5058f4);
     outline-offset: 1px
 }
 
@@ -289,7 +289,7 @@ html.isDarkMode [data-suitemate-v3-edit-grid="menu-toggle"] {
 }
 
 [data-suitemate-v3-edit-grid="menu-item"]:focus-visible {
-    outline: 2px solid var(--theme-main, #607799);
+    outline: 2px solid var(--theme-main, #5058f4);
     outline-offset: -1px
 }
 
@@ -330,5 +330,5 @@ html.isDarkMode [data-suitemate-v3-edit-grid="menu-item-icon"] {
 }
 
 .suitemate-v3-edit-grid-drop-target {
-    box-shadow: inset 3px 0 0 var(--theme-main, #607799)
+    box-shadow: inset 3px 0 0 var(--theme-main, #5058f4)
 }

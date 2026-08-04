@@ -16,7 +16,7 @@
   const THEME_PREVIEW_MESSAGE = "SUITEMATE_V3_PREVIEW_ROLE_THEME";
   const MODES = Object.freeze(["light", "dark", "system"]);
   const DEFAULT_ROLE_COLORS = Object.freeze({
-    main: "#607799",
+    main: "#5058f4",
     secondary: "#a2a4a8"
   });
   const THEME_VARIABLE_NAMES = Object.freeze([
