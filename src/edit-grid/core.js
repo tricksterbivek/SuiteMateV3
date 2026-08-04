@@ -47,6 +47,29 @@
   const REQUIRED_FIELD_SELECTOR = "span.listheaderreq";
   const MAX_MACHINE_FIELDS = 400;
   const MAX_SAMPLE_ROWS = 8;
+  // The absolute ceiling on parsed data lines, and it is a PATHOLOGY BOUND, not a
+  // product rule — nothing about the feature changes at 999 lines or at 1001.
+  //
+  // It exists because parseMachineFieldData no longer truncates to
+  // MAX_SAMPLE_ROWS. It used to, and that truncation was the segment bug: the
+  // machine pages its lines (inpt_item_segment_select), so on the owner's record
+  // 16365465 — 202 lines, form B — selecting "26 - 50 of 202" rendered rows whose
+  // line numbers all exceeded 8, every sample was discarded as out of range, and
+  // identity declined on a machine that had not changed at all. The values array a
+  // column carries has to be indexable by the line number the DOM is SHOWING, so
+  // it has to be as long as the machine's data actually is.
+  //
+  // 1000 is chosen where cost stops being free rather than where records stop:
+  // the widest observed machine is 202 lines x 179 fields, and the work that
+  // grows with this number (the per-value option-list scan, and correlationScore's
+  // sweep over the sample index space) is linear in it while the DP that dominates
+  // is not. A machine past the cap parses its first 1000 lines and keeps working —
+  // a rendered row beyond them simply contributes no sample, exactly as an
+  // unreadable row does — so the cap degrades, it does not refuse.
+  //
+  // Deliberately NOT exported (the MIN_RESOLVED_COLUMNS precedent): the frozen
+  // contract is compared by name list, and a pathology bound is not contract.
+  const MAX_MACHINE_LINES = 1000;
   const DISPLAY_SUFFIX = "_display";
   const MIRROR_PREFIXES = Object.freeze(["old", "default"]);
   const CUSTOM_FIELD_PREFIX = /^cust(?:col|colsd|column|record|event|entity|body)?$/;
@@ -307,10 +330,24 @@
     const lines = serialized === ""
       ? []
       : serialized.split(LINE_DELIMITER).map((line) => line.split(FIELD_DELIMITER));
+    // Raggedness is checked over EVERY line, before the cap: a machine whose
+    // line 900 does not match its own field list is not a machine we understand,
+    // and truncating the evidence before looking would make that refusal depend
+    // on where the bad line happened to fall.
     if (lines.some((values) => values.length !== fieldIds.length)) {
       return null;
     }
-    return { fieldIds, lines: lines.slice(0, MAX_SAMPLE_ROWS) };
+    // CAPPED AT MAX_MACHINE_LINES, NOT AT MAX_SAMPLE_ROWS, and the difference is
+    // the whole of the segment fix. The old `slice(0, MAX_SAMPLE_ROWS)` conflated
+    // two different eights: how many rendered rows are worth READING (still 8, and
+    // still MAX_SAMPLE_ROWS — see readSampleRowTexts) and how far into the
+    // machine's own data a line INDEX may reach. They are only the same number on
+    // a machine that shows its first eight lines. A segment-paged machine shows
+    // lines 26-50, or 201-202 after an add, and every one of those indexes fell off
+    // the end of the truncated array — so `column.values[row]` was undefined for
+    // every rendered row, no sample could corroborate anything, and identity
+    // declined on a machine whose axis had not moved.
+    return { fieldIds, lines: lines.slice(0, MAX_MACHINE_LINES) };
   }
 
   function machineFieldInputValue(table, suffix) {
@@ -372,8 +409,14 @@
       // it can do is compete for a position and make it AMBIGUOUS, which per-column
       // unanimity answers with a hole. A hole is safe; a confident wrong answer is
       // not, which is the ruling this round was decided on.
+      //
+      // `includes` first, then the segment count: the same predicate, with the
+      // allocating half skipped for the overwhelming majority of values that
+      // carry no ENQ at all. This runs once per field per LINE, and the line
+      // count is no longer bounded at 8 — 179 x 202 on the owner's record.
       const optionList = values.some(
-        (value) => value.split(OPTION_DELIMITER).filter((part) => part !== "").length >= 2
+        (value) => value.includes(OPTION_DELIMITER)
+          && value.split(OPTION_DELIMITER).filter((part) => part !== "").length >= 2
       );
       // "old"/"default" + an id present in the same list is a bookkeeping mirror.
       // Deliberately narrow: olditemid survives because "itemid" is not a field.
@@ -453,11 +496,20 @@
     return cellNumber !== null && rawNumber !== null && cellNumber === rawNumber;
   }
 
-  function correlationScore(label, column, sampleTexts, labelIndex) {
+  // `sampleRows` is the list of line indexes that actually CARRY a rendered row,
+  // computed once by the caller, and it is a cost bound rather than a nicety.
+  // `sampleTexts` is sparse and line-indexed, so on a segment-paged machine
+  // showing lines 995-1002 it is a ~1000-slot array holding eight entries. This
+  // loop runs per (label x candidate) pair — 62 x 163 on the owner's form — so
+  // walking the whole index space costs 10M iterations of String()+trim() on
+  // holes: measured at 1182ms, against 85ms for the same eight samples at lines
+  // 1-8. Iterating the eight present indexes instead makes the score independent
+  // of WHICH lines are showing, which is the only property that ever mattered.
+  function correlationScore(label, column, sampleTexts, labelIndex, sampleRows) {
     let penalty = 0;
     let corroborated = false;
-    for (let row = 0; row < sampleTexts.length; row += 1) {
-      const text = String(sampleTexts[row]?.[labelIndex] ?? "").trim();
+    for (const row of sampleRows) {
+      const text = String(sampleTexts[row][labelIndex] ?? "").trim();
       if (text === "") {
         continue;
       }
@@ -522,6 +574,21 @@
     if (width < 2 || width > MAX_COLUMN_IDS || count < width) {
       return [];
     }
+    // The line indexes a row was actually READ at, in one pass, and the only
+    // thing downstream may iterate — see correlationScore, where walking the
+    // index space instead costs three orders of magnitude on a paged machine.
+    // It doubles as the evidence census the pre-gate below asks for.
+    // Each index is read exactly ONCE here and never again for a hole, which is
+    // the property the cost pin measures.
+    const sampleRows = [];
+    if (Array.isArray(sampleTexts)) {
+      for (let row = 0; row < sampleTexts.length; row += 1) {
+        const texts = sampleTexts[row];
+        if (Array.isArray(texts) && texts.length > 0) {
+          sampleRows.push(row);
+        }
+      }
+    }
     // AND ONE PRE-GATE IS NEW, because the old whole-machine refusal was
     // carrying it INCIDENTALLY and per-column unanimity would have dropped it.
     // With no rendered row to read, correlationScore has no value evidence at
@@ -537,11 +604,15 @@
     // LATCHES a mismatch for the life of the mount, so one sample-less read
     // during a repaint would kill the feature on a machine whose axis never
     // changed. A hole is safe; a confident wrong answer is not.
-    if (!Array.isArray(sampleTexts) || !sampleTexts.some((row) => Array.isArray(row) && row.length > 0)) {
+    //
+    // Asked of `sampleRows`, which is the same census the old inline `.some()`
+    // ran — a machine showing NO readable row has no present index at all.
+    if (!sampleRows.length) {
       return [];
     }
     const scores = labels.map(
-      (label, labelIndex) => columns.map((column) => correlationScore(label, column, sampleTexts, labelIndex))
+      (label, labelIndex) =>
+        columns.map((column) => correlationScore(label, column, sampleTexts, labelIndex, sampleRows))
     );
     // Backward DP over (labelIndex, firstAllowedCandidate). best[] is the top
     // score for the remaining labels. The alignment COUNT that used to be
@@ -758,11 +829,32 @@
     });
   }
 
+  // THE SAMPLES MUST BE THE LINES THE DOM IS SHOWING, not the lines the data
+  // starts with, and the segment-paged machine is the proof: it renders 25 of its
+  // 202 lines at a time and the user chooses WHICH 25. A reader that could only
+  // see the first few would go blind the moment the owner clicked "26 - 50 of 202"
+  // — which is exactly what happened live on record 16365465.
+  //
+  // So the cap that used to sit on the DATA (parseMachineFieldData's old
+  // `slice(0, MAX_SAMPLE_ROWS)`) sits HERE instead, on what is COLLECTED: the
+  // first MAX_SAMPLE_ROWS rendered, aligned, closed data rows in document order,
+  // whatever line numbers they carry. Reading eight rows is the cost control; the
+  // eight rows being the machine's FIRST eight was never the point, and was only
+  // ever true by accident on an unpaged machine.
+  //
+  // `lineCount` is now the machine's FULL parsed line count (bounded by
+  // MAX_MACHINE_LINES), so `line > lineCount` still refuses a row this feature has
+  // no data for — a row past the pathology cap, or a machine mid-rewrite whose
+  // rows have run ahead of its own hidden input.
   function readSampleRowTexts(table, width, lineCount) {
     const machineId = machineIdFromTable(table);
     const header = headerRow(table);
     const samples = [];
+    let collected = 0;
     for (const row of tableRows(table)) {
+      if (collected >= MAX_SAMPLE_ROWS) {
+        break;
+      }
       const line = row === header ? null : rowLineNumber(row, machineId);
       if (line === null || line > lineCount || isExcludedRow(row) || isFocusedRow(row)) {
         continue;
@@ -771,9 +863,15 @@
       if (cells.length !== width) {
         continue;
       }
-      // Indexed by the row's OWN line number: an open line that is skipped must
-      // leave a hole, not shift every later row against {machine}data.
+      // Indexed by the row's OWN line number, and STILL SPARSE — that is what
+      // makes the collected rows comparable to the parsed data at all.
+      // correlationScore reads sampleTexts[row] and column.values[row] at the same
+      // index, so line 26's rendered text is scored against line 26's raw value
+      // and against nothing else. An open line that is skipped leaves a hole
+      // rather than shifting every later row, and on a segment the leading holes
+      // are simply the lines this page is not showing.
       samples[line - 1] = cells.map(nodeText);
+      collected += 1;
     }
     return samples;
   }

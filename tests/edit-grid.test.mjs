@@ -664,7 +664,13 @@ function createLiveMachine({
   // machine mini-form, which carries no identity inputs at all. readColumnIds
   // must decline on it — that is the live MOUNT FAIL — while readColumnIdsFrom,
   // which is HANDED the values, must not care.
-  miniForm = false
+  miniForm = false,
+  // The line number the FIRST rendered row carries. The machine pages its lines
+  // (inpt_item_segment_select), so a rendered row's line number is a fact about
+  // which segment the user is looking at and not about how many rows exist:
+  // "26 - 50 of 202" renders item_row_26 first. Defaults to 1, which is the
+  // unpaged machine every earlier test models.
+  firstLine = 1
 } = {}) {
   // dataValue: null omits the {machine}data input entirely, which is a different
   // machine from one whose input is present and empty. A1.2 refuses both.
@@ -677,7 +683,7 @@ function createLiveMachine({
     cells: labels.map((label) => createHeaderCell(label, { wrapped: wrappedHeaders }))
   });
   const dataRows = rows.map((texts, index) => createRow({
-    id: `item_row_${index + 1}`,
+    id: `item_row_${firstLine + index}`,
     className: index === focusedRowIndex
       ? "uir-machine-row uir-machine-row-focused"
       : "uir-machine-row",
@@ -685,6 +691,149 @@ function createLiveMachine({
   }));
   return createTable([header, ...dataRows], { form });
 }
+
+// ===== The segment-paged machine =====
+// NetSuite pages a large sublist through inpt_item_segment_select and renders one
+// segment at a time: 202 lines are shown 25 at a time, and choosing "26 - 50 of
+// 202" REPLACES the header and tbody with rows whose ids start at item_row_26.
+// Live on the owner's record 16365465 that turned the feature off — every rendered
+// line number was past the 8 lines parseMachineFieldData kept, so no sample could
+// be read at all and identity declined on a machine that had not changed.
+//
+// The data is the live 25-field slice repeated to `count` lines, so line N's raw
+// values and line N's rendered text are the same pair the two-line tests use — the
+// only thing that varies is WHICH lines the DOM is showing.
+function liveSegmentData(count) {
+  return Array.from({ length: count }, (_, index) => (index % 2 === 0 ? LIVE_LINE_1 : LIVE_LINE_2).join(SOH))
+    .join(STX);
+}
+
+function liveSegmentRows(firstLine, count) {
+  return Array.from({ length: count }, (_, index) => ((firstLine + index - 1) % 2 === 0 ? LIVE_ROW_1 : LIVE_ROW_2));
+}
+
+test("a segment-paged machine is read from the rows it is SHOWING, not its first lines", () => {
+  const core = createApi();
+  // 30 lines of data; the DOM renders ONLY lines 26-30, which is segment two of a
+  // paged machine and the exact shape that declined live.
+  const dataValue = liveSegmentData(30);
+  const machine = createLiveMachine({
+    miniForm: true,
+    dataValue,
+    rows: liveSegmentRows(26, 5),
+    firstLine: 26
+  });
+  assert.deepEqual(plain(machine.rows.slice(1).map((row) => row.id)),
+    ["item_row_26", "item_row_27", "item_row_28", "item_row_29", "item_row_30"]);
+  // THE DECLINE, PINNED — this assertion IS the owner's bug. The SAME axis the
+  // unpaged machine derives: line 26's rendered text is scored against line 26's
+  // raw values, because both are indexed by the line number.
+  assert.deepEqual(plain(core.readColumnIdsFrom(machine, LIVE_FIELDS_VALUE, dataValue)), LIVE_AXIS);
+  // …and the data it was read from really is longer than the sample cap, so the
+  // assertion above cannot pass by the machine being small.
+  const parsed = core.parseMachineFieldData(LIVE_FIELDS_VALUE, dataValue);
+  assert.equal(parsed.lines.length, 30, "the parse still truncates the machine's own data");
+  // Sample collection is line-indexed and sparse: the 25 lines this segment is not
+  // showing are holes, not zeros, and nothing is shifted up to fill them.
+  const samples = core.readSampleRowTexts(machine, LIVE_LABELS.length, 30);
+  assert.equal(samples.length, 30);
+  assert.equal(samples[0], undefined, "a line this segment is not showing became a sample");
+  assert.deepEqual(plain(samples[25]), LIVE_ROW_2);
+  assert.deepEqual(plain(samples[29]), LIVE_ROW_2);
+  // THE CAP MOVED, and this is where it is measured: it now bounds how many
+  // RENDERED rows are read, not how far into the data a line index may reach. A
+  // segment showing 12 rows contributes the first MAX_SAMPLE_ROWS of them.
+  const wide = createLiveMachine({
+    miniForm: true, dataValue, rows: liveSegmentRows(19, 12), firstLine: 19
+  });
+  const wideSamples = core.readSampleRowTexts(wide, LIVE_LABELS.length, 30);
+  assert.equal(wideSamples.filter((row) => row !== undefined).length, core.MAX_SAMPLE_ROWS);
+  assert.deepEqual(plain(wideSamples[18]), LIVE_ROW_1, "collection did not start at the first rendered row");
+  assert.equal(wideSamples[26], undefined, "the 9th rendered row was read");
+  assert.deepEqual(plain(core.readColumnIdsFrom(wide, LIVE_FIELDS_VALUE, dataValue)), LIVE_AXIS);
+  // The last segment after an add-line — lines 201-202 of 202 — is the owner's
+  // original report, and it is the same shape with a bigger index.
+  const tail = liveSegmentData(202);
+  const lastSegment = createLiveMachine({
+    miniForm: true, dataValue: tail, rows: liveSegmentRows(201, 2), firstLine: 201
+  });
+  assert.deepEqual(plain(core.readColumnIdsFrom(lastSegment, LIVE_FIELDS_VALUE, tail)), LIVE_AXIS);
+});
+
+test("correlation cost depends on how many rows are shown, never on WHICH lines", () => {
+  // A COST CEILING, pinned as a COUNT rather than as a clock — a timing assertion
+  // in a test suite is a flake, and this measures the thing that actually grew.
+  //
+  // `sampleTexts` is sparse and line-indexed, so a machine paged to lines 995-1002
+  // hands correlation a ~1000-slot array holding eight rows. Scoring runs once per
+  // (label x candidate) pair — 62 x 163 on the owner's form — so a sweep over the
+  // whole index space touches every hole 10,106 times instead of once: measured at
+  // 1182ms against 85ms for the identical eight rows at lines 1-8, on the content
+  // script's own thread, on every repaint-driven install. Un-capping the parse
+  // (which the segment fix requires) is what made that reachable.
+  //
+  // The census reads each index once; nothing after it may touch a hole at all.
+  const core = createApi();
+  const parsed = core.parseMachineFieldData(LIVE_FIELDS_VALUE, liveSegmentData(400));
+  const columns = core.collapseDisplayTwins(parsed.fieldIds, parsed.lines);
+  const base = [];
+  base[397] = LIVE_ROW_2;
+  base[398] = LIVE_ROW_1;
+  base[399] = LIVE_ROW_2;
+  base.length = 400;
+  let holeReads = 0;
+  const counted = new Proxy(base, {
+    get(target, key) {
+      if (typeof key === "string" && /^[0-9]+$/.test(key) && !(key in target)) {
+        holeReads += 1;
+      }
+      return Reflect.get(target, key);
+    }
+  });
+  const axis = core.correlateColumnIds(LIVE_LABELS, columns, counted);
+  // Non-vacuous: the sparse far-end samples really do carry the derivation.
+  assert.deepEqual(plain(axis), LIVE_AXIS);
+  // AN INEQUALITY, deliberately: the property is "no hole is touched per
+  // (label x candidate) pair", not "the census reads each index exactly once".
+  // An exact count pinned the census's own implementation — a hole-SKIPPING
+  // census (for…in, strictly cheaper) read zero holes and FAILED the equality
+  // with a message claiming a sweep, measured in review. The ceiling still
+  // kills the real regression: an index-space sweep reads 397 holes x every
+  // scoring pair (95,677 measured), which no bound tied to base.length admits.
+  assert.ok(holeReads <= base.length,
+    "a hole was read per scoring pair — the index-space sweep is back");
+});
+
+test("the absolute line cap bounds the parse and degrades instead of refusing", () => {
+  const core = createApi();
+  // MAX_MACHINE_LINES is private (the MIN_RESOLVED_COLUMNS precedent — a pathology
+  // bound is not contract), so its value is asserted through what the parse keeps.
+  const CAP = 1000;
+  const dataValue = liveSegmentData(CAP + 5);
+  const parsed = core.parseMachineFieldData(LIVE_FIELDS_VALUE, dataValue);
+  assert.equal(parsed.lines.length, CAP, "the parse is unbounded, or the cap moved");
+  // A segment rendered entirely INSIDE the cap resolves exactly as any other.
+  const inside = createLiveMachine({
+    miniForm: true, dataValue, rows: liveSegmentRows(CAP - 4, 5), firstLine: CAP - 4
+  });
+  assert.deepEqual(plain(core.readColumnIdsFrom(inside, LIVE_FIELDS_VALUE, dataValue)), LIVE_AXIS);
+  // A segment STRADDLING the cap: the rows past it have no data to be scored
+  // against, so they contribute no sample — and the rows within it still carry the
+  // derivation. Degrading, not refusing.
+  const straddling = createLiveMachine({
+    miniForm: true, dataValue, rows: liveSegmentRows(CAP - 2, 5), firstLine: CAP - 2
+  });
+  const straddlingSamples = core.readSampleRowTexts(straddling, LIVE_LABELS.length, CAP);
+  assert.equal(straddlingSamples.filter((row) => row !== undefined).length, 3, "a row past the cap was sampled");
+  assert.deepEqual(plain(core.readColumnIdsFrom(straddling, LIVE_FIELDS_VALUE, dataValue)), LIVE_AXIS);
+  // And when EVERY rendered row is past the cap there is no evidence at all, so
+  // the no-samples pre-gate refuses — the fail-closed shape, not a guess.
+  const beyond = createLiveMachine({
+    miniForm: true, dataValue, rows: liveSegmentRows(CAP + 1, 5), firstLine: CAP + 1
+  });
+  assert.deepEqual(plain(core.readSampleRowTexts(beyond, LIVE_LABELS.length, CAP)), []);
+  assert.deepEqual(plain(core.readColumnIdsFrom(beyond, LIVE_FIELDS_VALUE, dataValue)), []);
+});
 
 test("parses the machine's serialized field list and line data", () => {
   const core = createApi();
@@ -2477,6 +2626,57 @@ const HARNESS_LINES = [
 const HARNESS_FIELDS_VALUE = HARNESS_FIELDS.join(SOH);
 const HARNESS_DATA_VALUE = HARNESS_LINES.map((values) => values.join(SOH)).join(STX);
 
+// The same machine with enough lines to PAGE. Line N's raw values are built to
+// corroborate exactly what createMachine renders for line N — `SKU-100{N}` and
+// `{N*2}` — so a segment showing lines 26-33 carries the identical evidence a
+// segment showing lines 1-8 does, and the axis must come out the same.
+function harnessLine(line) {
+  return [`SKU-100${line}`, String(4997 + line), String(4997 + line), String(line * 2), `1${line}.00`, `${line * 22}.00`];
+}
+const HARNESS_SEGMENT_DATA_VALUE = Array.from({ length: 33 }, (_, index) => harnessLine(index + 1).join(SOH))
+  .join(STX);
+
+// A SEGMENT SWAP, modelled the way NetSuite performs it: choosing another segment
+// REPLACES the header row and the tbody. Every cell is new, so every class this
+// feature put on the old ones is gone with them — that is why the mount has to
+// re-apply, and why the bar and chips (which live on the CONTAINER, not in the
+// table) survive while the hiding does not. The line numbers the new rows carry
+// are the whole point: they are the segment's, not 1..n.
+function swapMachineSegment(harness, firstLine, count = 8) {
+  const header = createRow({
+    className: "uir-machine-headerrow",
+    cells: [
+      createCell({ text: "Item", required: true }),
+      createCell({ text: "Quantity" }),
+      createCell({ text: "Rate" }),
+      createCell({ text: "", systemHidden: true })
+    ]
+  });
+  const dataRows = Array.from({ length: count }, (_, index) => {
+    const line = firstLine + index;
+    return createRow({
+      id: `item_row_${line}`,
+      className: "uir-machine-row",
+      cells: [
+        createCell({ text: `SKU-100${line}` }),
+        createCell({ text: String(line * 2) }),
+        createCell({ text: `$1${line}.00` }),
+        createCell({ text: "sys", systemHidden: true })
+      ]
+    });
+  });
+  const buttonRow = createRow({ className: "machineButtonRow", cells: [createCell({ text: "OK Cancel" })] });
+  harness.table.rows.length = 0;
+  harness.table.rows.push(header, ...dataRows, buttonRow);
+  for (const row of harness.table.rows) {
+    for (const cell of row.cells ?? []) {
+      cell.owner = harness.table;
+    }
+  }
+  layoutCells(header.cells);
+  return header;
+}
+
 function createRuntimeHarness({
   url = EDIT_URL,
   settings = { salesOrderColumnsEdit: true },
@@ -3185,15 +3385,15 @@ test("the column axis is derived on a native DOM, pinned, and never re-derived u
   // P-MONO (spec A1.2): the correlator only emits increasing subsequences of
   // machine-field order, so re-deriving while WE have permuted the DOM silently
   // mis-keys. The runtime must reuse the pin instead of asking again.
-  // BOTH functions are sliced. currentColumnIds calls sameColumnIds, which is
+  // BOTH functions are sliced. currentColumnIds calls axisCompatible, which is
   // module-scoped and reaches the sandbox through neither `core` nor a global —
-  // slicing only the caller makes assertions 4 and 6 die on "sameColumnIds is
+  // slicing only the caller makes assertions 4 and 6 die on "axisCompatible is
   // not defined". (The deleted isLineOpen slice got away with one function
   // because every dependency it had went through core.)
   const [helper] = runtimeSource.match(/ {2}function currentColumnIds\(table\) \{[\s\S]*?\n {2}\}/) ?? [];
-  const [comparer] = runtimeSource.match(/ {2}function sameColumnIds\(left, right\) \{[\s\S]*?\n {2}\}/) ?? [];
+  const [comparer] = runtimeSource.match(/ {2}function axisCompatible\(pinned, derived\) \{[\s\S]*?\n {2}\}/) ?? [];
   assert.equal(Boolean(helper), true, "currentColumnIds is no longer a named function in runtime.js");
-  assert.equal(Boolean(comparer), true, "sameColumnIds is no longer a named function in runtime.js");
+  assert.equal(Boolean(comparer), true, "axisCompatible is no longer a named function in runtime.js");
   const core = createApi();
   const build = (readColumnIds, state = {}) => {
     const sandbox = {
@@ -3517,7 +3717,7 @@ test("a machine id that is not a bare identifier is never spliced into a selecto
   // bare-name query — an injection SINK, not the guard; the guard is the
   // MACHINE_ID_PATTERN test one line below it.
   const [helper] = runtimeSource.match(/ {2}function currentColumnIds\(table\) \{[\s\S]*?\n {2}\}/) ?? [];
-  const [comparer] = runtimeSource.match(/ {2}function sameColumnIds\(left, right\) \{[\s\S]*?\n {2}\}/) ?? [];
+  const [comparer] = runtimeSource.match(/ {2}function axisCompatible\(pinned, derived\) \{[\s\S]*?\n {2}\}/) ?? [];
   assert.equal(Boolean(helper), true, "currentColumnIds is no longer a named function in runtime.js");
   const core = createApi();
   const ask = (machineId) => {
@@ -5060,6 +5260,130 @@ test("STORAGE SAFETY: nothing about an unresolved column can reach storage", asy
   assert.deepEqual(Object.keys(plain(storedWidths(harness))), ["quantity", "item"]);
   // And STILL no key for the hole, after a write that rewrote the whole map.
   assert.equal(Object.keys(plain(storedWidths(harness))).includes("null"), false);
+});
+
+test("paging to another segment re-hides the user's columns on the rows it swapped in", async () => {
+  // THE OWNER'S REPORT, end to end. Record 16365465, form B, 202 lines: segment 1
+  // mounts and 26 hidden headers apply; choosing "26 - 50 of 202" replaces the
+  // header and tbody, headerHiddenCount drops to 0, and every hidden column comes
+  // back — while the control bar and its chips, which live on the container,
+  // survive and go on claiming the hide. Add-line lands on the last segment and
+  // does the same thing, which is how the owner first hit it.
+  const core = createApi();
+  const harness = createRuntimeHarness({
+    machineData: HARNESS_SEGMENT_DATA_VALUE,
+    machine: { lines: 8 },
+    stored: { schemaVersion: 1, grids: { [SCOPE]: { hidden: ["quantity"] } } }
+  });
+  await harness.flush();
+  assert.deepEqual(hiddenHeader(core, harness), [false, true, false], "segment one did not apply the stored hide");
+  assert.deepEqual(plain(harness.owned("chip").map((node) => node.textContent)), ["Quantity ✕"]);
+  const writesBefore = harness.counts.writes;
+
+  // Segment two. Nothing about the machine's identity has changed — same form,
+  // same field list, same header labels — but every rendered line number is now
+  // past the eight lines the old parse kept.
+  swapMachineSegment(harness, 26);
+  assert.deepEqual(hiddenHeader(core, harness), [false, false, false], "the swap did not model a fresh header");
+  assert.deepEqual(
+    plain(harness.table.rows.slice(1, 9).map((row) => row.id)),
+    ["item_row_26", "item_row_27", "item_row_28", "item_row_29", "item_row_30", "item_row_31", "item_row_32", "item_row_33"]
+  );
+
+  await harness.run("segment-swap");
+
+  // The hide is back, on the rows the segment swapped IN — asserted at the row
+  // level and not only on the header, because the header agreeing while the rows
+  // do not is precisely the half-applied state hideIncomplete exists for.
+  assert.deepEqual(hiddenHeader(core, harness), [false, true, false], "the segment swap lost the hide");
+  for (const row of alignedRows(core, harness.table)) {
+    assert.deepEqual(hiddenFlags(core, row), [false, true, false], "a swapped-in row was missed");
+  }
+  // The axis is the SAME axis, so nothing was relabelled and the pin never moved.
+  assert.equal(harness.container.getAttribute(AXIS_ATTRIBUTE), "item,quantity,rate");
+  assert.deepEqual(plain(core.readColumnIds(harness.table)), EDIT_AXIS);
+  // Re-applying a stored preference is not a gesture: paging writes nothing.
+  assert.equal(harness.counts.writes, writesBefore, "paging a sublist wrote storage");
+  assert.deepEqual(plain(harness.owned("chip").map((node) => node.textContent)), ["Quantity ✕"]);
+  // And the LAST segment — two rows at lines 32-33, which is the add-line shape.
+  swapMachineSegment(harness, 32, 2);
+  await harness.run("add-line-segment");
+  assert.deepEqual(hiddenHeader(core, harness), [false, true, false], "the last segment lost the hide");
+  assert.equal(harness.counts.writes, writesBefore);
+});
+
+test("a segment that corroborates less HOLES a column without latching the mount", () => {
+  // A hole is a property of the EVIDENCE, not of the machine: which columns the
+  // optima agree about depends on which lines are rendered, and paging changes
+  // exactly that. Under the old strict-equality compare a less-resolved
+  // derivation read as "the machine's layout changed", latched axisMismatch, and
+  // killed the mount for the session — the feature switching itself off because
+  // the user paged the sublist. Sliced from runtime.js, not re-typed.
+  const [helper] = runtimeSource.match(/ {2}function currentColumnIds\(table\) \{[\s\S]*?\n {2}\}/) ?? [];
+  const [comparer] = runtimeSource.match(/ {2}function axisCompatible\(pinned, derived\) \{[\s\S]*?\n {2}\}/) ?? [];
+  assert.equal(Boolean(comparer), true, "axisCompatible is no longer a named function in runtime.js");
+  const core = createApi();
+  const build = (derived, state) => {
+    const sandbox = {
+      core: { ...core, readColumnIds: () => derived },
+      document: { querySelector: () => null },
+      pinnedColumnIds: null,
+      appliedOrder: null,
+      axisMismatch: false,
+      ...state
+    };
+    sandbox.globalThis = sandbox;
+    return sandbox;
+  };
+  const call = (sandbox) => {
+    runInNewContext(`${comparer}\n${helper}\nglobalThis.result = currentColumnIds(null);`, sandbox);
+    return sandbox.result;
+  };
+
+  // 1. A DERIVED HOLE defers to the pin: no latch, and the PIN comes back — not
+  //    the derivation, which would silently un-key a column mid-session.
+  const holed = build(["item", null, "rate"], { pinnedColumnIds: ["item", "quantity", "rate"] });
+  assert.deepEqual(plain(call(holed)), ["item", "quantity", "rate"]);
+  assert.equal(holed.axisMismatch, false, "a less-resolved segment latched the mismatch");
+  assert.deepEqual(plain(holed.pinnedColumnIds), ["item", "quantity", "rate"], "the pin was downgraded");
+
+  // 2. A PIN HOLE meeting a derived id does NOT upgrade. Adopting it would
+  //    relabel a column mid-mount: its menu row would go from disabled to
+  //    hideable, and a hide made against the new id would key storage under a
+  //    name the rest of the session never used.
+  const upgraded = build(["item", "quantity", "rate"], { pinnedColumnIds: ["item", null, "rate"] });
+  assert.deepEqual(plain(call(upgraded)), ["item", null, "rate"]);
+  assert.equal(upgraded.axisMismatch, false);
+  assert.deepEqual(plain(upgraded.pinnedColumnIds), ["item", null, "rate"], "the pin was upgraded mid-mount");
+
+  // 3. Holes on BOTH sides at the same position is still compatible.
+  const both = build(["item", null, "rate"], { pinnedColumnIds: ["item", null, "rate"] });
+  assert.deepEqual(plain(call(both)), ["item", null, "rate"]);
+  assert.equal(both.axisMismatch, false);
+
+  // 4. A REAL CONFLICT still latches, exactly as before: both sides name a
+  //    column at the same position and name different ones.
+  const conflict = build(["item", "custcol_rrp", "rate"], { pinnedColumnIds: ["item", "quantity", "rate"] });
+  assert.deepEqual(plain(call(conflict)), []);
+  assert.equal(conflict.axisMismatch, true, "a genuine axis change stopped latching");
+  assert.equal(conflict.pinnedColumnIds, null);
+
+  // 5. …and so does a different WIDTH, which no amount of hole tolerance excuses.
+  const narrower = build(["item", "quantity"], { pinnedColumnIds: ["item", "quantity", "rate"] });
+  assert.deepEqual(plain(call(narrower)), []);
+  assert.equal(narrower.axisMismatch, true);
+
+  // 6. A WIDER derivation latches too — and only the LENGTH clause can say so.
+  //    The positional walk runs over the PIN's indexes, so every one agrees and
+  //    the column the machine grew is never examined: compatible by omission.
+  //    (The narrower case above cannot pin the clause — a shorter derivation
+  //    reads undefined at the pin's last index, which the null checks already
+  //    refuse.) The pin carries a hole so a resolved-count compare cannot stand
+  //    in for the clause either.
+  const wider = build(["item", null, "rate", "amount"], { pinnedColumnIds: ["item", null, "rate"] });
+  assert.deepEqual(plain(call(wider)), []);
+  assert.equal(wider.axisMismatch, true, "a machine that grew a column read as compatible");
+  assert.equal(wider.pinnedColumnIds, null);
 });
 
 test("a chip reveals its column, and neither direction writes an inline display", async () => {

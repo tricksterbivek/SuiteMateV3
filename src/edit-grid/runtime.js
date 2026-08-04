@@ -191,19 +191,43 @@
     return table?.closest?.(core.MACHINE_CONTAINER_SELECTOR) ?? null;
   }
 
-  // POSITIONAL AND ELEMENT-WISE, which is what makes it safe now that an axis may
-  // carry nulls (core.correlateColumnIds' per-column unanimity leaves a hole
-  // where the optimal alignments disagree). `null === null` is true at the same
-  // position and false against every real id — including a field literally named
-  // "null", because nothing here stringifies either side.
+  // WHETHER A FRESH DERIVATION MAY BE TRUSTED AGAINST THE PIN. It replaces a
+  // strict equality compare (sameColumnIds, which had exactly one caller — this
+  // one — and so is gone rather than kept dead beside it), and the rule it
+  // encodes is: lengths equal, and every position where BOTH sides name a column
+  // names the SAME column.
   //
-  // Element-wise is simply the right SHAPE for comparing two axes, and a join()
-  // compare is the shortcut to avoid: it would fold ["a,b"] with ["a", "b"], and
-  // a comma in a column id is permitted in principle (normalizeColumnId screens
-  // length and the reserved keys, not punctuation) even though NetSuite has never
-  // emitted one. Nothing here rests on that never happening.
-  function sameColumnIds(left, right) {
-    return left.length === right.length && left.every((id, index) => id === right[index]);
+  // WHY IT CANNOT BE EQUALITY ANY MORE. A hole is not a property of the machine,
+  // it is a property of the EVIDENCE — core.correlateColumnIds holes a position
+  // when the optimal alignments disagree about it, and how much they disagree
+  // depends on which of the machine's lines happen to be rendered. A segment-paged
+  // machine changes exactly that and nothing else: lines 26-50 corroborate a
+  // different subset of columns than lines 1-25, so the same machine, same form,
+  // same field list can derive a MORE holed axis on page two. Under equality that
+  // reads as "the machine's own layout changed", which latches axisMismatch and
+  // kills the mount for the session — the feature turning itself off because the
+  // user paged the sublist. The axes are not in conflict; one is just less sure.
+  //
+  // THE ASYMMETRY IS DELIBERATE AND IS THE SAFETY PROPERTY. A derived hole defers
+  // to the pin (the pin was derived from evidence too, and it is the axis every
+  // stored key of this mount is already written against). A pin hole meeting a
+  // derived id does NOT upgrade the pin: adopting it mid-mount would relabel a
+  // column the user has been looking at — its menu row would silently go from
+  // disabled to hideable, and a hide made against the new id would key storage
+  // under a name the rest of the session never used. Identity is decided once per
+  // mount, which is A1.2 rule 3 restated for holes.
+  //
+  // What still latches is a REAL conflict: both sides naming a column, and naming
+  // different ones. That is the machine's layout actually moving underneath us,
+  // and it is refused exactly as before.
+  //
+  // Element-wise, never a join() compare: that would fold ["a,b"] with ["a", "b"],
+  // and a comma in a column id is permitted in principle (normalizeColumnId
+  // screens length and the reserved keys, not punctuation) even though NetSuite
+  // has never emitted one. Nothing here rests on that never happening.
+  function axisCompatible(pinned, derived) {
+    return pinned.length === derived.length
+      && pinned.every((id, index) => id === null || derived[index] === null || id === derived[index]);
   }
 
   function currentColumnIds(table) {
@@ -249,13 +273,23 @@
       // A transient read during a repaint must not discard a still-valid pin.
       return [];
     }
-    if (pinnedColumnIds && !sameColumnIds(pinnedColumnIds, derived)) {
-      // The machine's own layout changed under us. The stored entry is keyed to
-      // the old axis, so adopting the new one silently would relabel the user's
-      // saved layout: drop the pin, latch, and decline for the life of the mount.
-      pinnedColumnIds = null;
-      axisMismatch = true;
-      return [];
+    if (pinnedColumnIds) {
+      if (!axisCompatible(pinnedColumnIds, derived)) {
+        // The machine's own layout changed under us — two ids in conflict at one
+        // position, or a different width. The stored entry is keyed to the old
+        // axis, so adopting the new one silently would relabel the user's saved
+        // layout: drop the pin, latch, and decline for the life of the mount.
+        pinnedColumnIds = null;
+        axisMismatch = true;
+        return [];
+      }
+      // THE PIN, NOT THE DERIVATION, on every read after the first. The two are
+      // compatible but not necessarily equal, and the pin is the one that can only
+      // ever be MORE resolved: returning the derivation would let a segment whose
+      // lines corroborate less quietly hole a column this mount has been keying
+      // all along — the hidden set would stop applying to it and its menu row
+      // would go disabled, mid-session, because the user paged the sublist.
+      return pinnedColumnIds;
     }
     pinnedColumnIds = derived;
     return derived;
