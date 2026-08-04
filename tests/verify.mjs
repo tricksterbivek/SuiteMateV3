@@ -955,6 +955,11 @@ assert.match(
 // does not render — an appended duplicate saying something else passed this pin
 // while the browser painted the duplicate, which is the exact drift these
 // assertions exist to catch.
+// CEILING, stated so the claim matches the mechanism: "last" means the last
+// block whose selector head is EXACTLY this text. A duplicate hiding in a
+// comma-list head or winning on higher specificity evades a literal-text
+// reader; closing that means parsing CSS, which this file deliberately does
+// not do.
 const ruleValue = (sheet, label, selector, property) => {
   let value = null;
   for (let at = sheet.indexOf(selector); at !== -1; at = sheet.indexOf(selector, at + 1)) {
@@ -1017,6 +1022,63 @@ for (const [what, sites] of Object.entries({
       `${what} differs between "${baselineLabel}" and "${label}" — the copies have drifted`
     );
   }
+}
+// ===== Transaction totals box =====
+// EVERY value here goes through ruleValue, not a bare assert.match. Existence
+// matching answers "does the sheet say this anywhere", which an APPENDED
+// duplicate block satisfies while the browser paints the duplicate — the exact
+// hole this file closed for the tab treatment, reopened by pinning this
+// component the easy way. ruleValue reads the block the cascade lands on, and
+// its exact selector heads also stop a loose /table.totallingtable {/ from
+// matching the .isDarkMode rule that merely ends the same way.
+//
+// The WHOLE component is pinned, not just the interesting parts, because
+// NOTHING ELSE HOLDS ANY OF IT. The screenshot gate fails at 1% and this box is
+// small: a full revert of the cell padding moves the record baseline 0.276%, the
+// Total sizing 0.053%, the Total-label rule 0.019%, the inner radii 0.007%, the
+// container radius 0.002%, and a theme hardcode or a respelled shadow 0.000%.
+// Measured on netsuite-page, every one of them green.
+const TOTALS_ROW = "html:not(.ext-f) .totallingtable tbody tr:last-child ";
+const TOTALS_RADII = "html:not(.ext-f):not(.disable_radii) ";
+for (const [what, selector, property, expected] of [
+  // The two theme-derived surfaces. Both must read var(--theme-main) DIRECTLY:
+  // the live check is moving the variable and watching the caption and the rule
+  // above the Total follow together, and a hardcode renders pixel-identical to
+  // the variable that produced it. The rule was a color-mix towards the table
+  // border until this round and did not follow. The caption's selector head ends
+  // in a comma because the fill lives in a shared group — slicing from there to
+  // the block still reads that group's declaration and nobody else's.
+  ["the caption fill", "html:not(.ext-f) table.totallingtable caption,", "background-color", "var(--theme-main)"],
+  ["the rule above the Total row", `${TOTALS_ROW}td {`, "border-top", "2px solid var(--theme-main)"],
+  // Literals, because the spec named literals — an equivalent spelling renders
+  // identically and passes every screenshot. The dark variant is pinned on the
+  // same terms as the light one: no fixture renders either shadow to within the
+  // 1% gate, so "no test can see it" argues for pinning both or neither.
+  ["the elevation", "html:not(.ext-f) table.totallingtable {", "box-shadow", "0 1px 4px rgba(20, 22, 26, 0.22)"],
+  ["the dark-mode elevation", "html:not(.ext-f).isDarkMode table.totallingtable {", "box-shadow", "0 1px 4px rgba(0, 0, 0, 0.5)"],
+  // The radii are pinned as a SET: the inner three are the container's minus its
+  // 1px border, which is the claim the comment beside them makes, and a claim
+  // only holds while all four numbers still stand in that relationship.
+  ["the container radius", `${TOTALS_RADII}table.totallingtable {`, "border-radius", "16px"],
+  ["the caption radius", `${TOTALS_RADII}table.totallingtable caption {`, "border-radius", "15px 15px 0 0"],
+  ["the Total row's left radius", `${TOTALS_RADII}.totallingtable tbody tr:last-child td:first-child {`, "border-bottom-left-radius", "15px"],
+  ["the Total row's right radius", `${TOTALS_RADII}.totallingtable tbody tr:last-child td:last-child {`, "border-bottom-right-radius", "15px"],
+  ["the caption padding", "html:not(.ext-f) table.totallingtable caption {", "padding", "8px 16px"],
+  ["the cell padding", "html:not(.ext-f) .totallingtable td {", "padding", "8px 16px"],
+  ["the Total row size", `${TOTALS_ROW}td {`, "font-size", ".98em"],
+  ["the Total amount size", `${TOTALS_ROW}td+td {`, "font-size", "1.08em"],
+  // The Total LABEL, which the dimmed tier was also catching. Pinned because the
+  // rule that undims it is one deletable block and deleting it renders a box
+  // that still passes at 0.019% — the defect it fixes is invisible to the gate
+  // in exactly the way the defect itself was.
+  ["the Total label colour", `${TOTALS_ROW}span.uir-label {`, "color", "var(--text-0)"],
+  ["the Total label weight", `${TOTALS_ROW}span.uir-label {`, "font-weight", "700"]
+]) {
+  assert.equal(
+    ruleValue(netsuiteStyles, `the totals box: ${what}`, selector, property),
+    expected,
+    `The totals box: ${what} is not ${expected}`
+  );
 }
 assert.match(
   compatibilityStyles,
@@ -1989,7 +2051,7 @@ await access(resolve(root, "save/SUITEMATE_V1_MASTER_FEATURE_INVENTORY.md"));
 const expectedStyleHashes = {
   "src/styles/font.css": "ecc7a99f6b820ee9290ab4a3ca2ff1ea4829c1a539c0d42becb19a3d5ea446cf",
   "src/styles/code.css": "e5607100c7432fd7028176ce74c4c999e181108861ea6b992ed3058d92d0d698",
-  "src/styles/netsuite.css": "d04e6d5b74bfed9a6b0237f3be4f23afe3d4477af5b1d1acf5f9889b1e24da9b",
+  "src/styles/netsuite.css": "af7732530b1bd490b07332bed0480cbc9143992afbe6983d3bf632d8a9ad767d",
   "src/styles/pages/bundlebuilder.css": "bb9cae83f75b192d0a913233a33b6a8e557df656f7251a6e48e3105532e9f8fa",
   "src/styles/pages/codeeditor.css": "b58efb6517cfc13ca04cb621bdf269599ad9d6a589f38dee268743dda60f84df",
   "src/styles/pages/dashboard.css": "7c5cb547ce07074ed54d18b6bb7eb93d628099e7688dee6631ee24b9125e1b5f",
