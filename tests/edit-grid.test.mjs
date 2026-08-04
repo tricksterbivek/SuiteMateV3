@@ -170,9 +170,44 @@ function createCell({
   // not). Modelled as a queryable child rather than as text, because that is how
   // the runtime has to find it and because a text-shaped stub would let a reader
   // that matched on "*" look correct.
-  required = false
+  required = false,
+  // Whether this cell carries NetSuite's `div.listheader` label wrapper. Header
+  // cells do; data cells do not. It matters because the ▼ menu-toggle is
+  // appended INSIDE it (View Mode's measured placement — the wrapper is a 12px
+  // line box and the cell is 16px), so a stub without one would let a runtime
+  // that dropped the arrow straight into the <td> look correct.
+  headerLabel = false
 } = {}) {
   const classes = new Set();
+  // The children this feature appends. A cell used to be a leaf here; the header
+  // toggles made it a container, and the idempotency guard that keeps one arrow
+  // per repaint is a querySelector against exactly these.
+  const owned = [];
+  // NetSuite's `div.listheader`, built FRESH on every query so it reflects the
+  // arrows appended since the last one. It is wrapped in withInjectedNodes with
+  // this feature's own children declared as injected foreign nodes, which is
+  // what a real one is: the label's textContent includes the ▼ until a reader
+  // strips it. That makes core.readCellText take its clone-and-strip path here
+  // rather than its fast path, so the claim that a header toggle cannot pollute
+  // a column label is exercised instead of asserted.
+  // `parent` is set on the way in, exactly as createOwnedNode's own append does:
+  // it is what lets a test assert WHERE the ▼ landed, and the placement is the
+  // whole of View Mode's measured reason for the wrapper existing.
+  const adopt = (host) => (...nodes) => {
+    for (const node of nodes) {
+      node.parent = host;
+      owned.push(node);
+    }
+  };
+  const headerLabelNode = () => {
+    const label = { nodeType: 1, className: "listheader", children: owned };
+    label.append = adopt(label);
+    return withInjectedNodes(
+      label,
+      text,
+      owned.map((child) => ({ text: child.textContent ?? "", detaches: true }))
+    );
+  };
   // The machine's materialised field widgets. Live 2026-08-02: only the OPEN line
   // carries them and they are materialised PER CELL, which is why columnMinimums
   // measures per cell rather than per row. A number is one widget; an array is
@@ -210,11 +245,31 @@ function createCell({
     },
     getBoundingClientRect: () => ({ width: renderedWidth(cell) }),
     classNames: () => Array.from(classes),
+    // A real <td> hosts children, and from the header-menu round this one does
+    // too: the runtime appends into `div.listheader` when there is one and falls
+    // back to the cell itself when there is not, so both routes land here.
+    append: (...nodes) => adopt(cell)(...nodes),
+    // What a repaint takes with the header row. Exposed so repaintHeader can
+    // model the node loss the same way it already models the class loss — live,
+    // buildtable() replaces the <tr> and everything this feature appended into
+    // it dies with the cells that held it.
+    ownedChildren: owned,
     querySelector: (selector) => {
-      if (String(selector).includes("listheaderreq")) {
+      const query = String(selector);
+      if (query.includes("listheaderreq")) {
         return required ? { className: "listheaderreq", title: "Required Field" } : null;
       }
-      return spanId && selector.includes("_fs") ? { id: spanId } : null;
+      if (query.includes("listheader")) {
+        return headerLabel ? headerLabelNode() : null;
+      }
+      // Answers from the cell's whole subtree, which is what the real one does
+      // and what the idempotency guard depends on — the arrow lives inside the
+      // label wrapper, not directly under the cell.
+      const attribute = /\[data-suitemate-v3-edit-grid="([^"]+)"\]/.exec(query);
+      if (attribute) {
+        return owned.find((child) => child.getAttribute?.(DATA_ATTRIBUTE) === attribute[1]) ?? null;
+      }
+      return spanId && query.includes("_fs") ? { id: spanId } : null;
     },
     querySelectorAll: (selector) => (String(selector).includes("input") ? widgets : [])
   };
@@ -376,10 +431,10 @@ function createMachine({
   const header = createRow({
     className: "uir-machine-headerrow",
     cells: [
-      createCell({ text: "Item", rectDelta, required: starred("item") }),
-      createCell({ text: "Quantity", rectDelta, required: starred("quantity") }),
-      createCell({ text: "Rate", rectDelta, required: starred("rate") }),
-      createCell({ text: "", systemHidden: true, rectDelta })
+      createCell({ text: "Item", rectDelta, required: starred("item"), headerLabel: true }),
+      createCell({ text: "Quantity", rectDelta, required: starred("quantity"), headerLabel: true }),
+      createCell({ text: "Rate", rectDelta, required: starred("rate"), headerLabel: true }),
+      createCell({ text: "", systemHidden: true, rectDelta, headerLabel: true })
     ]
   });
   const dataRows = Array.from({ length: lines }, (_, index) => {
@@ -3532,6 +3587,11 @@ test("an install whose second axis read comes back empty never reaches applyAll,
       // reaches which call, and the star has its own pins.
       readRequiredColumns: () => new Set(),
       requiredColumns: new Set(),
+      // Stubbed with the other DOM writers this slice does not exercise: it is
+      // about which axis reaches which call, and the header toggles have their
+      // own pins. Present rather than absent because the install now calls it
+      // above its own early return, so an undeclared name would throw.
+      ensureHeaderMenus() {},
       warnedNewerSchema: false,
       // A gesture's width, already in module state when this install starts.
       columnWidths: { quantity: 161 },
@@ -3984,6 +4044,12 @@ function repaintHeader(harness, core, width = 120) {
   for (const cell of core.visibleCells(core.headerRow(harness.table))) {
     cell.style.width = "";
     cell.offsetWidth = width;
+    // FOURTH thing the repaint takes, added with the header menus: every node
+    // this feature appended into the header — the ▼ toggles — goes with the
+    // cells that held it, exactly as the classes do. Without this the stub keeps
+    // arrows a live repaint would have destroyed, and the install's re-creation
+    // pass would look correct while never running.
+    cell.ownedChildren?.splice(0, cell.ownedChildren.length);
   }
   for (const row of core.tableRows(harness.table)) {
     for (const cell of Array.from(row.cells ?? [])) {
@@ -5119,8 +5185,8 @@ test("the Columns menu fails closed on a machine whose axis cannot be read", asy
   // currentColumnIds declines WITHOUT discarding the pin.
   harness.table.rows.splice(0, 1);
   harness.click(harness.owned("columns-button")[0]);
-  assert.deepEqual(plain(harness.owned("menu")), [], "a menu was built against an unreadable axis");
-  assert.deepEqual(plain(harness.owned("column-toggle")), []);
+  assert.deepEqual(harness.owned("menu").map((node) => node.getAttribute(DATA_ATTRIBUTE)), [], "a menu was built against an unreadable axis");
+  assert.deepEqual(harness.owned("column-toggle").map((node) => node.getAttribute(DATA_ATTRIBUTE)), []);
   assert.equal(harness.counts.writes, 0);
 });
 
@@ -5196,7 +5262,7 @@ test("an unresolved column is listed, checked, disabled and unkeyable", async ()
   assert.equal(rows[2].title, "Column identity could not be established on this form");
   // NO CHIP, ever: chips are rendered from the STORED ids and an unresolved
   // column can never be one of them.
-  assert.deepEqual(plain(harness.owned("chip")), []);
+  assert.deepEqual(harness.owned("chip").map((node) => node.getAttribute(DATA_ATTRIBUTE)), []);
   assert.equal(harness.counts.writes, 0);
 });
 
@@ -5401,14 +5467,14 @@ test("a chip reveals its column, and neither direction writes an inline display"
   openMenu(harness);
   harness.click(harness.owned("chip")[0]);
   await harness.tick();
-  assert.deepEqual(plain(harness.owned("menu")), [], "a stale menu survived the gesture that invalidated it");
+  assert.deepEqual(harness.owned("menu").map((node) => node.getAttribute(DATA_ATTRIBUTE)), [], "a stale menu survived the gesture that invalidated it");
 
   assert.deepEqual(hiddenHeader(core, harness), [false, false, false]);
   assert.equal(harness.counts.writes, 1);
   // The entry is DELETED, not left as an empty list: an empty hidden set has
   // nothing to say and core's writers drop it.
   assert.equal(storedHidden(harness), null);
-  assert.deepEqual(plain(harness.owned("chip")), []);
+  assert.deepEqual(harness.owned("chip").map((node) => node.getAttribute(DATA_ATTRIBUTE)), []);
   // The INVERSE of the laundering defect, which is the half a hide-only pin
   // misses: a reveal that also cleared NetSuite's own inline `none` would
   // LENGTHEN the axis, and that axis keys storage on the next install.
@@ -5768,7 +5834,7 @@ test("the hide choke point refuses a starred column, with no write and no DOM ch
   assert.equal(harness.counts.writes, 0, "a hide for a starred column reached storage");
   assert.equal(storedHidden(harness), null);
   assert.deepEqual(hiddenHeader(core, harness), [false, false, false], "a starred column was hidden");
-  assert.deepEqual(plain(harness.owned("chip")), [], "a chip appeared for a column that is not hidden");
+  assert.deepEqual(harness.owned("chip").map((node) => node.getAttribute(DATA_ATTRIBUTE)), [], "a chip appeared for a column that is not hidden");
 });
 
 test("the choke point is armed BEFORE the install's storage read, not only after it", async () => {
@@ -6051,7 +6117,7 @@ test("teardown strips the class, the bar and the menu, and a remount rebuilds th
   }
   // The menu lives on <body>, outside the container, so the document-scoped
   // sweep is the only thing that can reach it.
-  assert.deepEqual(plain(harness.owned("menu")), []);
+  assert.deepEqual(harness.owned("menu").map((node) => node.getAttribute(DATA_ATTRIBUTE)), []);
   assert.equal(harness.body.children.length, 0, "the column menu leaked past teardown");
   assertNotMounted(harness, "settings off");
   // Storage is untouched by a teardown — the user's layout is a preference, not
@@ -6212,7 +6278,7 @@ test("the column menu closes on an outside click and on Escape, and leaves no li
   // handler that closed here would leave that one seeing no menu and re-opening
   // it — a Columns button that can never close what it opened.
   harness.click(harness.owned("columns-button")[0]);
-  assert.deepEqual(plain(harness.owned("menu")), [], "the Columns button no longer closes its own menu");
+  assert.deepEqual(harness.owned("menu").map((node) => node.getAttribute(DATA_ATTRIBUTE)), [], "the Columns button no longer closes its own menu");
   assert.deepEqual(harness.documentListeners, []);
 
   // A click that misses the machine entirely — `outside`, so the container's
@@ -6221,7 +6287,7 @@ test("the column menu closes on an outside click and on Escape, and leaves no li
   // and nothing dismissed what landed anywhere else.
   openMenu(harness);
   harness.fire("click", { target: harness.body, outside: true });
-  assert.deepEqual(plain(harness.owned("menu")), [], "a click outside the menu left it standing");
+  assert.deepEqual(harness.owned("menu").map((node) => node.getAttribute(DATA_ATTRIBUTE)), [], "a click outside the menu left it standing");
   assert.deepEqual(harness.documentListeners, [], "the dismissal pair outlived the menu");
 
   // A click INSIDE it is not a dismissal. The menu lives on <body>, so this one
@@ -6233,7 +6299,7 @@ test("the column menu closes on an outside click and on Escape, and leaves no li
   assert.equal(harness.owned("menu").length, 1, "a click on a checkbox dismissed the menu");
 
   harness.fire("keydown", { key: "Escape" });
-  assert.deepEqual(plain(harness.owned("menu")), [], "Escape left the menu standing");
+  assert.deepEqual(harness.owned("menu").map((node) => node.getAttribute(DATA_ATTRIBUTE)), [], "Escape left the menu standing");
   assert.deepEqual(harness.documentListeners, []);
 
   // Any other key is not Escape.
@@ -6246,7 +6312,397 @@ test("the column menu closes on an outside click and on Escape, and leaves no li
   // reason the flush timer does.
   harness.lifecycle.registration.cleanup({ id: "record.edit-grid", reason: "paused" });
   assert.deepEqual(harness.documentListeners, [], "the menu's dismissal pair outlived its mount");
-  assert.deepEqual(plain(harness.owned("menu")), []);
+  assert.deepEqual(harness.owned("menu").map((node) => node.getAttribute(DATA_ATTRIBUTE)), []);
+});
+
+// The ▼ a header cell carries, found the way the runtime finds it — through the
+// cell, never through harness.owned(), because these live inside machine cells
+// and the owned sweep walks the container's own children.
+function headerToggles(harness, core) {
+  return headerOf(harness, core).map((cell) => cell.querySelector(`[${DATA_ATTRIBUTE}="menu-toggle"]`));
+}
+
+function openHeaderMenu(harness, core, index) {
+  harness.click(headerToggles(harness, core)[index]);
+  return harness.owned("menu")[0] ?? null;
+}
+
+test("UI PARITY: Reset restores the machine, empties the container in ONE write, and the mount stays", async () => {
+  // UI-PARITY DIRECTIVE 2026-08-04. View Mode has had a Reset since it shipped
+  // and Edit Mode had none, so a user who personalised an Edit grid had no way
+  // back short of un-hiding every column by hand and dragging every width. The
+  // semantics are View's, minus the three things this surface does not have:
+  // View restores order, sort, filters, hidden and widths; reorder is impossible
+  // here (P-MONO) and sort/filter are M6/M7, so this restores the two that exist.
+  const core = createApi();
+  const harness = createRuntimeHarness({
+    stored: { schemaVersion: 1, grids: { [SCOPE]: { hidden: ["quantity"], widths: { rate: 140 } } } }
+  });
+  await harness.flush();
+  assert.deepEqual(hiddenHeader(core, harness), [false, true, false]);
+  assert.equal(harness.table.style.tableLayout, "fixed", "the stored width did not freeze the machine");
+  assert.equal(harness.owned("chip").length, 1);
+  // A menu left standing across the reset would show ticks built from a hidden
+  // set that no longer exists, so the gesture dismisses it — the same staleness
+  // the chip path already dismisses for.
+  openMenu(harness);
+  assert.equal(harness.owned("menu").length, 1);
+
+  const [reset] = harness.owned("reset");
+  assert.equal(reset.textContent, "Reset", "the bar has no Reset button");
+  assert.equal(reset.type, "button", "a bare <button> inside main_form would SAVE THE RECORD");
+  harness.click(reset);
+  await harness.tick();
+
+  // THE MACHINE IS BACK: nothing hidden, no inline width, and the layout handed
+  // back to NetSuite — core's null-plan restore, reached through the ordinary
+  // apply rather than through a path Reset invented for itself.
+  for (const row of alignedRows(core, harness.table)) {
+    assert.deepEqual(hiddenFlags(core, row), [false, false, false], "a column stayed hidden through a reset");
+  }
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["", "", ""],
+    "an inline width survived the reset");
+  assert.equal(harness.table.style.tableLayout, "", "the machine is still in the layout this mount imposed");
+  assert.deepEqual(harness.owned("chip").map((node) => node.getAttribute(DATA_ATTRIBUTE)), [], "a chip survived the reset");
+  assert.deepEqual(harness.owned("menu").map((node) => node.getAttribute(DATA_ATTRIBUTE)), [], "the menu's stale ticks survived the reset");
+  assert.deepEqual(harness.toasts, [{ message: "Column layout reset.", type: "success" }]);
+
+  // ONE write, and what it leaves is not an empty entry but NO entry: core's
+  // writeField drops a field written null and deletes the scope once the last
+  // one goes, so storage is byte-identical to a user who never touched this
+  // record. Two writes would also be two chances to leave widths-without-hides
+  // visible to another tab's storage listener.
+  assert.equal(harness.counts.writes, 1, "reset was not exactly one write");
+  assert.deepEqual(plain(harness.writes.at(-1)[EDIT_STORAGE_KEY]), { schemaVersion: 1, grids: {} },
+    "the reset left the user's container holding something");
+
+  // THE MOUNT STAYS — View exits its personalize mode here and there is no mode
+  // to exit. Everything still works, which is the assertion that matters: a
+  // gesture after a reset behaves exactly like a gesture before one.
+  assert.equal(harness.container.hasAttribute(BOUND_ATTRIBUTE), true, "reset tore the bindings down");
+  await toggleColumn(harness, "quantity", false);
+  assert.deepEqual(hiddenHeader(core, harness), [false, true, false], "a hide after a reset did not land");
+  assert.equal(harness.counts.writes, 2);
+  assert.deepEqual(storedHidden(harness), ["quantity"]);
+});
+
+test("UI PARITY: Reset never writes a required column, and a machine with nothing stored resets to nothing", async () => {
+  // The required set is filtered out of everything that renders, so a reset has
+  // nothing of theirs to undo — but the write is the part worth pinning: a reset
+  // that enumerated columns instead of clearing fields could put a starred id
+  // into the container on its way past.
+  const core = createApi();
+  const harness = createRuntimeHarness({
+    stored: { schemaVersion: 1, grids: { [SCOPE]: { hidden: ["item", "quantity"] } } }
+  });
+  await harness.flush();
+  // `item` is starred by the fixture, so it renders visible while `quantity`
+  // hides — the retention doctrine, unchanged by this round.
+  assert.deepEqual(hiddenHeader(core, harness), [false, true, false]);
+
+  harness.click(harness.owned("reset")[0]);
+  await harness.tick();
+  assert.equal(harness.counts.writes, 1);
+  assert.deepEqual(plain(harness.writes.at(-1)[EDIT_STORAGE_KEY]), { schemaVersion: 1, grids: {} },
+    "the reset wrote a column id rather than clearing the fields");
+  assert.deepEqual(hiddenHeader(core, harness), [false, false, false]);
+
+  // And a SECOND reset on an already-clean machine: still one write, still no
+  // entry. Idempotent, because the clear is a field delete and not a diff.
+  harness.click(harness.owned("reset")[0]);
+  await harness.tick();
+  assert.equal(harness.counts.writes, 2);
+  assert.deepEqual(plain(harness.writes.at(-1)[EDIT_STORAGE_KEY]), { schemaVersion: 1, grids: {} });
+  assert.deepEqual(harness.toasts.map(({ message }) => message), ["Column layout reset.", "Column layout reset."]);
+});
+
+test("UI PARITY: a width set AFTER a reset is planned from the machine, not from the layout that was reset away", async () => {
+  // THE SESSION-ONLY MAPS, and why Reset has to take them. frozenWidths and
+  // naturalWidths have no View Mode analogue — they exist because Edit Mode's
+  // machine is repainted underneath us — so it would be easy to leave them out
+  // of a reset written by reading View's. Both are DERIVED from the width state
+  // the reset is clearing, and plannedWidths reads all three
+  // ({...naturalWidths, ...frozenWidths, ...columnWidths}), so a survivor comes
+  // back the moment the user sets ANY width afterwards: they reset, drag one
+  // column, and a different column silently returns to the width they had just
+  // discarded. Storage never shows it — only columnWidths persists — so this is
+  // asserted where it is visible, on the machine.
+  const core = createApi();
+  const harness = createRuntimeHarness({
+    stored: { schemaVersion: 1, grids: { [SCOPE]: { widths: { rate: 140 } } } }
+  });
+  await harness.flush();
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["100px", "100px", "140px"],
+    "the stored width did not reach the machine, so there is nothing for the reset to clear");
+
+  harness.click(harness.owned("reset")[0]);
+  await harness.tick();
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["", "", ""]);
+
+  // A brand-new gesture on a DIFFERENT column, which is what rebuilds a plan.
+  const cells = headerOf(harness, core);
+  const box = cells[1].getBoundingClientRect();
+  harness.pointer("pointerdown", { target: cells[1], clientX: box.right - 1, clientY: box.top + 4 });
+  harness.pointer("pointermove", { clientX: box.right - 1 + 10, clientY: box.top + 4 });
+  harness.pointer("pointerup", { clientX: box.right - 1 + 10, clientY: box.top + 4 });
+  await harness.tick();
+
+  // Rate at 100 — what it MEASURES — and not the 140 the discarded layout gave
+  // it. Item likewise, and Quantity at its own 100 + the 10 just dragged.
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["100px", "110px", "100px"],
+    "a column came back at the width the reset was supposed to discard");
+  assert.deepEqual(plain(harness.writes.at(-1)[EDIT_STORAGE_KEY].grids[SCOPE].widths), { quantity: 110 },
+    "the reset-away width reached storage again");
+});
+
+test("UI PARITY: Reset against a NEWER stored schema refuses, and does not wipe the container", async () => {
+  // THE COMPOSED WRITE'S SHARP EDGE, pinned because the failure mode is total.
+  // saveReset clears two fields in one writeField by feeding the first call's
+  // result to the second. core.withHidden answers NULL when it refuses — a newer
+  // schema is the reachable case — and a composition that passed that null on as
+  // `stored` would have core.normalizeStored turn it into a FRESH EMPTY
+  // container, which the writer would then persist: every scope for every record
+  // gone, and the newer-SuiteMate container the refusal existed to protect gone
+  // with them. The guard keeps a refusal a refusal.
+  const harness = createRuntimeHarness({
+    stored: { schemaVersion: 2, grids: { "OTHER:1:salesord:edit": { hidden: ["item"] } } }
+  });
+  await harness.flush();
+  // The mount stands and warns; the bar is built, so Reset is clickable.
+  assert.deepEqual(harness.toasts, [{ message: "This layout was saved by a newer SuiteMate.", type: "warning" }]);
+
+  harness.click(harness.owned("reset")[0]);
+  await harness.tick();
+
+  assert.equal(harness.counts.writes, 0, "a reset overwrote a container written by a newer SuiteMate");
+  assert.deepEqual(plain(harness.storedNow()), { schemaVersion: 2, grids: { "OTHER:1:salesord:edit": { hidden: ["item"] } } },
+    "another record's layout was destroyed by a reset that should have refused");
+  // The user is told the save failed, by the shared writer's own path.
+  assert.deepEqual(harness.toasts.map(({ message }) => message).slice(1),
+    ["Column layout reset.", "Column layout could not be saved."]);
+});
+
+test("UI PARITY: a header ▼ hides its own column, through the same choke point as the menu", async () => {
+  // View Mode's hide gesture lives on the header, not in a list: the Columns
+  // menu is the overview and the ▼ is the in-place action. Edit Mode had only
+  // the list, which is half the reason the two surfaces felt different.
+  const core = createApi();
+  const harness = createRuntimeHarness();
+  await harness.flush();
+
+  // One per VISIBLE header cell, inside NetSuite's own div.listheader — View's
+  // measured placement (the wrapper is a 12px line box, the cell is 16px, and an
+  // arrow dropped straight into the cell inflates the header's height).
+  const toggles = headerToggles(harness, core);
+  assert.equal(toggles.every(Boolean), true, "a header cell has no ▼");
+  assert.deepEqual(plain(toggles.map((node) => node.textContent)), ["▼", "▼", "▼"]);
+  assert.deepEqual(plain(toggles.map((node) => node.type)), ["button", "button", "button"]);
+  assert.equal(toggles[0].parent.className, "listheader", "the ▼ was not placed inside the header label");
+  // It does NOT pollute the column's label: core.readCellText strips this
+  // feature's own nodes out of a header read, which is what keeps the chips and
+  // the menu naming the column rather than the arrow.
+  assert.deepEqual(plain(core.readHeaderLabels(harness.table, EDIT_AXIS)), ["Item", "Quantity", "Rate"]);
+
+  const menu = openHeaderMenu(harness, core, 1);
+  assert.equal(Boolean(menu), true, "the ▼ opened no menu");
+  // ONE item, honestly: sort and filter are M6/M7 and a greyed promise of them
+  // would be worse than their absence.
+  assert.equal(harness.owned("menu-item").length, 1, "the header menu grew an item this surface cannot honour");
+  // Read from the item's own children: an icon span and a label span, which is
+  // View Mode's menu-item shape (so-columns.css:267 styles the icon separately).
+  assert.deepEqual(plain(harness.owned("menu-item")[0].children.map((node) => node.textContent)),
+    ["⊖", "Hide column"]);
+  assert.equal(harness.owned("menu-item")[0].disabled, false);
+
+  harness.fire("click", { target: harness.owned("menu-item")[0], on: menu });
+  await harness.tick();
+
+  assert.deepEqual(hiddenHeader(core, harness), [false, true, false], "the ▼ hid the wrong column, or none");
+  assert.deepEqual(harness.owned("menu").map((node) => node.getAttribute(DATA_ATTRIBUTE)), [], "the menu stayed up after its own action");
+  assert.equal(harness.counts.writes, 1, "the header gesture is not exactly one write");
+  assert.deepEqual(storedHidden(harness), ["quantity"]);
+  assert.deepEqual(plain(harness.owned("chip").map((node) => node.textContent)), ["Quantity ✕"]);
+});
+
+test("UI PARITY: the header ▼ refuses a required column and an unresolved one, the same way the menu does", async () => {
+  // The two refusals the Columns menu already carries (08e3c1e required, 6ec83e0
+  // holes), reached by the other route. A user must meet the same answer
+  // whichever way they ask, or the affordances disagree about the same column.
+  const core = createApi();
+  const harness = createRuntimeHarness({ machine: { required: ["item"] } });
+  await harness.flush();
+
+  // REQUIRED — the fixture stars Item.
+  const required = openHeaderMenu(harness, core, 0);
+  assert.equal(harness.owned("menu-item")[0].disabled, true, "a starred column offered a working Hide");
+  assert.equal(required.title, "Required column — cannot be hidden");
+  // Fail-closed BELOW the affordance: the item carries no column id at all, so
+  // the click a stripped `disabled` attribute would allow still writes nothing.
+  assert.equal(harness.owned("menu-item")[0].dataset.columnId, undefined);
+  harness.fire("click", { target: harness.owned("menu-item")[0], on: required });
+  await harness.tick();
+  assert.equal(harness.counts.writes, 0, "a starred column reached storage through the header menu");
+  assert.deepEqual(hiddenHeader(core, harness), [false, false, false]);
+
+  // A HOLE — a position core.correlateColumnIds left null because the optimal
+  // alignments disagreed about it, so there is no id to key a hide by. The
+  // existing holed harness puts it at index 2, and this drives the SAME machine
+  // the Columns-menu hole test drives.
+  const holed = createHoledHarness();
+  await holed.flush();
+  const hole = openHeaderMenu(holed, core, 2);
+  assert.equal(holed.owned("menu-item")[0].disabled, true, "an unresolved column offered a working Hide");
+  assert.equal(hole.title, "Column identity could not be established on this form");
+  holed.fire("click", { target: holed.owned("menu-item")[0], on: hole });
+  await holed.tick();
+  assert.equal(holed.counts.writes, 0, "an unkeyable column reached storage");
+});
+
+test("UI PARITY: the header menu shares the Columns menu's dismisser, and the ▼ toggles", async () => {
+  // ONE open menu at a time, one slot, one dismisser. A second slot would mean a
+  // second document-level pair and two ways to leak a listener past teardown.
+  const core = createApi();
+  const harness = createRuntimeHarness();
+  await harness.flush();
+  assert.deepEqual(harness.documentListeners, []);
+
+  openHeaderMenu(harness, core, 1);
+  assert.equal(harness.owned("menu").length, 1);
+  assert.deepEqual(harness.documentListeners.map(({ type }) => type), ["click", "keydown"]);
+
+  // The ▼ TOGGLES, exactly as the Columns button does: the dismisser exempts it
+  // (it runs in capture, ahead of the delegated click), so closing is this
+  // handler's job and a second click must not re-open.
+  harness.click(headerToggles(harness, core)[1]);
+  assert.deepEqual(harness.owned("menu").map((node) => node.getAttribute(DATA_ATTRIBUTE)), [], "the ▼ could not close its own menu");
+  assert.deepEqual(harness.documentListeners, [], "the dismissal pair outlived the header menu");
+
+  // Outside click and Escape, the shared pair doing the same job for this menu.
+  openHeaderMenu(harness, core, 1);
+  harness.fire("click", { target: harness.body, outside: true });
+  assert.deepEqual(harness.owned("menu").map((node) => node.getAttribute(DATA_ATTRIBUTE)), [], "a click outside left the header menu standing");
+  openHeaderMenu(harness, core, 1);
+  harness.fire("keydown", { key: "Escape" });
+  assert.deepEqual(harness.owned("menu").map((node) => node.getAttribute(DATA_ATTRIBUTE)), [], "Escape left the header menu standing");
+  assert.deepEqual(harness.documentListeners, []);
+
+  // Opening the OTHER menu closes this one — one slot, so this is structural
+  // rather than a rule anyone has to remember.
+  openHeaderMenu(harness, core, 1);
+  openMenu(harness);
+  assert.equal(harness.owned("menu").length, 1, "two menus stood at once");
+  assert.equal(harness.owned("column-toggle").length, 3, "the standing menu is not the Columns one");
+
+  // Teardown with a header menu up: node swept, document pair off by name.
+  openHeaderMenu(harness, core, 1);
+  harness.lifecycle.registration.cleanup({ id: "record.edit-grid", reason: "paused" });
+  assert.deepEqual(harness.documentListeners, [], "the header menu's dismissal pair outlived its mount");
+  assert.deepEqual(harness.owned("menu").map((node) => node.getAttribute(DATA_ATTRIBUTE)), []);
+});
+
+test("UI PARITY: moving between header ▼s takes ONE click, because the menu knows which arrow owns it", async () => {
+  // View Mode's toggleColumnMenu asks `openMenu?.cell === cell` — is MY menu
+  // open — and this used to ask "is A menu open", which is not the same question
+  // and costs a click every time the user moves along the header: the standing
+  // menu closed and nothing opened. Reading three columns in a row took six
+  // clicks instead of three. Ported from so-columns/runtime.js:440-449.
+  //
+  // WHICH menu is standing is asserted through the item's own key, not through
+  // the arrow that was clicked — that is the thing that would actually be wrong
+  // if ownership were mistracked.
+  const core = createApi();
+  const harness = createRuntimeHarness({ machine: { required: [] } });
+  await harness.flush();
+  const openFor = () => harness.owned("menu-item")[0]?.dataset?.columnId ?? null;
+
+  harness.click(headerToggles(harness, core)[0]);
+  assert.equal(openFor(), "item", "the first arrow opened no menu, or the wrong one");
+
+  // THE FIX, in one click: a DIFFERENT arrow closes the standing menu and opens
+  // its own, rather than closing and leaving the user with nothing.
+  harness.click(headerToggles(harness, core)[1]);
+  assert.equal(harness.owned("menu").length, 1, "two menus stood at once");
+  assert.equal(openFor(), "quantity", "moving to another header took more than one click");
+
+  // The SAME arrow still closes — the half that was already right.
+  harness.click(headerToggles(harness, core)[1]);
+  assert.deepEqual(harness.owned("menu").map((node) => node.getAttribute(DATA_ATTRIBUTE)), [],
+    "an arrow could not close its own menu");
+
+  // COLUMNS MENU -> ARROW, also one click: the Columns menu is owned by no
+  // arrow, so no arrow ever mistakes it for its own.
+  openMenu(harness);
+  assert.equal(harness.owned("column-toggle").length, 3, "the Columns menu is not the one standing");
+  harness.click(headerToggles(harness, core)[2]);
+  assert.equal(openFor(), "rate", "opening a header menu over the Columns menu took more than one click");
+
+  // ARROW -> COLUMNS keeps the Columns button's OWN long-standing shape: one
+  // click dismisses whatever stands, the next opens. Deliberately asymmetric —
+  // that button has toggled this way since M3 and its test pins it.
+  harness.click(harness.owned("columns-button")[0]);
+  assert.deepEqual(harness.owned("menu").map((node) => node.getAttribute(DATA_ATTRIBUTE)), []);
+  harness.click(harness.owned("columns-button")[0]);
+  assert.equal(harness.owned("column-toggle").length, 3);
+
+  // And the shared dismisser still closes whichever is standing.
+  harness.click(headerToggles(harness, core)[0]);
+  assert.equal(openFor(), "item");
+  harness.fire("keydown", { key: "Escape" });
+  assert.deepEqual(harness.owned("menu").map((node) => node.getAttribute(DATA_ATTRIBUTE)), []);
+  assert.deepEqual(harness.documentListeners, [], "the dismissal pair outlived the menu");
+
+  // AND THE OWNER DIED WITH IT. The dismisser closes the node; if the ownership
+  // record outlived it, the very next click on that same arrow would read "mine
+  // is already open", close a menu that is not there, and open nothing — an
+  // arrow that goes dead after any Escape or outside click.
+  harness.click(headerToggles(harness, core)[0]);
+  assert.equal(openFor(), "item", "an arrow went dead after its menu was dismissed");
+  assert.equal(harness.counts.writes, 0, "browsing the header menus wrote storage");
+});
+
+test("UI PARITY: the ▼ comes back after a repaint, exactly one per cell, without perturbing convergence", async () => {
+  // The header row is replaced wholesale by a repaint and every arrow goes with
+  // it. What makes this subtle is that NEITHER SIGNATURE CAN SEE AN ARROW — they
+  // read the axis, table-layout, inline widths and our hidden class — so a
+  // machine with no widths and no hides converges immediately, the install takes
+  // its early return, and toggles created below that return would never come
+  // back. They are created above it, with the chips, for exactly that reason.
+  const core = createApi();
+  const harness = createRuntimeHarness();
+  await harness.flush();
+  assert.equal(headerToggles(harness, core).every(Boolean), true);
+  assert.equal(harness.counts.writes, 0);
+
+  // A repaint with NOTHING stored: the convergence case, where the install does
+  // no DOM work at all beyond this.
+  repaintHeader(harness, core);
+  // Mapped to booleans rather than handed to plain(): an arrow now knows its
+  // parent and the parent lists its children, so the node graph is cyclic and
+  // JSON cannot walk it. What matters here is presence, not shape.
+  // plain() on the BOOLEANS, not on the nodes: headerOf returns a sandbox-realm
+  // array (so deepEqual would fault on the prototype) while the nodes themselves
+  // are now cyclic through `parent`, so mapping first is the only shape that
+  // satisfies both.
+  assert.deepEqual(plain(headerToggles(harness, core).map(Boolean)), [false, false, false],
+    "the fixture is not modelling a header the repaint replaced");
+  await harness.run("repaint");
+  assert.equal(headerToggles(harness, core).every(Boolean), true,
+    "a repaint took the header arrows and the install never put them back");
+
+  // IDEMPOTENT: further installs must not stack a second arrow in a cell that
+  // kept its first. Counted through the label wrapper, which is where they land.
+  await harness.run("repaint");
+  await harness.run("repaint");
+  for (const cell of headerOf(harness, core)) {
+    assert.equal(
+      cell.ownedChildren.filter((child) => child.getAttribute?.(DATA_ATTRIBUTE) === "menu-toggle").length,
+      1,
+      "an install stacked a second ▼ in a header cell"
+    );
+  }
+  // And the whole sequence was still storage-silent: re-creating our own node is
+  // not a gesture, and the signature pair is unmoved by it.
+  assert.equal(harness.counts.writes, 0, "re-creating the header arrows wrote storage");
 });
 
 test("teardown releases the bindings even when the machine table is already detached", async () => {
@@ -6323,12 +6779,32 @@ test("runtime owns no observer, no HTML sink and no View Mode storage", () => {
 });
 
 test("every stylesheet rule is scoped to the feature and every hide rule wins", () => {
-  const selectors = stylesheet
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .split("}")
-    .map((block) => block.split("{")[0].trim())
-    .filter(Boolean);
+  const withoutComments = stylesheet.replace(/\/\*[\s\S]*?\*\//g, "");
+  // A @keyframes NAME is global to the document, so a collision with View Mode's
+  // would let one feature's animation replace the other's. The steps inside are
+  // `from`/`to`/percentages — not selectors, and unable to match any node — so
+  // the name is checked here and the block is dropped before the selector sweep.
+  const keyframes = [...withoutComments.matchAll(/@keyframes\s+([\w-]+)/g)].map(([, name]) => name);
+  for (const name of keyframes) {
+    assert.match(name, /suitemate-v3-edit-grid/, `@keyframes ${name} can collide with another feature`);
+  }
+  // Every `… {` in the sheet, which is what the old `split("}")` only
+  // approximated: it took the text before the FIRST brace of each block, so a
+  // selector nested inside an at-rule — `@media (…) { .rule {` — was never
+  // checked at all. Now the at-rule prelude and the nested selector are two
+  // separate matches, and only the prelude (a leading `@`) is skipped.
+  const selectors = [...withoutComments.replace(/@keyframes[\s\S]*?\n\}/g, "").matchAll(/([^{}]+)\{/g)]
+    .map(([, selector]) => selector.trim())
+    .filter((selector) => selector && !selector.startsWith("@"));
   assert.equal(selectors.length > 0, true);
+  // Not vacuous, and this is the guard on the extraction itself: the sheet HAS a
+  // rule nested inside an at-rule, so if the regex above ever stops seeing
+  // through one, this count drops and says so.
+  assert.equal(
+    selectors.some((selector) => selector.includes("suitemate-v3-edit-grid-menu")),
+    true,
+    "the selector sweep no longer reaches rules nested inside an at-rule"
+  );
   // Per comma group, not per rule: `.suitemate-v3-edit-grid-menu, tr.uir-machine-row`
   // would pass a whole-string check while matching a View Mode node.
   for (const group of selectors.flatMap((selector) => selector.split(","))) {
@@ -6343,8 +6819,32 @@ test("every stylesheet rule is scoped to the feature and every hide rule wins", 
   // injected node VISIBLE is exposed to the same hostile cascade as one that
   // hides, so every `display` this sheet sets carries !important — not just the
   // none ones.
-  for (const [, value] of stylesheet.matchAll(/\n\s*(display:[^;\n}]+)/g)) {
+  //
+  // ANCHORED ON THE DECLARATION, not on a newline. This used to require `\n\s*`
+  // before `display:`, which meant a declaration sharing a line with its own
+  // opening brace was never seen — `.rule { display: block }` escaped entirely,
+  // at the top level and inside an at-rule alike. That is a formatting
+  // coincidence standing in for a rule, and this sheet is one reformat away from
+  // it at any time. `[{;]` is the real boundary a declaration starts at.
+  const displays = (css) => [...css.matchAll(/[{;]\s*(display\s*:[^;\n}]+)/g)].map(([, value]) => value.trim());
+  for (const value of displays(stylesheet)) {
     assert.match(value, /!important/, `a display rule without !important: ${value}`);
+  }
+  // NOT VACUOUS, and this is the check the old anchor would have failed. Three
+  // hostile shapes, each a real way to write the same defect: the one-line rule
+  // that escaped before, the same thing nested in an at-rule, and the ordinary
+  // multi-line form the old sweep did catch. All three must be seen.
+  const hostile = [
+    ".suitemate-v3-edit-grid-note { display: block }",
+    "@media (min-width: 1px) { .suitemate-v3-edit-grid-note { display: block } }",
+    ".suitemate-v3-edit-grid-note {\n    display: block\n}"
+  ];
+  for (const probe of hostile) {
+    assert.equal(
+      displays(`${stylesheet}\n${probe}`).some((value) => !/!important/.test(value)),
+      true,
+      `the display sweep cannot see a bare display in: ${probe}`
+    );
   }
 });
 

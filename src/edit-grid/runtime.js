@@ -568,11 +568,24 @@
     if (ownsLayout && table?.style?.tableLayout === "fixed") {
       return;
     }
-    // Measured ONLY where we are not hiding, which is what makes this a record of
-    // NetSuite's own layout rather than of ours. Runs before the hide pass of the
-    // same apply (see applyAll), so on a fresh mount every column is recorded
+    // Measured ONLY where we are not hiding, which is what keeps our own
+    // `display: none !important` out of this record. Runs before the hide pass of
+    // the same apply (see applyAll), so on a fresh mount every column is recorded
     // before anything is hidden, and a column already hidden keeps whatever was
     // recorded the last time it was not.
+    //
+    // IT IS NO LONGER PURELY NETSUITE'S LAYOUT, and the comment used to claim it
+    // was. Since the UI-parity round each header cell carries this feature's own
+    // ▼ inside NetSuite's div.listheader, so what a header cell measures includes
+    // that arrow. That is SAFE, and for a reason worth stating rather than
+    // rediscovering: the arrow is created once per header (the idempotency guard
+    // in ensureHeaderMenus) and never resized, so the contribution is a CONSTANT
+    // — it cannot walk the way defect D1's re-measured widget floor did, where
+    // each apply's output became the next measurement's input. And both readers
+    // of this map — plannedWidths and targetSignature's `rendered` fallback —
+    // measure the same cells at the same moment, so the two cannot disagree
+    // about it and convergence is unaffected. What this map still guarantees is
+    // the thing it exists for: the width is not one OUR HIDING produced.
     headerCellsOf(table).forEach((cell, index) => {
       const id = columnIds[index];
       if (!id || cell.classList?.contains?.(core.CLASSES.colHidden) === true) {
@@ -726,6 +739,30 @@
     return saveField((stored, scope) => core.withHidden(stored, scope, hidden));
   }
 
+  function saveReset() {
+    // ONE write for both fields, and it is one write because the two clears are
+    // COMPOSED inside a single writeField rather than enqueued as two saves. Two
+    // would be two round-trips and two chances to interleave, and the first of
+    // them would leave a container holding widths with no hides — a state the
+    // user never asked for, visible to any other tab's storage listener.
+    //
+    // The container is not rewritten with empty values, it is DELETED: core's
+    // writeField treats null as "drop this field", and its entryIsEmpty check
+    // then removes the whole scope entry once the last field is gone. So a reset
+    // leaves storage exactly as a user who had never touched this record does —
+    // which is what makes Reset undoable by simply not having saved anything.
+    //
+    // The null propagates, deliberately. core.withHidden answers null when it
+    // refuses (a newer schema, an unkeyable scope), and feeding that null on as
+    // `stored` would make the second call normalize it into a FRESH EMPTY
+    // container and write that — deleting every other record's layout. Guarding
+    // here keeps a refusal a refusal: saveField sees the null and toasts.
+    return saveField((stored, scope) => {
+      const cleared = core.withHidden(stored, scope, null);
+      return cleared && core.withWidths(cleared, scope, null);
+    });
+  }
+
   // ===== Control bar =====
   function ownedButton(role, text) {
     const button = document.createElement("button");
@@ -745,7 +782,18 @@
     const bar = document.createElement("div");
     bar.className = core.CLASSES.controls;
     bar.setAttribute(core.DATA_ATTRIBUTE, "controls");
+    // "Columns", NOT "Personalize", and that is a deliberate divergence from View
+    // Mode rather than an oversight (UI-PARITY DIRECTIVE 2026-08-04). View's
+    // button enters a MODE — drag-to-reorder, with Done and a mode hint — and
+    // Edit Mode has no such mode to enter: reorder is not merely unbuilt here, it
+    // was ruled impossible on this surface (P-MONO, spec Amendment A1.2 — once we
+    // permute the rendering, core.correlateColumnIds cannot recover the axis). A
+    // button labelled Personalize that only opened a menu would be FALSE parity:
+    // the same word promising a capability that is not there. The label differs
+    // because the thing behind it differs; everything that IS shared — the look,
+    // the Reset semantics, the chips, the header menus — matches.
     const columnsButton = ownedButton("columns-button", "Columns");
+    const resetButton = ownedButton("reset", "Reset");
     const chips = document.createElement("span");
     // The bar's own class, reused: it is what lays a row of chips out with a gap
     // (edit-grid.css `.suitemate-v3-edit-grid-controls`), and a bare <span> would
@@ -753,9 +801,17 @@
     // and a second rule for one identical declaration block.
     chips.className = core.CLASSES.controls;
     chips.setAttribute(core.DATA_ATTRIBUTE, "chips");
-    bar.append(columnsButton, chips);
+    // ACTIONS BEFORE THE CHIP LIST, which is View Mode's own ordering and its own
+    // reason (so-columns/runtime.js:984-986): the chips are unbounded — one per
+    // hidden column — and the bar wraps, so a Reset placed after them lands on a
+    // second or third row the moment a user hides a handful of columns, which is
+    // exactly when they are most likely to want it.
+    bar.append(columnsButton, resetButton, chips);
     container.prepend(bar);
-    controlButtons = { bar, columnsButton, chips, menu: null };
+    // `menuOwner` is the header ▼ whose menu is standing, or null when the open
+    // menu is the Columns one (or when nothing is open). It is what lets a click
+    // ask "is MY menu open" rather than "is A menu open" — see the toggle branch.
+    controlButtons = { bar, columnsButton, resetButton, chips, menu: null, menuOwner: null };
     return controlButtons;
   }
 
@@ -776,9 +832,13 @@
     // runs in the capture phase, ahead of the container's delegated click, so
     // closing here would leave that handler seeing no menu and re-opening it.
     // The menu itself is exempt because ticking a box is not dismissing.
+    // The header arrows are exempt for the identical reason as the Columns
+    // button: both TOGGLE, and a capture-phase close would make the reopening
+    // click look like a first click forever.
     if (
       target?.closest?.(`[${core.DATA_ATTRIBUTE}="menu"]`)
       || target?.closest?.(`[${core.DATA_ATTRIBUTE}="columns-button"]`)
+      || target?.closest?.(`[${core.DATA_ATTRIBUTE}="menu-toggle"]`)
     ) {
       return;
     }
@@ -816,6 +876,10 @@
     controlButtons?.menu?.remove();
     if (controlButtons) {
       controlButtons.menu = null;
+      // Cleared with the node it describes. A surviving owner would make the
+      // next click on that same arrow read as "mine is already open" and close
+      // a menu that is not there instead of opening one.
+      controlButtons.menuOwner = null;
     }
   }
 
@@ -911,6 +975,9 @@
     }
     document.body?.append?.(menu);
     controlButtons.menu = menu;
+    // The Columns menu is owned by no arrow, so a header ▼ click never reads it
+    // as its own and always replaces it in one click.
+    controlButtons.menuOwner = null;
     bindMenuDismissal();
   }
 
@@ -1078,6 +1145,179 @@
     saveHidden();
   }
 
+  function handleResetClick() {
+    // VIEW MODE'S RESET, adapted to the surface rather than copied verbatim.
+    // View's handleResetClick (so-columns/runtime.js:931) restores five things:
+    // native order, sort, filters, hidden, widths. Edit Mode HAS two of them —
+    // reorder is impossible here (P-MONO), and sort and filter are M6/M7 and do
+    // not exist — so this restores the two that are real and claims nothing about
+    // the three that are not. The toast is View's sentence exactly, because to a
+    // user "Column layout reset." means the same thing on both surfaces.
+    //
+    // THE MOUNT STAYS. View exits its personalize mode here; there is no mode to
+    // exit, so the bar, the bindings and the axis pin are all untouched and the
+    // very next gesture works. What is cleared is the layout state and nothing
+    // else.
+    const table = activeTable ?? machineTable();
+    // NO closeColumnMenu() HERE, and the omission is deliberate. A menu standing
+    // across this gesture would show ticks built from a hidden set that is about
+    // to be emptied — but the click that reached this button has ALREADY closed
+    // it: the document-level dismisser runs in the capture phase, it exempts only
+    // the menu and the two controls that toggle one, and Reset is neither. A call
+    // here would be a line no mutation can kill and no reader can trust, which is
+    // the objection adjudication #19 raised against teardown's own dead
+    // closeColumnMenu. The behaviour is pinned by the reset test regardless of
+    // which mechanism delivers it.
+    hiddenColumns = new Set();
+    columnWidths = {};
+    // THE TWO SESSION-ONLY MAPS GO WITH THE WIDTHS, and they are named here
+    // rather than left to be noticed. Neither has a View Mode analogue — they
+    // exist because Edit Mode's machine is repainted underneath us — but both are
+    // DERIVED from the width state this reset is clearing: frozenWidths is what a
+    // freeze recorded for a plan that no longer exists, and naturalWidths is the
+    // measurement that plan would have fallen back to. Left behind, they are
+    // answers to a question nobody is asking any more, and the first width the
+    // user sets after a reset would be planned partly from the layout they just
+    // discarded. `ownsLayout` is NOT cleared here: it is cleared by the apply
+    // below, which is the only thing that knows whether core actually took the
+    // restore route.
+    frozenWidths = {};
+    naturalWidths = {};
+    if (table) {
+      // The ordinary apply path, not a bespoke one. With both maps empty,
+      // plannedWidths() answers null, so applyCurrentWidths takes core's restore
+      // route — inline widths off, `table-layout` cleared, ownsLayout dropped —
+      // and applyCurrentHidden's empty set takes applyHidden's unconditional
+      // restore. The chips re-render from the model on the way through. No new
+      // DOM path exists for reset, which is why nothing here can drift from what
+      // an ordinary apply does.
+      queueApply("reset");
+    }
+    saveReset();
+    // Said once, and said for the DOM rather than for the write: the machine is
+    // already restored by the time this runs, and a failed save has its own toast
+    // from the shared writer. Announcing the reset only on write success would
+    // leave a user staring at a restored table with nothing confirming it.
+    showToast("Column layout reset.", "success");
+  }
+
+  function ensureHeaderMenus(table, columnIds) {
+    // VIEW MODE'S PER-HEADER ▼, which is where a View user reaches for hide —
+    // the Columns menu is the list view, this is the in-place gesture. Placed
+    // inside the cell's own div.listheader exactly as View does
+    // (so-columns/runtime.js:465-467) and for View's measured reason: the label
+    // wrapper is a 12px line box and the cell is 16px, so an arrow dropped
+    // straight into the cell inflates the header's height.
+    //
+    // IDEMPOTENT, and it has to be: this runs on every install, installs are
+    // repaint-driven, and a repaint replaces the header row wholesale. The guard
+    // is the node's own presence — a surviving toggle means a header that was NOT
+    // replaced, and a missing one means it was.
+    //
+    // NOT BOUND PER NODE, which is where this departs from View. View adds a
+    // click listener to each arrow; this file's standing rule is that nothing is
+    // bound to a row or a cell, because a repaint destroys them underneath us and
+    // per-node binding is how duplicate handlers accumulate. The container's
+    // delegated click already sees these — they are inside it — so the toggle is
+    // pure markup and handleContainerClick routes it by role.
+    for (const [index, cell] of headerCellsOf(table).entries()) {
+      if (cell.querySelector?.(`[${core.DATA_ATTRIBUTE}="menu-toggle"]`)) {
+        continue;
+      }
+      const arrow = document.createElement("button");
+      arrow.type = "button";
+      arrow.textContent = "▼";
+      // "Hide column", not View's "Sort and filter": those two are M6/M7 and do
+      // not exist here, and a tooltip is a promise like any other label.
+      arrow.title = "Hide column";
+      arrow.setAttribute(core.DATA_ATTRIBUTE, "menu-toggle");
+      // The id is NOT stamped on the arrow. It would be an identity cached on a
+      // node that outlives the axis read that produced it — the stamp-as-identity
+      // shape spec A1.2 rule 3 forbids — so the click re-derives through the pin
+      // (columnIdOfHeaderCell) at the moment it happens. `index` is used only to
+      // decide there is a column here at all.
+      void columnIds[index];
+      (cell.querySelector?.(core.HEADER_LABEL_SELECTOR) ?? cell).append(arrow);
+    }
+  }
+
+  function openHeaderMenu(table, cell, toggle) {
+    // The same slot, the same class and the same dismissal as the Columns menu —
+    // one open menu at a time is the model, so `controlButtons.menu` holds
+    // whichever it is and closeColumnMenu closes either. A second slot would mean
+    // a second dismisser and two ways to leak a listener.
+    closeColumnMenu();
+    if (!controlButtons) {
+      return;
+    }
+    const columnId = columnIdOfHeaderCell(table, cell);
+    const menu = document.createElement("div");
+    menu.className = core.CLASSES.menu;
+    menu.setAttribute(core.DATA_ATTRIBUTE, "menu");
+    const item = document.createElement("button");
+    item.type = "button";
+    // Styled by ATTRIBUTE, not by a class, which is View Mode's own choice for
+    // this node (so-columns.css:244) and keeps core.CLASSES — a frozen contract
+    // with its own deepEqual pin — from growing a name for one rule.
+    item.setAttribute(core.DATA_ATTRIBUTE, "menu-item");
+    const icon = document.createElement("span");
+    icon.setAttribute(core.DATA_ATTRIBUTE, "menu-item-icon");
+    icon.textContent = "⊖";
+    const text = document.createElement("span");
+    text.textContent = "Hide column";
+    item.append(icon, text);
+    // ONE ITEM, and the emptiness is honest. View's column menu carries sort and
+    // filter items above its hide; neither exists in Edit Mode (M6/M7), and a
+    // menu that listed them greyed — or worse, listed them live — would be a
+    // worse lie than a short menu. When M6 and M7 land they add their rows here.
+    //
+    // THE TWO REFUSALS, matching the Columns menu's affordance exactly (08e3c1e
+    // for required, 6ec83e0 for holes) so a user meets the same answer whichever
+    // route they take to the same column.
+    if (columnId === null) {
+      item.disabled = true;
+      menu.title = "Column identity could not be established on this form";
+    } else if (requiredColumns.has(columnId)) {
+      item.disabled = true;
+      menu.title = "Required column — cannot be hidden";
+    } else {
+      item.dataset.columnId = columnId;
+    }
+    menu.append(item);
+    // Bound to the MENU NODE, like the Columns menu's `change` and for the same
+    // reason: this node lives on <body>, outside the container, so the delegated
+    // click cannot reach it — and it is created and destroyed as one node, so the
+    // listener can neither accumulate nor outlive it.
+    menu.addEventListener("click", handleHeaderMenuClick);
+    const rect = cell.getBoundingClientRect?.() ?? null;
+    if (rect) {
+      // Under the cell that owns it, not under the Columns button. Same
+      // scroll-offset coercion as openColumnMenu: a sandboxed window reports no
+      // offset at all and `undefined` would render as "NaNpx".
+      menu.style.left = `${Math.round(rect.left + (Number(window.scrollX) || 0))}px`;
+      menu.style.top = `${Math.round(rect.bottom + (Number(window.scrollY) || 0) + 2)}px`;
+    }
+    document.body?.append?.(menu);
+    controlButtons.menu = menu;
+    controlButtons.menuOwner = toggle ?? null;
+    bindMenuDismissal();
+  }
+
+  function handleHeaderMenuClick(event) {
+    const item = event.target?.closest?.(`[${core.DATA_ATTRIBUTE}="menu-item"]`);
+    if (!item) {
+      return;
+    }
+    event.preventDefault?.();
+    closeColumnMenu();
+    // Straight to the choke point, which is the whole point of routing it here:
+    // this gesture opens NO new write path. A required id or a hole never gets a
+    // dataset.columnId above, so what arrives is `undefined` and setColumnHidden
+    // refuses it on its non-string guard — belt to the disabled attribute's
+    // brace, exactly as the Columns menu's unkeyed rows are.
+    setColumnHidden(item.dataset?.columnId, true);
+  }
+
   function handleMenuChange(event) {
     const box = event.target?.closest?.(`[${core.DATA_ATTRIBUTE}="column-toggle"]`);
     if (!box) {
@@ -1142,6 +1382,53 @@
       const table = machineTable();
       if (table) {
         openColumnMenu(table, currentColumnIds(table));
+      }
+      return;
+    }
+    if (role === "reset") {
+      event.preventDefault?.();
+      handleResetClick();
+      return;
+    }
+    if (role === "menu-toggle") {
+      event.preventDefault?.();
+      // OWNERSHIP, not mere openness — View Mode's toggleColumnMenu shape ported
+      // (so-columns/runtime.js:440-449, `if (openMenu?.cell === cell) close else
+      // open`). The question is "is MY menu open", and answering "is A menu open"
+      // instead costs a click every time the user moves along the header: the
+      // standing menu closes and nothing opens, so reading two columns in a row
+      // takes four clicks. Same arrow closes; ANY other arrow — and the Columns
+      // menu too — is closed and replaced in one click by openHeaderMenu's own
+      // leading close.
+      //
+      // The dismisser exempts this node (it runs in capture, ahead of this
+      // handler, so a close there would leave this one seeing no menu and
+      // re-opening it), which is what makes the toggle this handler's job.
+      if (controlButtons?.menuOwner === owned) {
+        closeColumnMenu();
+        return;
+      }
+      const table = machineTable();
+      if (!table) {
+        closeColumnMenu();
+        return;
+      }
+      // The owning cell is found by IDENTITY — the header cell whose own toggle
+      // IS this node — rather than by walking up from the arrow. A parent walk
+      // would have to trust the DOM shape between the arrow and its <td>
+      // (div.listheader today, whatever NetSuite ships tomorrow), and this asks
+      // the only question that matters. It also re-derives through
+      // headerCellsOf, so a click caught mid-repaint finds nothing and opens
+      // nothing rather than keying a menu to a stale cell.
+      const cell = headerCellsOf(table)
+        .find((candidate) => candidate.querySelector?.(`[${core.DATA_ATTRIBUTE}="menu-toggle"]`) === owned) ?? null;
+      if (cell) {
+        openHeaderMenu(table, cell, owned);
+      } else {
+        // A click caught mid-repaint: the arrow is no longer in any header cell
+        // this axis can index, so there is nothing to open and any standing menu
+        // is now keyed to a machine that has moved.
+        closeColumnMenu();
       }
       return;
     }
@@ -1539,6 +1826,21 @@
       // own node, never a machine cell, so the zero-DOM-writes property below is
       // untouched.
       renderChips(table, current);
+      // ABOVE THE EARLY RETURN, with the chips, and for a sharper version of
+      // their reason. A repaint replaces the header row and takes every arrow
+      // with it — but an arrow is not something either signature can see: they
+      // read the axis, `table-layout`, the header cells' inline widths and our
+      // own hidden class, and a missing child button changes none of them. So a
+      // repaint that restores no widths and no hides converges immediately, the
+      // early return fires, and toggles placed below it would never come back.
+      // Placed here they are re-created on the install that follows any repaint,
+      // and the guard inside makes the call free when they survived.
+      //
+      // Convergence is UNPERTURBED rather than repaired: this adds a node the
+      // signatures do not read, and core.readCellText strips it out of the label
+      // read (it carries DATA_ATTRIBUTE, which is in core.FOREIGN_NODE_SELECTOR),
+      // so chips and menu rows still name the column and not the arrow.
+      ensureHeaderMenus(table, current);
       // `hideIncomplete` first, because the signature cannot see what it hides: a
       // refused applyHidden leaves the header saying "done" over rows that are
       // not, and the two signatures then agree forever. It is cleared by the very
