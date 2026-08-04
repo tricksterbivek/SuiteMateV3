@@ -1421,3 +1421,29 @@ The adjudicator's R-list is closed and both same-day owner directives are live-v
 - Housekeeping: the polluted M2-era width entry under `6998262:2462:salesord:edit` was not cleared (same skipped console step); it is cosmetic, owner-clearable any time with the recorded snippet, and irrelevant to hide/show.
 
 **M3 is complete.** Shipped surface: hide/show columns with chips and menu, required-column exemption, hidden-stays-hidden semantics, immediate apply, per-mount scope-key latch, teardown hardening — 322/322 tests, 28 baselines at 0.000%, three adversarial review rounds to MERGE, two independent live passes, one independent adjudication.
+
+## Edit Mode hide/show: cross-form generalization (post-M3, owner-reported)
+
+Status: Complete; reviewed to MERGE over three rounds; test-record byte-identity live-verified; form B confirmation delegated to the owner
+
+Date: 2026-08-04 · Commit `6ec83e0` on `feature/edit-mode-table-enhancements`
+
+### Included
+
+- Owner report: hide/show worked only on the locked test order. Diagnosis from a READ-ONLY capture of the owner's own open failing order (16357099 — the record lock was honoured: no interaction, no clicks, pure DOM reads on a page the owner opened): their other Sales Orders use a second form ("form B": 62 visible columns, "GST" twice, 179 machine fields), where correlation's DP optimum is reached by 24 distinct alignments and the whole-axis unique-optimum gate therefore declined the ENTIRE form. The mount was data-dependent by construction — the test form's line data broke every tie; form B's does not.
+- Per-column unanimity (`core.correlateColumnIds`): every optimal alignment is walked and an id is adopted only where ALL agree; disagreement yields a null HOLE — never keyed, never stored, always rendered, menu row checked+disabled ("Column identity could not be established on this form"), resize refused, chips impossible. Floor: <2 resolved refuses the machine. Single-optimum forms derive byte-identical axes (pinned two ways). On form B: 59/62 resolve (incl. quantitycommitted/quantityfulfilled/quantitybilled/quantitybackordered — the owner's set); holes at exactly [36,39,42].
+- Option-list classifier narrowed BY RULING: ENQ must split a value into ≥2 non-empty segments. The old any-ENQ rule let one stray trailing ENQ in a description delete the true candidate — and a deleted true candidate produced a CONFIDENT WRONG ID (form B's "Description" resolved unanimously to `unitconversionrate`; under retention that key could hide a real column on another form). Direction-of-failure argument of record: the narrowed rule's worst case adds a candidate → at most a hole; a hole is safe, a confident wrong answer is not.
+- Rode along, each pinned: a no-rendered-sample-row pre-gate (label-only correlation measured confidently wrong 1-in-12, and a wrong fresh derivation would latch axisMismatch against a healthy pin); installEditGrid's usability gate re-asked of the resolved subset (the old every-position clauses re-declined form B one level above core); storage-unreachability for holes traced to three named runtime guards (the container writers stringify object keys — `{"null": 60}` persists if the guards drop, measured).
+
+### Verification
+
+- Three adversarial rounds to MERGE. The unanimity walk was cross-checked against a brute-force enumeration of every globally optimal alignment on the real payload AND on 4000 randomized tie-heavy machines — zero mismatches, re-run after the classifier change. Reviewer re-derived every fixture number independently both rounds (candidates 162→163, optimum 334→343, 24 alignments both, holes stable with byte-identical candidate sets, position 8 unitconversionrate→description).
+- The live capture is the permanent regression fixture (tests/fixtures/salesord-form-b-identity.json) and its test asserts the FULL 62-entry axis as a literal — the first draft asserted 8 positions and passed green over the wrong id; the widened form makes the mis-key mutant fail by NAMING the ids it invents. Narrowed-revert table: whole-machine refusal restored → the fixture DECLINEs (the owner's bug verbatim, 7 fail); resize null-refusal dropped → storage-safety alone; take-any-optimal-path → 7 fail legibly; classifier reverted → exactly position 8 + the stray-ENQ unit pin.
+- Disclosed equivalent survivors, reasons recorded per the equivalence rule: sameColumnIds' element-wise compare (a join() folds a hole with a comma-bearing id — permitted in principle, never emitted) and targetSignature's NaN arm (a null plan key requires a legacy `"null"` stored width no prior build could write).
+- Post-reload live check on the locked record: 43-column axis, ZERO holes, bar computed inline-flex, the owner's (now 28-column) stored hidden set applied in full at computed level with matching chips, zero SuiteMate console errors. Tab-title, mode complement and no-save protocol intact.
+- OWNER CONFIRMATION OUTSTANDING (delegated deliberately — the record lock stands): on form B, bar present; the four carried hides applied; three disabled menu rows; and the reviewer-suggested end-to-end classifier check — hide "Description", reload, still hidden (its stored key is now `description`).
+
+### Carried
+
+- Zero-committed-line Sales Orders still decline (the A1.2 empty-data gate, untouched by design) — a fresh-drafted order gets no personalization until its first line commits. Known, disclosed, cheap to revisit if the owner ever reports it.
+- The M5 entry gates from the M3 declaration stand (storage byte-baseline; scope-key fail-closed fallback; harness containment derivation).
