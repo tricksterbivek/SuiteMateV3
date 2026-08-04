@@ -191,6 +191,17 @@
     return table?.closest?.(core.MACHINE_CONTAINER_SELECTOR) ?? null;
   }
 
+  // POSITIONAL AND ELEMENT-WISE, which is what makes it safe now that an axis may
+  // carry nulls (core.correlateColumnIds' per-column unanimity leaves a hole
+  // where the optimal alignments disagree). `null === null` is true at the same
+  // position and false against every real id — including a field literally named
+  // "null", because nothing here stringifies either side.
+  //
+  // Element-wise is simply the right SHAPE for comparing two axes, and a join()
+  // compare is the shortcut to avoid: it would fold ["a,b"] with ["a", "b"], and
+  // a comma in a column id is permitted in principle (normalizeColumnId screens
+  // length and the reserved keys, not punctuation) even though NetSuite has never
+  // emitted one. Nothing here rests on that never happening.
   function sameColumnIds(left, right) {
     return left.length === right.length && left.every((id, index) => id === right[index]);
   }
@@ -326,6 +337,12 @@
     if (index < 0 || cells.length !== columnIds.length) {
       return null;
     }
+    // `?? null` covers BOTH holes an axis can have, and they are different
+    // things: an out-of-range index (undefined) and an UNRESOLVED column — a
+    // position core.correlateColumnIds left null because the optimal alignments
+    // disagreed about it. Both answer null, and the callers below refuse on
+    // null, which is the whole of the storage safety for the resize path: a
+    // column with no identity cannot be keyed, so it cannot be dragged.
     return columnIds[index] ?? null;
   }
 
@@ -362,6 +379,15 @@
       }
       const cell = resizeEdgeCell(table, event);
       const columnId = cell ? columnIdOfHeaderCell(table, cell) : null;
+      // NO ID, NO GESTURE, and `!columnId` is the line that enforces it. A drag
+      // is the only thing in this runtime that puts a NEW key into columnWidths,
+      // and columnWidths is written to storage verbatim — so an unresolved
+      // column allowed to start a drag would key the map with `null`, which
+      // becomes the property name "null", which core.normalizeWidths accepts as
+      // a perfectly ordinary column id and persists. Every unresolved column on
+      // every form would then share that one stored width. The refusal is here,
+      // at the START of the gesture, because that is the only point where
+      // nothing has been written yet: handleResizeMove already assumes a key.
       if (!cell || !columnId) {
         return;
       }
@@ -772,6 +798,40 @@
       const row = document.createElement("label");
       const box = document.createElement("input");
       box.type = "checkbox";
+      if (columnId === null) {
+        // AN UNRESOLVED COLUMN — a position where core.correlateColumnIds found
+        // the optimal alignments disagreeing, so this column has NO id at all.
+        // It is listed, because the user can see it in the header and a menu
+        // that silently omitted it would be a menu that does not describe the
+        // machine. It is CHECKED because it is visible and always will be, and
+        // DISABLED because there is nothing to key a hide by — the same
+        // affordance shape a required column takes (08e3c1e), reached for the
+        // opposite reason: that one may not be hidden, this one CANNOT be.
+        //
+        // IT DOES NOT SEED FROM STORAGE, and cannot: `hiddenColumns` is a set of
+        // ids and this row has none, so there is nothing to look up. That is
+        // stated rather than assumed because the seeding rule below is A3.2's
+        // and a future reader must not "fix" this row to obey it.
+        //
+        // AND IT CARRIES NO dataset.columnId. handleMenuChange reads that
+        // attribute and hands it to setColumnHidden, which refuses a non-string
+        // — so this is belt to that brace, and it means a synthetic change event
+        // aimed at this row writes nothing even if the disabled attribute is
+        // stripped by hand.
+        box.checked = true;
+        box.disabled = true;
+        box.setAttribute(core.DATA_ATTRIBUTE, "column-toggle");
+        row.title = "Column identity could not be established on this form";
+        const unresolvedText = document.createElement("span");
+        // The HEADER's own label, never the id: there is no id. An empty header
+        // cannot happen here — core.readColumnIds refuses a machine with a blank
+        // label before correlation runs — but `|| ""` keeps textContent a string
+        // rather than letting `null` reach it.
+        unresolvedText.textContent = labels[index] || "";
+        row.append(box, unresolvedText);
+        menu.append(row);
+        return;
+      }
       // A3.2 GESTURE SEEDING. The tick seeds from `hiddenColumns` — this
       // feature's own stored model — and never from what the column RENDERS.
       // Rendered visibility is this feature's own output twice over (our class,
@@ -1121,6 +1181,12 @@
     // for why that discloses nothing the page does not already hold). Written
     // only when the value changes: installs are repaint-driven and the pin
     // cannot change without a teardown, so this is one write per mount.
+    //
+    // An UNRESOLVED column joins as an empty segment — "item,,rate" — and that
+    // is unambiguous rather than lossy, because no real id can be empty
+    // (normalizeColumnId refuses it). This attribute is evidence for a probe,
+    // never an input: nothing reads it back, so the encoding owes only
+    // legibility.
     const value = columnIds.join(",");
     if (container.getAttribute(core.AXIS_ATTRIBUTE) !== value) {
       container.setAttribute(core.AXIS_ATTRIBUTE, value);
@@ -1244,7 +1310,15 @@
           return "";
         }
         const id = columnIds[index];
-        const stored = Number(planned[id]);
+        // `id ? … : NaN`, character for character what core.applyWidths does, and
+        // for a reason beyond symmetry now that the axis can carry nulls: a bare
+        // `planned[id]` would look the plan up under the property name "null" —
+        // JavaScript stringifies the key — and any future plan that ever held
+        // such a key would make this signature predict a width core does not
+        // write. The plan cannot hold one today (see plannedWidths' three
+        // sources, each of which drops a null id at its own guard), and this
+        // line is what keeps the pair from drifting if one ever could.
+        const stored = id ? Number(planned[id]) : Number.NaN;
         const rendered = Math.round(cell.getBoundingClientRect?.().width ?? 0);
         const target = Number.isFinite(stored) && stored > 0 ? stored : rendered;
         return `${core.clampWidth(target, 0)}px`;
@@ -1309,12 +1383,25 @@
         return false;
       }
       const columnIds = currentColumnIds(table);
-      // Fail closed on an unrecognized machine: no header, no _fs spans,
+      // Fail closed on an unrecognized machine: no header, no {machine}fields,
       // duplicate or undecodable ids (spec section 7).
+      //
+      // ASKED OF THE RESOLVED IDS, not of the axis. An axis may now carry NULLS
+      // — positions core.correlateColumnIds refused to name because the optimal
+      // alignments disagreed — and the two clauses this used to run would both
+      // have thrown the whole machine away for them: `some((id) => !id)` is true
+      // of any hole, and a Set folds every hole into ONE member, so a 62-column
+      // axis with three holes measured 60 against 62 and read as "duplicate
+      // ids". That is the owner's bug, re-entered one level above core.
+      //
+      // What the gate still guarantees is what it was always for: at least two
+      // columns this mount can actually KEY, and no id claimed twice. A hole is
+      // neither — it is a column that renders and is never keyed by anything.
+      const resolved = columnIds.filter((id) => id);
       if (
         columnIds.length < 2
-        || columnIds.some((id) => !id)
-        || new Set(columnIds).size !== columnIds.length
+        || resolved.length < 2
+        || new Set(resolved).size !== resolved.length
       ) {
         return false;
       }

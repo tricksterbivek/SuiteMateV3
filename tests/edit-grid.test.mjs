@@ -18,6 +18,17 @@ const sharedSources = Object.fromEntries(await Promise.all(
   ["src/shared/utilities.js", "src/shared/routes.js", "src/shared/settings.js"]
     .map(async (file) => [file, await readFile(resolve(root, file), "utf8")])
 ));
+// THE OWNER'S OTHER ENTRY FORM, captured live 2026-08-04 from salesord 16357099
+// and trimmed to the eight sample lines core keeps. It is a JSON file rather than
+// an inline constant for one reason: 62 labels, 179 field ids and eight 62-cell
+// rows is a payload no reviewer can proofread inline, and every byte of it is
+// evidence rather than fixture-writing. It is NOT an HTML fixture and carries no
+// src/href of its own, so it is deliberately absent from tests/verify.mjs' link
+// list — that loop exists to access-check the references INSIDE a fixture page,
+// and there are none to check here.
+const FORM_B = JSON.parse(
+  await readFile(resolve(root, "tests/fixtures/salesord-form-b-identity.json"), "utf8")
+);
 
 function createApi() {
   const sandbox = { TextEncoder };
@@ -732,6 +743,27 @@ test("collapses display twins and drops option lists and bookkeeping mirrors", (
   assert.equal(ids.includes("olditemid"), true);
   assert.equal(ids.includes("quantitypickpackship"), true);
   assert.equal(columns.length, 20);
+
+  // AN OPTION LIST IS A SHAPE, NOT A BYTE. Form B's line-7 `description` is
+  // ordinary free text carrying one stray TRAILING ENQ, and "contains an ENQ"
+  // deleted the whole column over it — after which the DP handed the
+  // "Description" label `unitconversionrate`, unanimously, and the axis named the
+  // wrong field while looking perfectly healthy. Splitting yields ONE non-empty
+  // segment, so it is a cell.
+  const strays = core.collapseDisplayTwins(
+    ["description", "leading", "onlyenq", "unitslist"],
+    [[`Brow Pencil - Light/Medium${ENQ}`, `${ENQ}Ea`, ENQ, `3${ENQ}4${ENQ}5`]]
+  );
+  assert.deepEqual(plain(strays.map((column) => column.id)), ["description", "leading", "onlyenq"]);
+  // The VALUE is kept whole, ENQ and all: this rule decides what is a column, and
+  // must not quietly rewrite the text correlation then scores against.
+  assert.equal(strays[0].values[0], `Brow Pencil - Light/Medium${ENQ}`);
+  // A real serialized list still goes — two non-empty segments is enough, so the
+  // narrowing costs nothing on the shape it was written for.
+  assert.deepEqual(
+    plain(core.collapseDisplayTwins(["a", "b"], [[`3${ENQ}4`, "x"]]).map((column) => column.id)),
+    ["b"]
+  );
 });
 
 test("scores label-to-field affinity in five tiers", () => {
@@ -764,14 +796,35 @@ test("correlates the live label set onto the live field list", () => {
   assert.equal(LIVE_AXIS[3], "quantitybilled");
   // "Available" corroborates through a thousands separator: "1,701" against 1701.
   assert.equal(LIVE_AXIS[5], "quantityavailable");
-  // One sampled row is enough here; zero is not — the ambiguity gate then fires.
+  // One sampled row is enough here; zero is not — the no-samples pre-gate fires,
+  // and it is the EXPLICIT statement of a refusal the old unique-optimum gate used
+  // to make incidentally. With no rendered row there is no value evidence at all
+  // and identity would rest on header text, which is what A1.2 refuses.
   assert.deepEqual(plain(core.correlateColumnIds(LIVE_LABELS, columns, [LIVE_ROW_1])), LIVE_AXIS);
   assert.deepEqual(plain(core.correlateColumnIds(LIVE_LABELS, columns, [])), []);
-  // Unrecognised locale: no label affinity anywhere, optimum wildly non-unique.
-  assert.deepEqual(
-    plain(core.correlateColumnIds(LIVE_LABELS.map((_, i) => `Colonne ${i}`), columns, [LIVE_ROW_1, LIVE_ROW_2])),
-    []
+  assert.deepEqual(plain(core.correlateColumnIds(LIVE_LABELS, columns, [[], []])), [], "rows with no cells");
+  // Unrecognised locale: no label affinity anywhere. Under per-column unanimity
+  // this no longer throws the machine away — it resolves the columns VALUE
+  // corroboration alone pins and leaves the rest as holes. Every id it emits is
+  // the true one; nothing is guessed. This is the generalization's whole claim,
+  // measured on a machine where the label evidence is gone entirely.
+  const localeAxis = plain(
+    core.correlateColumnIds(LIVE_LABELS.map((_, i) => `Colonne ${i}`), columns, [LIVE_ROW_1, LIVE_ROW_2])
   );
+  assert.equal(localeAxis.length, LIVE_LABELS.length);
+  assert.deepEqual(
+    localeAxis,
+    ["item", null, null, null, null, "quantityavailable", null, "units", "description", "price", "custcol_rrp", "rate"]
+  );
+  // NO MIS-KEY, stated as its own assertion because it is the property that
+  // matters and the deepEqual above would still pass if both sides were wrong
+  // together: every id the unanimity walk emitted agrees with the corroborated
+  // axis derived from the real labels.
+  localeAxis.forEach((id, index) => {
+    if (id !== null) {
+      assert.equal(id, LIVE_AXIS[index], `position ${index} disagrees with the corroborated axis`);
+    }
+  });
   // Fewer candidates than labels, and a width below 2, both refuse.
   assert.deepEqual(plain(core.correlateColumnIds(LIVE_LABELS, columns.slice(0, 5), [LIVE_ROW_1])), []);
   assert.deepEqual(plain(core.correlateColumnIds(["Item"], columns, [LIVE_ROW_1])), []);
@@ -803,6 +856,194 @@ test("an empty raw value under a rendered cell is penalised, not excluded", () =
     plain(core.correlateColumnIds(["Item", "Schedule"], columns, [["MCH376", "Yes"]])),
     ["item", "rateschedule"]
   );
+});
+
+// ===== Per-column unanimity =====
+// A UNANIMITY UNIT, built small enough to reason about by hand rather than
+// measured off a live payload: the fixture test below proves the mechanism on the
+// real form, and this proves it is the mechanism claimed and not a coincidence of
+// that form's numbers.
+//
+// Three labels, four candidates. `ratecard` and `rateschedule` are
+// INDISTINGUISHABLE to every piece of evidence this correlator has: both score
+// labelAffinity 3 against "Rate" (each flat id starts with "rate"), both hold ""
+// on every line so both take the same missing-value penalty, and neither
+// corroborates. So the optimum is reached by exactly two alignments that agree
+// everywhere except the last position — which is the shape the whole design turns
+// on, and which the old gate answered by throwing all three columns away.
+const TIE_FIELDS = ["item_display", "item", "quantity", "ratecard", "rateschedule"];
+const TIE_LINES = [
+  ["SKU-1001", "4998", "2", "", ""],
+  ["SKU-1002", "1405", "4", "", ""]
+];
+const TIE_LABELS = ["Item", "Quantity", "Rate"];
+const TIE_ROWS = [["SKU-1001", "2", "$11.00"], ["SKU-1002", "4", "$12.00"]];
+
+test("per-column unanimity resolves what every optimum agrees on and holes the rest", () => {
+  const core = createApi();
+  const parsed = core.parseMachineFieldData(
+    TIE_FIELDS.join(SOH),
+    TIE_LINES.map((values) => values.join(SOH)).join(STX)
+  );
+  const columns = core.collapseDisplayTwins(parsed.fieldIds, parsed.lines);
+  assert.deepEqual(plain(columns.map((column) => column.id)),
+    ["item", "quantity", "ratecard", "rateschedule"]);
+  // Two optima, differing at exactly one position: that position is a HOLE and
+  // the two the optima agree on are adopted. Under the old whole-machine gate
+  // this whole axis was [].
+  assert.deepEqual(plain(core.correlateColumnIds(TIE_LABELS, columns, TIE_ROWS)), ["item", "quantity", null]);
+  // …and the SINGLE-optimum variant of the same machine, which is the byte-identity
+  // claim in miniature: give `rateschedule` a value the Rate cell corroborates and
+  // the tie is broken, so nothing is holed. Nothing else about the machine moves.
+  const brokenTie = core.parseMachineFieldData(
+    TIE_FIELDS.join(SOH),
+    [["SKU-1001", "4998", "2", "", "11.00"], ["SKU-1002", "1405", "4", "", "12.00"]]
+      .map((values) => values.join(SOH)).join(STX)
+  );
+  assert.deepEqual(
+    plain(core.correlateColumnIds(
+      TIE_LABELS,
+      core.collapseDisplayTwins(brokenTie.fieldIds, brokenTie.lines),
+      [["SKU-1001", "2", "11.00"], ["SKU-1002", "4", "12.00"]]
+    )),
+    ["item", "quantity", "rateschedule"]
+  );
+  // THE FAIL-CLOSED FLOOR. Two resolved columns is an axis; one is a column and a
+  // row of holes, and nothing can be keyed against it — so the machine is refused
+  // outright, exactly as `width < 2` is. Built by holing a SECOND position the
+  // same way the first was: `quantitya`/`quantityb` are as indistinguishable to
+  // "Quantity" as the rate pair is to "Rate", so only `item` survives.
+  const floorFields = ["item_display", "item", "quantitya", "quantityb", "ratecard", "rateschedule"];
+  const floorParsed = core.parseMachineFieldData(
+    floorFields.join(SOH),
+    [["SKU-1001", "4998", "", "", "", ""], ["SKU-1002", "1405", "", "", "", ""]]
+      .map((values) => values.join(SOH)).join(STX)
+  );
+  assert.deepEqual(
+    plain(core.correlateColumnIds(
+      TIE_LABELS,
+      core.collapseDisplayTwins(floorParsed.fieldIds, floorParsed.lines),
+      TIE_ROWS
+    )),
+    []
+  );
+  // A candidate whose id cannot survive normalizeColumnId is refused rather than
+  // counted toward that floor — this function is exported and directly callable,
+  // so the emission sites are not the only place an id can enter an axis. The
+  // optimum here is unique and NAMES the reserved key, so the gate is genuinely
+  // the thing that refuses.
+  assert.deepEqual(
+    plain(core.correlateColumnIds(["Item", "Proto"], [
+      { id: "item", values: ["a"] },
+      { id: "__proto__", values: ["b"] }
+    ], [["a", "b"]])),
+    []
+  );
+  // Non-vacuous: rename that one candidate and the identical machine resolves.
+  assert.deepEqual(
+    plain(core.correlateColumnIds(["Item", "Proto"], [
+      { id: "item", values: ["a"] },
+      { id: "proto", values: ["b"] }
+    ], [["a", "b"]])),
+    ["item", "proto"]
+  );
+});
+
+test("the owner's other Sales Order form mounts: 62 columns, 3 holes, no mis-key", () => {
+  // THE OWNER'S BUG, pinned. Live capture 2026-08-04 from salesord 16357099, the
+  // record hide/show did nothing on: a DIFFERENT entry form from the one every
+  // earlier test measures. 62 visible labels — "GST" appears TWICE, at 19 and 36 —
+  // against 179 machine fields collapsing to 163 candidates, DP optimum 343
+  // reached by 24 distinct alignments. The unique-optimum gate therefore declined
+  // the ENTIRE form, on every record that uses it, forever.
+  //
+  // Across all 24 optima, 59 of the 62 positions are unanimous and exactly three
+  // are not. The four the owner actually hides are among the 59.
+  //
+  // THE WHOLE AXIS IS ASSERTED, all 62 entries, and that is a correction to this
+  // test rather than a flourish. Its first version asserted 8 of the 59 resolved
+  // positions and passed green while position 8 named `unitconversionrate` for a
+  // column labelled "Description" — a mis-key nothing in the suite was looking at.
+  // The lesson is the round's own ruling read backwards: a hole is safe and a
+  // confident wrong answer is not, so the wrong answers are exactly what a test
+  // has to enumerate, and AN UNASSERTED POSITION IS WHERE THE NEXT ONE HIDES.
+  // Holes are written as nulls in the literal so the three are legible in place
+  // rather than only as indexes.
+  const core = createApi();
+  const machine = createLiveMachine({
+    miniForm: true,
+    fieldsValue: FORM_B.itemfields_full,
+    dataValue: FORM_B.itemdata_8lines,
+    labels: FORM_B.headerLabels,
+    rows: FORM_B.sampleRowTexts
+  });
+  const axis = plain(core.readColumnIdsFrom(machine, FORM_B.itemfields_full, FORM_B.itemdata_8lines));
+  assert.equal(axis.length, 62, "the form declined, or the capture is not the 62-column form");
+  assert.deepEqual(axis, [
+    "item", "quantity", "quantitycommitted", "quantityfulfilled", "quantitybilled",
+    "quantitybackordered", "quantityavailable", "units", "description", "price",
+    "custcol_salesorder_tun_qty", "custcol_item_shipper_qty", "custcol_custom_original_quantity",
+    "location", "isclosed", "custcolsd_closure_reason", "custcol_sps_itemstatuscode1",
+    "rate", "amount", "taxrate1", "taxcode", "grossamt", "custcol_sps_tp_order_qty",
+    "custcol_anx_mco_line_id", "inventorydetail", "class", "quantityallocated",
+    "orderallocationstrategy", "expectedshipdate", "requesteddate", "averagecost",
+    "costestimatetype", "costestimate", "custcol_item_origin", "commitmentfirm",
+    "orderpriority",
+    null,                                   // 36 "GST"
+    "options", "createpo",
+    null,                                   // 39 "Reallocate Order Item"
+    "excludefromraterequest", "custcol_online_oversell",
+    null,                                   // 42 "Reason Code (SO)"
+    "dayslate", "custcol_hs_code", "custcol_sps_linesequencenumber", "custcol_sps_bpn",
+    "custcol_sps_vendorpartnumber", "custcol_sps_upc", "custcol_sps_gtin", "custcol_sps_ean",
+    "custcol_sps_ndc", "custcol_sps_msr_unitprice", "custcol_sps_innerpack",
+    "custcol_sps_purchaseprice", "custcol_sps_orderqtyuom", "custcol_sps_rtl_unitprice",
+    "custcol_sps_productcolorcode", "custcol_sps_productsizedescription",
+    "custcol_sps_productcolordescription", "custcol_sps_upccasecode",
+    "custcol_mcol_mystery_original"
+  ]);
+  // EXACTLY three holes, and exactly these three. Named with their labels and the
+  // candidate sets that made them ambiguous, because a test that only counted
+  // nulls would pass just as well if the walk holed three arbitrary columns. The
+  // sets are RE-DERIVED against the 163-candidate pool the narrowed option-list
+  // rule produces, and are unchanged from the 162-pool measurement:
+  //   36 "GST"                   {tax1amt, refamt}
+  //   39 "Reallocate Order Item" {warnnodropship, kithasdropship, allocationalert}
+  //   42 "Reason Code (SO)"      {waves, picktasks, itemfulfillments, custcol_atlas_rc_so}
+  assert.deepEqual(axis.flatMap((id, index) => (id === null ? [index] : [])), [36, 39, 42]);
+  // POSITION 8 IS ITS OWN ASSERTION, because it is the one the full-axis deepEqual
+  // above was added for: a stray trailing ENQ in line 7's free-text description
+  // used to delete `description` from the candidate pool, and the DP handed this
+  // position `unitconversionrate` — unanimously, on every optimal alignment.
+  assert.equal(FORM_B.headerLabels[8], "Description");
+  assert.equal(axis[8], "description");
+  assert.deepEqual(
+    [36, 39, 42].map((index) => FORM_B.headerLabels[index]),
+    ["GST", "Reallocate Order Item", "Reason Code (SO)"]
+  );
+  // THE OWNER'S ACTUAL HIDDEN SET, read off the labels rather than trusted:
+  // Item, Quantity, Committed, Fulfilled, Invoiced, Back Ordered.
+  assert.deepEqual(
+    FORM_B.headerLabels.slice(0, 6),
+    ["Item", "Quantity", "Committed", "Fulfilled", "Invoiced", "Back Ordered"]
+  );
+  assert.equal(axis[2], "quantitycommitted");
+  assert.equal(axis[3], "quantityfulfilled");
+  assert.equal(axis[4], "quantitybilled");
+  assert.equal(axis[5], "quantitybackordered");
+  assert.equal(axis[0], "item");
+  assert.equal(axis[1], "quantity");
+  // Every resolved id is unique and storable — the axis is a key space, and a
+  // repeated id would key two columns to one stored width.
+  const resolved = axis.filter((id) => id !== null);
+  assert.equal(resolved.length, 59);
+  assert.equal(new Set(resolved).size, 59, "an id was claimed by two positions");
+  assert.equal(resolved.every((id) => typeof id === "string" && id === id.trim() && id.length > 0), true);
+  // The duplicate "GST" label is not what holed position 36 — its twin at 19
+  // resolves cleanly. Position is what separates them, exactly as the
+  // duplicate-label test below asserts on the narrow machine.
+  assert.equal(FORM_B.headerLabels[19], "GST");
+  assert.equal(axis[19], "taxrate1");
 });
 
 test("duplicate header labels are separated by position, never by name", () => {
@@ -953,17 +1194,30 @@ test("readColumnIdsFrom fails closed on every gate readColumnIds does", () => {
   assert.deepEqual(from(["a", "a"].join(SOH), ["1", "2"].join(SOH)), [], "duplicate field id");
   assert.deepEqual(from("solo", "1"), [], "single field");
   assert.deepEqual(from(`a${SOH}`, `1${SOH}2`), [], "empty field id");
-  // Ambiguity: an unrecognised locale carries no label affinity anywhere.
-  assert.deepEqual(
-    from(LIVE_FIELDS_VALUE, LIVE_DATA_VALUE, { labels: LIVE_LABELS.map((_, index) => `Colonne ${index}`) }),
-    []
+  // An unrecognised locale carries no label affinity anywhere, and no longer
+  // costs the whole machine: the columns value corroboration pins resolve, the
+  // rest are holes, and every emitted id agrees with the corroborated axis. The
+  // same measurement as the correlateColumnIds test, asserted on THIS entry too
+  // because adjudication #13's duplication is what lets the two drift.
+  const localeAxis = from(
+    LIVE_FIELDS_VALUE, LIVE_DATA_VALUE, { labels: LIVE_LABELS.map((_, index) => `Colonne ${index}`) }
   );
+  assert.equal(localeAxis.length, LIVE_LABELS.length);
+  // Five holes — positions 1-4 and 6, the four quantity* columns that all render
+  // "0" or "" and the Quantity column beside them; seven ids, every one correct.
+  assert.equal(localeAxis.filter((id) => id === null).length, 5);
+  localeAxis.forEach((id, index) => {
+    if (id !== null) {
+      assert.equal(id, LIVE_AXIS[index], `position ${index} disagrees with the corroborated axis`);
+    }
+  });
   // A blank header label, and a header narrower than two columns.
   const blanked = LIVE_LABELS.slice();
   blanked[4] = "";
   assert.deepEqual(from(LIVE_FIELDS_VALUE, LIVE_DATA_VALUE, { labels: blanked }), []);
   assert.deepEqual(from(LIVE_FIELDS_VALUE, LIVE_DATA_VALUE, { labels: ["Item"], rows: [["MCH376"]] }), []);
-  // No rendered lines: correlation is ambiguous, so the feature declines.
+  // No rendered lines: no value evidence at all, so the no-samples pre-gate
+  // refuses — the explicit form of what the unique-optimum gate used to do here.
   assert.deepEqual(from(LIVE_FIELDS_VALUE, LIVE_DATA_VALUE, { rows: [] }), []);
   // An unusable or hostile table fails closed rather than escaping.
   assert.deepEqual(plain(core.readColumnIdsFrom(null, LIVE_FIELDS_VALUE, LIVE_DATA_VALUE)), []);
@@ -4668,6 +4922,144 @@ test("the Columns menu fails closed on a machine whose axis cannot be read", asy
   assert.deepEqual(plain(harness.owned("menu")), [], "a menu was built against an unreadable axis");
   assert.deepEqual(plain(harness.owned("column-toggle")), []);
   assert.equal(harness.counts.writes, 0);
+});
+
+// ===== An axis with a HOLE, end to end through the runtime =====
+// The harness machine, keyed by a payload whose optimum is reached two ways at
+// the last position only: `ratecard` and `rateschedule` are indistinguishable to
+// every piece of evidence the correlator has (see the core unanimity test), so
+// the axis is ["item", "quantity", null] and the Rate column has NO IDENTITY.
+// The whole of the storage-safety claim is what the runtime does with that null.
+const HOLED_FIELDS_VALUE = ["item_display", "item", "quantity", "ratecard", "rateschedule"].join(SOH);
+const HOLED_DATA_VALUE = [
+  ["SKU-1001", "4998", "2", "", ""],
+  ["SKU-1002", "1405", "4", "", ""]
+].map((values) => values.join(SOH)).join(STX);
+
+function createHoledHarness(options = {}) {
+  return createRuntimeHarness({
+    machineFields: HOLED_FIELDS_VALUE,
+    machineData: HOLED_DATA_VALUE,
+    ...options
+  });
+}
+
+test("the standard harness machine resolves every column — no hole, unchanged ids", async () => {
+  // THE BYTE-IDENTITY CLAIM at the runtime boundary. Per-column unanimity must
+  // change NOTHING about a machine whose optimum is unique, and the axis stamp is
+  // where that is observable from outside: a hole joins as an empty segment, so
+  // "item,quantity,rate" is proof there is none.
+  const core = createApi();
+  const harness = createRuntimeHarness();
+  await harness.flush();
+  assert.equal(harness.container.getAttribute(AXIS_ATTRIBUTE), "item,quantity,rate");
+  const axis = plain(core.readColumnIds(harness.table));
+  assert.deepEqual(axis, EDIT_AXIS);
+  assert.equal(axis.some((id) => id === null), false, "the single-optimum machine grew a hole");
+  // …and the holed machine is the same assertion from the other side, so neither
+  // half can pass by measuring nothing.
+  const holed = createHoledHarness();
+  await holed.flush();
+  assert.equal(holed.container.getAttribute(AXIS_ATTRIBUTE), "item,quantity,");
+  assert.deepEqual(plain(core.readColumnIds(holed.table)), ["item", "quantity", null]);
+});
+
+test("an unresolved column is listed, checked, disabled and unkeyable", async () => {
+  const harness = createHoledHarness();
+  await harness.flush();
+  assert.equal(harness.mounts().length > 0, true, "the holed machine did not mount");
+
+  const { menu } = openMenu(harness);
+  const boxes = harness.owned("column-toggle");
+  const rows = menu.children;
+  assert.equal(rows.length, 3, "the unresolved column was dropped from the menu");
+  // Labelled from the HEADER, exactly like every other row — the user can see
+  // the column, so a menu that omitted it would not describe the machine.
+  assert.deepEqual(plain(rows.map((row) => row.children[1].textContent)), ["Item", "Quantity", "Rate"]);
+
+  // The REQUIRED column (NetSuite's star, on Item here): ticked and disabled, and
+  // its own title. Unchanged by this work, asserted beside the new row so the two
+  // affordances cannot silently converge.
+  assert.equal(boxes[0].dataset.columnId, "item");
+  assert.deepEqual([boxes[0].checked, boxes[0].disabled], [true, true]);
+  assert.equal(rows[0].title, "Required column — cannot be hidden");
+  // The ORDINARY column: enabled, keyed, and seeded from the stored model.
+  assert.equal(boxes[1].dataset.columnId, "quantity");
+  assert.deepEqual([boxes[1].checked, boxes[1].disabled], [true, false]);
+  assert.equal(rows[1].title, undefined);
+  // The UNRESOLVED column: ticked because it is visible and always will be,
+  // disabled because there is nothing to key a hide by, and carrying NO
+  // dataset.columnId at all — which is what makes a synthetic change event on it
+  // a no-op even with the disabled attribute stripped by hand.
+  assert.deepEqual([boxes[2].checked, boxes[2].disabled], [true, true]);
+  assert.equal(boxes[2].dataset.columnId, undefined);
+  assert.equal(rows[2].title, "Column identity could not be established on this form");
+  // NO CHIP, ever: chips are rendered from the STORED ids and an unresolved
+  // column can never be one of them.
+  assert.deepEqual(plain(harness.owned("chip")), []);
+  assert.equal(harness.counts.writes, 0);
+});
+
+test("STORAGE SAFETY: nothing about an unresolved column can reach storage", async () => {
+  const core = createApi();
+  const harness = createHoledHarness({
+    stored: { schemaVersion: 1, grids: { [SCOPE]: { hidden: ["quantity"], widths: { quantity: 160 } } } }
+  });
+  await harness.flush();
+
+  // (iii) FIRST, because it is what makes the two refusals below non-vacuous: the
+  // stored layout for the columns that DID resolve applies in full on the very
+  // same machine. That is the per-column point — one ambiguous column costs that
+  // column and nothing else.
+  assert.deepEqual(hiddenHeader(core, harness), [false, true, false]);
+  assert.equal(harness.table.style.tableLayout, "fixed");
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["100px", "160px", "100px"]);
+  assert.equal(harness.counts.writes, 0, "an install wrote storage");
+
+  // (i) A synthetic change event aimed at the unresolved row — the shape a user
+  // reaches by stripping `disabled` in devtools, and the shape a future refactor
+  // reaches by forgetting it. It writes NOTHING and hides nothing.
+  const { menu } = openMenu(harness);
+  const unresolved = harness.owned("column-toggle")[2];
+  unresolved.disabled = false;
+  unresolved.checked = false;
+  harness.fire("change", { on: menu, target: unresolved });
+  await harness.tick();
+  assert.equal(harness.counts.writes, 0, "an unresolved column reached storage through the menu");
+  assert.deepEqual(storedHidden(harness), ["quantity"], "the stored hidden set was rewritten");
+  assert.deepEqual(hiddenHeader(core, harness), [false, true, false], "an unresolved column was hidden");
+
+  // (ii) A resize gesture on the unresolved column's own edge. The drag never
+  // STARTS: no cursor class, no document-level drag pair, no plan, no write. Were
+  // it to start, columnWidths would be keyed by `null` — the property name "null",
+  // which core.normalizeWidths accepts as an ordinary column id and persists, so
+  // every unresolved column on every form would share one stored width.
+  const cells = headerOf(harness, core);
+  const holed = cells[2].getBoundingClientRect();
+  const listenersBefore = harness.documentListeners.length;
+  harness.pointer("pointerdown", { target: cells[2], clientX: holed.right - 1, clientY: holed.top + 4 });
+  harness.pointer("pointermove", { clientX: holed.right - 1 + 40, clientY: holed.top + 4 });
+  harness.pointer("pointerup", { clientX: holed.right - 1 + 40, clientY: holed.top + 4 });
+  await harness.tick();
+  assert.equal(harness.bodyClasses().includes(core.CLASSES.resizing), false, "a drag began on an unkeyable column");
+  assert.equal(harness.documentListeners.length, listenersBefore, "the drag pair was bound for an unkeyable column");
+  assert.equal(harness.counts.writes, 0, "a drag on an unresolved column wrote storage");
+  assert.deepEqual(plain(storedWidths(harness)), { quantity: 160 }, "the stored width map gained a key");
+  assert.deepEqual(plain(headerOf(harness, core).map((cell) => cell.style.width)), ["100px", "160px", "100px"]);
+
+  // Non-vacuous: the identical gesture on a column that HAS an id — same harness,
+  // same machine, same handler — does everything the refused one did not. (Item,
+  // because Quantity is hidden here and a hidden cell measures zero, so its right
+  // edge is Item's; a starred column is un-HIDEABLE, never un-resizable.)
+  const keyed = cells[0].getBoundingClientRect();
+  harness.pointer("pointerdown", { target: cells[0], clientX: keyed.right - 1, clientY: keyed.top + 4 });
+  harness.pointer("pointermove", { clientX: keyed.right - 1 + 40, clientY: keyed.top + 4 });
+  harness.pointer("pointerup", { clientX: keyed.right - 1 + 40, clientY: keyed.top + 4 });
+  await harness.tick();
+  assert.equal(harness.counts.writes, 1, "the keyed gesture did not write");
+  assert.deepEqual(Object.keys(plain(storedWidths(harness))), ["quantity", "item"]);
+  // And STILL no key for the hole, after a write that rewrote the whole map.
+  assert.equal(Object.keys(plain(storedWidths(harness))).includes("null"), false);
 });
 
 test("a chip reveals its column, and neither direction writes an inline display", async () => {

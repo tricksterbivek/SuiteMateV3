@@ -53,6 +53,17 @@
   const MACHINE_ID_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
   const MISSING_VALUE_PENALTY = -4;
   const LABEL_WEIGHT = 2;
+  // The fail-closed FLOOR under per-column unanimity (see correlateColumnIds).
+  // An axis is a key space, and a machine that can resolve fewer than two of its
+  // columns has not established one — it has established a single column and a
+  // row of holes, which no width and no hide can be keyed against. Two is the
+  // same number `width < 2` refuses on, restated for the RESOLVED count because
+  // that is now the thing that can be smaller than the header.
+  //
+  // Deliberately NOT on the frozen export: it is an internal floor, and the
+  // frozen contract is compared by NAME LIST, so exporting it would be a
+  // contract change bought for nothing.
+  const MIN_RESOLVED_COLUMNS = 2;
 
   const DATA_ATTRIBUTE = "data-suitemate-v3-edit-grid";
   const NATIVE_ROW_ATTRIBUTE = "data-suitemate-v3-edit-grid-native-row";
@@ -336,8 +347,34 @@
       // display value; the raw id is what gets stored.
       const paired = base !== null && fieldIds[index + 1] === base;
       const values = lines.map((line) => String(line[index] ?? ""));
-      // A value carrying ENQ is a serialized select option list, never a cell.
-      const optionList = values.some((value) => value.includes(OPTION_DELIMITER));
+      // A serialized select option list is never a cell — but "carries an ENQ" is
+      // NOT what makes one, and reading it that way cost a real column.
+      //
+      // THE MEASUREMENT (form B, tests/fixtures/salesord-form-b-identity.json,
+      // live salesord 16357099). Its line-7 `description` value is ordinary free
+      // text — "Instant Brows Retractable Brow Pencil - Light/Medium" — with ONE
+      // stray trailing ENQ. Under `includes`, that one byte deleted `description`
+      // from the candidate pool before correlation ran, the true column was out of
+      // reach, and the DP handed label 8 "Description" the next monotone candidate
+      // instead: `unitconversionrate`. Unanimously. On every optimal alignment.
+      // The axis looked healthy and named the wrong field.
+      //
+      // SO THE TEST IS SHAPE, NOT PRESENCE: a list is ≥2 NON-EMPTY segments.
+      // `3<ENQ>4<ENQ>5` and `22<ENQ>50<ENQ>-1` are lists and still go. A leading or
+      // trailing ENQ on free text splits to ONE non-empty segment and stays a cell.
+      //
+      // DIRECTION OF FAILURE IS THE WHOLE ARGUMENT, and the two rules fail in
+      // opposite directions. The old rule's error DESTROYS a true candidate, and
+      // the damage is invisible everywhere downstream: correlation cannot miss what
+      // it cannot see, unanimity agrees enthusiastically, and storage is keyed to a
+      // field the user never touched. The narrowed rule's worst case is the
+      // reverse — a genuine option list that survives as a candidate — and the most
+      // it can do is compete for a position and make it AMBIGUOUS, which per-column
+      // unanimity answers with a hole. A hole is safe; a confident wrong answer is
+      // not, which is the ruling this round was decided on.
+      const optionList = values.some(
+        (value) => value.split(OPTION_DELIMITER).filter((part) => part !== "").length >= 2
+      );
       // "old"/"default" + an id present in the same list is a bookkeeping mirror.
       // Deliberately narrow: olditemid survives because "itemid" is not a field.
       const mirror = MIRROR_PREFIXES.some(
@@ -436,58 +473,147 @@
     return penalty + LABEL_WEIGHT * labelAffinity(label, column.id) + (corroborated ? 1 : 0);
   }
 
+  // PER-COLUMN UNANIMITY. Returns one entry per visible label: the id EVERY
+  // optimal alignment assigns to that position, or `null` where the optima
+  // disagree. `[]` is still the whole-machine refusal.
+  //
+  // WHAT CHANGED AND WHY (owner directive 2026-08-04: hide/show must work across
+  // ALL Sales Orders, never one record). This used to count the optimal
+  // alignments and refuse the ENTIRE machine unless the count was exactly 1.
+  // Measured on the owner's other entry form (tests/fixtures/salesord-form-b-identity.json,
+  // live capture from salesord 16357099): 62 visible labels — "GST" appears TWICE
+  // — against 179 machine fields collapsing to 163 candidates, DP optimum 343
+  // reached by 24 distinct alignments. So the whole form declined, on every
+  // record that uses it, forever. (The pool and the optimum are quoted at their
+  // CURRENT values; the alignment count is 24 either way. They were 162/334 when
+  // this was first measured, because collapseDisplayTwins was still deleting
+  // `description` over one stray ENQ — see the option-list rule above.) Yet
+  // across all 24 optima, 59 of the 62
+  // positions are UNANIMOUS — including the four the owner actually hides
+  // (quantitycommitted / quantityfulfilled / quantitybilled / quantitybackordered)
+  // — and exactly three disagree: 36 "GST" {tax1amt, refamt}, 39 "Reallocate
+  // Order Item" {warnnodropship, kithasdropship, allocationalert}, 42 "Reason
+  // Code (SO)" {waves, picktasks, itemfulfillments, custcol_atlas_rc_so}.
+  // Refusing 62 columns to protect 3 is not caution, it is the whole feature.
+  //
+  // THE CORRECTNESS PHILOSOPHY IS UNCHANGED, only its GRAIN: an id is adopted
+  // only when the evidence admits no other, and where the evidence is genuinely
+  // ambiguous NOTHING is adopted. A null position is never keyed, never stored,
+  // never hidden and never resized — every consumer treats it as "this column
+  // has no identity", which is exactly what the old whole-machine refusal said
+  // about all of them at once. A single-optimum machine has no ambiguous
+  // position by construction, so its output is byte-identical to the old code's:
+  // one alignment means one candidate set of size one at every position.
+  //
+  // The walk is a forward sweep over REACHABLE STATES, not an enumeration of
+  // alignments — 24 today, but a wider form can hold combinatorially many. A
+  // state is (labelIndex, cursor) and there are at most (width+1)x(count+1) of
+  // them; each is visited once because `cursor` is a Set, so the sweep costs no
+  // more than the DP that precedes it. Every state it reaches lies on at least
+  // one globally optimal alignment, and every optimal alignment passes through
+  // its states: `best[k][c]` is the optimum of the SUFFIX from k with cursor c,
+  // so a step that keeps `scores[k][i] + best[k+1][i+1] === best[k][c]` extends
+  // an optimal prefix into an optimal prefix, by induction from best[0][0].
   function correlateColumnIds(labels, columns, sampleTexts) {
     const width = labels.length;
     const count = columns.length;
+    // Every pre-gate is UNCHANGED: too narrow to key, wider than storage can
+    // hold, or fewer candidates than labels — none of which unanimity can help.
     if (width < 2 || width > MAX_COLUMN_IDS || count < width) {
+      return [];
+    }
+    // AND ONE PRE-GATE IS NEW, because the old whole-machine refusal was
+    // carrying it INCIDENTALLY and per-column unanimity would have dropped it.
+    // With no rendered row to read, correlationScore has no value evidence at
+    // all and every score collapses to LABEL_WEIGHT * labelAffinity — identity
+    // resting on header TEXT, which is exactly what spec A1.2 exists to refuse
+    // and what the {machine}data gate refuses one level up. Measured on the live
+    // twelve-label slice: with the samples dropped, 11 of the 12 positions are
+    // unanimous on label affinity alone and the twelfth (Unit Price -> rate,
+    // which has NO lexical relation and is carried entirely by value
+    // corroboration) resolves to null — a plausible-looking axis that disagrees
+    // with the corroborated one. It is not merely wrong, it is DANGEROUS: the
+    // runtime's pin compares a fresh derivation against the pinned axis and
+    // LATCHES a mismatch for the life of the mount, so one sample-less read
+    // during a repaint would kill the feature on a machine whose axis never
+    // changed. A hole is safe; a confident wrong answer is not.
+    if (!Array.isArray(sampleTexts) || !sampleTexts.some((row) => Array.isArray(row) && row.length > 0)) {
       return [];
     }
     const scores = labels.map(
       (label, labelIndex) => columns.map((column) => correlationScore(label, column, sampleTexts, labelIndex))
     );
     // Backward DP over (labelIndex, firstAllowedCandidate). best[] is the top
-    // score for the remaining labels; paths[] COUNTS the alignments that reach
-    // it, which is what makes the ambiguity gate a measurement, not a guess.
+    // score for the remaining labels. The alignment COUNT that used to be
+    // carried alongside it is gone: it answered one bit for the whole machine —
+    // "is the optimum unique" — and the walk below answers that same question
+    // per position, which is strictly more information and the same measurement.
     const best = [];
-    const paths = [];
     for (let k = 0; k <= width; k += 1) {
       best.push(new Array(count + 1).fill(Number.NEGATIVE_INFINITY));
-      paths.push(new Array(count + 1).fill(0));
     }
     best[width].fill(0);
-    paths[width].fill(1);
     for (let k = width - 1; k >= 0; k -= 1) {
       for (let c = count - (width - k); c >= 0; c -= 1) {
         let top = Number.NEGATIVE_INFINITY;
-        let ways = 0;
         for (let i = c; i <= count - (width - k); i += 1) {
           const total = scores[k][i] + best[k + 1][i + 1];
           if (total > top) {
             top = total;
-            ways = paths[k + 1][i + 1];
-          } else if (total === top) {
-            ways += paths[k + 1][i + 1];
           }
         }
         best[k][c] = top;
-        paths[k][c] = ways;
       }
-    }
-    if (paths[0][0] !== 1) {
-      return [];
     }
     const ids = [];
-    let cursor = 0;
+    let cursor = new Set([0]);
     for (let k = 0; k < width; k += 1) {
-      for (let i = cursor; i <= count - (width - k); i += 1) {
-        if (scores[k][i] + best[k + 1][i + 1] === best[k][cursor]) {
-          ids.push(columns[i].id);
-          cursor = i + 1;
-          break;
+      const next = new Set();
+      // The candidate set for THIS position, collapsed as it is built: the only
+      // question asked of it is "is there exactly one", so it is held as the
+      // first id seen plus a disagreement flag rather than as a Set. Compared by
+      // ID and not by candidate INDEX — two indices carrying the same id would
+      // be the same column, and agreeing about a column is agreement.
+      //
+      // `seen` and not `unanimous !== null` as the first-candidate test: a
+      // caller reaching the export surface directly can hand us a column whose
+      // id is null, and folding that into "nothing seen yet" would let the NEXT
+      // candidate be adopted as unanimous while the optima plainly admit two.
+      // A position with no candidate at all is impossible while the DP is
+      // consistent, and resolves to null here rather than to `undefined`.
+      let unanimous = null;
+      let seen = false;
+      let ambiguous = false;
+      for (const c of cursor) {
+        for (let i = c; i <= count - (width - k); i += 1) {
+          if (scores[k][i] + best[k + 1][i + 1] !== best[k][c]) {
+            continue;
+          }
+          if (!seen) {
+            seen = true;
+            unanimous = columns[i].id;
+          } else if (unanimous !== columns[i].id) {
+            ambiguous = true;
+          }
+          next.add(i + 1);
         }
       }
+      ids.push(seen && !ambiguous ? unanimous : null);
+      cursor = next;
     }
-    return ids.length === width && new Set(ids).size === width ? ids : [];
+    const resolved = ids.filter((id) => id !== null);
+    // The validity gate, per column instead of per machine. Uniqueness is asked
+    // of the RESOLVED ids only — nulls are holes, not a repeated id, and a Set
+    // would collapse them into one and fail a perfectly good axis. Normalizable
+    // because an id that cannot survive normalizeColumnId cannot key storage,
+    // and this is the boundary where an id becomes an axis member; the emission
+    // sites (readColumnIds / readColumnIdsFrom) normalize as well, deliberately,
+    // because this function is exported and directly callable.
+    return resolved.length >= MIN_RESOLVED_COLUMNS
+      && resolved.every((id) => normalizeColumnId(id))
+      && new Set(resolved).size === resolved.length
+      ? ids
+      : [];
   }
 
   // ===== Edit-Mode DOM identity =====
@@ -702,7 +828,17 @@
       // through normalizeColumnId while emitting the raw string would let a
       // padded id key storage under " rate " while every other entry point
       // (normalizeColumnIds, writeOrder, normalizeWidths) stores "rate".
-      return ids.every((id) => normalizeColumnId(id)) ? ids.map(normalizeColumnId) : [];
+      //
+      // A NULL PASSES THROUGH AS A NULL and is never normalized into a string.
+      // Under per-column unanimity a position the optima disagree about carries
+      // no id (see correlateColumnIds), and normalizeColumnId(null) is null
+      // anyway — but written explicitly, because the whole safety property of
+      // this axis is that a hole stays a hole all the way to the consumers. A
+      // hole that normalized into "null", or into "", would be a KEY: storable,
+      // hideable, resizable, and shared by every unresolved column on the form.
+      return ids.every((id) => id === null || normalizeColumnId(id))
+        ? ids.map((id) => (id === null ? null : normalizeColumnId(id)))
+        : [];
     } catch {
       return [];
     }
@@ -742,7 +878,12 @@
       const columns = collapseDisplayTwins(machineData.fieldIds, machineData.lines);
       const samples = readSampleRowTexts(table, labels.length, machineData.lines.length);
       const ids = correlateColumnIds(labels, columns, samples);
-      return ids.every((id) => normalizeColumnId(id)) ? ids.map(normalizeColumnId) : [];
+      // Nulls pass through as nulls, never normalized into a string — the same
+      // edit as readColumnIds', applied to the same line, for the reason stated
+      // in full there. The duplication is adjudication #13's, not an oversight.
+      return ids.every((id) => id === null || normalizeColumnId(id))
+        ? ids.map((id) => (id === null ? null : normalizeColumnId(id)))
+        : [];
     } catch {
       return [];
     }
@@ -904,6 +1045,25 @@
       // deliberately left unset so the machine keeps its own sizing.
       cells.forEach((cell, index) => {
         const id = columnIds[index];
+        // AN UNRESOLVED COLUMN LANDS HERE WITH id === null and takes `rendered`,
+        // and that is NOT the partial-plan hazard documented at length below.
+        // The hazard has two halves and this column has neither. It cannot be
+        // HIDDEN — a hide is keyed by id and it has none, so applyHidden's
+        // `wanted.has(null)` is false forever — which means it always
+        // participates in the layout and always measures a real border box, so
+        // adjudication #20's "hidden measures 0, clamps to the floor, and the
+        // floor becomes the column's width" path is unreachable for it. And the
+        // plan the runtime builds is still TOTAL over the columns it can key,
+        // because all three of its sources drop a null id at their own guard; a
+        // null-id column is simply never in it, on the first apply or the
+        // hundredth, so it takes the freeze's rendered value exactly as an
+        // unresized column does and re-applies to the same pixels.
+        //
+        // The one thing that IS true of it — a repeated partial apply would let
+        // `rendered` creep by the border-box difference — is the same statement
+        // as for any unnamed column, and it is closed by the same precondition:
+        // the freezing apply is the only one that meets a plan that does not
+        // name every column.
         const stored = id ? Number(widths[id]) : Number.NaN;
         const rendered = Math.round(cell.getBoundingClientRect?.().width ?? 0);
         // `stored > 0`, not merely finite: Number(null) is 0, and a 0 target skips
@@ -1060,6 +1220,12 @@
         return false;
       }
       const wanted = new Set(hidden);
+      // `wanted` holds STORED ids, which are always strings, so an UNRESOLVED
+      // axis member (null — see core.correlateColumnIds' per-column unanimity)
+      // matches nothing and the column renders. That is the correct answer and
+      // not a fallback: a column with no identity was never hidden by anyone,
+      // because no gesture could name it. `hidden` has already dropped falsy
+      // entries above, so a null can reach neither side of this comparison.
       const flags = columnIds.map((id) => wanted.has(id));
       for (const row of tableRows(table)) {
         // An excluded row is skipped even when it aligns — a totals row rendered
