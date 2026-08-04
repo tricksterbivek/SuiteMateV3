@@ -3,7 +3,11 @@ html:not(.ext-f) {
     --suitemate-v3-table-header-color: var(--text-0);
     --suitemate-v3-table-header-border: var(--theme-secondary);
     --suitemate-v3-subtab-bg: var(--theme-secondary-light);
-    --suitemate-v3-subtab-active-bg: var(--theme-secondary)
+    /* The active subtab takes the PANEL surface so it reads as joined to the
+       content below. It was --theme-secondary on a --theme-secondary-light strip,
+       which measured 1.06:1 — the near-invisible pair reported live. */
+    --suitemate-v3-subtab-active-bg: var(--field-backgroud-color);
+    --suitemate-v3-subtab-hover-bg: color-mix(in srgb, var(--theme-main) 6%, var(--field-backgroud-color))
 }
 
 html:not(.ext-f) :is(.uir-list-headerrow, .uir-list-header-td, .uir-machine-headerrow>td) {
@@ -47,9 +51,20 @@ html:not(.ext-f) .uir-tab-list>.uir-unroll-tabs-button {
     background-color: var(--theme-main) !important
 }
 
-html:not(.ext-f) .uir-tab-list-tabs .formtabon,
+/* ACTIVE TAB SURFACE. This sheet loads after netsuite.css and is unconditional,
+   so it is what a page actually renders — including the .isRedwood-flagged pages
+   the owner's account runs, where netsuite.css's guarded copy is excluded. It
+   used to paint --theme-main-light, which stopped being a neighbour of
+   --theme-main when the default primary moved to #5058f4: measured live as
+   #7e91ae on a #5058f4 bar, the "dull grey block", with white text at ~2.6:1 —
+   worse contrast than the inactive tabs beside it. Same deep same-hue blend as
+   netsuite.css's copy, so whichever wins the result is identical. */
+html:not(.ext-f) .uir-tab-list-tabs .formtabon {
+    background-color: color-mix(in srgb, var(--theme-main), #000 32%) !important
+}
+
 html:not(.ext-f) .uir-tab-list-tabs .formtaboff:has(>a:hover) {
-    background-color: var(--theme-main-light) !important
+    background-color: color-mix(in srgb, var(--theme-main), #000 10%) !important
 }
 
 html:not(.ext-f) .uir-tab-list-tabs :is(.formtabon, .formtaboff) {
@@ -61,8 +76,16 @@ html:not(.ext-f) .uir-tab-list-tabs :is(.formtabon, .formtaboff)>a.formtabtext {
     -webkit-text-fill-color: #fff
 }
 
-html:not(.ext-f) :is(.uir-tab-list-tabs, .uir-subtab-panel-tabs-row) :is(.formtabon, .formsubtabon) {
-    border-bottom-color: light-dark(var(--theme-main), var(--theme-main-light)) !important
+/* The full shorthand, not just the colour: a colour-only declaration leaves the
+   WIDTH to whatever else matched, and the accent then renders at someone else's
+   thickness. Both sheets state the same 3px so the accent is identical whichever
+   one wins the cascade. */
+html:not(.ext-f) .uir-tab-list-tabs .formtabon {
+    border-bottom: 3px solid color-mix(in srgb, #fff 62%, var(--theme-main)) !important
+}
+
+html:not(.ext-f) .uir-subtab-panel-tabs-row .formsubtabon {
+    border-bottom: 3px solid var(--theme-main) !important
 }
 
 html:not(.ext-f) .uir-subtab-panel-tabs,
@@ -73,9 +96,12 @@ html:not(.ext-f) .uir-list-control-bar {
     background-color: var(--suitemate-v3-subtab-bg) !important
 }
 
-html:not(.ext-f) .uir-subtab-panel-tabs-row .formsubtabon,
-html:not(.ext-f) .uir-subtab-panel-tabs-row .formsubtaboff:has(>a:hover) {
+html:not(.ext-f) .uir-subtab-panel-tabs-row .formsubtabon {
     background-color: var(--suitemate-v3-subtab-active-bg) !important
+}
+
+html:not(.ext-f) .uir-subtab-panel-tabs-row .formsubtaboff:has(>a:hover) {
+    background-color: var(--suitemate-v3-subtab-hover-bg) !important
 }
 
 html:not(.ext-f) .uir-subtab-panel-tabs-row :is(.formsubtabon, .formsubtaboff) {

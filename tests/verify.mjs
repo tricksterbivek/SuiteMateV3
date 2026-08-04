@@ -764,6 +764,9 @@ assert.match(importFixtureSource, /name="recordtype"[^>]+value="ACCOUNTING"/, "T
 assert.match(importFixtureSource, /name="recordsubtype"[^>]+value="ACCOUNT"/, "The Import Assistant fixture lacks the native subtype field");
 
 const compatibilityStyles = await readFile(resolve(root, "src/styles/v3-compat.css"), "utf8");
+// Read for the sheet-equality pin below: the active-tab treatment is stated in
+// both sheets and the two must agree value-for-value.
+const netsuiteStyles = await readFile(resolve(root, "src/styles/netsuite.css"), "utf8");
 const radiusStyles = await readFile(resolve(root, "src/styles/radii.css"), "utf8");
 assert.match(
   compatibilityStyles,
@@ -882,8 +885,13 @@ assert.match(
 );
 assert.match(
   compatibilityStyles,
-  /border-bottom-color: light-dark\(var\(--theme-main\), var\(--theme-main-light\)\)/,
-  "Global NetSuite tabs are not controlled by Main"
+  /\.uir-tab-list-tabs \.formtabon \{\s+border-bottom: 3px solid color-mix\(in srgb, #fff 62%, var\(--theme-main\)\) !important/,
+  "The active global NetSuite tab accent is not derived from Main"
+);
+assert.match(
+  compatibilityStyles,
+  /\.uir-subtab-panel-tabs-row \.formsubtabon \{\s+border-bottom: 3px solid var\(--theme-main\) !important/,
+  "The active nested-subtab accent is not derived from Main"
 );
 assert.match(
   compatibilityStyles,
@@ -892,8 +900,13 @@ assert.match(
 );
 assert.match(
   compatibilityStyles,
-  /html:not\(\.ext-f\) \.uir-tab-list-tabs \.formtabon,[\s\S]*?background-color: var\(--theme-main-light\) !important/,
-  "The active global NetSuite tab is not controlled by Main Light"
+  /html:not\(\.ext-f\) \.uir-tab-list-tabs \.formtabon \{\s+background-color: color-mix\(in srgb, var\(--theme-main\), #000 32%\) !important/,
+  "The active global NetSuite tab surface is not derived from Main"
+);
+assert.match(
+  compatibilityStyles,
+  /--suitemate-v3-subtab-active-bg: var\(--field-backgroud-color\)/,
+  "The active nested subtab no longer takes the panel surface"
 );
 assert.match(
   compatibilityStyles,
@@ -917,9 +930,94 @@ assert.match(
 );
 assert.match(
   compatibilityStyles,
-  /\.uir-subtab-panel-tabs-row \.formsubtabon,[\s\S]*?background-color: var\(--suitemate-v3-subtab-active-bg\) !important/,
-  "The active nested NetSuite tab is not controlled by Secondary"
+  /\.uir-subtab-panel-tabs-row \.formsubtabon \{\s+background-color: var\(--suitemate-v3-subtab-active-bg\) !important/,
+  "The active nested NetSuite tab does not use the shared subtab-active token"
 );
+
+// ===== Active-tab sheet equality =====
+// The active-tab treatment is stated in THREE places on purpose: netsuite.css
+// scopes it to a container set, netsuite.css states it again bare for strips that
+// set does not reach, and v3-compat.css states it a third time because that sheet
+// loads last and is what a page actually renders. Three copies is the deliberate
+// design — one sheet winning by load order must produce the same pixels as another
+// winning by specificity — but three copies is also three chances to drift.
+//
+// These assertions COMPARE THE SHEETS TO EACH OTHER rather than describe any one
+// of them, which is the difference that matters: the checks above pin v3-compat's
+// derivation, and every one of them would still have passed while netsuite.css
+// said something else. That is not hypothetical — this round shipped an accent
+// that rendered 3px from one sheet and 2px from another, because only one site
+// carried the width. A divergence now names the site that moved.
+// Scans EVERY rule with this selector and keeps the LAST one that sets the
+// property, because that is the one the page gets: v3-compat states the surface
+// and the accent under one identical selector, and between two equal-specificity
+// blocks the cascade takes the later. Returning the first read a declaration that
+// does not render — an appended duplicate saying something else passed this pin
+// while the browser painted the duplicate, which is the exact drift these
+// assertions exist to catch.
+const ruleValue = (sheet, label, selector, property) => {
+  let value = null;
+  for (let at = sheet.indexOf(selector); at !== -1; at = sheet.indexOf(selector, at + 1)) {
+    const block = sheet.slice(at + selector.length, sheet.indexOf("}", at));
+    const found = new RegExp(`(?:^|[;{\\s])${property}:([^;\\n}]+)`).exec(block);
+    if (found) {
+      value = found[1].replace("!important", "").trim();
+    }
+  }
+  return value ?? assert.fail(`${label}: no rule "${selector}" sets ${property}`);
+};
+
+// A token is a declaration like any other, so it is read the same way — block
+// scoped and last-wins. Read loose over the whole sheet it would have taken the
+// first block that happened to name it, wherever that block was and whether or
+// not a later one overrode it.
+const tokenValue = (sheet, label, name) => ruleValue(sheet, label, "html:not(.ext-f) {", name);
+
+const TOP_SCOPED = "html:not(.ext-f) :is(.uir-tabs, .uir-tab-list, .uir-tab-list-tabs, .bgtabbar) .formtabon {";
+const SUB_SCOPED = "html:not(.ext-f) :is(.uir-subtab-panel-tabs-row, div.bgsubtabbar) .formsubtabon {";
+for (const [what, sites] of Object.entries({
+  "the active top-tab surface": [
+    ["netsuite.css scoped", () => ruleValue(netsuiteStyles, "netsuite.css scoped", TOP_SCOPED, "background-color")],
+    ["netsuite.css bare", () => ruleValue(netsuiteStyles, "netsuite.css bare", "html:not(.ext-f) .formtabon {", "background-color")],
+    ["v3-compat.css", () => ruleValue(compatibilityStyles, "v3-compat.css", "html:not(.ext-f) .uir-tab-list-tabs .formtabon {", "background-color")]
+  ],
+  "the active top-tab accent": [
+    ["netsuite.css scoped", () => ruleValue(netsuiteStyles, "netsuite.css scoped", TOP_SCOPED, "border-bottom")],
+    ["v3-compat.css", () => ruleValue(compatibilityStyles, "v3-compat.css", "html:not(.ext-f) .uir-tab-list-tabs .formtabon {", "border-bottom")]
+  ],
+  "the active subtab surface": [
+    ["netsuite.css scoped", () => ruleValue(netsuiteStyles, "netsuite.css scoped", SUB_SCOPED, "background-color")],
+    ["netsuite.css bare", () => ruleValue(netsuiteStyles, "netsuite.css bare", "html:not(.ext-f) .formsubtabon {", "background-color")],
+    ["v3-compat.css token", () => tokenValue(compatibilityStyles, "v3-compat.css token", "--suitemate-v3-subtab-active-bg")]
+  ],
+  "the active subtab accent": [
+    ["netsuite.css scoped", () => ruleValue(netsuiteStyles, "netsuite.css scoped", SUB_SCOPED, "border-bottom")],
+    ["v3-compat.css", () => ruleValue(compatibilityStyles, "v3-compat.css", "html:not(.ext-f) .uir-subtab-panel-tabs-row .formsubtabon {", "border-bottom")]
+  ],
+  // The hover halves are duplicated across the same two sheets as the active
+  // ones — they were split out of a single rule this round, which is precisely
+  // when a pair starts to drift — and the descriptive assertions above never
+  // compare them. A hover shade that moved in one sheet only would render
+  // whichever the cascade picked, with the whole suite green.
+  "the inactive top-tab hover surface": [
+    ["netsuite.css scoped", () => ruleValue(netsuiteStyles, "netsuite.css scoped", "html:not(.ext-f) :is(.uir-tabs, .uir-tab-list, .uir-tab-list-tabs, .bgtabbar) .formtaboff:has(>a:hover) {", "background-color")],
+    ["v3-compat.css", () => ruleValue(compatibilityStyles, "v3-compat.css", "html:not(.ext-f) .uir-tab-list-tabs .formtaboff:has(>a:hover) {", "background-color")]
+  ],
+  "the inactive subtab hover surface": [
+    ["netsuite.css scoped", () => ruleValue(netsuiteStyles, "netsuite.css scoped", "html:not(.ext-f) :is(.uir-subtab-panel-tabs-row, div.bgsubtabbar) .formsubtaboff:has(>a:hover) {", "background-color")],
+    ["v3-compat.css token", () => tokenValue(compatibilityStyles, "v3-compat.css token", "--suitemate-v3-subtab-hover-bg")]
+  ]
+})) {
+  const [[baselineLabel, readBaseline], ...rest] = sites;
+  const expected = readBaseline();
+  for (const [label, read] of rest) {
+    assert.equal(
+      read(),
+      expected,
+      `${what} differs between "${baselineLabel}" and "${label}" — the copies have drifted`
+    );
+  }
+}
 assert.match(
   compatibilityStyles,
   /td\.fgroup_title\.uir-field-group>div\.fgroup_title[\s\S]*?background-color: var\(--theme-secondary-light\) !important/,
@@ -1891,7 +1989,7 @@ await access(resolve(root, "save/SUITEMATE_V1_MASTER_FEATURE_INVENTORY.md"));
 const expectedStyleHashes = {
   "src/styles/font.css": "ecc7a99f6b820ee9290ab4a3ca2ff1ea4829c1a539c0d42becb19a3d5ea446cf",
   "src/styles/code.css": "e5607100c7432fd7028176ce74c4c999e181108861ea6b992ed3058d92d0d698",
-  "src/styles/netsuite.css": "d666e0c555050524a1f07458351e1daaeb486f2dfe615829a671e97dfe9dc7a6",
+  "src/styles/netsuite.css": "d04e6d5b74bfed9a6b0237f3be4f23afe3d4477af5b1d1acf5f9889b1e24da9b",
   "src/styles/pages/bundlebuilder.css": "bb9cae83f75b192d0a913233a33b6a8e557df656f7251a6e48e3105532e9f8fa",
   "src/styles/pages/codeeditor.css": "b58efb6517cfc13ca04cb621bdf269599ad9d6a589f38dee268743dda60f84df",
   "src/styles/pages/dashboard.css": "7c5cb547ce07074ed54d18b6bb7eb93d628099e7688dee6631ee24b9125e1b5f",
