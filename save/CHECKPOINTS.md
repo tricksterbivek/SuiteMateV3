@@ -1470,3 +1470,7 @@ Date: 2026-08-04 · Commits `72a67ca` (fix) on `feature/edit-mode-table-enhancem
 ### The generalization ladder, as it now stands
 
 One stored preference (`{company}:{user}:salesord:edit`) applies to: the 43-column single-optimum form (byte-identical since M3), the 62-column ambiguous form (59 resolved + 3 disclosed holes), any segment of a paged machine, and rows created after mount (add, remove, sourcing, commit repaints). Remaining known declines, all fail-closed and disclosed: zero-committed-line orders (A1.2 empty-data gate), machines where fewer than two columns resolve, and forms whose every rendered row lies beyond the 1000-line parse cap.
+
+### OWNER CONFIRMATION — 2026-08-04, checkpoint of record
+
+The owner confirmed the feature working after the segment-paging fix ("okay its working"). This closes the Show/Hide Columns goal for Sales Order Edit Mode end to end: hide/show with menu and chips (M3), NetSuite-starred required columns un-hideable (owner directive 1), hidden-stays-hidden through every Edit Mode interaction (owner directive 2), one preference set applying across every Sales Order form (per-column unanimity, `6ec83e0`), and every segment of large paged orders including dynamically created rows (`72a67ca`). Branch `feature/edit-mode-table-enhancements` at this commit; `main` remains untouched at v3.21.1; View Mode regression-verified throughout. Carried follow-ups stand as listed in the M3 declaration and the generalization/segment entries above.
