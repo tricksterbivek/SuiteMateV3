@@ -94,6 +94,34 @@
     }).join("")}</section>`;
   }
 
+  // NetSuite's transaction totals box, in its real shape rather than a plain
+  // two-column table: labels wrapped in span.uir-label > span.smalltextnolink,
+  // amounts in .inputreadonly with the summary amount in .inputtotalling, and
+  // the .uir-totallingtable-seperator divs the sheet replaces with row dividers.
+  // Without those class names the restyle's own selectors would go unexercised
+  // and the baseline would assert nothing about them.
+  function totallingTable() {
+    const row = (label, amount, valueClass = "inputreadonly") =>
+      `<tr><td><span class="uir-label"><span class="smalltextnolink">${escapeText(label)}</span></span></td>`
+      + `<td class="totallingcurrency"><span class="${valueClass}">${escapeText(amount)}</span></td></tr>`;
+    const separator = '<tr><td colspan="2"><div class="uir-totallingtable-seperator"></div></td></tr>';
+    // Deliberately SHORT. `.uir-machine-table-container` carries a 300px
+    // min-height (netsuite.css), which is faithful to a real two-line order, so
+    // the totals box starts low on the page and the 1440x1000 capture leaves it
+    // about 110px. Three visible rows would push the Total row — the row this
+    // restyle exists for — below the fold. The separator stays in the markup
+    // because the sheet collapses it to nothing, so it costs no height and its
+    // hide rule is still exercised.
+    return `<table class="totallingtable">
+        <caption>Summary</caption>
+        <tbody>
+          ${row("Subtotal", "$96.00")}
+          ${separator}
+          ${row("Total", "$105.60", "inputtotalling")}
+        </tbody>
+      </table>`;
+  }
+
   function machineTable(id = "item_splits") {
     return `<section class="uir-machine-table-container">
       <table id="${escapeText(id)}" class="uir-machine-table">
@@ -239,7 +267,7 @@ define(["N/record"], (record) =&gt; {
       ${fieldGrid([["Customer", "Sample Customer"], ["Date", "21/07/2026"], ["Status", "Pending Fulfillment", "select"], ["Memo", "Route-complete regression fixture", "textarea"]])}
       <div class="fgroup_title uir-field-group"><div class="fgroup_title uir-field-group-title">Classification</div></div>
       ${fieldGrid([["Subsidiary", "Australia", "select"], ["Location", "Sydney Warehouse", "select"], ["Department", "Sales", "select"]])}
-      ${recordTabs()}${machineTable()}
+      ${recordTabs()}${machineTable()}${totallingTable()}
     </form>`, { recordType: "Sales Order" });
   }
 

@@ -2367,6 +2367,70 @@ html:not(.ext-f):not(.isRedwood) .bgtabbar .formtabtext {
     padding: 5px 13px 4px 13px !important
 }
 
+/* ACTIVE TAB, one treatment at both scales: the selected tab is a surface shifted
+   toward the theme colour plus a 3px bottom accent derived from it. Classic only —
+   .isRedwood already carries this grammar (see its border-bottom-color rule below),
+   and this brings the classic strips into line with it rather than inventing a
+   third look. Everything is mixed from --theme-main, so a role theme restyles every
+   active tab with no further rules.
+
+   WHAT WAS WRONG: .formtabon was painted --theme-main-light over a --theme-main
+   bar. Those two stopped being neighbours when the default primary moved to
+   #5058f4, so the selected tab read as a grey block, and white-on-#7e91ae is about
+   2.6:1 — the ACTIVE tab had worse text contrast than the inactive ones beside it.
+   The subtab strip had the mirror problem: --theme-secondary on a
+   --theme-secondary-light row, near enough to invisible.
+
+   The inactive tabs carry the same 3px border in transparent so that selecting a
+   tab moves no text by a pixel. */
+html:not(.ext-f):not(.isRedwood) :is(.uir-tabs, .uir-tab-list, .uir-tab-list-tabs, .bgtabbar) .formtabon {
+    background-color: color-mix(in srgb, var(--theme-main), #000 32%) !important;
+    border-bottom: 3px solid color-mix(in srgb, #fff 62%, var(--theme-main)) !important
+}
+
+html:not(.ext-f):not(.isRedwood) :is(.uir-tabs, .uir-tab-list, .uir-tab-list-tabs, .bgtabbar) .formtaboff {
+    border-bottom: 3px solid transparent !important
+}
+
+html:not(.ext-f):not(.isRedwood) :is(.uir-tabs, .uir-tab-list, .uir-tab-list-tabs, .bgtabbar) .formtaboff:has(>a:hover) {
+    background-color: color-mix(in srgb, var(--theme-main), #000 10%) !important
+}
+
+html:not(.ext-f):not(.isRedwood) :is(.uir-tabs, .uir-tab-list, .uir-tab-list-tabs, .bgtabbar) .formtabon>.formtabtext {
+    font-weight: 600 !important
+}
+
+html:not(.ext-f):not(.isRedwood):not(.disable_radii) :is(.uir-tabs, .uir-tab-list, .uir-tab-list-tabs, .bgtabbar) .formtabon {
+    border-radius: 5px 5px 0 0 !important
+}
+
+/* The active SUBTAB takes the panel surface rather than a theme tint, which is the
+   other half of the same grammar: on the dark bar the selected tab sinks INTO the
+   bar, and on the light strip it rises OUT of it to meet the content below. A tint
+   was tried first and measured 1.05:1 against the strip — the two are near-identical
+   in luminance — so the surface does no work there and the accent did it alone. */
+html:not(.ext-f):not(.isRedwood) :is(.uir-subtab-panel-tabs-row, div.bgsubtabbar) .formsubtabon {
+    background-color: var(--field-backgroud-color) !important;
+    border-bottom: 3px solid var(--theme-main) !important
+}
+
+html:not(.ext-f):not(.isRedwood) :is(.uir-subtab-panel-tabs-row, div.bgsubtabbar) .formsubtaboff {
+    border-bottom: 3px solid transparent !important
+}
+
+html:not(.ext-f):not(.isRedwood) :is(.uir-subtab-panel-tabs-row, div.bgsubtabbar) .formsubtaboff:has(>a:hover) {
+    background-color: color-mix(in srgb, var(--theme-main) 6%, var(--field-backgroud-color)) !important
+}
+
+html:not(.ext-f):not(.isRedwood) :is(.uir-subtab-panel-tabs-row, div.bgsubtabbar) .formsubtabon>.formsubtabtext {
+    color: var(--text-0) !important;
+    font-weight: 600 !important
+}
+
+html:not(.ext-f):not(.isRedwood):not(.disable_radii) :is(.uir-subtab-panel-tabs-row, div.bgsubtabbar) .formsubtabon {
+    border-radius: 5px 5px 0 0 !important
+}
+
 html:not(.ext-f).isRedwood.isDarkMode :is(body, .uir-tabs) {
     background-color: var(--dark-1)
 }
@@ -4922,6 +4986,89 @@ html:not(.ext-f) .selector-filter-button.checked {
 
 html:not(.ext-f) .totallingtable .inputtotalling {
     font-weight: bold !important
+}
+
+/* Transaction totals box. The Total row is matched POSITIONALLY (tbody tr:last-child):
+   NetSuite gives it no class of its own, and .inputtotalling marks summary amounts
+   generally rather than that row. Row dividers replace .uir-totallingtable-seperator,
+   which is hidden along with its cell's padding rather than left as a blank band. */
+html:not(.ext-f) table.totallingtable {
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    background-color: var(--field-backgroud-color) !important;
+    border: 1px solid var(--table-border-color) !important;
+    box-shadow: 0 1px 2px rgb(0 0 0 / .06), 0 4px 12px rgb(0 0 0 / .05) !important
+}
+
+/* Corners are rounded on the caption and the last row rather than by clipping the
+   table: overflow on a <table> makes it a scroll container and moves the caption
+   out of the border box. */
+html:not(.ext-f):not(.disable_radii) table.totallingtable {
+    border-radius: 8px !important
+}
+
+html:not(.ext-f):not(.disable_radii) table.totallingtable caption {
+    border-radius: 7px 7px 0 0 !important
+}
+
+html:not(.ext-f):not(.disable_radii) .totallingtable tbody tr:last-child td:first-child {
+    border-bottom-left-radius: 7px !important
+}
+
+html:not(.ext-f):not(.disable_radii) .totallingtable tbody tr:last-child td:last-child {
+    border-bottom-right-radius: 7px !important
+}
+
+html:not(.ext-f) table.totallingtable caption {
+    padding: 7px 12px !important;
+    color: #fff !important;
+    font-weight: 600 !important;
+    letter-spacing: .02em !important;
+    text-align: left !important
+}
+
+html:not(.ext-f) .totallingtable td {
+    padding: 7px 12px !important;
+    border-top: 1px solid var(--table-border-color) !important;
+    vertical-align: middle !important
+}
+
+html:not(.ext-f) .totallingtable tbody tr:first-child td {
+    border-top: 0 !important
+}
+
+html:not(.ext-f) .totallingtable td:first-child,
+html:not(.ext-f) .totallingtable span.uir-label {
+    color: var(--text-2) !important;
+    font-weight: 600 !important
+}
+
+html:not(.ext-f) .totallingtable td+td {
+    color: var(--text-1) !important;
+    font-variant-numeric: tabular-nums !important;
+    text-align: right !important;
+    white-space: nowrap !important
+}
+
+html:not(.ext-f) .totallingtable tbody tr:last-child td {
+    background-color: color-mix(in srgb, var(--theme-main) 7%, transparent) !important;
+    border-top: 2px solid color-mix(in srgb, var(--theme-main) 30%, var(--table-border-color)) !important;
+    color: var(--text-0) !important;
+    font-size: 1.05em !important;
+    font-weight: 700 !important
+}
+
+html:not(.ext-f) .totallingtable .uir-totallingtable-seperator {
+    display: none !important
+}
+
+html:not(.ext-f) .totallingtable td:has(>.uir-totallingtable-seperator) {
+    padding: 0 !important;
+    border-top: 0 !important
+}
+
+html:not(.ext-f).isDarkMode table.totallingtable {
+    box-shadow: 0 1px 2px rgb(0 0 0 / .4), 0 4px 12px rgb(0 0 0 / .28) !important
 }
 
 html:not(.ext-f) .newelement-item:hover,
