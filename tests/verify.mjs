@@ -634,7 +634,7 @@ assert.match(recordTrailSource, /COMMANDS\.RECORD_GET_TRAIL/, "Record Trail bypa
 assert.match(serviceWorkerSource, /\[COMMANDS\.RECORD_GET_TRAIL\]: handleRecordTrail/, "Record Trail is not registered with the background dispatcher");
 assert.match(recordTrailDataAdapterSource, /PreviousTransactionLink/, "Record Trail does not query direct source transactions");
 assert.match(recordTrailDataAdapterSource, /NextTransactionLink/, "Record Trail does not query direct target transactions");
-assert.match(recordTrailSource, /browserApi\.modals\.create/, "Record Trail bypasses the shared accessible modal lifecycle");
+assert.match(recordTrailSource, /overlay\.showModal\?\.\(\)/, "Record Trail does not open through the native dialog top layer");
 assert.match(recordTrailSource, /lifecycleApi\.register/, "Record Trail bypasses the shared observer lifecycle");
 assert.match(recordTrailSource, /controller\?\.abort\("refreshed"\)/, "Record Trail refresh does not cancel stale work");
 assert.match(recordTrailSource, /noopener noreferrer/, "Record Trail links can retain opener access");
@@ -642,7 +642,7 @@ assert.doesNotMatch(recordTrailSource, /postMessage|innerHTML/, "Record Trail us
 
 const recordTrailStyles = await readFile(resolve(root, "src/record-actions/record-trail.css"), "utf8");
 assert.match(recordTrailStyles, /--theme-main/, "Record Trail does not use the active SuiteMate theme");
-assert.match(recordTrailStyles, /z-index:\s*2147483000/, "Record Trail can be hidden behind NetSuite overlays");
+assert.match(recordTrailStyles, /record-trail-overlay::backdrop/, "Record Trail does not sit in the native top layer above NetSuite overlays");
 
 const csvExportCoreSource = await readFile(resolve(root, "src/csv-export/core.js"), "utf8");
 const csvExportMainWorldSource = await readFile(resolve(root, "src/csv-export/main-world.js"), "utf8");

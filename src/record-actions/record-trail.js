@@ -72,8 +72,11 @@
     }
     activeView = null;
     view.controller?.abort("closed");
-    view.modal.hide({ restoreFocus });
-    view.modal.dispose();
+    // close() restores focus to the opener natively; restoreFocus only
+    // documents the teardown callers where the page is going away anyway.
+    void restoreFocus;
+    view.overlay.close?.();
+    globalScope.document.body.classList?.remove?.("suitemate-v3-record-trail-open");
     view.clipboard.dispose();
     view.overlay.remove();
     return true;
@@ -229,7 +232,7 @@
 
   function openRecordTrail(trigger) {
     closeRecordTrail(false);
-    const overlay = globalScope.document.createElement("div");
+    const overlay = globalScope.document.createElement("dialog");
     const panel = globalScope.document.createElement("section");
     const header = globalScope.document.createElement("header");
     const headerMain = globalScope.document.createElement("div");
@@ -242,7 +245,6 @@
     const close = globalScope.document.createElement("button");
     const body = globalScope.document.createElement("div");
 
-    overlay.hidden = true;
     overlay.className = "suitemate-v3-record-trail-overlay";
     overlay.dataset.suitemateV3Ui = "record-trail";
     overlay.setAttribute("role", "dialog");
@@ -284,13 +286,6 @@
       overlay,
       body,
       clipboard: browserApi.clipboard.create(),
-      modal: browserApi.modals.create({
-        dialog: overlay,
-        body: globalScope.document.body,
-        bodyClass: "suitemate-v3-record-trail-open",
-        backgroundElements: [...globalScope.document.body.children]
-          .filter((element) => element !== overlay)
-      }),
       controller: null
     };
     activeView = view;
@@ -301,6 +296,10 @@
         closeRecordTrail();
       }
     });
+    overlay.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      closeRecordTrail();
+    });
     overlay.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -308,7 +307,11 @@
         closeRecordTrail();
       }
     });
-    view.modal.show({ trigger, initialFocus: close });
+    // Native <dialog>: top layer, focus trap, background inerting, and
+    // focus restoration to the opener are browser-managed.
+    overlay.showModal?.();
+    globalScope.document.body.classList.add("suitemate-v3-record-trail-open");
+    close.focus?.();
     void loadRecordTrail(view);
     return true;
   }

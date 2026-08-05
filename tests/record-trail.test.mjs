@@ -111,6 +111,7 @@ function createDom() {
       this.hidden = false;
       this.disabled = false;
       this.inert = false;
+      this.open = false;
       this._textContent = "";
     }
 
@@ -125,6 +126,21 @@ function createDom() {
 
     get isConnected() {
       return this === document.documentElement || Boolean(this.parent?.isConnected);
+    }
+
+    showModal() {
+      // Mirrors the native top-layer contract: remember the opener and
+      // restore focus to it on close.
+      this.open = true;
+      this._opener = document.activeElement;
+    }
+
+    close() {
+      this.open = false;
+      if (this._opener) {
+        document.activeElement = this._opener;
+        this._opener = null;
+      }
     }
 
     get classList() {
@@ -180,6 +196,11 @@ function createDom() {
     }
 
     emit(type, event = {}) {
+      if (type === "click") {
+        // Real activation focuses the control before listeners run, which is
+        // what the native <dialog> opener-restore contract keys off.
+        document.activeElement = this;
+      }
       const value = {
         target: this,
         preventDefault() {},

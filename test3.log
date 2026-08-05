@@ -1,0 +1,750 @@
+
+> suitemate-v3@3.25.0 test
+> npm run build && find src tests/fixtures scripts \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check && node --test tests/*.test.mjs && node tests/verify.mjs && npm run fixtures:verify
+
+
+> suitemate-v3@3.25.0 build
+> node scripts/build.mjs
+
+
+  dist/material-palette.js  87.2kb
+
+⚡ Done in 25ms
+
+  dist/suiteql-studio.js  448.7kb
+
+⚡ Done in 38ms
+✔ exports one frozen versioned command registry (0.752708ms)
+✔ enforces closed authenticated lookup schemas (0.476625ms)
+✔ reuses the same bridge API and reports its live protocol version (1.035042ms)
+✔ creates canonical requests and rejects malformed command payloads (1.082334ms)
+✔ rejects oversized payloads before runtime messaging (13.781375ms)
+✔ enforces command-specific route and frame authority (4.619542ms)
+✔ rejects unsupported versions, unknown commands, and invalid request IDs (0.127334ms)
+✔ normalizes response envelopes and rejects stale or malformed responses (0.564083ms)
+✔ validates bounded CSV Export response metadata (0.481708ms)
+✔ validates exact Record Trail responses (0.523208ms)
+✔ client request validates the response and forwards no extra fields (0.342458ms)
+✔ client request maps runtime failures, timeouts, and aborts (6.3005ms)
+✔ dispatcher invokes only allowlisted handlers and normalizes failures (0.651708ms)
+✔ dispatcher rejects duplicate in-flight request IDs per tab (2.050792ms)
+✔ dispatcher cancellation aborts the active handler and releases its request (1.52625ms)
+✔ dispatcher deadline aborts a silent handler and releases its request (1.19675ms)
+✔ dispatcher allows SuiteQL dispose to interrupt a start with the same request ID (0.773708ms)
+✔ popup composes rapid color swap and appearance edits without stale rendering (19.469042ms)
+✔ popup exports, confirms and atomically imports a validated settings backup (10.699917ms)
+✔ popup rejects malformed backup text without touching storage (7.999958ms)
+✔ popup leaves settings untouched when overwrite confirmation is cancelled (3.066875ms)
+✔ popup rolls back its in-memory import when Chrome storage rejects the overwrite (4.881792ms)
+✔ SuiteQL Console gives each shortcut one owner and Execute sends one start request (20.483625ms)
+✔ SuiteQL Console Abort permits immediate restart and discards the abandoned completion (5.926333ms)
+✔ SuiteQL Console can load a new query page while an aborted page request is still pending (6.105042ms)
+✔ exports one deeply frozen versioned command registry (1.980292ms)
+✔ normalizes shortcuts and rejects ambiguous combinations (1.435875ms)
+✔ maps Mod consistently for macOS, Windows, Linux, display, ARIA, and CodeMirror (1.125209ms)
+✔ keeps shortcut signatures collision-free within every surface and platform (1.8845ms)
+✔ matches exact platform modifiers and rejects repeats, composition, AltGraph, and editable targets by default (2.399083ms)
+✔ enforces route capability and settings availability from one descriptor (2.881459ms)
+✔ applies labels, descriptions, shortcuts, and native link metadata from the registry (1.63125ms)
+✔ scope rejects unknown, cross-surface, duplicate, unavailable, and busy invocations (1.41325ms)
+✔ scope normalizes sync and async failures without leaking running state (1.614209ms)
+✔ scope authorizes and executes against one context snapshot (1.681375ms)
+✔ scope never executes a handler replaced during authorization (1.77325ms)
+✔ scope fails closed when availability returns a promise (1.097084ms)
+✔ scope consumes and reports a rejecting async availability predicate (2.807333ms)
+✔ scope freezes only success envelopes and accepts hostile handler-owned values (1.660459ms)
+✔ scope normalizes a thenable with a throwing then getter (2.995667ms)
+✔ scope tracks allowed re-entry and rejects stale async completion after disposal (1.314917ms)
+✔ allowed re-entry supports abort followed by immediate execution restart (2.706875ms)
+✔ shortcut binding is idempotent, exact, and disposed with its scope (1.704541ms)
+✔ CodeMirror bindings derive from registry shortcuts and share command availability (2.755167ms)
+✔ exports one frozen versioned CSV baseline core (2.899ms)
+✔ limits CSV Export to saved record-like locations (0.865458ms)
+✔ serializes RFC 4180 CSV and neutralizes spreadsheet formulas (1.550458ms)
+✔ removes columns that are blank across every exported row (2.077166ms)
+✔ validates event envelopes and renders only bounded result metadata (0.634417ms)
+✔ main-world baseline survives unsupported sublists and missing custom forms (3.176583ms)
+✔ main-world template downloads the same headers without record rows (2.026875ms)
+✔ golden quality cases reject internal fields, raw fallbacks, HTML controls, and multiline output (5.672625ms)
+✔ main-world baseline returns a readable failure instead of throwing (0.525958ms)
+✔ the core keeps record values out of extension storage and network APIs (0.184292ms)
+✔ readViewSnapshot exports visible columns and rows exactly as shown (0.596ms)
+✔ request and result details accept the exportView mode (0.337083ms)
+✔ the runtime maps every mode to its own command (4.004541ms)
+✔ readViewSnapshot dedupe never collides with literal duplicate labels (0.519666ms)
+✔ result detail accepts a zero-row exportView (headers-only export) (0.278542ms)
+✔ the CSV Utils menu wires the Export view item to the exportView mode (1.31025ms)
+✔ main-world view export snapshots the visible grid, protects formulas and guards edit mode (1.412292ms)
+✔ exports one frozen closed operation registry (2.184541ms)
+✔ binds SuiteQL to the fixed private bridge and authorized document (1.119333ms)
+✔ reads and deduplicates a fixed direct Record Trail query (4.212333ms)
+✔ restricts authenticated category lookup to the current Import Assistant (4.049458ms)
+✔ rejects stale documents, login redirects, and oversized responses (2.445333ms)
+✔ normalizes NetSuite online errors and blocks cross-account category responses (3.155125ms)
+✔ preserves pre-start cancellation tombstones (0.539833ms)
+✔ returns a later category match but does not misreport total transport failure (0.927833ms)
+✔ exports a frozen core with the Edit Mode storage and DOM contract (3.368583ms)
+✔ reads the column axis from visible cells only and ignores excluded rows (1.293375ms)
+✔ a segment-paged machine is read from the rows it is SHOWING, not its first lines (9.939541ms)
+✔ correlation cost depends on how many rows are shown, never on WHICH lines (6.496667ms)
+✔ the absolute line cap bounds the parse and degrades instead of refusing (18.240417ms)
+✔ parses the machine's serialized field list and line data (1.183917ms)
+✔ collapses display twins and drops option lists and bookkeeping mirrors (1.718541ms)
+✔ scores label-to-field affinity in five tiers (1.101667ms)
+✔ correlates the live label set onto the live field list (5.83425ms)
+✔ an empty raw value under a rendered cell is penalised, not excluded (1.428667ms)
+✔ per-column unanimity resolves what every optimum agrees on and holes the rest (1.131125ms)
+✔ the owner's other Sales Order form mounts: 62 columns, 3 holes, no mis-key (51.567542ms)
+✔ duplicate header labels are separated by position, never by name (0.512167ms)
+✔ reads the column axis from the machine's hidden inputs and header labels (3.458334ms)
+✔ readColumnIds fails closed on every unusable machine (0.66375ms)
+✔ readColumnIdsFrom derives the axis across the mini-form boundary (3.692375ms)
+✔ readColumnIdsFrom fails closed on every gate readColumnIds does (1.563375ms)
+✔ clampWidth refuses a non-numeric width and honours the per-column floor (0.361916ms)
+✔ normalizes the stored container fail-closed and refuses a newer schema (0.501416ms)
+✔ writers merge, delete empty entries and evict over quota (1.023125ms)
+✔ quota eviction spares other scopes on a clearing write and refuses an oversized entry (1.055459ms)
+✔ derives a per-column minimum from the widest widget in that column (0.476833ms)
+✔ applies widths to header cells only, clamped to the static bounds, and restores on clear (0.632417ms)
+✔ applyWidths is idempotent under a TOTAL plan, and walks the columns a PARTIAL plan omits (1.574667ms)
+✔ applyWidths' minimums parameter is provably inert — nothing passed there can move a width (1.480542ms)
+✔ applyWidths keys widths by the axis it is handed, never by one it derives (1.13175ms)
+✔ hides a column across the header and every aligned row, and nothing else (0.647792ms)
+✔ applyHidden fails closed on an axis that is absent, empty or misaligned (0.418417ms)
+✔ ADJUDICATION #19: the reveal is unconditional — a stale class comes off a broken machine (0.636625ms)
+✔ an excluded row is never hidden, even when it aligns to the header (0.793917ms)
+✔ revealing needs no axis, and reaches the rows an apply can no longer key (0.458041ms)
+✔ a hidden column stays on the axis, measured on the live twelve-column machine (2.534667ms)
+✔ readCellText reads NetSuite's own text and never a node SuiteMate injected (0.43175ms)
+✔ readHeaderLabels reads both header shapes, strips injections, and never opens the blank-label gate (1.845417ms)
+✔ core has no DOM, storage, bridge or network authority (0.295417ms)
+✔ neither mode can read the other's storage key, in EITHER direction (0.938167ms)
+✔ the two modes write widths to disjoint key spaces, and neither reads the other's (0.707708ms)
+✔ registers paused against the edit capability with a synchronous cleanup (10.333334ms)
+✔ never registers on a View Mode record (0.904583ms)
+✔ declines to install when the machine table is absent (0.980875ms)
+✔ declines to install on a read-only edit page whose column axis cannot be decoded (0.952541ms)
+✔ declines to install when the decoded axis carries duplicate ids (0.865417ms)
+✔ mounts across the mini-form boundary, and declines when nothing holds the inputs (3.437917ms)
+✔ declines to install when the machine has no container to bind to (0.81025ms)
+✔ mounts one hidden marker, binds once and writes nothing (2.718541ms)
+✔ refuses a newer stored schema with one warning across repaints (1.799083ms)
+✔ absorbs a rejected storage read as an ordinary failure, logged once (1.132125ms)
+✔ teardown is synchronous, unstamps the page and can remount afterwards (1.293042ms)
+✔ turning the setting off tears down and turning it back on remounts (1.529666ms)
+✔ the runtime's own pagehide handler disposes only on a real navigation (1.062125ms)
+✔ an install interrupted by teardown never lands on the stale generation (1.04025ms)
+✔ relevance reacts to machine mutations and drops records targeted at owned nodes (1.921792ms)
+✔ body-level churn around the machine is not relevant, but churn inside it is (0.966083ms)
+✔ the install that mounts does not schedule the next install (0.857ms)
+✔ installs without a session status script and without its identifiers (1.586125ms)
+✔ the column axis is derived on a native DOM, pinned, and never re-derived under a permutation (1.808333ms)
+✔ teardown clears the pinned axis, the applied order and the mismatch latch (0.217667ms)
+✔ an install whose second axis read comes back empty never reaches applyAll, and reseeds nothing (1.339833ms)
+✔ the save queue survives a rejected operation and a teardown (1.149333ms)
+✔ every axis read in the runtime goes through the pin (0.167416ms)
+✔ a machine id that is not a bare identifier is never spliced into a selector (2.383ms)
+✔ a drag on a header edge resizes that column, freezes the machine and writes once (2.857083ms)
+✔ only the 5px edge zone starts a gesture, and the hover marker never lingers (1.571583ms)
+✔ the column floor is measured at the moment of the clamp, never carried from pointerdown (1.729625ms)
+✔ stored widths are restored on install, applied through the pinned axis, and cost no write (2.222375ms)
+✔ a repaint restores the widths the mount froze, never a re-measured redistribution (2.284583ms)
+✔ a widget wider than its column never raises that column, and never becomes its frozen width (1.9545ms)
+✔ a restore never widens a column nobody dragged, and re-applying it writes the same bytes (3.826417ms)
+✔ an install landing between pointerup and the write does not discard the gesture (2.663125ms)
+✔ both halves of the reseed guard are load-bearing: a save in flight, and a save already done (4.584208ms)
+✔ a header index is only a column key while the axis and the header are the same width (1.079125ms)
+✔ a repaint with a line open still restores the widths (1.925917ms)
+✔ an install whose rendering already equals the target touches no cell (2.10525ms)
+✔ the target signature predicts what core writes, zero-rendered column included (2.188792ms)
+✔ each gesture writes its own snapshot, never a map a later gesture has moved (1.691958ms)
+✔ a save whose mount was torn down before it ran writes nothing (4.165792ms)
+✔ teardown restores the native layout, drops a live gesture and forgets the widths (2.804875ms)
+✔ every width apply hands core the pinned axis, and only teardown clears without one (0.725417ms)
+✔ hiding a column through the menu writes once, hides BY CLASS, and never moves the axis (2.520917ms)
+✔ ADJUDICATION #20: a width is never planned from a column we are hiding (2.638791ms)
+✔ ADJUDICATION #20 SURVIVES A REPAINT — no width is ever measured once the machine left its own layout (3.008833ms)
+✔ ADJUDICATION #20 SURVIVES A TEARDOWN — a dead mount's `fixed` never starves the next one (2.536959ms)
+✔ ADJUDICATION #20 SURVIVES A LEFTOVER LAYOUT — a `fixed` this mount did not set never blocks the measurement (2.655166ms)
+✔ the Columns menu fails closed on a machine whose axis cannot be read (0.956416ms)
+✔ the standard harness machine resolves every column — no hole, unchanged ids (2.153167ms)
+✔ an unresolved column is listed, checked, disabled and unkeyable (1.069042ms)
+✔ STORAGE SAFETY: nothing about an unresolved column can reach storage (2.383959ms)
+✔ paging to another segment re-hides the user's columns on the rows it swapped in (3.446333ms)
+✔ a segment that corroborates less HOLES a column without latching the mount (1.60525ms)
+✔ a chip reveals its column, and neither direction writes an inline display (2.285292ms)
+✔ the CLASS is the only channel, and a cell NetSuite hides after our apply is never resurrected (1.688166ms)
+✔ an open line changes NOTHING about what is hidden, and the repaint it causes puts it back (1.930083ms)
+✔ the hidden set survives the whole open → edit → commit cycle (3.384041ms)
+✔ no edit anywhere brings a hidden column back — entry row, open line, or a row nobody focused (3.154334ms)
+✔ A3.2: the menu's tick seeds from the STORED set, never from what the column renders (1.640291ms)
+✔ a column NetSuite stars is never hidden, whatever the container says — and the container is KEPT (1.958417ms)
+✔ the hide choke point refuses a starred column, with no write and no DOM change (1.512041ms)
+✔ the choke point is armed BEFORE the install's storage read, not only after it (2.085709ms)
+✔ the star is read from the FORM, so a machine that stars nothing hides that same column (1.596959ms)
+✔ a hide made WHILE a line is open lands on the spot, and still writes exactly once (3.212333ms)
+✔ two hide gestures with nothing between them each write their OWN snapshot (1.749416ms)
+✔ an install that applies NOTHING still shows the chips for what is stored (1.77225ms)
+✔ focus moving inside the machine repairs a drifted render, and costs nothing when it is current (1.979833ms)
+✔ teardown strips the class, the bar and the menu, and a remount rebuilds them (2.113083ms)
+✔ an install landing in a hide's save gap does not discard the gesture (2.303417ms)
+✔ the scope key is latched: an install that cannot read the session keeps the user's key (3.226792ms)
+✔ a hide that only got half-way is re-applied, not sealed in by the header-only signature (3.236917ms)
+✔ the column menu closes on an outside click and on Escape, and leaves no listener behind (1.696917ms)
+✔ UI PARITY: Reset restores the machine, empties the container in ONE write, and the mount stays (2.137625ms)
+✔ UI PARITY: Reset never writes a required column, and a machine with nothing stored resets to nothing (1.732875ms)
+✔ UI PARITY: a width set AFTER a reset is planned from the machine, not from the layout that was reset away (1.904041ms)
+✔ UI PARITY: Reset against a NEWER stored schema refuses, and does not wipe the container (0.926167ms)
+✔ UI PARITY: a header ▼ hides its own column, through the same choke point as the menu (1.722292ms)
+✔ UI PARITY: the header ▼ refuses a required column and an unresolved one, the same way the menu does (3.022209ms)
+✔ UI PARITY: the header menu shares the Columns menu's dismisser, and the ▼ toggles (2.389334ms)
+✔ UI PARITY: moving between header ▼s takes ONE click, because the menu knows which arrow owns it (4.551333ms)
+✔ UI PARITY: the ▼ comes back after a repaint, exactly one per cell, without perturbing convergence (1.950625ms)
+✔ teardown releases the bindings even when the machine table is already detached (1.201875ms)
+✔ runtime owns no observer, no HTML sink and no View Mode storage (0.697083ms)
+✔ every stylesheet rule is scoped to the feature and every hide rule wins (1.093ms)
+✔ SIGHTING FOUR: the control bar out-specifies the rule that was hiding it (2.066542ms)
+✔ the bound-attribute rule is anchored where the runtime actually stamps (0.301833ms)
+✔ fixture catalog covers every classified NetSuite route with a Classic baseline (2.291834ms)
+✔ fixture catalog exercises every page-specific stylesheet from the manifest (6.36325ms)
+✔ Classic route harness mirrors production load order and remains local (5.186583ms)
+✔ every route and retained Redwood contract has a valid screenshot baseline (44.848125ms)
+✔ exports a frozen versioned form-views core (1.83925ms)
+✔ withHiddenFields stores, dedupes, lowercases, clears and fails closed (1.018417ms)
+✔ withCollapsedSections trims, dedupes and coexists with hidden fields (0.402167ms)
+✔ normalizeStored rejects garbage, newer schema and hostile keys (0.355917ms)
+✔ quota eviction keeps only the entry being written (0.53075ms)
+✔ schema-2 containers from the deferred layout builder read through (0.513042ms)
+✔ fieldKey prefers data-field-name and falls back to the walkthrough hook (0.333084ms)
+✔ sectionKey clone-strips injected nodes and collapses whitespace (1.199666ms)
+✔ applyFieldVisibility toggles the hide class from the stored set (1.032542ms)
+✔ exports a frozen bounded identifier parser (2.953667ms)
+✔ extracts V1 field, button, sublist and sublist-column IDs (1.418083ms)
+✔ parses only the supported V1 list-header handler signatures (0.409125ms)
+✔ decodes customization-grid script IDs without exposing row values (0.785458ms)
+✔ core has no DOM, storage, bridge or network authority (0.144917ms)
+✔ exports one per-document singleton and installs global listeners once (2.638917ms)
+✔ shares one native observer and batches deliveries across independent watchers (5.389625ms)
+✔ replaces duplicate watcher ids and stale handles cannot remove replacements (2.610375ms)
+✔ rejects accidental duplicate ids unless replacement is explicit (0.842625ms)
+✔ isolates callback failures and keeps other watchers running (1.566459ms)
+✔ one-shot watchers stop observing after success and restart on route refresh (2.883167ms)
+✔ waitFor resolves immediately, from mutations, on timeout, and on abort (9.030208ms)
+✔ route capability loss cleans up and the reverse transition activates once (1.957583ms)
+✔ pause, pagehide, and disposeAll invalidate work and disconnect the observer (1.965167ms)
+✔ invalidates stale asynchronous generations before they can mutate state (2.5195ms)
+✔ suspends bfcache pages and reactivates watchers on pageshow (1.718125ms)
+✔ Record Trail installs once, renders safely, cancels stale refreshes and restores focus (11.329417ms)
+✔ exports stable route and capability constants (0.46425ms)
+✔ normalizes repeated path separators without decoding or changing case (0.101292ms)
+✔ enforces one strict NetSuite account-host policy (0.319375ms)
+✔ classifies environments and frame state independently from page family (0.615375ms)
+✔ preserves existing page flags used by the V1 CSS layer (0.438834ms)
+✔ activates SuiteQL Console only from the exact route and parameter presence (1.051708ms)
+✔ keeps global styling and notifications available in supported child frames (0.092334ms)
+✔ allows Internal IDs on trusted NetSuite pages and same-account frames (0.155625ms)
+✔ preserves the broad CSV Import route probe while excluding known non-record results (0.282ms)
+✔ limits CSV Export to saved top-frame records with a numeric ID (0.218458ms)
+✔ limits Record Trail to saved top-frame transaction view pages (0.320667ms)
+✔ limits transaction column personalization to top-frame view mode (0.227125ms)
+✔ limits form views to top-frame Sales Order view mode (0.15425ms)
+✔ limits edit-mode transaction column personalization to top-frame Sales Order edit URLs (0.243833ms)
+✔ isolates Import Assistant context and bridge capabilities (0.154875ms)
+✔ requires exact top-frame sender authority for privileged bridges (0.234959ms)
+✔ keeps popup SuiteQL launch account-scoped and rejects excluded hosts (0.066084ms)
+✔ serializes route metadata without leaking the SuiteQL activation parameter (0.104375ms)
+✔ theme ignores a stale settings read after a newer storage update (5.871584ms)
+✔ Internal IDs follows its setting live and removes only owned badges (1.9755ms)
+✔ SuiteMate toasts stack on the right, use text only and dismiss reliably (1.693333ms)
+✔ CSV Utils rejects stale installation and routes Import, Export and Template independently (7.689125ms)
+✔ CSV Utils Export and Template invoke the typed bridge and report their downloads (4.754792ms)
+✔ Import Assistant does not write a subtype after its sourced option wait fails (3.934042ms)
+✔ creates a versioned UTF-8 backup and restores canonical settings (3.713125ms)
+✔ imports a canonical schema 1 backup through the current settings migration (1.052541ms)
+✔ imports a canonical schema 2 backup through the current settings migration (1.972917ms)
+✔ rejects empty, unrecognized and malformed encoded input (1.039084ms)
+✔ rejects wrong application, future backup format and invalid timestamps (0.667375ms)
+✔ rejects schema mismatches, future settings and non-canonical data (0.778667ms)
+✔ rejects oversized settings both before export and after decoding (2.519083ms)
+✔ transfer core has no storage, network or DOM authority (0.468875ms)
+✔ parses hand-built schema 3, 4 and 5 backups through the legacy branch (0.958209ms)
+✔ exports a stable versioned schema and current defaults (1.650833ms)
+✔ migrates legacy appearance and role themes without changing their meaning (0.530084ms)
+✔ migrates schema 1 settings and preserves an explicit Internal IDs preference (0.312584ms)
+✔ migrates schema 2 settings and preserves an explicit column personalization preference (0.301083ms)
+✔ repairs invalid declared settings while preserving valid role data (0.347416ms)
+✔ rejects invalid and future schema versions with typed errors (0.96625ms)
+✔ reads legacy settings in memory without producing migration writes (0.360541ms)
+✔ ensureCurrentSchema persists one canonical migration and then becomes idempotent (0.492416ms)
+✔ set writes one canonical object and storage values are returned by copy (0.566292ms)
+✔ validateForStorage normalizes and enforces the same limit without writing (0.644334ms)
+✔ role operations preserve schema version and unrelated roles (0.425292ms)
+✔ future settings cannot be read, migrated or overwritten by an older release (0.476584ms)
+✔ rejects settings before Chrome sync produces an opaque quota failure (1.075ms)
+✔ propagates Chrome storage failures without reporting false success (2.323583ms)
+✔ migrates schema 5 to 6 by adding the edit-mode grid flag (0.9295ms)
+✔ exports a frozen core with the column-order storage contract (1.604875ms)
+✔ plans saved orders by label with stable native fallbacks (1.30025ms)
+✔ pins duplicate and empty labels to their native positions (0.326209ms)
+✔ normalizeStored rejects garbage, newer versions and hostile keys (0.577958ms)
+✔ normalizeStored migrates v1 arrays and accepts v2 entries (0.345375ms)
+✔ withHidden stores, clears and preserves order in the same entry (0.465375ms)
+✔ withWidths stores clamped widths, merges with the entry and clears (0.415417ms)
+✔ withSort stores, merges, clears and fails closed (0.35575ms)
+✔ withFilters normalizes, caps and clears (0.496334ms)
+✔ schema v2 passes through under v3 and v4 is refused (0.417583ms)
+✔ clearing the last field deletes the whole entry across all writers (1.795083ms)
+✔ applyWidths freezes visible columns, honors stored widths and clears (0.657042ms)
+✔ applyWidths re-measures unstored columns every call — DEFECT, pinned so it cannot resurface unnoticed (0.65975ms)
+✔ applyWidths batches every layout read before the first width write (0.400375ms)
+✔ applyHidden hides matching columns in every aligned row and unhides (0.461417ms)
+✔ withOrder writes, deletes and preserves sibling scopes (0.356667ms)
+✔ withOrder refuses to rewrite a newer storage schema (0.245666ms)
+✔ readCellLabel strips injected SuiteMate badge nodes (0.295917ms)
+✔ withOrder evicts sibling scopes when the payload would exceed the sync quota (0.367542ms)
+✔ readHeaderLabels trims header-cell text and fails closed (0.992459ms)
+✔ captureNativeOrder stamps pristine order and survives reorders (0.912292ms)
+✔ applyOrder reorders every aligned row and skips colspan rows (0.415875ms)
+✔ applyOrder fails closed without mutating on mismatched targets (0.525958ms)
+✔ detectColumnKind and parseSortValue handle text, currency and dates (0.83075ms)
+✔ sortRows sorts asc, desc and native with empties last and summary anchored (0.645792ms)
+✔ sortRows fails closed on non-contiguous rows and invalid input (0.30825ms)
+✔ parseFilterQuery and matchesFilter cover text and numeric operators (0.398792ms)
+✔ matchesFilter supports multi-select anyOf within a column (1.119209ms)
+✔ applyFilters ORs multi-select values within a column, ANDs across columns (0.366916ms)
+✔ applyFilters hides non-matching rows, AND-combines and unhides (0.32775ms)
+✔ distinctColumnValues lists unique values and respects the cap (0.285833ms)
+✔ list-style rows (Item Fulfillment) sort, filter, hide and list values (0.361667ms)
+✔ core has no DOM, storage, bridge or network authority (0.171375ms)
+✔ exports a frozen versioned tab-title core (1.333958ms)
+✔ parseRecordPath maps known record tokens and rejects the rest (1.396834ms)
+✔ titleCaseStatus humanizes all-caps statuses only (0.411167ms)
+✔ extractHeaderParts splits document number, strips injected nodes and truncates (0.481292ms)
+✔ composeTitle joins parts and refuses degraded titles (0.329292ms)
+✔ loads without browser globals or initialization side effects (1.444292ms)
+✔ same-version registration is idempotent and incompatible globals are preserved (0.538541ms)
+✔ deepFreeze handles cycles without reading accessors or traversing host objects (0.35525ms)
+✔ normalizes hex colors and counts UTF-8 bytes (0.420958ms)
+✔ normalizes hostile errors without throwing or leaking stacks by default (0.543625ms)
+✔ serializes RFC 4180 CSV with formula protection and stable matrix order (1.421791ms)
+✔ clipboard writes synchronously inside the caller gesture and returns typed results (1.645375ms)
+✔ clipboard disposal invalidates a pending completion (1.287834ms)
+✔ downloads text with one BOM and deterministic anchor cleanup and revocation (0.66425ms)
+✔ download revokes immediately on click failure and fails in worker context (0.582167ms)
+✔ notice controller uses textContent, cancels stale timers and supports persistent notices (0.662584ms)
+ℹ tests 318
+ℹ suites 0
+ℹ pass 318
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 436.889333
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Record Trail can be hidden behind NetSuite overlays
+    at file:///private/tmp/claude-503/-Users-Bivek-Shah-Documents-suitemate-suitematev3/ae314c18-f00e-46db-85bf-496391553538/scratchpad/pr32/tests/verify.mjs:645:8 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: '.suitemate-v3-record-trail-cell {\n' +
+    '    position: relative;\n' +
+    '    z-index: 19;\n' +
+    '    padding-left: 6px !important;\n' +
+    '    vertical-align: top\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-menu {\n' +
+    '    margin: 0 !important;\n' +
+    '    padding: 0 !important;\n' +
+    '    list-style: none\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-menu>.ns-menuitem {\n' +
+    '    height: auto !important;\n' +
+    '    list-style: none\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-menu a {\n' +
+    '    display: inline-flex;\n' +
+    '    align-items: center;\n' +
+    '    box-sizing: border-box;\n' +
+    '    min-height: 30px;\n' +
+    '    padding: 0 11px;\n' +
+    '    border: 1px solid color-mix(in srgb, var(--theme-main) 38%, var(--field-border-color));\n' +
+    '    border-radius: var(--suitemate-radius-compact, 4px);\n' +
+    '    background: linear-gradient(to bottom, var(--theme-secondary-light-light), var(--theme-secondary-light));\n' +
+    '    box-shadow: 0 1px 2px rgb(0 0 0 / .12);\n' +
+    '    color: light-dark(var(--theme-main-dark), var(--dark-text-1)) !important;\n' +
+    '    font-family: var(--normal-font);\n' +
+    '    font-size: 13px;\n' +
+    '    font-weight: 600;\n' +
+    '    line-height: 28px;\n' +
+    '    text-decoration: none !important;\n' +
+    '    white-space: nowrap\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-menu a:hover {\n' +
+    '    border-color: var(--theme-main);\n' +
+    '    background: var(--theme-secondary-light-light);\n' +
+    '    box-shadow: 0 1px 3px rgb(0 0 0 / .2);\n' +
+    '    color: light-dark(var(--theme-main-dark), var(--dark-text-0)) !important\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-menu a:focus-visible,\n' +
+    '.suitemate-v3-record-trail-overlay button:focus-visible,\n' +
+    '.suitemate-v3-record-trail-overlay a:focus-visible {\n' +
+    '    outline: 2px solid var(--theme-main);\n' +
+    '    outline-offset: 2px\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-open {\n' +
+    '    overflow: hidden !important\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-overlay {\n' +
+    '    width: 100%;\n' +
+    '    height: 100%;\n' +
+    '    max-width: 100%;\n' +
+    '    max-height: 100%;\n' +
+    '    margin: 0;\n' +
+    '    border: 0;\n' +
+    '    box-sizing: border-box;\n' +
+    '    padding: 16px;\n' +
+    '    background: none\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-overlay[open] {\n' +
+    '    display: grid;\n' +
+    '    place-items: center\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-overlay::backdrop {\n' +
+    '    background: rgb(15 23 42 / .48);\n' +
+    '    backdrop-filter: blur(2px)\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-panel {\n' +
+    '    display: flex;\n' +
+    '    width: min(980px, 100%);\n' +
+    '    max-height: min(720px, calc(100vh - 32px));\n' +
+    '    flex-direction: column;\n' +
+    '    overflow: hidden;\n' +
+    '    border: 1px solid light-dark(#d8e0ec, var(--field-border-color));\n' +
+    '    border-radius: var(--suitemate-radius-overlay, 10px);\n' +
+    '    background: light-dark(#fff, var(--dark-2));\n' +
+    '    box-shadow: 0 18px 48px rgb(15 23 42 / .24);\n' +
+    '    color: var(--text-1);\n' +
+    '    font-family: var(--normal-font)\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-header {\n' +
+    '    display: flex;\n' +
+    '    min-height: 64px;\n' +
+    '    box-sizing: border-box;\n' +
+    '    align-items: center;\n' +
+    '    justify-content: space-between;\n' +
+    '    gap: 18px;\n' +
+    '    padding: 10px 16px;\n' +
+    '    border-bottom: 1px solid light-dark(#e3e9f2, var(--field-border-color));\n' +
+    '    background: light-dark(#fff, var(--dark-2))\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-header-main,\n' +
+    '.suitemate-v3-record-trail-actions {\n' +
+    '    display: flex;\n' +
+    '    align-items: center\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-header-main {\n' +
+    '    min-width: 0;\n' +
+    '    gap: 12px\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-icon {\n' +
+    '    width: 36px;\n' +
+    '    height: 36px;\n' +
+    '    flex: 0 0 36px;\n' +
+    '    border: 1px solid light-dark(#d9e2ef, var(--field-border-color));\n' +
+    '    border-radius: var(--suitemate-radius-compact, 8px);\n' +
+    '    background-color: light-dark(#f3f7fc, var(--dark-3));\n' +
+    `    background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' fill='none' xmlns='http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%3E%3Cpath d='M5 14L9.5 9.5L14 5' stroke='%232563EB' stroke-width='1.4'/%3E%3Ccircle cx='5' cy='14' r='1.8' fill='white' stroke='%232563EB' stroke-width='1.4'/%3E%3Ccircle cx='14' cy='5' r='1.8' fill='white' stroke='%232563EB' stroke-width='1.4'/%3E%3C/svg%3E");\n` +
+    '    background-position: center;\n' +
+    '    background-repeat: no-repeat\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-header h2 {\n' +
+    '    margin: 0;\n' +
+    '    color: var(--text-0);\n' +
+    '    font-family: var(--title-font);\n' +
+    '    font-size: 16px;\n' +
+    '    font-weight: 700;\n' +
+    '    line-height: 1.25\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-header p {\n' +
+    '    margin: 2px 0 0;\n' +
+    '    color: var(--text-2);\n' +
+    '    font-size: 12px;\n' +
+    '    line-height: 1.3\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-actions {\n' +
+    '    gap: 10px\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-actions button {\n' +
+    '    display: grid;\n' +
+    '    width: 30px;\n' +
+    '    height: 30px;\n' +
+    '    padding: 0;\n' +
+    '    place-items: center;\n' +
+    '    border: 1px solid light-dark(#d4ddea, var(--field-border-color));\n' +
+    '    border-radius: var(--suitemate-radius-compact, 8px);\n' +
+    '    background: light-dark(#fff, var(--dark-3));\n' +
+    '    color: var(--text-2);\n' +
+    '    cursor: pointer;\n' +
+    '    font: 500 17px/1 var(--normal-font)\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-actions button:hover {\n' +
+    '    border-color: var(--theme-main);\n' +
+    '    color: var(--theme-main)\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-actions .suitemate-v3-record-trail-close {\n' +
+    '    font-size: 20px;\n' +
+    '    font-weight: 300\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-body {\n' +
+    '    min-height: 158px;\n' +
+    '    padding: 18px 18px 16px;\n' +
+    '    overflow: auto;\n' +
+    '    overscroll-behavior: contain\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-state {\n' +
+    '    display: grid;\n' +
+    '    min-height: 126px;\n' +
+    '    margin: 0;\n' +
+    '    place-items: center;\n' +
+    '    color: var(--text-2);\n' +
+    '    font-size: 13px;\n' +
+    '    text-align: center\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-state.is-error {\n' +
+    '    color: light-dark(#a32323, #ffaaaa)\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-grid {\n' +
+    '    display: grid;\n' +
+    '    grid-template-columns: repeat(3, minmax(0, 1fr));\n' +
+    '    gap: 52px;\n' +
+    '    align-items: start\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-column {\n' +
+    '    position: relative;\n' +
+    '    display: grid;\n' +
+    '    gap: 9px;\n' +
+    '    min-width: 0\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-column:not(:last-child)::after {\n' +
+    '    position: absolute;\n' +
+    '    top: 78px;\n' +
+    '    right: -39px;\n' +
+    '    width: 26px;\n' +
+    '    content: "→";\n' +
+    '    color: light-dark(#b7c5d9, var(--text-3));\n' +
+    '    font-size: 22px;\n' +
+    '    line-height: 1;\n' +
+    '    text-align: center\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-column h3 {\n' +
+    '    display: flex;\n' +
+    '    min-height: 17px;\n' +
+    '    align-items: center;\n' +
+    '    justify-content: flex-start;\n' +
+    '    gap: 7px;\n' +
+    '    margin: 0;\n' +
+    '    color: light-dark(#8ca0bc, var(--text-2));\n' +
+    '    font-size: 10px;\n' +
+    '    font-weight: 700;\n' +
+    '    letter-spacing: .11em;\n' +
+    '    text-transform: uppercase\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-column.is-current h3 {\n' +
+    '    color: light-dark(#2563eb, #79a8ff)\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-column.is-current h3::before {\n' +
+    '    width: 5px;\n' +
+    '    height: 5px;\n' +
+    '    content: "";\n' +
+    '    border-radius: 50%;\n' +
+    '    background: currentColor\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-column h3 span {\n' +
+    '    display: inline-grid;\n' +
+    '    min-width: 19px;\n' +
+    '    height: 17px;\n' +
+    '    box-sizing: border-box;\n' +
+    '    padding: 0 5px;\n' +
+    '    place-items: center;\n' +
+    '    border-radius: 999px;\n' +
+    '    background: light-dark(#eef2f7, var(--dark-4));\n' +
+    '    color: var(--text-2);\n' +
+    '    font-size: 10px;\n' +
+    '    letter-spacing: 0\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-card,\n' +
+    '.suitemate-v3-record-trail-empty {\n' +
+    '    min-height: 116px;\n' +
+    '    box-sizing: border-box;\n' +
+    '    border-radius: var(--suitemate-radius-overlay, 9px)\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-card {\n' +
+    '    display: flex;\n' +
+    '    min-width: 0;\n' +
+    '    flex-direction: column;\n' +
+    '    gap: 6px;\n' +
+    '    padding: 12px 14px 10px;\n' +
+    '    border: 1px solid light-dark(#dbe4f0, var(--field-border-color));\n' +
+    '    background: light-dark(#f8fafc, var(--dark-3))\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-card.is-current {\n' +
+    '    border-color: light-dark(#7aa7ff, var(--theme-main));\n' +
+    '    background: light-dark(#f8fbff, var(--dark-3));\n' +
+    '    box-shadow: 0 0 0 3px light-dark(#e8f0ff, rgb(37 99 235 / .18))\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-card-heading {\n' +
+    '    display: flex;\n' +
+    '    min-width: 0;\n' +
+    '    align-items: center;\n' +
+    '    gap: 8px\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-card-heading span {\n' +
+    '    overflow: hidden;\n' +
+    '    max-width: 46%;\n' +
+    '    padding: 2px 6px;\n' +
+    '    border: 1px solid light-dark(#cdd8e7, var(--field-border-color));\n' +
+    '    border-radius: 4px;\n' +
+    '    color: light-dark(#4b607a, var(--text-2));\n' +
+    '    font-size: 10px;\n' +
+    '    font-weight: 700;\n' +
+    '    letter-spacing: .06em;\n' +
+    '    line-height: 1.2;\n' +
+    '    text-overflow: ellipsis;\n' +
+    '    text-transform: uppercase;\n' +
+    '    white-space: nowrap\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-card.is-current .suitemate-v3-record-trail-card-heading span {\n' +
+    '    border-color: light-dark(#8fb5ff, var(--theme-main));\n' +
+    '    color: light-dark(#2563eb, #79a8ff)\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-card-heading strong {\n' +
+    '    overflow: hidden;\n' +
+    '    color: var(--text-0);\n' +
+    '    font-size: 14px;\n' +
+    '    font-weight: 700;\n' +
+    '    line-height: 1.2;\n' +
+    '    text-overflow: ellipsis;\n' +
+    '    white-space: nowrap\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-meta,\n' +
+    '.suitemate-v3-record-trail-status {\n' +
+    '    margin: 0;\n' +
+    '    overflow-wrap: anywhere;\n' +
+    '    font-size: 12px;\n' +
+    '    line-height: 1.35\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-meta {\n' +
+    '    color: var(--text-2)\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-status {\n' +
+    '    color: light-dark(#109a45, #61d68b)\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-status::before {\n' +
+    '    display: inline-block;\n' +
+    '    width: 6px;\n' +
+    '    height: 6px;\n' +
+    '    margin-right: 6px;\n' +
+    '    content: "";\n' +
+    '    border-radius: 50%;\n' +
+    '    background: currentColor;\n' +
+    '    vertical-align: 1px\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-footer {\n' +
+    '    display: flex;\n' +
+    '    align-items: center;\n' +
+    '    justify-content: space-between;\n' +
+    '    gap: 10px;\n' +
+    '    margin-top: auto;\n' +
+    '    padding-top: 8px;\n' +
+    '    border-top: 1px solid light-dark(#dfe7f1, var(--field-border-color))\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-footer button {\n' +
+    '    padding: 0;\n' +
+    '    border: 0;\n' +
+    '    background: transparent;\n' +
+    '    color: var(--text-2);\n' +
+    '    cursor: copy;\n' +
+    '    font: 500 12px/1.2 var(--normal-font)\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-footer button:hover {\n' +
+    '    color: var(--theme-main)\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-footer a {\n' +
+    '    color: light-dark(#2563eb, #79a8ff) !important;\n' +
+    '    font-size: 12px;\n' +
+    '    font-weight: 700;\n' +
+    '    text-decoration: none !important\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-footer a::after {\n' +
+    '    content: " ↗"\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-footer a:hover {\n' +
+    '    text-decoration: underline !important\n' +
+    '}\n' +
+    '\n' +
+    '.suitemate-v3-record-trail-empty {\n' +
+    '    display: grid;\n' +
+    '    margin: 0;\n' +
+    '    padding: 24px 16px;\n' +
+    '    place-content: center;\n' +
+    '    border: 1px dashed light-dark(#cbd7e7, var(--field-border-color));\n' +
+    '    background: light-dark(#fff, var(--dark-2));\n' +
+    '    color: light-dark(#91a4bf, var(--text-2));\n' +
+    '    font-size: 12px;\n' +
+    '    line-height: 1.45;\n' +
+    '    text-alig'... 421 more characters,
+  expected: /z-index:\s*2147483000/,
+  operator: 'match',
+  diff: 'simple'
+}
+
+Node.js v24.14.0
