@@ -6,7 +6,7 @@ html:not(.ext-f) {
     /* The active subtab takes the PANEL surface so it reads as joined to the
        content below. It was --theme-secondary on a --theme-secondary-light strip,
        which measured 1.06:1 — the near-invisible pair reported live. */
-    --suitemate-v3-subtab-active-bg: var(--field-backgroud-color);
+    --suitemate-v3-subtab-active-bg: color-mix(in srgb, var(--theme-main) 68%, #fff);
     --suitemate-v3-subtab-hover-bg: color-mix(in srgb, var(--theme-main) 6%, var(--field-backgroud-color))
 }
 
@@ -34,7 +34,25 @@ html:not(.ext-f) :is(.uir-list-header-td, .uir-machine-headerrow>td) :is(.listhe
 
 html:not(.ext-f).sln .uir-machine-table-container {
     --sln-header-bg-color: var(--suitemate-v3-table-header-bg);
-    --sln-header-bottom-border: 1px solid var(--suitemate-v3-table-header-border)
+    --sln-header-bottom-border: 3px solid var(--suitemate-v3-table-header-border)
+}
+
+/* CLEAN COMMERCE machine header: clean white surface, 48px, medium weight,
+   3px theme rule below. Token-level overrides so the sln number header and
+   every existing consumer of the header tokens follow together. Scoped to
+   the machine container — list headers keep the Secondary treatment. */
+html:not(.ext-f) .uir-machine-table-container {
+    --suitemate-v3-table-header-bg: light-dark(#fff, var(--dark-1));
+    --suitemate-v3-table-header-border: var(--theme-main)
+}
+
+html:not(.ext-f) .uir-machine-table-container .uir-machine-table .uir-machine-headerrow>td {
+    height: 48px;
+    border-bottom-width: 3px !important
+}
+
+html:not(.ext-f) .uir-machine-headerrow>td :is(.listheader, [class*=listheader]) {
+    font-weight: 500 !important
 }
 
 html:not(.ext-f).sln .uir-machine-table-container .uir-machine-headerrow::before {
@@ -55,12 +73,17 @@ html:not(.ext-f) .uir-tab-list>.uir-unroll-tabs-button {
    so it is what a page actually renders — including the .isRedwood-flagged pages
    the owner's account runs, where netsuite.css's guarded copy is excluded. It
    used to paint --theme-main-light, which stopped being a neighbour of
-   --theme-main when the default primary moved to #5058f4: measured live as
+   --theme-main when the default primary moved off #607799: measured live as
    #7e91ae on a #5058f4 bar, the "dull grey block", with white text at ~2.6:1 —
-   worse contrast than the inactive tabs beside it. Same deep same-hue blend as
+   worse contrast than the inactive tabs beside it. OWNER-DIRECTED TINT: the
+   active tab is a lighter tint of the configured theme colour (68% theme,
+   32% white — the owner's exact mix), white text kept, on the top nav and
+   every subtab alike. Not a pure white surface — that treatment shipped once
+   and was rejected. The mix is derived from --theme-main so a theme change
+   restyles every active tab with no further rules. Same values as
    netsuite.css's copy, so whichever wins the result is identical. */
 html:not(.ext-f) .uir-tab-list-tabs .formtabon {
-    background-color: color-mix(in srgb, var(--theme-main), #000 32%) !important
+    background-color: color-mix(in srgb, var(--theme-main) 68%, #fff) !important
 }
 
 html:not(.ext-f) .uir-tab-list-tabs .formtaboff:has(>a:hover) {
@@ -81,7 +104,7 @@ html:not(.ext-f) .uir-tab-list-tabs :is(.formtabon, .formtaboff)>a.formtabtext {
    thickness. Both sheets state the same 3px so the accent is identical whichever
    one wins the cascade. */
 html:not(.ext-f) .uir-tab-list-tabs .formtabon {
-    border-bottom: 3px solid color-mix(in srgb, #fff 62%, var(--theme-main)) !important
+    border-bottom: 3px solid var(--theme-main) !important
 }
 
 html:not(.ext-f) .uir-subtab-panel-tabs-row .formsubtabon {

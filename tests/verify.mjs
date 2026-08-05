@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8
 
 assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.name, "SuiteMate V3");
-assert.equal(manifest.version, "3.23.0");
+assert.equal(manifest.version, "3.24.0");
 assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
 assert.equal(
   Object.hasOwn(manifest, "optional_permissions"),
@@ -885,7 +885,7 @@ assert.match(
 );
 assert.match(
   compatibilityStyles,
-  /\.uir-tab-list-tabs \.formtabon \{\s+border-bottom: 3px solid color-mix\(in srgb, #fff 62%, var\(--theme-main\)\) !important/,
+  /\.uir-tab-list-tabs \.formtabon \{\s+border-bottom: 3px solid var\(--theme-main\) !important/,
   "The active global NetSuite tab accent is not derived from Main"
 );
 assert.match(
@@ -900,13 +900,13 @@ assert.match(
 );
 assert.match(
   compatibilityStyles,
-  /html:not\(\.ext-f\) \.uir-tab-list-tabs \.formtabon \{\s+background-color: color-mix\(in srgb, var\(--theme-main\), #000 32%\) !important/,
-  "The active global NetSuite tab surface is not derived from Main"
+  /html:not\(\.ext-f\) \.uir-tab-list-tabs \.formtabon \{\s+background-color: color-mix\(in srgb, var\(--theme-main\) 68%, #fff\) !important/,
+  "The active global NetSuite tab surface is not the owner's 68% theme tint"
 );
 assert.match(
   compatibilityStyles,
-  /--suitemate-v3-subtab-active-bg: var\(--field-backgroud-color\)/,
-  "The active nested subtab no longer takes the panel surface"
+  /--suitemate-v3-subtab-active-bg: color-mix\(in srgb, var\(--theme-main\) 68%, #fff\)/,
+  "The active nested subtab is not the owner's 68% theme tint"
 );
 assert.match(
   compatibilityStyles,
@@ -1023,6 +1023,23 @@ for (const [what, sites] of Object.entries({
     );
   }
 }
+// The uif top nav's CURRENT SECTION marker — the same orphaned-main-light
+// defect as .formtabon, on a surface found live only after the tab fix
+// shipped (the classic account's top bar is the uif MenuBar, not tab markup,
+// so no fixture renders it). Pinned to the SAME blend the tab surfaces carry:
+// the equality block above proves the tab copies agree with each other, and
+// this ties the nav to that family, so a treatment change that skips one
+// surface fails here instead of shipping another two-tone chrome.
+assert.equal(
+  ruleValue(
+    netsuiteStyles,
+    "the uif nav current section",
+    "html:not(.ext-f) [data-header-section=navigation] [data-widget=MenuBar] [data-widget=MenuGroup]>[data-widget=MenuItem][data-highlighted=true] {",
+    "background-color"
+  ),
+  ruleValue(compatibilityStyles, "v3-compat.css", "html:not(.ext-f) .uir-tab-list-tabs .formtabon {", "background-color"),
+  "The uif nav's current-section fill is not the tab family's active blend"
+);
 // ===== Transaction totals box =====
 // EVERY value here goes through ruleValue, not a bare assert.match. Existence
 // matching answers "does the sheet say this anywhere", which an APPENDED
@@ -1088,15 +1105,59 @@ for (const [what, selector, property, expected] of [
     `The totals box: ${what} is not ${expected}`
   );
 }
+// ===== Clean Commerce item tables =====
+// Same terms as the totals box: every value cascade-read at its exact selector
+// head, because nothing else holds any of it — the machine tint at 4.5% sits
+// below even the stripe probe's old floor, and a respelled mix or a retuned
+// percentage renders pixel-identical to every screenshot gate. The zebra and
+// hover values are ROW-SCOPED overrides (machines only; lists keep 8%), which
+// is the scoping the owner's "do not modify unrelated lists" requires — these
+// pins hold the scoping as much as the values.
+const MACHINE_CONTAINER = "html:not(.ext-f) .uir-machine-table-container {";
+const MACHINE_ROW_TOKENS = "html:not(.ext-f) :is(.uir-machine-row, .uir-machine-totals-row) {";
+const MACHINE_CELL = "html:not(.ext-f) .uir-machine-table .uir-machine-row>td {";
+for (const [sheet, sheetName, what, selector, property, expected] of [
+  [netsuiteStyles, "netsuite.css", "the container hairline", MACHINE_CONTAINER, "border", "1px solid light-dark(rgba(10, 19, 23, 0.1), var(--dark-3))"],
+  [netsuiteStyles, "netsuite.css", "the container elevation", MACHINE_CONTAINER, "box-shadow", "0 1px 4px rgba(20, 22, 26, 0.14)"],
+  [netsuiteStyles, "netsuite.css", "the dark container elevation", "html:not(.ext-f).isDarkMode .uir-machine-table-container {", "box-shadow", "0 1px 4px rgba(0, 0, 0, 0.5)"],
+  [netsuiteStyles, "netsuite.css", "the container radius", `${TOTALS_RADII}.uir-machine-table-container {`, "border-radius", "12px"],
+  [netsuiteStyles, "netsuite.css", "the machine zebra tint", MACHINE_ROW_TOKENS, "--row-odd-bg-color", "light-dark(color-mix(in srgb, var(--theme-main) 4.5%, #fff), var(--dark-2))"],
+  [netsuiteStyles, "netsuite.css", "the machine hover tint", MACHINE_ROW_TOKENS, "--row-hover-bg-color", "light-dark(color-mix(in srgb, var(--theme-main) 6%, #fff), var(--dark-3))"],
+  [netsuiteStyles, "netsuite.css", "the row height", MACHINE_CELL, "height", "46px"],
+  [netsuiteStyles, "netsuite.css", "the cell padding", MACHINE_CELL, "padding", "0 12px"],
+  [netsuiteStyles, "netsuite.css", "the row divider", MACHINE_CELL, "border-bottom", "1px solid light-dark(rgba(10, 19, 23, 0.08), var(--dark-3))"],
+  [netsuiteStyles, "netsuite.css", "the tabular figures", "html:not(.ext-f) .uir-machine-table .uir-machine-row>td[align=right] {", "font-variant-numeric", "tabular-nums"],
+  [netsuiteStyles, "netsuite.css", "the item link colour", "html:not(.ext-f) .uir-machine-table .uir-machine-row td a:is(.dottedlink, [href]) {", "color", "var(--theme-main)"],
+  [compatibilityStyles, "v3-compat.css", "the header surface", MACHINE_CONTAINER, "--suitemate-v3-table-header-bg", "light-dark(#fff, var(--dark-1))"],
+  [compatibilityStyles, "v3-compat.css", "the header rule colour", MACHINE_CONTAINER, "--suitemate-v3-table-header-border", "var(--theme-main)"],
+  [compatibilityStyles, "v3-compat.css", "the header height", "html:not(.ext-f) .uir-machine-table-container .uir-machine-table .uir-machine-headerrow>td {", "height", "48px"],
+  [compatibilityStyles, "v3-compat.css", "the header rule width", "html:not(.ext-f) .uir-machine-table-container .uir-machine-table .uir-machine-headerrow>td {", "border-bottom-width", "3px"],
+  [compatibilityStyles, "v3-compat.css", "the header weight", "html:not(.ext-f) .uir-machine-headerrow>td :is(.listheader, [class*=listheader]) {", "font-weight", "500"]
+]) {
+  assert.equal(
+    ruleValue(sheet, `Clean Commerce: ${what} (${sheetName})`, selector, property),
+    expected,
+    `Clean Commerce: ${what} is not ${expected} in ${sheetName}`
+  );
+}
 assert.match(
   compatibilityStyles,
   /td\.fgroup_title\.uir-field-group>div\.fgroup_title[\s\S]*?background-color: var\(--theme-secondary-light\) !important/,
   "Global NetSuite field groups are not controlled by Secondary"
 );
-assert.doesNotMatch(
-  compatibilityStyles,
-  /suitemate-v3-table-header-(?:bg|border): var\(--theme-main/,
-  "Global NetSuite table headers still depend on Main"
+// The ROOT header tokens stay on Secondary — read at the root block head so
+// the Clean Commerce machine-scoped override (which deliberately puts the
+// MACHINE header underline on Main, per the owner's spec) does not trip a
+// whole-sheet regex that was only ever about the global defaults.
+assert.equal(
+  tokenValue(compatibilityStyles, "v3-compat root header bg", "--suitemate-v3-table-header-bg"),
+  "var(--theme-secondary-light)",
+  "Global NetSuite table headers no longer default to Secondary"
+);
+assert.equal(
+  tokenValue(compatibilityStyles, "v3-compat root header border", "--suitemate-v3-table-header-border"),
+  "var(--theme-secondary)",
+  "Global NetSuite table header borders no longer default to Secondary"
 );
 assert.doesNotMatch(
   compatibilityStyles,
@@ -1191,8 +1252,8 @@ materialPaletteSandbox.globalThis = materialPaletteSandbox;
 runInNewContext(utilitySource, materialPaletteSandbox);
 runInNewContext(materialPaletteSource, materialPaletteSandbox);
 const { generateMaterialShades } = materialPaletteSandbox.SuiteMateV3MaterialPalette;
-const materialShades = generateMaterialShades("#5058f4");
-assert.equal(materialShades.source, "#5058f4");
+const materialShades = generateMaterialShades("#6269e7");
+assert.equal(materialShades.source, "#6269e7");
 assert.deepEqual(JSON.parse(JSON.stringify(Object.keys(materialShades.shades))), [
   "50", "100", "200", "300", "400", "500", "600", "700", "800", "900"
 ]);
@@ -1210,7 +1271,7 @@ const materialLuminances = Object.values(materialShades.shades).map(relativeLumi
 for (let index = 1; index < materialLuminances.length; index += 1) {
   assert.equal(materialLuminances[index] < materialLuminances[index - 1], true, "Material tones are not ordered light to dark");
 }
-assert.equal(JSON.stringify(generateMaterialShades("#5058f4")), JSON.stringify(materialShades));
+assert.equal(JSON.stringify(generateMaterialShades("#6269e7")), JSON.stringify(materialShades));
 assert.equal(generateMaterialShades("#60g"), null);
 assert.equal(generateMaterialShades("#678").source, "#667788");
 assert.equal(generateMaterialShades("#12345678"), null);
@@ -2059,10 +2120,10 @@ await access(resolve(root, "save/SUITEMATE_V1_MASTER_FEATURE_INVENTORY.md"));
 const expectedStyleHashes = {
   "src/styles/font.css": "ecc7a99f6b820ee9290ab4a3ca2ff1ea4829c1a539c0d42becb19a3d5ea446cf",
   "src/styles/code.css": "e5607100c7432fd7028176ce74c4c999e181108861ea6b992ed3058d92d0d698",
-  "src/styles/netsuite.css": "b055cfbe59da9297d43e1b3ed5940588698cc8631cff2b684a2746ebe4bf298c",
+  "src/styles/netsuite.css": "aa34d01749a11185639c5f8b94e088c2bbd24328b9b25db31429d5d22375b994",
   "src/styles/pages/bundlebuilder.css": "bb9cae83f75b192d0a913233a33b6a8e557df656f7251a6e48e3105532e9f8fa",
   "src/styles/pages/codeeditor.css": "b58efb6517cfc13ca04cb621bdf269599ad9d6a589f38dee268743dda60f84df",
-  "src/styles/pages/dashboard.css": "7c5cb547ce07074ed54d18b6bb7eb93d628099e7688dee6631ee24b9125e1b5f",
+  "src/styles/pages/dashboard.css": "caedaa535b9bd516a977cdbb9f85de0f42d04e2e7f59a13f41996101dc0db7b5",
   "src/styles/pages/fieldhelp.css": "8515c1f4faff7978138f7d1c4cff631703af0b550c5deb6eb4ea95351bb78e2d",
   "src/styles/pages/file.css": "7932445f8a76bf76b6d9ce6d02bc8d69f071e4c8f600171a8a26c03e8a3eb1b2",
   "src/styles/pages/filecabinet.css": "cac334ebfece700d1f4ab625b120226900c692ded5889e91227d3f266d41b0a5",

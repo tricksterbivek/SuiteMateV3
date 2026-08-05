@@ -345,13 +345,22 @@
       // Freeze every visible column (stored width or current rendered width)
       // so flipping to table-layout: fixed is pixel-identical, then the
       // resized column obeys exactly; body cells follow the header row.
+      // READS BEFORE WRITES, in two passes: interleaved, every width write
+      // invalidates layout and the next getBoundingClientRect re-reflows the
+      // whole machine — one hide on a 203-row, 70-column order measured 11.5s
+      // (~69 full reflows). Batched, the loop forces at most one, and every
+      // fallback measure comes from the same layout snapshot, which is what
+      // "current rendered width" means.
       let total = 0;
+      const targets = [];
       for (const cell of cells) {
         if (cell.classList?.contains?.(CLASSES.colHidden)) {
           continue;
         }
         const label = readCellLabel(cell);
-        const target = Math.round(widths[label] ?? cell.getBoundingClientRect?.().width ?? 0);
+        targets.push([cell, Math.round(widths[label] ?? cell.getBoundingClientRect?.().width ?? 0)]);
+      }
+      for (const [cell, target] of targets) {
         if (target > 0 && cell.style) {
           cell.style.width = `${target}px`;
           total += target;

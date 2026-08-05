@@ -293,28 +293,19 @@ async function probeRowStripes(client, sessionId) {
       // the shades as well as breaking them, and every message downstream then
       // describes the wrong defect — the base is whatever row 0 happens to be.
       // A hidden span resolves the tokens because custom properties compute to
-      // their own text, not to a colour.
-      const swatch = document.createElement("span");
-      swatch.style.display = "none";
-      document.body.append(swatch);
-      const shade = (name) => {
+      // their own text, not to a colour. RESOLVED AT A ROW, PER GROUP, not at
+      // body: Clean Commerce scopes the machine tint as a row-level token
+      // override (4.5% vs the lists' 8%), so a body-resolved swatch reads the
+      // list values and calls every machine row wrong.
+      const shadeAt = (context, name) => {
+        const swatch = document.createElement("span");
+        swatch.style.display = "none";
+        context.append(swatch);
         swatch.style.backgroundColor = "var(" + name + ")";
-        return colourOf(swatch);
+        const colour = colourOf(swatch);
+        swatch.remove();
+        return colour;
       };
-      const base = shade("--row-even-bg-color");
-      const stripe = shade("--row-odd-bg-color");
-      // LIVE CLASSIC PAGES CARRY .isRedwood (the detection over-fires, same as
-      // the active tabs). The tokens once had an .isRedwood branch that set
-      // odd = even, so every real page lost the tint while these fixtures —
-      // which never carry the class — kept passing. Re-resolve the shades with
-      // the class forced on so that branch coming back fails here.
-      const hadRedwood = document.documentElement.classList.contains("isRedwood");
-      document.documentElement.classList.add("isRedwood");
-      const redwood = { base: shade("--row-even-bg-color"), stripe: shade("--row-odd-bg-color") };
-      if (!hadRedwood) {
-        document.documentElement.classList.remove("isRedwood");
-      }
-      swatch.remove();
       const isData = (row) => !EXCLUDED.some((name) => row.classList.contains(name));
       // GROUPED BY PARENT, because :nth-child restarts at every parent: two
       // machines on one page are two independent runs, and reading them as one
@@ -336,7 +327,8 @@ async function probeRowStripes(client, sessionId) {
       // group that exists: a lone-row group ahead of the machine would hand this
       // probe a row the parity check never looks at, and the forced-hover guard
       // would fail closed on a page that is entirely correct.
-      const target = [...groups.values()].find((siblings) => siblings.length >= 2)?.[1];
+      const targetSiblings = [...groups.values()].find((siblings) => siblings.length >= 2);
+      const target = targetSiblings?.[1];
       const forced = [];
       for (const name of target ? STATEFUL : []) {
         target.classList.add(name);
@@ -346,18 +338,41 @@ async function probeRowStripes(client, sessionId) {
       if (target) {
         target.dataset.stripeProbe = "hover";
       }
+      // LIVE CLASSIC PAGES CARRY .isRedwood (the detection over-fires, same as
+      // the active tabs). The tokens once had an .isRedwood branch that set
+      // odd = even, so every real page lost the tint while these fixtures —
+      // which never carry the class — kept passing. Re-resolve the shades with
+      // the class forced on so that branch coming back fails here.
+      const hadRedwood = document.documentElement.classList.contains("isRedwood");
+      document.documentElement.classList.add("isRedwood");
+      const redwoodContext = targetSiblings?.[0] ?? document.body;
+      const redwood = {
+        base: shadeAt(redwoodContext, "--row-even-bg-color"),
+        stripe: shadeAt(redwoodContext, "--row-odd-bg-color")
+      };
+      if (!hadRedwood) {
+        document.documentElement.classList.remove("isRedwood");
+      }
       return {
-        base,
-        stripe,
+        target: targetSiblings
+          ? {
+            base: shadeAt(targetSiblings[0], "--row-even-bg-color"),
+            stripe: shadeAt(targetSiblings[0], "--row-odd-bg-color")
+          }
+          : null,
         redwood,
-        groups: [...groups.values()].map((siblings) => siblings.map((row) => ({
-          colour: paint(row),
-          // Stateful rows stay IN the index. The rule carves them out of the
-          // paint, not out of the count, so removing them here would renumber
-          // every row below an open line and report a parity break that the
-          // page does not have.
-          stateful: STATEFUL.some((name) => row.classList.contains(name))
-        }))),
+        groups: [...groups.values()].map((siblings) => ({
+          base: shadeAt(siblings[0], "--row-even-bg-color"),
+          stripe: shadeAt(siblings[0], "--row-odd-bg-color"),
+          rows: siblings.map((row) => ({
+            colour: paint(row),
+            // Stateful rows stay IN the index. The rule carves them out of the
+            // paint, not out of the count, so removing them here would renumber
+            // every row below an open line and report a parity break that the
+            // page does not have.
+            stateful: STATEFUL.some((name) => row.classList.contains(name))
+          }))
+        })),
         nonData: [...document.querySelectorAll("tr.uir-machine-headerrow"), ...rows.filter((row) => !isData(row))].map(paint),
         forced
       };
@@ -398,7 +413,12 @@ async function probeForcedHover(client, sessionId) {
 // current tint is 14. A floor of 8 fails the invisible one and passes the real
 // one, and it is the check that makes this guard about the FEATURE rather than
 // about the rules merely being present.
-const STRIPE_MIN_DELTA = 8;
+// 6, down from 8: Clean Commerce sets the machine tint at the owner's 4.5%
+// mix, which computes ~7/255 on the default primary. The floor still catches
+// the class of defect it was built for — the shipped-invisible stripe measured
+// 1-2/255 — while accepting the owner's deliberately subtle tint. Never lower
+// this to make a run pass; lower it only when the DESIGN gets subtler.
+const STRIPE_MIN_DELTA = 6;
 
 // How many of the 28 baselines hold a striped machine or list today. Raise it
 // when a fixture gains one; never lower it to make a run pass.
@@ -408,24 +428,23 @@ const sameColour = (a, b) => a && b && a.every((channel, index) => channel === b
 const maxDelta = (a, b) => Math.max(...a.map((channel, index) => Math.abs(channel - b[index])));
 
 function assertStripes(label, stripes) {
-  const groups = (stripes?.groups || []).filter((rows) => rows.length >= 2);
+  const groups = (stripes?.groups || []).filter((entry) => entry.rows.length >= 2);
   if (groups.length === 0) {
     return null;
   }
-  const { base, stripe } = stripes;
-  if (sameColour(stripe, base)) {
-    throw new Error(`${label}: --row-odd-bg-color and --row-even-bg-color are both rgb(${base}) — there is no stripe to render.`);
-  }
-  const delta = maxDelta(base, stripe);
-  if (delta < STRIPE_MIN_DELTA) {
-    throw new Error(`${label}: the stripe differs from the base by only ${delta}/255 (floor ${STRIPE_MIN_DELTA}) — rgb(${base}) vs rgb(${stripe}) is not visible.`);
-  }
-  // Under a forced .isRedwood class — what every live classic page carries.
-  const redwoodDelta = maxDelta(stripes.redwood.base, stripes.redwood.stripe);
-  if (redwoodDelta < STRIPE_MIN_DELTA) {
-    throw new Error(`${label}: with .isRedwood on <html> the stripe delta collapses to ${redwoodDelta}/255 (floor ${STRIPE_MIN_DELTA}) — a Redwood token branch is neutralising the tint on live pages again.`);
-  }
-  for (const rows of groups) {
+  // Shades are PER GROUP: machine rows carry the Clean Commerce 4.5% override
+  // while list rows keep the shared 8%, and each group's rows are asserted
+  // against the tokens resolved at that group's own rows.
+  let minDelta = Infinity;
+  for (const { base, stripe, rows } of groups) {
+    if (sameColour(stripe, base)) {
+      throw new Error(`${label}: --row-odd-bg-color and --row-even-bg-color are both rgb(${base}) — there is no stripe to render.`);
+    }
+    const delta = maxDelta(base, stripe);
+    minDelta = Math.min(minDelta, delta);
+    if (delta < STRIPE_MIN_DELTA) {
+      throw new Error(`${label}: the stripe differs from the base by only ${delta}/255 (floor ${STRIPE_MIN_DELTA}) — rgb(${base}) vs rgb(${stripe}) is not visible.`);
+    }
     for (const [index, row] of rows.entries()) {
       // A stateful row is asserted NOT-STRIPE rather than equal-to-base: the
       // carve-out only promises the stripe stands down, and what wins instead
@@ -442,6 +461,12 @@ function assertStripes(label, stripes) {
         throw new Error(`${label}: data row ${index} is rgb(${row.colour}), expected rgb(${wanted}) — stripe parity is not alternating over data rows.`);
       }
     }
+  }
+  const { base, stripe } = stripes.target;
+  // Under a forced .isRedwood class — what every live classic page carries.
+  const redwoodDelta = maxDelta(stripes.redwood.base, stripes.redwood.stripe);
+  if (redwoodDelta < STRIPE_MIN_DELTA) {
+    throw new Error(`${label}: with .isRedwood on <html> the stripe delta collapses to ${redwoodDelta}/255 (floor ${STRIPE_MIN_DELTA}) — a Redwood token branch is neutralising the tint on live pages again.`);
   }
   // NATIVE STATES WIN, checked by forcing them rather than by reading the rule.
   // A class carve-out that goes missing leaves an open line or an inline edit
@@ -465,12 +490,12 @@ function assertStripes(label, stripes) {
   // first time it ran. What must never happen is a non-data row picking up the
   // alternating colour, which is exactly what plain :nth-child used to do.
   for (const colour of stripes.nonData) {
-    if (sameColour(colour, stripe)) {
+    if (groups.some((entry) => sameColour(colour, entry.stripe))) {
       throw new Error(`${label}: a header/totals/button row is rgb(${colour}), the stripe colour — a non-data row is being striped.`);
     }
   }
-  const counted = groups.reduce((total, rows) => total + rows.length, 0);
-  return `${counted} data rows in ${groups.length} machine(s) alternate, delta ${delta}/255, ${stripes.forced.length + 1} states forced`;
+  const counted = groups.reduce((total, entry) => total + entry.rows.length, 0);
+  return `${counted} data rows in ${groups.length} machine(s) alternate, delta ${minDelta}/255, ${stripes.forced.length + 1} states forced`;
 }
 
 async function captureCase(client, origin, entry) {
