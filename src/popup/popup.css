@@ -1,9 +1,34 @@
+/* Token layer from design.md (Meta commerce analysis), popup-scaled.
+   Brand #6269e7 sits in the decisive-action accent slot; semantic TEXT
+   colors stay WCAG-tuned over raw tokens. */
 :root {
   color-scheme: light;
-  font-family: "Open Sans", Arial, sans-serif;
-  background: #f4f6f8;
-  color: #262626;
+  font-family: "Helvetica Neue", Helvetica, Arial, "Noto Sans", sans-serif;
+  background: #ffffff;
+  color: #1c1e21;
   min-width: 360px;
+
+  --canvas: #ffffff;
+  --surface-soft: #f1f4f7;
+  --ink-deep: #0a1317;
+  --ink: #1c1e21;
+  --charcoal: #444950;
+  --steel: #5d6c7b;
+  --stone: #8595a4;
+  --hairline: #ced0d4;
+  --hairline-soft: #dee3e9;
+  --disabled: #bcc0c4;
+  --accent: #6269e7;
+  --accent-deep: #4d54c9;
+  --accent-soft: rgb(98 105 231 / 12%);
+  --ghost-border: rgb(10 19 23 / 12%);
+  --r-lg: 8px;
+  --r-xl: 16px;
+  --r-full: 100px;
+  --shadow-panel: rgb(20 22 26 / 30%) 0 1px 4px 0;
+  font-size: 14px;
+  letter-spacing: -0.14px;
+  line-height: 1.43;
 }
 
 * {
@@ -22,47 +47,20 @@ body.picker-open {
 }
 
 main {
-  padding: 18px;
+  padding: 16px;
 }
 
 header {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 18px;
-}
-
-.tool-card {
-  display: grid;
-  gap: 11px;
-  margin-bottom: 12px;
-  border: 1px solid #c9d3e1;
-  border-radius: 9px;
-  padding: 13px 14px;
-  background: linear-gradient(145deg, #f8fbff, #eef3f9);
-}
-
-.tool-card > div {
-  display: grid;
-  gap: 3px;
-}
-
-.tool-card .primary-action {
-  width: 100%;
-  border-color: #6269e7;
-  padding-block: 8px;
-  background: #6269e7;
-  color: #fff;
-  font-weight: 600;
-}
-
-.tool-card .primary-action:hover:not(:disabled) {
-  border-color: #4c607d;
-  background: #4c607d;
+  margin: -16px -16px 16px;
+  border-bottom: 1px solid var(--hairline-soft);
+  padding: 12px 16px;
 }
 
 header img {
-  border-radius: 10px;
+  border-radius: var(--r-lg);
 }
 
 h1,
@@ -71,33 +69,58 @@ p {
 }
 
 h1 {
-  color: #31415b;
+  color: var(--ink-deep);
   font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0;
   line-height: 1.25;
 }
 
 p,
 small {
-  color: #667085;
+  color: var(--steel);
 }
 
 p {
   margin-top: 2px;
   font-size: 12px;
+  letter-spacing: 0;
+  line-height: 1.33;
+}
+
+small {
+  font-size: 12px;
+  letter-spacing: 0;
+  line-height: 1.33;
+}
+
+.tool-card {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-xl);
+  padding: 16px;
+  background: var(--canvas);
+}
+
+.tool-card > div {
+  display: grid;
+  gap: 3px;
 }
 
 form {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .toggle-row,
 fieldset,
 .theme-card,
 .settings-transfer {
-  border: 1px solid #d8dee8;
-  border-radius: 9px;
-  background: #fff;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-lg);
+  background: var(--canvas);
 }
 
 .toggle-row {
@@ -105,7 +128,8 @@ fieldset,
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 13px 14px;
+  min-height: 44px;
+  padding: 12px 14px;
   cursor: pointer;
 }
 
@@ -116,45 +140,71 @@ fieldset,
 
 strong,
 legend {
-  color: #344054;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-small {
-  font-size: 11px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
 }
 
 input[type="checkbox"] {
   width: 18px;
   height: 18px;
-  accent-color: #6269e7;
+  flex-shrink: 0;
+  accent-color: var(--accent);
 }
 
+/* Appearance radios as pill tabs (design.md button-pill-tab). */
 fieldset {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+  gap: 8px;
   margin: 0;
-  padding: 10px 12px 12px;
+  padding: 12px 14px 14px;
+}
+
+legend {
+  padding: 0;
 }
 
 fieldset label {
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-full);
+  padding: 6px 10px;
+  color: var(--ink);
   font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
 }
 
 fieldset input {
-  accent-color: #6269e7;
+  accent-color: var(--accent);
+}
+
+fieldset label:has(input:checked) {
+  border-color: var(--ink-deep);
+  background: var(--ink-deep);
+  color: var(--canvas);
+}
+
+fieldset label:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+fieldset label input {
+  width: 14px;
+  height: 14px;
 }
 
 .theme-card {
   display: grid;
-  gap: 11px;
-  padding: 13px 14px;
+  gap: 12px;
+  border-radius: var(--r-xl);
+  padding: 16px 14px;
 }
 
 .settings-transfer {
@@ -165,7 +215,7 @@ fieldset input {
   display: flex;
   align-items: center;
   min-height: 48px;
-  padding: 11px 14px;
+  padding: 12px 14px;
   cursor: pointer;
   list-style: none;
 }
@@ -177,7 +227,7 @@ fieldset input {
 .settings-transfer summary::after {
   content: "+";
   margin-left: auto;
-  color: #667085;
+  color: var(--steel);
   font-size: 18px;
   line-height: 1;
 }
@@ -194,46 +244,46 @@ fieldset input {
 }
 
 .settings-transfer-content {
-  gap: 9px;
-  border-top: 1px solid #e4e8ef;
-  padding: 11px 14px 13px;
+  gap: 10px;
+  border-top: 1px solid var(--hairline-soft);
+  padding: 12px 14px 14px;
 }
 
 .settings-transfer-content p {
   margin: 0;
-  color: #667085;
-  font-size: 11px;
-  line-height: 1.45;
+  color: var(--steel);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .settings-transfer-content label > span {
-  color: #475467;
-  font-size: 10px;
-  font-weight: 600;
+  color: var(--charcoal);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .settings-transfer textarea {
   width: 100%;
   min-height: 62px;
   resize: vertical;
-  border: 1px solid #b8c0cc;
-  border-radius: 6px;
-  padding: 7px 9px;
-  background: #fff;
-  color: #344054;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  padding: 8px 10px;
+  background: var(--canvas);
+  color: var(--ink);
   font: 10px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
   overflow-wrap: anywhere;
 }
 
 .settings-transfer textarea:focus {
-  border-color: #6269e7;
-  outline: 2px solid rgb(96 119 153 / 18%);
+  border-color: var(--accent);
+  outline: 2px solid var(--accent-soft);
   outline-offset: 0;
 }
 
 .settings-transfer-actions {
   display: flex;
-  gap: 7px;
+  gap: 8px;
 }
 
 .settings-transfer-actions button {
@@ -241,7 +291,7 @@ fieldset input {
 }
 
 .settings-transfer-actions .danger-action:not(:disabled) {
-  border-color: #d92d20;
+  border-color: #b42318;
   color: #b42318;
 }
 
@@ -262,24 +312,27 @@ fieldset input {
   gap: 3px;
 }
 
+/* Badge pattern: caption-bold pill (design.md badges). */
 .theme-state {
-  border-radius: 999px;
-  padding: 3px 8px;
-  background: #e8edf4;
-  color: #475467;
-  font-size: 10px;
-  font-weight: 600;
+  border-radius: var(--r-full);
+  padding: 4px 10px;
+  background: var(--surface-soft);
+  color: var(--charcoal);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.33;
 }
 
 .theme-state.customized {
-  background: #6269e7;
+  background: var(--accent);
   color: #fff;
 }
 
 .role-context {
   min-height: 15px;
-  color: #475467;
-  font-weight: 600;
+  color: var(--charcoal);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .color-grid {
@@ -291,9 +344,9 @@ fieldset input {
 .color-control {
   display: grid;
   gap: 6px;
-  color: #344054;
+  color: var(--ink);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .color-control-label {
@@ -306,7 +359,7 @@ fieldset input {
 
 .color-control code {
   align-self: center;
-  color: #667085;
+  color: var(--steel);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 10px;
   font-weight: 400;
@@ -314,24 +367,24 @@ fieldset input {
 
 .color-picker-trigger {
   width: 100%;
-  height: 38px;
-  border: 1px solid #b8c0cc;
-  border-radius: 7px;
+  height: 40px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
   padding: 3px;
-  background: #fff;
+  background: var(--canvas);
   cursor: pointer;
 }
 
 .color-picker-trigger:hover:not(:disabled) {
-  border-color: #6269e7;
-  background: #fff;
+  border-color: var(--accent);
+  background: var(--canvas);
 }
 
 .color-trigger-swatch {
   display: block;
   width: 100%;
   height: 100%;
-  border-radius: 4px;
+  border-radius: 6px;
   background: var(--picker-color);
 }
 
@@ -357,7 +410,7 @@ button.material-swatch:hover {
 
 button.material-swatch:focus-visible {
   z-index: 1;
-  outline: 2px solid #1570ef;
+  outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 
@@ -401,17 +454,18 @@ button.material-swatch:focus-visible {
   user-select: none;
 }
 
+/* Elevation level 2: the one shadowed panel (design.md card-checkout-summary). */
 .color-picker-panel {
   display: grid;
   width: 100%;
   max-height: calc(100vh - 20px);
-  gap: 11px;
+  gap: 12px;
   overflow-y: auto;
-  border: 1px solid #c8d0dc;
-  border-radius: 11px;
-  padding: 14px;
-  background: #fff;
-  box-shadow: 0 16px 40px rgb(15 23 42 / 28%);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-xl);
+  padding: 16px;
+  background: var(--canvas);
+  box-shadow: var(--shadow-panel);
 }
 
 .color-picker-header {
@@ -429,19 +483,27 @@ button.material-swatch:focus-visible {
 
 .color-picker-header h2 {
   margin: 0;
-  color: #344054;
-  font-size: 15px;
+  color: var(--ink-deep);
+  font-size: 16px;
+  font-weight: 700;
   line-height: 1.25;
 }
 
 .icon-button {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border: 0;
+  border-radius: var(--r-full);
   padding: 0;
   background: transparent;
+  color: var(--ink);
   font-size: 21px;
   line-height: 1;
+}
+
+.icon-button:hover {
+  border: 0;
+  background: var(--surface-soft);
 }
 
 .color-plane {
@@ -450,7 +512,7 @@ button.material-swatch:focus-visible {
   height: 145px;
   overflow: hidden;
   border: 1px solid rgb(0 0 0 / 15%);
-  border-radius: 8px;
+  border-radius: var(--r-lg);
   background-color: hsl(var(--picker-hue) 100% 50%);
   background-image:
     linear-gradient(to top, #000, transparent),
@@ -460,7 +522,7 @@ button.material-swatch:focus-visible {
 }
 
 .color-plane:focus-visible {
-  outline: 2px solid #1570ef;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -481,9 +543,9 @@ button.material-swatch:focus-visible {
 .color-axis-controls label {
   display: grid;
   gap: 4px;
-  color: #475467;
-  font-size: 10px;
-  font-weight: 600;
+  color: var(--charcoal);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .hue-control input[type="range"],
@@ -492,13 +554,13 @@ button.material-swatch:focus-visible {
   height: 16px;
   margin: 0;
   cursor: pointer;
-  accent-color: #6269e7;
+  accent-color: var(--accent);
 }
 
 .hue-control input[type="range"] {
   appearance: none;
   height: 12px;
-  border-radius: 999px;
+  border-radius: var(--r-full);
   background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
 }
 
@@ -528,34 +590,40 @@ button.material-swatch:focus-visible {
 .color-preview {
   display: block;
   width: 42px;
-  height: 37px;
-  border: 1px solid #b8c0cc;
-  border-radius: 6px;
+  height: 40px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
   background: var(--picker-color);
 }
 
 .color-value-row label {
   display: grid;
   gap: 4px;
-  color: #475467;
-  font-size: 10px;
-  font-weight: 600;
+  color: var(--charcoal);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .color-value-row input {
   width: 100%;
-  height: 37px;
-  border: 1px solid #b8c0cc;
-  border-radius: 6px;
-  padding: 7px 9px;
-  color: #344054;
+  height: 40px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  padding: 8px 10px;
+  color: var(--ink);
   font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
   text-transform: uppercase;
 }
 
+.color-value-row input:focus {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 0;
+}
+
 .color-value-row input[aria-invalid="true"] {
-  border-color: #d92d20;
-  outline-color: #d92d20;
+  border-color: #b42318;
+  outline-color: #b42318;
 }
 
 .picker-material-section {
@@ -574,53 +642,87 @@ button.material-swatch:focus-visible {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   overflow: hidden;
   border: 1px solid rgb(0 0 0 / 10%);
-  border-radius: 6px;
+  border-radius: var(--r-lg);
 }
 
 .picker-material-shades .material-swatch {
   height: 28px;
 }
 
-.picker-done {
-  justify-self: stretch;
-  border-color: #6269e7;
-  padding-block: 8px;
-  background: #6269e7;
-  color: #fff;
-  font-weight: 600;
-}
-
-.picker-done:hover {
-  border-color: #4c607d;
-  background: #4c607d;
-}
-
 .actions {
   display: flex;
-  min-height: 30px;
+  min-height: 36px;
   align-items: center;
   justify-content: space-between;
 }
 
+/* Pill button system (design.md: buttons are never squared).
+   Default = ghost pill; filled accent pill = decisive action. */
 button {
-  border: 1px solid #b8c0cc;
-  border-radius: 6px;
-  padding: 6px 11px;
-  background: #fff;
-  color: #344054;
+  border: 1px solid var(--ghost-border);
+  border-radius: var(--r-full);
+  padding: 8px 16px;
+  background: var(--canvas);
+  color: var(--ink-deep);
   font: inherit;
   font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.14px;
   cursor: pointer;
 }
 
 button:hover {
-  border-color: #6269e7;
-  background: #f7f9fc;
+  border-color: var(--hairline);
+  background: var(--surface-soft);
+}
+
+button:active:not(:disabled) {
+  background: var(--hairline-soft);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.tool-card .primary-action,
+.picker-done {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.tool-card .primary-action {
+  width: 100%;
+  padding-block: 10px;
+}
+
+.picker-done {
+  justify-self: stretch;
+  padding-block: 10px;
+}
+
+.tool-card .primary-action:hover:not(:disabled),
+.picker-done:hover {
+  border-color: var(--accent-deep);
+  background: var(--accent-deep);
+}
+
+button:disabled {
+  border-color: var(--hairline-soft);
+  background: var(--surface-soft);
+  color: var(--stone);
+}
+
+.tool-card .primary-action:disabled {
+  border-color: var(--disabled);
+  background: var(--disabled);
+  color: var(--canvas);
 }
 
 output {
-  color: #397552;
-  font-size: 11px;
+  color: #1f7a3d;
+  font-size: 12px;
   text-align: right;
 }
 
@@ -648,4 +750,11 @@ button:disabled,
 input:disabled,
 textarea:disabled {
   cursor: default;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  button,
+  .color-picker-trigger {
+    transition: background-color 150ms ease-out, border-color 150ms ease-out;
+  }
 }
