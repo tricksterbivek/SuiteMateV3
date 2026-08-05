@@ -47,12 +47,14 @@
         "src/styles/notifications.css",
         "src/internal-ids/internal-ids.css",
         "src/record-actions/csv-import.css",
+        "src/record-actions/record-trail.css",
         "src/so-columns/so-columns.css",
         "src/form-views/form-views.css",
         "src/edit-grid/edit-grid.css"
       ],
       "js": [
         "src/shared/utilities.js",
+        "src/shared/browser-utilities.js",
         "src/shared/routes.js",
         "src/shared/commands.js",
         "src/shared/bridge.js",
@@ -69,6 +71,7 @@
         "src/record-actions/core.js",
         "src/internal-ids/runtime.js",
         "src/record-actions/csv-import.js",
+        "src/record-actions/record-trail.js",
         "src/csv-export/runtime.js",
         "src/so-columns/runtime.js",
         "src/tab-title/runtime.js",

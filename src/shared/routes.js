@@ -7,6 +7,7 @@
     INTERNAL_IDS: "internal-ids",
     CSV_IMPORT_TOOLBAR: "csv-import-toolbar",
     CSV_EXPORT_RECORD: "csv-export-record",
+    RECORD_TRAIL: "record-trail",
     TRANSACTION_COLUMN_PERSONALIZATION: "transaction-column-personalization",
     RECORD_TYPE_BRIDGE: "record-type-bridge",
     IMPORT_ASSISTANT_CONTEXT: "import-assistant-context",
@@ -272,6 +273,17 @@
           && /^[1-9]\d*$/.test(getParam(context, "id") ?? "")
           && !context.path.toLowerCase().endsWith("/custlist.nl")
           && !CSV_IMPORT_EXCLUDED_ROUTES.has(context.routeId);
+      case CAPABILITIES.RECORD_TRAIL:
+        return context.isTopFrame
+          && context.path.startsWith(PATHS.TRANSACTIONS)
+          && context.path.endsWith(".nl")
+          && !context.path.endsWith("/transactionlist.nl")
+          && /^[1-9]\d{0,19}$/.test(getParam(context, "id") ?? "")
+          && !hasParam(context, "e")
+          && (
+            context.kind !== "sender"
+            || (context.hasValidTab === true && context.hasValidDocument === true)
+          );
       case CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION:
         return context.isTopFrame
           && Boolean(context.path)

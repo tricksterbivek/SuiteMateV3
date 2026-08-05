@@ -43,6 +43,7 @@ test("exports stable route and capability constants", () => {
   assert.equal(CAPABILITIES.GLOBAL_THEME, "global-theme");
   assert.equal(CAPABILITIES.INTERNAL_IDS, "internal-ids");
   assert.equal(CAPABILITIES.CSV_EXPORT_RECORD, "csv-export-record");
+  assert.equal(CAPABILITIES.RECORD_TRAIL, "record-trail");
   assert.equal(CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION, "transaction-column-personalization");
   assert.equal(CAPABILITIES.FORM_VIEWS, "form-views");
   assert.equal(CAPABILITIES.SUITEQL_BRIDGE, "suiteql-bridge");
@@ -250,6 +251,43 @@ test("limits CSV Export to saved top-frame records with a numeric ID", () => {
       CAPABILITIES.CSV_EXPORT_RECORD,
       page("/app/accounting/transactions/salesord.nl?id=1", { isTopFrame: false })
     ),
+    false
+  );
+});
+
+test("limits Record Trail to saved top-frame transaction view pages", () => {
+  for (const path of [
+    "/app/accounting/transactions/salesord.nl?id=1",
+    "/app/accounting/transactions/custinvc.nl?id=7&whence=",
+    "/app/accounting/transactions/customtransaction.nl?id=42"
+  ]) {
+    assert.equal(routes.supports(CAPABILITIES.RECORD_TRAIL, page(path)), true, path);
+  }
+
+  for (const path of [
+    "/app/accounting/transactions/salesord.nl",
+    "/app/accounting/transactions/salesord.nl?id=0",
+    "/app/accounting/transactions/salesord.nl?id=fixture",
+    "/app/accounting/transactions/salesord.nl?id=123456789012345678901",
+    "/app/accounting/transactions/salesord.nl?id=1&e=T",
+    "/app/accounting/transactions/salesord.nl?id=1&e=F",
+    "/app/accounting/transactions/transactionlist.nl?id=1",
+    "/app/common/entity/custjob.nl?id=1"
+  ]) {
+    assert.equal(routes.supports(CAPABILITIES.RECORD_TRAIL, page(path)), false, path);
+  }
+  assert.equal(
+    routes.supports(
+      CAPABILITIES.RECORD_TRAIL,
+      page("/app/accounting/transactions/salesord.nl?id=1", { isTopFrame: false })
+    ),
+    false
+  );
+
+  const url = "https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl?id=1";
+  assert.equal(routes.isAllowedSender(sender(url, 8), CAPABILITIES.RECORD_TRAIL), true);
+  assert.equal(
+    routes.isAllowedSender({ ...sender(url, 8), documentId: undefined }, CAPABILITIES.RECORD_TRAIL),
     false
   );
 });

@@ -45,6 +45,7 @@
     RECORD_CSV_EXPORT: "record.csv-export",
     RECORD_CSV_TEMPLATE: "record.csv-template",
     RECORD_CSV_EXPORT_VIEW: "record.csv-export-view",
+    RECORD_SHOW_TRAIL: "record.show-trail",
     SUITEQL_EXECUTE: "suiteql.execute",
     SUITEQL_ABORT: "suiteql.abort",
     SUITEQL_TOGGLE_PAGED: "suiteql.toggle-paged",
@@ -365,6 +366,14 @@
       description: "Export the visible item grid exactly as shown",
       surface: SURFACES.RECORD,
       capability: routeApi?.CAPABILITIES?.CSV_EXPORT_RECORD ?? "csv-export-record",
+      requiresSettingsEnabled: true
+    },
+    {
+      id: IDS.RECORD_SHOW_TRAIL,
+      label: "Record Trail",
+      description: "Show direct source and target transactions",
+      surface: SURFACES.RECORD,
+      capability: routeApi?.CAPABILITIES?.RECORD_TRAIL ?? "record-trail",
       requiresSettingsEnabled: true
     },
     {

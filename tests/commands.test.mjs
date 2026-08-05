@@ -301,6 +301,20 @@ test("enforces route capability and settings availability from one descriptor", 
     false
   );
   assert.equal(
+    commands.isSupported(commands.IDS.RECORD_SHOW_TRAIL, {
+      pageContext: record,
+      settings: { enabled: true }
+    }),
+    true
+  );
+  assert.equal(
+    commands.isSupported(commands.IDS.RECORD_SHOW_TRAIL, {
+      pageContext: childRecord,
+      settings: { enabled: true }
+    }),
+    false
+  );
+  assert.equal(
     commands.isSupported(commands.IDS.RECORD_CSV_TEMPLATE, {
       pageContext: record,
       settings: { enabled: true }
