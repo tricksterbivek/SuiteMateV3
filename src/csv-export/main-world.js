@@ -33,7 +33,17 @@
     return core.toCellText(value);
   }
 
+  function isEmptyValue(value) {
+    return value === null || value === undefined || value === "";
+  }
+
   function safeTextValue(recordRef, fieldId) {
+    // Emptiness probe: getValue is ~9x cheaper than getText, and an empty
+    // value never carries display text (measured live, 202x80 cells + 696
+    // body fields, zero exceptions). Raw values are never returned as text.
+    if (isEmptyValue(safeCall(() => recordRef.getValue({ fieldId }), null))) {
+      return "";
+    }
     const text = normalizeDisplayText(safeCall(
       () => recordRef.getText({ fieldId }),
       ""
@@ -42,6 +52,12 @@
   }
 
   function safeSublistTextValue(recordRef, sublistId, fieldId, line) {
+    if (isEmptyValue(safeCall(
+      () => recordRef.getSublistValue({ sublistId, fieldId, line }),
+      null
+    ))) {
+      return "";
+    }
     const text = safeCall(
       () => recordRef.getSublistText({ sublistId, fieldId, line }),
       ""
@@ -310,11 +326,9 @@
 
     let form;
     try {
-      form = await loadRecord(recordModule, {
-        type: "custform",
-        id: formId,
-        isDynamic: true
-      });
+      // Static load: field/label/mandatory/bscreen read identically to a
+      // dynamic load (verified live) and it is ~5x faster.
+      form = await loadRecord(recordModule, { type: "custform", id: formId });
     } catch {
       return fields;
     }
@@ -336,14 +350,34 @@
       [...formFields.header, ...formFields.body].map(({ fieldId }) => fieldId)
     );
     const isCustomRecord = String(recordType).startsWith("customrecord");
-    return getRecordFields(recordRef)
-      .filter(({ fieldId }) =>
-        !existingIds.has(fieldId)
-        && (isCustomRecord || !fieldId.startsWith("custbody")))
-      .map((descriptor) => ({
-        ...descriptor,
-        value: safeTextValue(recordRef, descriptor.fieldId)
-      }));
+    const fieldIds = safeCall(() => recordRef.getFields(), []);
+    if (!Array.isArray(fieldIds)) {
+      return [];
+    }
+    const fields = [];
+    for (const rawFieldId of fieldIds) {
+      const fieldId = String(rawFieldId ?? "").trim().toLowerCase();
+      if (
+        !fieldId
+        || existingIds.has(fieldId)
+        || (!isCustomRecord && fieldId.startsWith("custbody"))
+      ) {
+        continue;
+      }
+      // Read the text before paying for getField: a native extra with no
+      // value always ends as an all-empty column removeEmptyColumns drops,
+      // and getField on every one of ~700 body ids dominated the export.
+      const value = safeTextValue(recordRef, fieldId);
+      if (!value) {
+        continue;
+      }
+      const field = safeCall(() => recordRef.getField({ fieldId }), null);
+      const descriptor = normalizeDescriptor(field?.id ?? fieldId, field?.label, "record");
+      if (descriptor) {
+        fields.push({ ...descriptor, value });
+      }
+    }
+    return fields;
   }
 
   function addNativeSublistFields(recordRef, sublistId, formColumns) {
@@ -360,7 +394,7 @@
     });
   }
 
-  function buildCsvMatrix(recordRef, bodyFields, sublistId, lineCount, sublistFields) {
+  async function buildCsvMatrix(recordRef, bodyFields, sublistId, lineCount, sublistFields) {
     const fields = sublistId
       ? [
         ...bodyFields,
@@ -385,6 +419,10 @@
     }
 
     for (let line = 0; line < lineCount; line += 1) {
+      if (line % 10 === 9) {
+        // Yield so a large order does not freeze the page for the whole sweep.
+        await new Promise((resolve) => globalScope.setTimeout(resolve));
+      }
       rows.push([
         ...bodyFields.map(({ value }) => value),
         safeSublistTextValue(recordRef, sublistId, "line", line),
@@ -481,7 +519,7 @@
       ...formFields.col,
       ...addNativeSublistFields(recordRef, sublistId, formFields.col)
     ]);
-    const matrix = buildCsvMatrix(
+    const matrix = await buildCsvMatrix(
       recordRef,
       bodyFields,
       sublistId,

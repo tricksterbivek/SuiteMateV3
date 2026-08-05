@@ -637,8 +637,10 @@ const csvExportBodyValueSource = csvExportMainWorldSource.match(
 const csvExportLineValueSource = csvExportMainWorldSource.match(
   /function safeSublistTextValue[\s\S]*?\n  }\n\n  function safeIdentifierValue/
 )?.[0] ?? "";
-assert.doesNotMatch(csvExportBodyValueSource, /getValue/, "CSV Export body text falls back to raw values");
-assert.doesNotMatch(csvExportLineValueSource, /getSublistValue/, "CSV Export line text falls back to raw values");
+assert.match(csvExportBodyValueSource, /recordRef\.getText\(\{ fieldId \}\)/, "CSV Export body text bypasses display text");
+assert.doesNotMatch(csvExportBodyValueSource, /return[^;\n]*\bvalue\b/, "CSV Export body text falls back to raw values");
+assert.match(csvExportLineValueSource, /recordRef\.getSublistText\(/, "CSV Export line text bypasses display text");
+assert.doesNotMatch(csvExportLineValueSource, /return[^;\n]*\bvalue\b/, "CSV Export line text falls back to raw values");
 assert.match(
   csvExportMainWorldSource,
   /safeIdentifierValue\(recordRef, "externalid"\)/,
