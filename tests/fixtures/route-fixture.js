@@ -112,14 +112,18 @@
     // restyle exists for — below the fold. The separator stays in the markup
     // because the sheet collapses it to nothing, so it costs no height and its
     // hide rule is still exercised.
-    return `<table class="totallingtable">
+    // The span.bgmd.totallingbg wrapper is part of the real markup and is now
+    // THE card surface (a <caption> sits outside the table's border box, so
+    // chrome on the table wraps only the body). Rendering the table bare hid
+    // exactly that defect from every baseline.
+    return `<span class="bgmd totallingbg"><table class="totallingtable">
         <caption>Summary</caption>
         <tbody>
           ${row("Subtotal", "$96.00")}
           ${separator}
           ${row("Total", "$105.60", "inputtotalling")}
         </tbody>
-      </table>`;
+      </table></span>`;
   }
 
   // `interleaved` gives the machine the shape the zebra guard needs and nothing

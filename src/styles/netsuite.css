@@ -5033,45 +5033,35 @@ html:not(.ext-f) .totallingtable .inputtotalling {
    generally rather than that row. Row dividers replace .uir-totallingtable-seperator,
    which is hidden along with its cell's padding rather than left as a blank band. */
 
-/* The wrapper's generic .bgmd card must stand down HERE AND ONLY HERE: it paints a
-   second card behind this one (grey --theme-secondary-light fill, 10px radius, a
-   1px 1px 5px half-black shadow) whose smaller radius peeks out as grey corner
-   wedges, and its overflow:hidden clips the table's own shadow — every computed
-   value ON THE TABLE read correct while the rendered card still looked like the
-   old design. Scoped to .totallingbg so every other .bgmd keeps its treatment. */
+/* THE WRAPPER IS THE CARD, NOT THE TABLE. A <caption> lives OUTSIDE the table's
+   border box, so chrome on table.totallingtable wrapped only the body: the
+   header rendered as a detached pill and the Subtotal block below it grew its
+   own rounded top corners — the owner's "multiple rounded boxes stacked
+   together". span.bgmd.totallingbg encloses caption AND grid as one box, so
+   the radius, hairline, fill and shadow all live here, and its overflow:hidden
+   clips the caption fill and the last row on the card's own arc — which also
+   retires the per-corner 15px inner radii the table-as-card version needed.
+   Generic .bgmd elsewhere keeps its own treatment (this out-specifies it);
+   background-color carries !important to outrank the shared .bgmd group's. */
 html:not(.ext-f) span.bgmd.totallingbg {
-    overflow: visible;
-    background-color: transparent !important;
-    box-shadow: none;
-    border-radius: 0
+    overflow: hidden;
+    background-color: var(--field-backgroud-color) !important;
+    border: 1px solid var(--table-border-color);
+    box-shadow: 0 1px 4px rgba(20, 22, 26, 0.22)
 }
+
+html:not(.ext-f):not(.disable_radii) span.bgmd.totallingbg {
+    border-radius: 16px
+}
+
+/* Flat on purpose: any chrome here splits the card at the caption seam again. */
 html:not(.ext-f) table.totallingtable {
     border-collapse: separate !important;
     border-spacing: 0 !important;
-    background-color: var(--field-backgroud-color) !important;
-    border: 1px solid var(--table-border-color) !important;
-    box-shadow: 0 1px 4px rgba(20, 22, 26, 0.22) !important
-}
-
-/* Corners are rounded on the caption and the last row rather than by clipping the
-   table: overflow on a <table> makes it a scroll container and moves the caption
-   out of the border box. The inner radii are the container's MINUS THE 1px
-   border, so the caption fill and the last row meet the border on a single arc
-   instead of leaving a hairline crescent at each corner. */
-html:not(.ext-f):not(.disable_radii) table.totallingtable {
-    border-radius: 16px !important
-}
-
-html:not(.ext-f):not(.disable_radii) table.totallingtable caption {
-    border-radius: 15px 15px 0 0 !important
-}
-
-html:not(.ext-f):not(.disable_radii) .totallingtable tbody tr:last-child td:first-child {
-    border-bottom-left-radius: 15px !important
-}
-
-html:not(.ext-f):not(.disable_radii) .totallingtable tbody tr:last-child td:last-child {
-    border-bottom-right-radius: 15px !important
+    background-color: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important
 }
 
 /* 16px in, 8px down, everywhere in the box — the only two padded surfaces are the
@@ -5150,8 +5140,8 @@ html:not(.ext-f) .totallingtable td:has(>.uir-totallingtable-seperator) {
     border-top: 0 !important
 }
 
-html:not(.ext-f).isDarkMode table.totallingtable {
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5) !important
+html:not(.ext-f).isDarkMode span.bgmd.totallingbg {
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5)
 }
 
 html:not(.ext-f) .newelement-item:hover,

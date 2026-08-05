@@ -1054,15 +1054,23 @@ for (const [what, selector, property, expected] of [
   // identically and passes every screenshot. The dark variant is pinned on the
   // same terms as the light one: no fixture renders either shadow to within the
   // 1% gate, so "no test can see it" argues for pinning both or neither.
-  ["the elevation", "html:not(.ext-f) table.totallingtable {", "box-shadow", "0 1px 4px rgba(20, 22, 26, 0.22)"],
-  ["the dark-mode elevation", "html:not(.ext-f).isDarkMode table.totallingtable {", "box-shadow", "0 1px 4px rgba(0, 0, 0, 0.5)"],
-  // The radii are pinned as a SET: the inner three are the container's minus its
-  // 1px border, which is the claim the comment beside them makes, and a claim
-  // only holds while all four numbers still stand in that relationship.
-  ["the container radius", `${TOTALS_RADII}table.totallingtable {`, "border-radius", "16px"],
-  ["the caption radius", `${TOTALS_RADII}table.totallingtable caption {`, "border-radius", "15px 15px 0 0"],
-  ["the Total row's left radius", `${TOTALS_RADII}.totallingtable tbody tr:last-child td:first-child {`, "border-bottom-left-radius", "15px"],
-  ["the Total row's right radius", `${TOTALS_RADII}.totallingtable tbody tr:last-child td:last-child {`, "border-bottom-right-radius", "15px"],
+  // Card chrome lives on the WRAPPER (span.bgmd.totallingbg): a <caption> sits
+  // outside the table's border box, so chrome on the table wraps only the body
+  // and renders the header as a detached pill over a separately-rounded
+  // Subtotal block — the owner saw exactly that. The wrapper's overflow:hidden
+  // is what rounds the caption fill and the last row now, so it is pinned on
+  // the same terms as the radius it implements.
+  ["the elevation", "html:not(.ext-f) span.bgmd.totallingbg {", "box-shadow", "0 1px 4px rgba(20, 22, 26, 0.22)"],
+  ["the dark-mode elevation", "html:not(.ext-f).isDarkMode span.bgmd.totallingbg {", "box-shadow", "0 1px 4px rgba(0, 0, 0, 0.5)"],
+  ["the container radius", `${TOTALS_RADII}span.bgmd.totallingbg {`, "border-radius", "16px"],
+  ["the card fill", "html:not(.ext-f) span.bgmd.totallingbg {", "background-color", "var(--field-backgroud-color)"],
+  ["the hairline", "html:not(.ext-f) span.bgmd.totallingbg {", "border", "1px solid var(--table-border-color)"],
+  ["the corner clip", "html:not(.ext-f) span.bgmd.totallingbg {", "overflow", "hidden"],
+  // And the table stays FLAT: any of these coming back splits the card at the
+  // caption seam again, which is the defect this geometry exists to kill.
+  ["the table's flat background", "html:not(.ext-f) table.totallingtable {", "background-color", "transparent"],
+  ["the table's flat border", "html:not(.ext-f) table.totallingtable {", "border", "0"],
+  ["the table's flat shadow", "html:not(.ext-f) table.totallingtable {", "box-shadow", "none"],
   ["the caption padding", "html:not(.ext-f) table.totallingtable caption {", "padding", "8px 16px"],
   ["the cell padding", "html:not(.ext-f) .totallingtable td {", "padding", "8px 16px"],
   ["the Total row size", `${TOTALS_ROW}td {`, "font-size", ".98em"],
@@ -1072,16 +1080,7 @@ for (const [what, selector, property, expected] of [
   // that still passes at 0.019% — the defect it fixes is invisible to the gate
   // in exactly the way the defect itself was.
   ["the Total label colour", `${TOTALS_ROW}span.uir-label {`, "color", "var(--text-0)"],
-  ["the Total label weight", `${TOTALS_ROW}span.uir-label {`, "font-weight", "700"],
-  // The WRAPPER, whose generic .bgmd card sat behind the table painting its own
-  // grey fill, 10px radius and half-black shadow, with overflow:hidden clipping
-  // the table's shadow — every pin above read correct on the table while the
-  // rendered card still looked like the old design. Visual inspection found it;
-  // these hold it down. background-color carries !important to outrank the
-  // shared .bgmd group's own !important.
-  ["the wrapper's fill stand-down", "html:not(.ext-f) span.bgmd.totallingbg {", "background-color", "transparent"],
-  ["the wrapper's shadow stand-down", "html:not(.ext-f) span.bgmd.totallingbg {", "box-shadow", "none"],
-  ["the wrapper's clip stand-down", "html:not(.ext-f) span.bgmd.totallingbg {", "overflow", "visible"]
+  ["the Total label weight", `${TOTALS_ROW}span.uir-label {`, "font-weight", "700"]
 ]) {
   assert.equal(
     ruleValue(netsuiteStyles, `the totals box: ${what}`, selector, property),
@@ -2060,7 +2059,7 @@ await access(resolve(root, "save/SUITEMATE_V1_MASTER_FEATURE_INVENTORY.md"));
 const expectedStyleHashes = {
   "src/styles/font.css": "ecc7a99f6b820ee9290ab4a3ca2ff1ea4829c1a539c0d42becb19a3d5ea446cf",
   "src/styles/code.css": "e5607100c7432fd7028176ce74c4c999e181108861ea6b992ed3058d92d0d698",
-  "src/styles/netsuite.css": "ed2b427bde5d213893c928e9633fc7f8ce8235bc7658372c83d9cbbaca53a60f",
+  "src/styles/netsuite.css": "b055cfbe59da9297d43e1b3ed5940588698cc8631cff2b684a2746ebe4bf298c",
   "src/styles/pages/bundlebuilder.css": "bb9cae83f75b192d0a913233a33b6a8e557df656f7251a6e48e3105532e9f8fa",
   "src/styles/pages/codeeditor.css": "b58efb6517cfc13ca04cb621bdf269599ad9d6a589f38dee268743dda60f84df",
   "src/styles/pages/dashboard.css": "7c5cb547ce07074ed54d18b6bb7eb93d628099e7688dee6631ee24b9125e1b5f",
