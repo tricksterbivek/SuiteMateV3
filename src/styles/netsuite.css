@@ -5032,6 +5032,19 @@ html:not(.ext-f) .totallingtable .inputtotalling {
    NetSuite gives it no class of its own, and .inputtotalling marks summary amounts
    generally rather than that row. Row dividers replace .uir-totallingtable-seperator,
    which is hidden along with its cell's padding rather than left as a blank band. */
+
+/* The wrapper's generic .bgmd card must stand down HERE AND ONLY HERE: it paints a
+   second card behind this one (grey --theme-secondary-light fill, 10px radius, a
+   1px 1px 5px half-black shadow) whose smaller radius peeks out as grey corner
+   wedges, and its overflow:hidden clips the table's own shadow — every computed
+   value ON THE TABLE read correct while the rendered card still looked like the
+   old design. Scoped to .totallingbg so every other .bgmd keeps its treatment. */
+html:not(.ext-f) span.bgmd.totallingbg {
+    overflow: visible;
+    background-color: transparent !important;
+    box-shadow: none;
+    border-radius: 0
+}
 html:not(.ext-f) table.totallingtable {
     border-collapse: separate !important;
     border-spacing: 0 !important;
