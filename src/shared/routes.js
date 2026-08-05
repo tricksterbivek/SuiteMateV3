@@ -138,20 +138,7 @@
       };
     }
 
-    const path = normalizePath(value?.pathname);
-    const search = String(value?.search ?? "");
-    const hash = String(value?.hash ?? "");
-    const hostname = String(value?.hostname ?? "").toLowerCase();
-    const origin = String(value?.origin ?? "");
-    return {
-      href: String(value?.href ?? `${path}${search}${hash}`),
-      origin,
-      hostname,
-      path,
-      search,
-      hash,
-      allowedNetSuite: false
-    };
+    return { href: "", origin: "", hostname: "", path: "", search: "", hash: "", allowedNetSuite: false };
   }
 
   function isSuiteQLRoute(context) {

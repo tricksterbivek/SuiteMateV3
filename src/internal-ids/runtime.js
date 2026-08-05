@@ -78,48 +78,41 @@
     return badge;
   }
 
-  function appendBadge(container, identifier, kind) {
-    if (!container || container.querySelector?.(`:scope > ${OWNED_SELECTOR}[${OWNED_ATTRIBUTE}="${kind}"]`)) {
+  function placeBadge(target, identifier, kind, placement) {
+    if (!target) {
+      return false;
+    }
+    const owned = `${OWNED_SELECTOR}[${OWNED_ATTRIBUTE}="${kind}"]`;
+    const duplicate = placement === "append"
+      ? target.querySelector?.(`:scope > ${owned}`)
+      : (placement === "after" ? target.nextElementSibling : target.previousElementSibling)?.matches?.(owned);
+    if (duplicate) {
       return false;
     }
     const badge = createBadge(identifier, kind);
     if (!badge) {
       return false;
     }
-    container.append(badge);
+    if (placement === "append") {
+      target.append(badge);
+    } else if (placement === "after") {
+      target.after(badge);
+    } else {
+      target.before(badge);
+    }
     return true;
+  }
+
+  function appendBadge(container, identifier, kind) {
+    return placeBadge(container, identifier, kind, "append");
   }
 
   function insertBadgeAfter(target, identifier, kind) {
-    if (!target) {
-      return false;
-    }
-    const next = target.nextElementSibling;
-    if (next?.matches?.(`${OWNED_SELECTOR}[${OWNED_ATTRIBUTE}="${kind}"]`)) {
-      return false;
-    }
-    const badge = createBadge(identifier, kind);
-    if (!badge) {
-      return false;
-    }
-    target.after(badge);
-    return true;
+    return placeBadge(target, identifier, kind, "after");
   }
 
   function insertBadgeBefore(target, identifier, kind) {
-    if (!target) {
-      return false;
-    }
-    const previous = target.previousElementSibling;
-    if (previous?.matches?.(`${OWNED_SELECTOR}[${OWNED_ATTRIBUTE}="${kind}"]`)) {
-      return false;
-    }
-    const badge = createBadge(identifier, kind);
-    if (!badge) {
-      return false;
-    }
-    target.before(badge);
-    return true;
+    return placeBadge(target, identifier, kind, "before");
   }
 
   function decorateFields() {

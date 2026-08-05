@@ -91,7 +91,7 @@ test("migrates legacy appearance and role themes without changing their meaning"
     })
   });
 
-  const migrated = api.migrate(legacy);
+  const migrated = api.normalize(legacy);
   assert.deepEqual(plain(migrated), {
     schemaVersion: 6,
     enabled: false,
@@ -114,13 +114,13 @@ test("migrates legacy appearance and role themes without changing their meaning"
       }
     }
   });
-  assert.deepEqual(plain(api.migrate(migrated)), plain(migrated));
+  assert.deepEqual(plain(api.normalize(migrated)), plain(migrated));
   assert.equal(Object.hasOwn(legacy, "schemaVersion"), false, "Migration mutated the legacy object");
 });
 
 test("migrates schema 1 settings and preserves an explicit Internal IDs preference", () => {
   const { api } = createHarness();
-  assert.deepEqual(plain(api.migrate({
+  assert.deepEqual(plain(api.normalize({
     schemaVersion: 1,
     enabled: true,
     mode: "dark",
@@ -143,7 +143,7 @@ test("migrates schema 1 settings and preserves an explicit Internal IDs preferen
 
 test("migrates schema 2 settings and preserves an explicit column personalization preference", () => {
   const { api } = createHarness();
-  assert.deepEqual(plain(api.migrate({
+  assert.deepEqual(plain(api.normalize({
     schemaVersion: 2,
     enabled: true,
     mode: "dark",
@@ -385,7 +385,7 @@ test("migrates schema 5 to 6 by adding the edit-mode grid flag", () => {
     formViews: true,
     roleThemes: {}
   };
-  const migrated = api.migrate(v5);
+  const migrated = api.normalize(v5);
   assert.equal(migrated.schemaVersion, 6);
   assert.equal(migrated.salesOrderColumnsEdit, false);
   assert.equal(migrated.salesOrderColumns, true);

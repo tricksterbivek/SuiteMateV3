@@ -8,6 +8,15 @@ import { runInNewContext } from "node:vm";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8"));
 
+function makeSandbox(globals, ...sources) {
+  const sandbox = { ...globals };
+  sandbox.globalThis = sandbox;
+  for (const source of sources) {
+    runInNewContext(source, sandbox);
+  }
+  return sandbox;
+}
+
 assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.name, "SuiteMate V3");
 assert.equal(manifest.version, "3.25.0");
@@ -136,7 +145,7 @@ assert.match(
 assert.equal((popupHtml.match(/class="role-color" type="hidden"/g) ?? []).length, 2, "The canonical Main and Secondary values changed");
 assert.match(popupHtml, /id="mainColorTrigger"[^>]*aria-haspopup="dialog"/, "The Main unified picker trigger is missing");
 assert.match(popupHtml, /id="secondaryColorTrigger"[^>]*aria-haspopup="dialog"/, "The Secondary unified picker trigger is missing");
-assert.match(popupHtml, /id="colorPickerModal"[\s\S]*?role="dialog"[\s\S]*?aria-modal="true"/, "The unified picker is not an accessible modal");
+assert.match(popupHtml, /<dialog\s+id="colorPickerModal"[\s\S]*?aria-labelledby="colorPickerTitle"/, "The unified picker is not a native dialog");
 assert.match(popupHtml, /id="pickerMaterialShades"/, "Material shades are not contained inside the unified picker");
 assert.match(popupHtml, /id="settingsTransfer"[\s\S]*?id="settingsBackupData"[\s\S]*?id="exportSettings"[\s\S]*?id="importSettings"/, "The settings backup controls are missing or out of order");
 assert.match(popupHtml, /<script src="\.\.\/shared\/settings\.js"><\/script>\s*<script src="\.\.\/shared\/settings-transfer\.js"><\/script>/, "Settings transfer does not load after the schema authority");
@@ -268,23 +277,18 @@ assert.match(browserUtilitySource, /clipboard\.writeText\(text\)/, "Clipboard wr
 assert.match(browserUtilitySource, /urlApi\?\.revokeObjectURL/, "Blob download URLs are not revoked");
 
 const routeSource = await readFile(resolve(root, "src/shared/routes.js"), "utf8");
-const routeSandbox = { URL, URLSearchParams };
-routeSandbox.globalThis = routeSandbox;
-runInNewContext(routeSource, routeSandbox);
+const routeSandbox = makeSandbox({ URL, URLSearchParams }, routeSource);
 const routeApi = routeSandbox.SuiteMateV3Routes;
 
 const commandSource = await readFile(resolve(root, "src/shared/commands.js"), "utf8");
 assert.doesNotMatch(commandSource, /function deepFreeze/, "Commands retain a private deep-freeze implementation");
-const commandSandbox = {
+const commandSandbox = makeSandbox({
   URL,
   URLSearchParams,
   SuiteMateV3Routes: routeApi,
   navigator: { platform: "MacIntel" },
   console
-};
-commandSandbox.globalThis = commandSandbox;
-runInNewContext(utilitySource, commandSandbox);
-runInNewContext(commandSource, commandSandbox);
+}, utilitySource, commandSource);
 const commandApi = commandSandbox.SuiteMateV3Commands;
 assert.equal(commandApi.VERSION, 2);
 assert.equal(commandApi.IDS.SUITEQL_EXECUTE, "suiteql.execute");
@@ -313,17 +317,14 @@ assert.match(bridgeSource, /UNSUPPORTED_BRIDGE_VERSION/, "Bridge protocol versio
 assert.match(bridgeSource, /BRIDGE_RESPONSE_MISMATCH/, "Stale bridge responses are not rejected");
 assert.match(bridgeSource, /DUPLICATE_BRIDGE_REQUEST/, "Duplicate in-flight bridge requests are not rejected");
 assert.doesNotMatch(bridgeSource, /PlatformClientScriptHandler|queryApiBridge|N\/currentRecord/, "The shared bridge contains feature-specific NetSuite adapters");
-const bridgeSandbox = {
+const bridgeSandbox = makeSandbox({
   URL,
   URLSearchParams,
   AbortController,
   setTimeout,
   clearTimeout,
   SuiteMateV3Routes: routeApi
-};
-bridgeSandbox.globalThis = bridgeSandbox;
-runInNewContext(utilitySource, bridgeSandbox);
-runInNewContext(bridgeSource, bridgeSandbox);
+}, utilitySource, bridgeSource);
 const bridgeApi = bridgeSandbox.SuiteMateV3Bridge;
 assert.equal(bridgeApi.VERSION, 2);
 assert.equal(bridgeApi.COMMANDS.SUITEQL_START, "suiteql.start");
@@ -354,7 +355,6 @@ assert.match(
 );
 const popupSource = await readFile(resolve(root, "src/popup/popup.js"), "utf8");
 assert.match(popupSource, /browserUtilityApi\.notices\.create/, "Popup status bypasses the shared notice controller");
-assert.match(popupSource, /browserUtilityApi\.modals\.create/, "The unified picker bypasses the shared modal controller");
 assert.match(popupSource, /addEventListener\("input"/, "Color input does not trigger live preview");
 assert.match(popupSource, /addEventListener\("pagehide"/, "Pending live colors are not flushed when the popup closes");
 assert.match(popupSource, /commandApi\.createScope\(commandApi\.SURFACES\.POPUP/, "The popup does not use the shared command scope");
@@ -374,8 +374,8 @@ assert.match(popupSource, /requestAnimationFrame/, "Pointer movement is not coal
 assert.match(popupSource, /saveRoleColors\(\{ \[picker\.colorName\]: picker\.input\.value \}\)/, "Closing the unified picker does not flush its final value");
 assert.match(
   popupSource,
-  /colorPickerModalController\.show\(\{ trigger, initialFocus: colorPlane \}\)/,
-  "The unified picker does not use the shared modal focus and inert controller"
+  /colorPickerModal\.showModal\(\)/,
+  "The unified picker does not open through the native dialog top layer"
 );
 assert.match(
   popupSource,
@@ -469,7 +469,7 @@ let notificationClickHandler;
 let notificationRemoved = false;
 const notificationClasses = new Set();
 const notificationRootClasses = new Set();
-const notificationSandbox = {
+const notificationSandbox = makeSandbox({
   SuiteMateV3Routes: routeApi,
   location: {
     pathname: "/app/center/card.nl",
@@ -494,9 +494,8 @@ const notificationSandbox = {
     callback();
     return 1;
   }
-};
+});
 notificationSandbox.top = notificationSandbox;
-notificationSandbox.globalThis = notificationSandbox;
 runInNewContext(notificationRuntimeSource, notificationSandbox);
 const notificationApi = notificationSandbox.SuiteMateV3Notifications;
 
@@ -544,9 +543,7 @@ assert.doesNotMatch(notificationStyles, /html:not\(\.ext-f\)/, "Owned toast styl
 const recordActionsCoreSource = await readFile(resolve(root, "src/record-actions/core.js"), "utf8");
 assert.doesNotMatch(recordActionsCoreSource, /isAllowedSender/, "Record actions retain a duplicate sender policy");
 assert.doesNotMatch(recordActionsCoreSource, /hostname\.endsWith|extforms\.netsuite/, "Record actions retain a duplicate host policy");
-const recordActionsSandbox = { URL, URLSearchParams, SuiteMateV3Routes: routeApi };
-recordActionsSandbox.globalThis = recordActionsSandbox;
-runInNewContext(recordActionsCoreSource, recordActionsSandbox);
+const recordActionsSandbox = makeSandbox({ URL, URLSearchParams, SuiteMateV3Routes: routeApi }, recordActionsCoreSource);
 const recordActionsCore = recordActionsSandbox.SuiteMateV3RecordActionsCore;
 
 assert.equal(recordActionsCore.normalizeRecordType(" SalesOrder "), "salesorder");
@@ -686,9 +683,7 @@ assert.match(salesOrderFixtureSource, /class="fixture-actions uir-buttons-top ui
 const importAssistantCoreSource = await readFile(resolve(root, "src/import-assistant/core.js"), "utf8");
 assert.doesNotMatch(importAssistantCoreSource, /isAllowedSender/, "Import Assistant retains a duplicate sender policy");
 assert.doesNotMatch(importAssistantCoreSource, /hostname\.endsWith|extforms\.netsuite/, "Import Assistant retains a duplicate host policy");
-const importAssistantSandbox = { URL, SuiteMateV3Routes: routeApi };
-importAssistantSandbox.globalThis = importAssistantSandbox;
-runInNewContext(importAssistantCoreSource, importAssistantSandbox);
+const importAssistantSandbox = makeSandbox({ URL, SuiteMateV3Routes: routeApi }, importAssistantCoreSource);
 const importAssistantCore = importAssistantSandbox.SuiteMateV3ImportAssistantCore;
 assert.equal(importAssistantCore.resolveStaticCategory("salesorder"), "TRANSACTION");
 assert.equal(importAssistantCore.resolveStaticCategory("noninventorysaleitem"), "ITEM");
@@ -1137,10 +1132,7 @@ assert.match(settingsTransferSource, /settingsApi\.validateForStorage/, "Setting
 assert.match(settingsTransferSource, /TextEncoder/, "Settings export is not Unicode safe");
 assert.match(settingsTransferSource, /TextDecoder\("utf-8", \{ fatal: true \}\)/, "Settings import does not reject malformed UTF-8");
 assert.doesNotMatch(settingsSource, /function normalizeHexColor|function utf8ByteLength/, "Settings retain duplicated shared primitives");
-const settingsSandbox = {};
-settingsSandbox.globalThis = settingsSandbox;
-runInNewContext(utilitySource, settingsSandbox);
-runInNewContext(settingsSource, settingsSandbox);
+const settingsSandbox = makeSandbox({}, utilitySource, settingsSource);
 const settingsApi = settingsSandbox.SuiteMateV3Settings;
 assert.equal(settingsApi.THEME_PREVIEW_MESSAGE, "SUITEMATE_V3_PREVIEW_ROLE_THEME");
 assert.equal(settingsApi.SCHEMA_VERSION, 6);
@@ -1212,10 +1204,7 @@ assert.doesNotMatch(
   /function normalizeHexColor/,
   "The Material palette retains a private hex normalizer"
 );
-const materialPaletteSandbox = {};
-materialPaletteSandbox.globalThis = materialPaletteSandbox;
-runInNewContext(utilitySource, materialPaletteSandbox);
-runInNewContext(materialPaletteSource, materialPaletteSandbox);
+const materialPaletteSandbox = makeSandbox({}, utilitySource, materialPaletteSource);
 const { generateMaterialShades } = materialPaletteSandbox.SuiteMateV3MaterialPalette;
 const materialShades = generateMaterialShades("#6269e7");
 assert.equal(materialShades.source, "#6269e7");
@@ -1255,10 +1244,7 @@ assert.notEqual(generateMaterialShades("#ffffff").source, generateMaterialShades
 const coreSource = await readFile(resolve(root, "src/suiteql/core.js"), "utf8");
 assert.doesNotMatch(coreSource, /isAllowedSender/, "SuiteQL Core retains a duplicate sender policy");
 assert.doesNotMatch(coreSource, /host\.endsWith|extforms\.netsuite/, "SuiteQL retains a duplicate host policy");
-const coreSandbox = { URL, Date, SuiteMateV3Routes: routeApi };
-coreSandbox.globalThis = coreSandbox;
-runInNewContext(utilitySource, coreSandbox);
-runInNewContext(coreSource, coreSandbox);
+const coreSandbox = makeSandbox({ URL, Date, SuiteMateV3Routes: routeApi }, utilitySource, coreSource);
 const suiteqlCore = coreSandbox.SuiteMateV3SuiteQLCore;
 const studioUrl = "https://123456.app.netsuite.com/app/common/search/ubersearchresults.nl?suiteql";
 
@@ -1581,7 +1567,7 @@ const mainWorldWindow = {
     }
   }
 };
-const backgroundSandbox = {
+const backgroundSandbox = makeSandbox({
   URL,
   URLSearchParams,
   SuiteMateV3Routes: routeApi,
@@ -1626,10 +1612,7 @@ const backgroundSandbox = {
       }
     }
   }
-};
-backgroundSandbox.globalThis = backgroundSandbox;
-runInNewContext(dataAdapterSource, backgroundSandbox);
-runInNewContext(backgroundSource, backgroundSandbox);
+}, dataAdapterSource, backgroundSource);
 assert.equal(
   backgroundMessageListener(
     { type: "SUITEMATE_V3_SUITEQL_START", requestId: "legacy-message" },
