@@ -589,12 +589,14 @@
   }
 
   chrome.storage.onChanged.addListener(handleStorageChange);
-  globalThis.addEventListener("pagehide", () => {
-    disposed = true;
-    disableFeature();
-    historyWatcher.dispose("pagehide");
-    chrome.storage.onChanged.removeListener(handleStorageChange);
-  }, { once: true });
+  globalThis.addEventListener("pagehide", (event) => {
+    if (!event.persisted) {
+      disposed = true;
+      disableFeature();
+      historyWatcher.dispose("pagehide");
+      chrome.storage.onChanged.removeListener(handleStorageChange);
+    }
+  });
 
   void start();
 })();

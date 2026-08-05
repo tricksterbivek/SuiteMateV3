@@ -7,6 +7,7 @@ import { runInNewContext } from "node:vm";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const source = await readFile(resolve(root, "src/recent-records/core.js"), "utf8");
+const runtimeSource = await readFile(resolve(root, "src/recent-records/runtime.js"), "utf8");
 const sandbox = { URL };
 sandbox.globalThis = sandbox;
 runInNewContext(source, sandbox);
@@ -131,6 +132,16 @@ test("parses NetSuite dates and assigns calendar groups", () => {
   assert.equal(core.groupForTimestamp(new Date(2026, 7, 5, 9).getTime(), now), "Yesterday");
   assert.equal(core.groupForTimestamp(new Date(2026, 7, 2, 9).getTime(), now), "This week");
   assert.equal(core.groupForTimestamp(new Date(2026, 6, 1, 9).getTime(), now), "Older");
+});
+
+test("treats a future time-only recent record as yesterday", () => {
+  const now = new Date(2026, 7, 6, 8, 0).getTime();
+  assert.equal(core.parseRecentDate("11:34 PM", now), new Date(2026, 7, 5, 23, 34).getTime());
+});
+
+test("keeps the runtime alive when the page enters the back-forward cache", () => {
+  assert.match(runtimeSource, /pagehide", \(event\) => \{\s*if \(!event\.persisted\)/);
+  assert.doesNotMatch(runtimeSource, /pagehide"[\s\S]*?\}, \{ once: true \}\)/);
 });
 
 test("the core has no DOM, Chrome storage or network authority", () => {

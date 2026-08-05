@@ -278,7 +278,14 @@
       if (suffix === "PM" && hour < 12) hour += 12;
       if (suffix === "AM" && hour === 12) hour = 0;
       const candidate = new Date(current.getFullYear(), current.getMonth(), current.getDate(), hour, minute);
-      return Number.isFinite(candidate.getTime()) ? candidate.getTime() : 0;
+      const timestamp = candidate.getTime();
+      if (!Number.isFinite(timestamp)) {
+        return 0;
+      }
+      if (timestamp > now) {
+        candidate.setDate(candidate.getDate() - 1);
+      }
+      return candidate.getTime();
     }
     const numeric = text.match(/^(\d{1,4})[./-](\d{1,2})[./-](\d{1,4})(?:\s+(.*))?$/);
     if (numeric) {
