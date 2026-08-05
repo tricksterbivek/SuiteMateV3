@@ -8,6 +8,7 @@ import { runInNewContext } from "node:vm";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const source = await readFile(resolve(root, "src/recent-records/core.js"), "utf8");
 const runtimeSource = await readFile(resolve(root, "src/recent-records/runtime.js"), "utf8");
+const styleSource = await readFile(resolve(root, "src/recent-records/recent-records.css"), "utf8");
 const sandbox = { URL };
 sandbox.globalThis = sandbox;
 runInNewContext(source, sandbox);
@@ -142,6 +143,37 @@ test("treats a future time-only recent record as yesterday", () => {
 test("keeps the runtime alive when the page enters the back-forward cache", () => {
   assert.match(runtimeSource, /pagehide", \(event\) => \{\s*if \(!event\.persisted\)/);
   assert.doesNotMatch(runtimeSource, /pagehide"[\s\S]*?\}, \{ once: true \}\)/);
+});
+
+test("matches the reference hover activation behavior", () => {
+  assert.match(runtimeSource, /const ACTIVATION_THROTTLE_MS = 200;/);
+  assert.doesNotMatch(runtimeSource, /ACTIVATION_DELAY_MS|activationTimer/);
+  assert.match(runtimeSource, /now - lastActivationAt < ACTIVATION_THROTTLE_MS/);
+  assert.match(runtimeSource, /void refreshSnapshot\(\);\s*void lifecycleApi\.waitFor/);
+  assert.match(runtimeSource, /if \(fetchController\) \{\s*return;\s*\}/);
+  assert.match(
+    runtimeSource,
+    /popover\.getAttribute\(INJECTED_ATTRIBUTE\) === "true"[\s\S]*?renderActivePanel\(\)/
+  );
+});
+
+test("renders the reference-quality Recent Records panel structure", () => {
+  for (const token of [
+    "createSvgIcon",
+    "suitemate-v3-rr-search-icon",
+    "suitemate-v3-rr-allbar",
+    "suitemate-v3-rr-group-title-pinned",
+    "suitemate-v3-rr-action-view",
+    "suitemate-v3-rr-action-edit",
+    "suitemate-v3-rr-action-pin"
+  ]) {
+    assert.match(runtimeSource, new RegExp(token));
+  }
+  assert.match(styleSource, /width: min\(480px, calc\(100vw - 24px\)\)/);
+  assert.match(styleSource, /height: min\(480px, calc\(100vh - 40px\)\)/);
+  assert.match(styleSource, /\.suitemate-v3-rr-group-title \{[\s\S]*?position: sticky;/);
+  assert.match(styleSource, /\.suitemate-v3-rr-row:hover \.suitemate-v3-rr-row-actions/);
+  assert.match(styleSource, /\.suitemate-v3-rr-action-pin\.is-pinned svg/);
 });
 
 test("the core has no DOM, Chrome storage or network authority", () => {
