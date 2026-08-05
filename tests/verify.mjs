@@ -1023,6 +1023,23 @@ for (const [what, sites] of Object.entries({
     );
   }
 }
+// The uif top nav's CURRENT SECTION marker — the same orphaned-main-light
+// defect as .formtabon, on a surface found live only after the tab fix
+// shipped (the classic account's top bar is the uif MenuBar, not tab markup,
+// so no fixture renders it). Pinned to the SAME blend the tab surfaces carry:
+// the equality block above proves the tab copies agree with each other, and
+// this ties the nav to that family, so a treatment change that skips one
+// surface fails here instead of shipping another two-tone chrome.
+assert.equal(
+  ruleValue(
+    netsuiteStyles,
+    "the uif nav current section",
+    "html:not(.ext-f) [data-header-section=navigation] [data-widget=MenuBar] [data-widget=MenuGroup]>[data-widget=MenuItem][data-highlighted=true] {",
+    "background-color"
+  ),
+  ruleValue(compatibilityStyles, "v3-compat.css", "html:not(.ext-f) .uir-tab-list-tabs .formtabon {", "background-color"),
+  "The uif nav's current-section fill is not the tab family's active blend"
+);
 // ===== Transaction totals box =====
 // EVERY value here goes through ruleValue, not a bare assert.match. Existence
 // matching answers "does the sheet say this anywhere", which an APPENDED
@@ -2059,7 +2076,7 @@ await access(resolve(root, "save/SUITEMATE_V1_MASTER_FEATURE_INVENTORY.md"));
 const expectedStyleHashes = {
   "src/styles/font.css": "ecc7a99f6b820ee9290ab4a3ca2ff1ea4829c1a539c0d42becb19a3d5ea446cf",
   "src/styles/code.css": "e5607100c7432fd7028176ce74c4c999e181108861ea6b992ed3058d92d0d698",
-  "src/styles/netsuite.css": "aeda8bc44e7bc05cd4427e5f4e3b372e494c894212a2588f2bf4abcc3c50b89e",
+  "src/styles/netsuite.css": "75f76a65cbf88534c67e12bda4276bf3a71ce0cbadbc3fd4dbf64c91c5fe3def",
   "src/styles/pages/bundlebuilder.css": "bb9cae83f75b192d0a913233a33b6a8e557df656f7251a6e48e3105532e9f8fa",
   "src/styles/pages/codeeditor.css": "b58efb6517cfc13ca04cb621bdf269599ad9d6a589f38dee268743dda60f84df",
   "src/styles/pages/dashboard.css": "caedaa535b9bd516a977cdbb9f85de0f42d04e2e7f59a13f41996101dc0db7b5",

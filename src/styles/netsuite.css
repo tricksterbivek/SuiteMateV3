@@ -4674,11 +4674,21 @@ html:not(.ext-f) [data-widget=WindowTitleBar] {
     background-color: var(--theme-main) !important
 }
 
-html:not(.ext-f) [data-header-section=navigation] [data-widget=MenuBar] [data-widget=MenuGroup]>[data-widget=MenuItem][data-highlighted=true],
 html:not(.ext-f) .style-default.n-w-calendar-day--selectable:hover:not(:active),
 html:not(.ext-f) :is(.n-w-calendar-title.style-default, .n-w-spinner.style-calendar-default)>.n-w-button:hover,
 html:not(.ext-f) [data-widget=Calendar] :is([data-widget=CalendarDay], [data-widget=CalendarMonth], [data-widget=CalendarYear]):hover:not(:active) {
     background-color: var(--theme-main-light) !important
+}
+
+/* CURRENT SECTION in the uif top nav (data-highlighted persists on the section
+   the open page belongs to; it is not a hover marker — the open-menu state
+   below carries aria-expanded and its own dark fill). This used to sit in the
+   --theme-main-light group above, the same orphaned grey-derivative that made
+   .formtabon a "dull grey block": one more surface of the SAME defect, found
+   live after the subtab fix shipped. Same deep same-hue blend as the tabs so
+   the whole chrome uses one active treatment. */
+html:not(.ext-f) [data-header-section=navigation] [data-widget=MenuBar] [data-widget=MenuGroup]>[data-widget=MenuItem][data-highlighted=true] {
+    background-color: color-mix(in srgb, var(--theme-main), #000 32%) !important
 }
 
 html:not(.ext-f) [data-header-section=navigation] [data-widget=MenuBar] [data-widget=MenuGroup]>[data-widget=MenuItem]:is([aria-selected=true], [aria-expanded=true]) {
