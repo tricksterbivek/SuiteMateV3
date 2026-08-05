@@ -101,7 +101,6 @@
     "capability",
     "shortcut",
     "allowInEditable",
-    "allowRepeat",
     "consumeWhenUnavailable",
     "requiresSettingsEnabled",
     "link"
@@ -496,7 +495,6 @@
         description: raw.description.trim(),
         shortcut: raw.shortcut ? normalizeShortcut(raw.shortcut) : null,
         allowInEditable: raw.allowInEditable === true,
-        allowRepeat: raw.allowRepeat === true,
         consumeWhenUnavailable: raw.consumeWhenUnavailable === true,
         requiresSettingsEnabled: raw.requiresSettingsEnabled === true,
         link: raw.link ? { ...raw.link } : null
@@ -606,7 +604,7 @@
     if (!normalizedShortcut || event?.defaultPrevented || event?.isComposing) {
       return false;
     }
-    if (event.repeat && options.allowRepeat !== true) {
+    if (event.repeat) {
       return false;
     }
     if (event.getModifierState?.("AltGraph")) {
@@ -638,8 +636,7 @@
       definition?.shortcut
       && matchesShortcutValue(event, definition.shortcut, {
         ...options,
-        allowInEditable: definition.allowInEditable,
-        allowRepeat: definition.allowRepeat
+        allowInEditable: definition.allowInEditable
       })
     );
   }
@@ -679,7 +676,6 @@
     }
 
     const registrations = new Map();
-    const subscribers = new Set();
     let disposed = false;
     let shortcutBinding = null;
 
@@ -695,20 +691,6 @@
       } catch (error) {
         report("context", "", error);
         return null;
-      }
-    }
-
-    function emit(id) {
-      if (subscribers.size === 0) {
-        return;
-      }
-      const state = getState(id);
-      for (const subscriber of [...subscribers]) {
-        try {
-          subscriber(state);
-        } catch (error) {
-          report("subscriber", id, error);
-        }
       }
     }
 
@@ -743,7 +725,6 @@
         runningCount: 0
       };
       registrations.set(id, registration);
-      emit(id);
 
       let active = true;
       return () => {
@@ -752,7 +733,6 @@
         }
         active = false;
         registrations.delete(id);
-        emit(id);
         return true;
       };
     }
@@ -834,7 +814,6 @@
     function finish(registration, id) {
       if (registrations.get(id) === registration) {
         registration.runningCount = Math.max(0, registration.runningCount - 1);
-        emit(id);
       }
     }
 
@@ -880,7 +859,6 @@
       }
 
       registration.runningCount += 1;
-      emit(id);
       if (disposed || registrations.get(id) !== registration) {
         return failedResult(
           id,
@@ -936,21 +914,6 @@
       }
       finish(registration, id);
       return successfulResult(id, outcome);
-    }
-
-    function subscribe(callback) {
-      if (typeof callback !== "function" || disposed) {
-        return () => false;
-      }
-      subscribers.add(callback);
-      let active = true;
-      return () => {
-        if (!active) {
-          return false;
-        }
-        active = false;
-        return subscribers.delete(callback);
-      };
     }
 
     function bindShortcuts(target, ids, bindingOptions = {}) {
@@ -1028,7 +991,6 @@
       disposed = true;
       shortcutBinding?.handle.dispose();
       registrations.clear();
-      subscribers.clear();
       return true;
     }
 
@@ -1038,7 +1000,6 @@
       invoke,
       getState,
       isAvailable: evaluateAvailability,
-      subscribe,
       bindShortcuts,
       dispose
     });
@@ -1074,7 +1035,6 @@
     getShortcut,
     normalizeShortcut,
     detectPlatform,
-    resolveShortcut,
     shortcutSignature,
     toEditorShortcut,
     toAriaShortcut,

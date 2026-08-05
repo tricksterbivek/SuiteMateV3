@@ -4,7 +4,6 @@
   const VERSION = 3;
   const REQUEST_EVENT = "suitemate:v3:csv-export:request";
   const RESULT_EVENT = "suitemate:v3:csv-export:result";
-  const ACTION_ID = "suitemate-v3-csv-utils-export";
   const ACTION_SELECTOR = '[data-suitemate-v3-action="csv-utils-export"]';
   const TEMPLATE_ACTION_SELECTOR =
     '[data-suitemate-v3-action="csv-utils-template"]';
@@ -382,7 +381,6 @@
     VERSION,
     REQUEST_EVENT,
     RESULT_EVENT,
-    ACTION_ID,
     ACTION_SELECTOR,
     TEMPLATE_ACTION_SELECTOR,
     CANDIDATE_SUBLISTS,

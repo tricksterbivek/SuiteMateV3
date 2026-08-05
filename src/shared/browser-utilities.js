@@ -6,9 +6,6 @@
   const MAX_CLIPBOARD_BYTES = 10000000;
   const NOTICE_TYPES = Object.freeze(["info", "success", "warning", "error", "loading"]);
 
-  if (globalScope.SuiteMateV3BrowserUtilities?.VERSION === VERSION) {
-    return;
-  }
   if (globalScope.SuiteMateV3BrowserUtilities !== undefined || !utilityApi) {
     return;
   }
@@ -27,7 +24,6 @@
   function createClipboard(options = {}) {
     const clipboard = options.clipboard ?? globalScope.navigator?.clipboard;
     let disposed = false;
-    let generation = 0;
 
     function writeText(value) {
       if (disposed) {
@@ -51,7 +47,6 @@
         ));
       }
 
-      const operationGeneration = generation;
       let pending;
       try {
         pending = clipboard.writeText(text);
@@ -66,10 +61,10 @@
       }
 
       return Promise.resolve(pending).then(
-        () => disposed || operationGeneration !== generation
+        () => disposed
           ? failure("CLIPBOARD_DISPOSED", "The clipboard adapter was disposed before completion.")
           : success({ method: "clipboard", byteLength }),
-        (error) => disposed || operationGeneration !== generation
+        (error) => disposed
           ? failure("CLIPBOARD_DISPOSED", "The clipboard adapter was disposed before completion.")
           : Object.freeze({
               ok: false,
@@ -86,7 +81,6 @@
         return false;
       }
       disposed = true;
-      generation += 1;
       return true;
     }
 
@@ -99,9 +93,6 @@
     const BlobClass = options.BlobClass ?? globalScope.Blob;
     const setTimeoutFn = options.setTimeoutFn ?? globalScope.setTimeout;
     const clearTimeoutFn = options.clearTimeoutFn ?? globalScope.clearTimeout;
-    const revokeDelayMs = Number.isFinite(options.revokeDelayMs)
-      ? Math.max(0, options.revokeDelayMs)
-      : 1000;
     const pendingRevocations = new Map();
     let disposed = false;
 
@@ -119,12 +110,12 @@
     }
 
     function scheduleRevoke(url) {
-      if (typeof setTimeoutFn !== "function" || revokeDelayMs === 0) {
+      if (typeof setTimeoutFn !== "function") {
         revoke(url);
         return;
       }
       try {
-        const timer = setTimeoutFn(() => revoke(url), revokeDelayMs);
+        const timer = setTimeoutFn(() => revoke(url), 1000);
         pendingRevocations.set(url, timer);
       } catch {
         revoke(url);
@@ -444,142 +435,12 @@
     });
   }
 
-  function createXmlFormatter(options = {}) {
-    const DOMParserClass = options.DOMParserClass ?? globalScope.DOMParser;
-    const XMLSerializerClass = options.XMLSerializerClass ?? globalScope.XMLSerializer;
-
-    function format(value, formatOptions = {}) {
-      const text = utilityApi.safeString(value);
-      const maximumBytes = Number.isSafeInteger(formatOptions.maxBytes) && formatOptions.maxBytes > 0
-        ? Math.min(formatOptions.maxBytes, utilityApi.LIMITS.MAX_FORMAT_BYTES)
-        : utilityApi.LIMITS.MAX_FORMAT_BYTES;
-      const indentation = Number.isInteger(formatOptions.indentation)
-        ? " ".repeat(Math.min(8, Math.max(0, formatOptions.indentation)))
-        : "  ";
-      if (utilityApi.utf8ByteLength(text) > maximumBytes) {
-        return Object.freeze({
-          ok: false,
-          language: "xml",
-          text: "",
-          error: utilityApi.normalizeError({
-            code: "FORMAT_INPUT_TOO_LARGE",
-            message: `XML formatting is limited to ${maximumBytes.toLocaleString()} bytes.`
-          })
-        });
-      }
-      if (/<!DOCTYPE\b|<!ENTITY\b/i.test(text)) {
-        return Object.freeze({
-          ok: false,
-          language: "xml",
-          text: "",
-          error: utilityApi.normalizeError({
-            code: "UNSAFE_XML_DECLARATION",
-            message: "XML document type and entity declarations are not supported."
-          })
-        });
-      }
-      if (typeof DOMParserClass !== "function" || typeof XMLSerializerClass !== "function") {
-        return Object.freeze({
-          ok: false,
-          language: "xml",
-          text: "",
-          error: utilityApi.normalizeError({
-            code: "XML_FORMATTER_UNAVAILABLE",
-            message: "XML formatting is unavailable in this browser context."
-          })
-        });
-      }
-
-      try {
-        const documentRef = new DOMParserClass().parseFromString(text, "application/xml");
-        const parserErrors = documentRef?.getElementsByTagName?.("parsererror");
-        if (!documentRef?.documentElement || parserErrors?.length) {
-          return Object.freeze({
-            ok: false,
-            language: "xml",
-            text: "",
-            error: utilityApi.normalizeError({
-              code: "INVALID_XML",
-              message: "The value is not valid XML."
-            })
-          });
-        }
-        const serializer = new XMLSerializerClass();
-        const declaration = text.match(/^\s*(<\?xml[^?]*\?>)/i)?.[1] || "";
-
-        function renderNode(node, depth) {
-          const prefix = indentation.repeat(depth);
-          if (node.nodeType !== 1) {
-            return `${prefix}${serializer.serializeToString(node).trim()}`;
-          }
-          const children = [...(node.childNodes ?? [])];
-          if (!children.length) {
-            return `${prefix}${serializer.serializeToString(node)}`;
-          }
-          const significantText = children.some((child) => child.nodeType === 3 && child.textContent?.trim());
-          const structuredChildren = children.some((child) => child.nodeType === 1 || child.nodeType === 8);
-          if (significantText && structuredChildren) {
-            return `${prefix}${serializer.serializeToString(node)}`;
-          }
-          const shallow = node.cloneNode(false);
-          const shallowText = serializer.serializeToString(shallow);
-          const opening = shallowText.replace(/\s*\/>$/, ">");
-          const closing = `</${node.nodeName}>`;
-          if (!structuredChildren) {
-            const content = children.map((child) => serializer.serializeToString(child)).join("");
-            return `${prefix}${opening}${content}${closing}`;
-          }
-          const renderedChildren = children
-            .filter((child) => child.nodeType !== 3 || child.textContent?.trim())
-            .map((child) => renderNode(child, depth + 1));
-          return [`${prefix}${opening}`, ...renderedChildren, `${prefix}${closing}`].join("\n");
-        }
-
-        const rendered = [...(documentRef.childNodes ?? [])]
-          .filter((node) => node.nodeType !== 7 || !/^xml$/i.test(node.nodeName || ""))
-          .map((node) => renderNode(node, 0))
-          .filter(Boolean);
-        if (declaration && !rendered[0]?.startsWith("<?xml")) {
-          rendered.unshift(declaration);
-        }
-        const formatted = rendered.join("\n");
-        if (utilityApi.utf8ByteLength(formatted) > maximumBytes) {
-          return Object.freeze({
-            ok: false,
-            language: "xml",
-            text: "",
-            error: utilityApi.normalizeError({
-              code: "FORMAT_OUTPUT_TOO_LARGE",
-              message: `Formatted XML is limited to ${maximumBytes.toLocaleString()} bytes.`
-            })
-          });
-        }
-        return Object.freeze({ ok: true, language: "xml", text: formatted, error: null });
-      } catch (error) {
-        return Object.freeze({
-          ok: false,
-          language: "xml",
-          text: "",
-          error: utilityApi.normalizeError(error, {
-            fallbackCode: "XML_FORMAT_FAILED",
-            fallbackMessage: "XML formatting failed."
-          })
-        });
-      }
-    }
-
-    return Object.freeze({ format });
-  }
-
   const api = Object.freeze({
     VERSION,
-    LIMITS: Object.freeze({ MAX_CLIPBOARD_BYTES }),
-    NOTICE_TYPES,
     clipboard: Object.freeze({ create: createClipboard }),
     downloads: Object.freeze({ create: createDownload }),
     notices: Object.freeze({ create: createNotice }),
-    modals: Object.freeze({ create: createModal }),
-    syntax: Object.freeze({ createXmlFormatter })
+    modals: Object.freeze({ create: createModal })
   });
 
   Object.defineProperty(globalScope, "SuiteMateV3BrowserUtilities", {

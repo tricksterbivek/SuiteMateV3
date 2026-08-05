@@ -166,9 +166,6 @@
 
   const runtimeApi = Object.freeze({
     VERSION: 3,
-    isAvailable(mode = "export") {
-      return commandScope.isAvailable(commandForMode(mode));
-    },
     invoke(mode = "export") {
       return commandScope.invoke(commandForMode(mode), {}, {
         source: commandApi.SOURCES.LINK

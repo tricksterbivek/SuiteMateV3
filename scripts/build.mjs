@@ -2,11 +2,8 @@ import { build } from "esbuild";
 
 const sharedOptions = {
   bundle: true,
-  format: "iife",
-  platform: "browser",
   target: ["chrome120"],
   minify: true,
-  sourcemap: false,
   legalComments: "eof",
   logLevel: "info"
 };

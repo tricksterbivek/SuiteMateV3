@@ -26,10 +26,6 @@
     "tr.machineButtonRow, tr.totalrow, tr.uir-machine-loading-row, tr.uir-machine-nodata-row, "
     + "tr.uir-machine-button-row, tr.uir-machine-totals-row, tr.uir-loading-row, tr.uir-nodata-row, "
     + "tr.uir-machine-row-last";
-  const ORDERED_TABLE_SELECTOR = ".uir-draggable-table";
-  const ORDERED_CONTAINER_SELECTOR = ".uir-list-machine-ordered";
-  const MOVABLE_CELL_SELECTOR = "td.movable";
-  const COLUMN_SPAN_SELECTOR = 'span[id$="_fs"]';
 
   // The machine's serialization delimiters, written as code points: SOH separates
   // fields, STX separates lines, and ENQ separates the options inside a single
@@ -89,7 +85,6 @@
   const MIN_RESOLVED_COLUMNS = 2;
 
   const DATA_ATTRIBUTE = "data-suitemate-v3-edit-grid";
-  const NATIVE_ROW_ATTRIBUTE = "data-suitemate-v3-edit-grid-native-row";
   const BOUND_ATTRIBUTE = "data-suitemate-v3-edit-grid-bound";
   // MAIN-world axis evidence. The runtime derives the column axis in an isolated
   // world, so page script — and every live verification pass that runs there —
@@ -107,15 +102,9 @@
     button: "suitemate-v3-edit-grid-button",
     chip: "suitemate-v3-edit-grid-chip",
     menu: "suitemate-v3-edit-grid-menu",
-    note: "suitemate-v3-edit-grid-note",
     colHidden: "suitemate-v3-edit-grid-col-hidden",
-    rowFiltered: "suitemate-v3-edit-grid-row-filtered",
-    personalizing: "suitemate-v3-edit-grid-personalizing",
-    dragging: "suitemate-v3-edit-grid-dragging",
-    dropTarget: "suitemate-v3-edit-grid-drop-target",
     resizeEdge: "suitemate-v3-edit-grid-resize-edge",
-    resizing: "suitemate-v3-edit-grid-resizing",
-    sorted: "suitemate-v3-edit-grid-sorted"
+    resizing: "suitemate-v3-edit-grid-resizing"
   });
 
   if (globalScope.SuiteMateV3EditGridCore?.VERSION === VERSION) {
@@ -201,21 +190,19 @@
   }
 
   function entryIsEmpty(entry) {
-    return !entry.order && !entry.hidden && !entry.widths;
+    return !entry.hidden && !entry.widths;
   }
 
   function normalizeEntry(value) {
     if (!isPlainObject(value)) {
       return null;
     }
-    const order = normalizeColumnIds(value.order);
     const hidden = normalizeColumnIds(value.hidden);
     const widths = normalizeWidths(value.widths);
-    if (!order && !hidden && !widths) {
+    if (!hidden && !widths) {
       return null;
     }
     return {
-      ...(order ? { order } : {}),
       ...(hidden ? { hidden } : {}),
       ...(widths ? { widths } : {})
     };
@@ -297,10 +284,6 @@
     }
     next.grids[key] = entry;
     return evictOverQuota(next, key);
-  }
-
-  function withOrder(stored, scopeKey, columnIds) {
-    return writeField(stored, scopeKey, "order", columnIds, normalizeColumnIds);
   }
 
   function withHidden(stored, scopeKey, columnIds) {
@@ -711,27 +694,6 @@
     return Number.isSafeInteger(line) && line > 0 ? line : null;
   }
 
-  function columnIdFromSpanId(spanId, machineId, line) {
-    // Mirrors src/internal-ids/core.js sublistColumnId, with the row's own line
-    // number instead of a hard-coded 1 so a paged machine (line 26+) decodes and
-    // line 21 can never be mistaken for line 1. When the caller passes no line —
-    // the open line and the permanent entry row materialise line-LESS ids such as
-    // item_item_fs — the bare _fs suffix is accepted instead. Numbered decoding is
-    // untouched: a mismatched line still refuses.
-    const raw = String(spanId ?? "");
-    const numbered = Number.isSafeInteger(line) && line > 0;
-    const suffix = numbered ? `${line}_fs` : "_fs";
-    if (!raw.endsWith(suffix) || raw.length === suffix.length) {
-      return null;
-    }
-    const withoutRow = raw.slice(0, -suffix.length);
-    const prefix = machineId ? `${machineId}_` : "";
-    const identifier = prefix && withoutRow.startsWith(prefix)
-      ? withoutRow.slice(prefix.length)
-      : withoutRow;
-    return normalizeColumnId(identifier);
-  }
-
   function visibleCells(row) {
     // Inline display:none is how NetSuite hides its own system cells; SuiteMate
     // hides columns with a class, so a SuiteMate-hidden column stays on the axis.
@@ -882,27 +844,6 @@
       && visibleCells(row).length === columnIds.length;
   }
 
-  // NetSuite numbers only its committed lines. The permanent entry row — which is
-  // always present, always focused and always full-width — carries no id at all,
-  // so requiring a numbered id is what keeps it off the data-row axis.
-  const NUMBERED_ROW_ID = /_row_[1-9][0-9]*$/;
-
-  function hasNumberedRowId(row) {
-    return NUMBERED_ROW_ID.test(String(row?.id ?? ""));
-  }
-
-  function isDataRow(row, columnIds) {
-    try {
-      return row?.matches?.(DATA_ROW_SELECTOR) === true
-        && hasNumberedRowId(row)
-        && !row.matches(HEADER_ROW_SELECTOR)
-        && !isExcludedRow(row)
-        && alignsToHeader(row, columnIds);
-    } catch {
-      return false;
-    }
-  }
-
   function readColumnIds(table) {
     try {
       const labels = readHeaderLabels(table);
@@ -984,25 +925,6 @@
         : [];
     } catch {
       return [];
-    }
-  }
-
-  function isOrderedMachine(table) {
-    try {
-      // Fail closed: a node that cannot be interrogated counts as ordered, so a
-      // machine whose drag handles were never readable is never reordered.
-      if (typeof table?.matches !== "function") {
-        return true;
-      }
-      if (table.matches(ORDERED_TABLE_SELECTOR)) {
-        return true;
-      }
-      if (table.closest?.(ORDERED_CONTAINER_SELECTOR)) {
-        return true;
-      }
-      return Boolean(table.querySelector?.(MOVABLE_CELL_SELECTOR));
-    } catch {
-      return true;
     }
   }
 
@@ -1366,14 +1288,12 @@
       DATA_ROW_SELECTOR,
       FOCUSED_ROW_SELECTOR,
       EXCLUDED_ROW_SELECTOR,
-      COLUMN_SPAN_SELECTOR,
       HEADER_LABEL_SELECTOR,
       REQUIRED_FIELD_SELECTOR,
       FIELD_DELIMITER,
       LINE_DELIMITER,
       OPTION_DELIMITER,
       DATA_ATTRIBUTE,
-      NATIVE_ROW_ATTRIBUTE,
       BOUND_ATTRIBUTE,
       AXIS_ATTRIBUTE,
       FOREIGN_NODE_SELECTOR,
@@ -1381,21 +1301,17 @@
       clampWidth,
       normalizeStored,
       refusesNewerSchema,
-      withOrder,
       withHidden,
       withWidths,
       machineIdFromTable,
       rowLineNumber,
-      columnIdFromSpanId,
       visibleCells,
       tableRows,
       headerRow,
       isExcludedRow,
       alignsToHeader,
-      isDataRow,
       readColumnIds,
       readColumnIdsFrom,
-      isOrderedMachine,
       columnMinimums,
       applyWidths,
       applyHidden,

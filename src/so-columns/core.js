@@ -213,7 +213,7 @@
     return evictOverQuota(next, key);
   }
 
-  function withHidden(stored, scopeKey, labels) {
+  function writeField(stored, scopeKey, field, value, normalize, isEmpty) {
     if (refusesNewerSchema(stored)) {
       return null;
     }
@@ -223,14 +223,14 @@
       return null;
     }
     const entry = { ...(next.orders[key] ?? {}) };
-    if (!labels || (Array.isArray(labels) && labels.length === 0)) {
-      delete entry.hidden;
+    if (isEmpty(value)) {
+      delete entry[field];
     } else {
-      const hidden = normalizeLabels(labels);
-      if (!hidden) {
+      const normalized = normalize(value);
+      if (!normalized) {
         return null;
       }
-      entry.hidden = hidden;
+      entry[field] = normalized;
     }
     if (entryIsEmpty(entry)) {
       delete next.orders[key];
@@ -238,87 +238,26 @@
       next.orders[key] = entry;
     }
     return evictOverQuota(next, key);
+  }
+
+  function withHidden(stored, scopeKey, labels) {
+    return writeField(stored, scopeKey, "hidden", labels, normalizeLabels,
+      (value) => !value || (Array.isArray(value) && value.length === 0));
   }
 
   function withWidths(stored, scopeKey, widths) {
-    if (refusesNewerSchema(stored)) {
-      return null;
-    }
-    const next = normalizeStored(stored);
-    const key = normalizeScopeKey(scopeKey);
-    if (!key) {
-      return null;
-    }
-    const entry = { ...(next.orders[key] ?? {}) };
-    if (!widths || !Object.keys(widths).length) {
-      delete entry.widths;
-    } else {
-      const normalized = normalizeWidths(widths);
-      if (!normalized) {
-        return null;
-      }
-      entry.widths = normalized;
-    }
-    if (entryIsEmpty(entry)) {
-      delete next.orders[key];
-    } else {
-      next.orders[key] = entry;
-    }
-    return evictOverQuota(next, key);
+    return writeField(stored, scopeKey, "widths", widths, normalizeWidths,
+      (value) => !value || !Object.keys(value).length);
   }
 
   function withSort(stored, scopeKey, sort) {
-    if (refusesNewerSchema(stored)) {
-      return null;
-    }
-    const next = normalizeStored(stored);
-    const key = normalizeScopeKey(scopeKey);
-    if (!key) {
-      return null;
-    }
-    const entry = { ...(next.orders[key] ?? {}) };
-    if (sort === null || sort === undefined) {
-      delete entry.sort;
-    } else {
-      const normalized = normalizeSort(sort);
-      if (!normalized) {
-        return null;
-      }
-      entry.sort = normalized;
-    }
-    if (entryIsEmpty(entry)) {
-      delete next.orders[key];
-    } else {
-      next.orders[key] = entry;
-    }
-    return evictOverQuota(next, key);
+    return writeField(stored, scopeKey, "sort", sort, normalizeSort,
+      (value) => value === null || value === undefined);
   }
 
   function withFilters(stored, scopeKey, filters) {
-    if (refusesNewerSchema(stored)) {
-      return null;
-    }
-    const next = normalizeStored(stored);
-    const key = normalizeScopeKey(scopeKey);
-    if (!key) {
-      return null;
-    }
-    const entry = { ...(next.orders[key] ?? {}) };
-    if (!filters || !Object.keys(filters).length) {
-      delete entry.filters;
-    } else {
-      const normalized = normalizeFilters(filters);
-      if (!normalized) {
-        return null;
-      }
-      entry.filters = normalized;
-    }
-    if (entryIsEmpty(entry)) {
-      delete next.orders[key];
-    } else {
-      next.orders[key] = entry;
-    }
-    return evictOverQuota(next, key);
+    return writeField(stored, scopeKey, "filters", filters, normalizeFilters,
+      (value) => !value || !Object.keys(value).length);
   }
 
   // ===== Table cells: widths and visibility (DOM layer) =====

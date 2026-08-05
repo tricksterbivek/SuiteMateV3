@@ -32,10 +32,6 @@
     display: none !important
 }
 
-.suitemate-v3-edit-grid-row-filtered {
-    display: none !important
-}
-
 .suitemate-v3-edit-grid-controls {
     display: inline-flex !important;
     flex-wrap: wrap;
@@ -137,11 +133,6 @@ html .uir-machine-table-container>div.suitemate-v3-edit-grid-controls[data-suite
 html.isDarkMode .suitemate-v3-edit-grid-chip {
     border-color: var(--theme-main-light, #6269e7);
     color: var(--theme-main-light, #6269e7)
-}
-
-.suitemate-v3-edit-grid-note {
-    font-size: 11px;
-    opacity: .75
 }
 
 .suitemate-v3-edit-grid-resize-edge {
@@ -319,16 +310,4 @@ html.isDarkMode [data-suitemate-v3-edit-grid="menu-item"]:hover {
 
 html.isDarkMode [data-suitemate-v3-edit-grid="menu-item-icon"] {
     color: var(--dark-text-2, #a7adb5)
-}
-
-.suitemate-v3-edit-grid-personalizing tr.uir-machine-headerrow td {
-    cursor: grab
-}
-
-.suitemate-v3-edit-grid-dragging {
-    opacity: .55
-}
-
-.suitemate-v3-edit-grid-drop-target {
-    box-shadow: inset 3px 0 0 var(--theme-main, #6269e7)
 }

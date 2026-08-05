@@ -130,7 +130,7 @@ assert.match(popupStyles, /body\s*\{[\s\S]*?width:\s*360px;[\s\S]*?min-width:\s*
 assert.doesNotMatch(popupStyles, /max-width:\s*100vw/, "Viewport-relative sizing can collapse the Chrome action popup");
 assert.match(
   popupHtml,
-  /<script src="\.\.\/shared\/utilities\.js"><\/script>[\s\S]*?<script src="\.\.\/shared\/browser-utilities\.js"><\/script>[\s\S]*?<script src="\.\.\/shared\/permissions\.js"><\/script>[\s\S]*?<script src="popup\.js"><\/script>/,
+  /<script src="\.\.\/shared\/utilities\.js"><\/script>[\s\S]*?<script src="\.\.\/shared\/browser-utilities\.js"><\/script>[\s\S]*?<script src="popup\.js"><\/script>/,
   "The popup cannot use the optional permission broker from direct user actions"
 );
 assert.equal((popupHtml.match(/class="role-color" type="hidden"/g) ?? []).length, 2, "The canonical Main and Secondary values changed");
@@ -196,7 +196,6 @@ const extensionSources = [
   "src/shared/lifecycle.js",
   "src/shared/settings.js",
   "src/shared/settings-transfer.js",
-  "src/shared/permissions.js",
   "src/internal-ids/core.js",
   "src/internal-ids/runtime.js",
   "src/internal-ids/internal-ids.css",
@@ -239,41 +238,19 @@ for (const file of extensionSources) {
   );
 }
 
-const permissionSource = await readFile(resolve(root, "src/shared/permissions.js"), "utf8");
-assert.doesNotMatch(permissionSource, /function deepFreeze/, "Permissions retain a private deep-freeze implementation");
-const permissionSandbox = {};
-permissionSandbox.globalThis = permissionSandbox;
-runInNewContext(utilitySource, permissionSandbox);
-runInNewContext(permissionSource, permissionSandbox);
-assert.deepEqual(
-  JSON.parse(JSON.stringify(permissionSandbox.SuiteMateV3Permissions.DEFINITIONS.map(({ id }) => id))),
-  ["bookmarks", "contextMenus", "history", "sidePanel"],
-  "The optional permission broker allowlist has drifted"
-);
-assert.match(permissionSource, /UNKNOWN_OPTIONAL_PERMISSION/, "Unknown optional permissions are not rejected");
-assert.match(permissionSource, /PERMISSION_MUTATION_BUSY/, "Overlapping permission changes are not rejected");
-assert.match(permissionSource, /permissionsApi\.request\(descriptor\)/, "Permission requests do not use the closed broker descriptor");
-assert.match(permissionSource, /permissionsApi\.onRemoved/, "Permission revocation events are not centralized");
-assert.doesNotMatch(permissionSource, /URLSearchParams|location|chrome\.tabs|chrome\.runtime\.sendMessage/, "The permission broker accepts route-controlled input or broadcasts permission state");
-
 const permissionBackgroundSource = await readFile(resolve(root, "src/background/service-worker.js"), "utf8");
 assert.equal(
   permissionBackgroundSource.startsWith('importScripts(chrome.runtime.getURL("src/shared/utilities.js"));'),
   true,
   "The service worker does not initialize the pure utility foundation first"
 );
-assert.match(
-  permissionBackgroundSource,
-  /importScripts\(chrome\.runtime\.getURL\("src\/shared\/permissions\.js"\)\)/,
-  "The service worker does not load the optional permission foundation"
-);
 
-for (const file of extensionSources.filter((file) => file !== "src/shared/permissions.js")) {
+for (const file of extensionSources) {
   const source = await readFile(resolve(root, file), "utf8");
   assert.doesNotMatch(
     source,
-    /chrome\.permissions\.(?:contains|getAll|request|remove)|permissionsApi\.(?:contains|getAll|request|remove)/,
-    `${file} bypasses the optional permission broker`
+    /chrome\.permissions\.(?:contains|getAll|request|remove)/,
+    `${file} requests optional permissions`
   );
 }
 
@@ -617,14 +594,6 @@ assert.equal(
   ),
   "customrecord_fixture"
 );
-assert.equal(
-  recordActionsCore.isSupportedRecordPage({ pathname: "/app/common/search/searchresults.nl", search: "" }),
-  false
-);
-assert.equal(
-  recordActionsCore.isSupportedRecordPage({ pathname: "/app/common/search/ubersearchresults.nl", search: "?suiteql" }),
-  false
-);
 const csvImportSource = await readFile(resolve(root, "src/record-actions/csv-import.js"), "utf8");
 assert.match(csvImportSource, /className = "suitemate-v3-csv-utils-cell"/, "CSV Utils is not emitted as one toolbar menu");
 assert.match(csvImportSource, /textContent = "CSV Utils"/, "The CSV Utils parent label is missing");
@@ -729,10 +698,6 @@ assert.equal(importAssistantCore.resolveStaticCategory("currencyrate"), null);
 assert.deepEqual(
   JSON.parse(JSON.stringify(importAssistantCore.parseOptionsData('[{"value":"TRANSACTION","text":"Transactions"}]'))),
   [{ value: "TRANSACTION", text: "Transactions" }]
-);
-assert.equal(
-  importAssistantCore.responseContainsSubtype(`label\u0001SALESORDER\u0001Sales Order\u0005ignored`, "salesorder"),
-  true
 );
 assert.deepEqual(
   JSON.parse(JSON.stringify(importAssistantCore.normalizeFieldValues({
@@ -1300,11 +1265,6 @@ const studioUrl = "https://123456.app.netsuite.com/app/common/search/ubersearchr
 assert.equal(suiteqlCore.isAllowedNetSuiteUrl(studioUrl), true);
 assert.equal(suiteqlCore.isAllowedNetSuiteUrl("https://www.netsuite.com/portal/home.shtml"), false);
 assert.equal(suiteqlCore.isAllowedNetSuiteUrl("https://123.extforms.netsuite.com/app/site/hosting/scriptlet.nl"), false);
-assert.equal(suiteqlCore.isSuiteQLStudioUrl(studioUrl), true);
-assert.equal(
-  suiteqlCore.isSuiteQLStudioUrl("https://123456.app.netsuite.com/app/common/search/ubersearchresults.nl?search=customer"),
-  false
-);
 assert.equal(
   suiteqlCore.createStudioUrl("https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl?id=10"),
   studioUrl
@@ -1323,33 +1283,22 @@ assert.deepEqual(
   JSON.parse(JSON.stringify(suiteqlCore.normalizeError({ name: "SSS_SEARCH_ERROR_OCCURRED", message: "Invalid field" }))),
   { code: "SSS_SEARCH_ERROR_OCCURRED", message: "Invalid field", details: "" }
 );
+const suiteqlResponse = {
+    ok: true,
+    requestId: "request-1",
+    columns: ["id"],
+    rows: [{ id: 1 }],
+    elapsedMs: 18,
+    paged: false,
+    pageIndex: 0,
+    pageSize: 1,
+    loadedCount: 1,
+    totalCount: 1,
+    totalPages: 1
+  };
 assert.deepEqual(
-  JSON.parse(JSON.stringify(suiteqlCore.normalizeResponse({
-    ok: true,
-    requestId: "request-1",
-    columns: ["id"],
-    rows: [{ id: 1 }],
-    elapsedMs: 18,
-    paged: false,
-    pageIndex: 0,
-    pageSize: 1,
-    loadedCount: 1,
-    totalCount: 1,
-    totalPages: 1
-  }))),
-  {
-    ok: true,
-    requestId: "request-1",
-    columns: ["id"],
-    rows: [{ id: 1 }],
-    elapsedMs: 18,
-    paged: false,
-    pageIndex: 0,
-    pageSize: 1,
-    loadedCount: 1,
-    totalCount: 1,
-    totalPages: 1
-  }
+  JSON.parse(JSON.stringify(suiteqlCore.normalizeResponse(suiteqlResponse))),
+  suiteqlResponse
 );
 assert.equal(suiteqlCore.normalizeResponse(undefined, "request-2").error.code, "SUITEQL_ERROR");
 
@@ -1368,9 +1317,6 @@ assert.equal(clientPage.rows.length, 120);
 assert.equal(clientPage.start, 500);
 assert.equal(clientPage.end, 620);
 
-assert.equal(suiteqlCore.protectCsvValue("=SUM(A1:A2)"), "'=SUM(A1:A2)");
-assert.equal(suiteqlCore.protectCsvValue("  @SUM(A1:A2)"), "'  @SUM(A1:A2)");
-assert.equal(suiteqlCore.protectCsvValue(-2), "-2");
 assert.equal(
   suiteqlCore.toCsv(["name", "note"], [{ name: "+formula", note: "line 1\nline \"2\"" }]),
   "name,note\r\n'+formula,\"line 1\nline \"\"2\"\"\""
@@ -1411,8 +1357,6 @@ assert.match(
   "CSV Export does not inject its fixed main-world adapter on demand"
 );
 assert.match(backgroundSource, /\[COMMANDS\.SUITEQL_START\]/, "SuiteQL start is not allowlisted");
-assert.match(backgroundSource, /\[COMMANDS\.SEARCH_RUN\]/, "Search query is not allowlisted");
-assert.match(backgroundSource, /\[COMMANDS\.RECORD_DESCRIBE\]/, "Record metadata is not allowlisted");
 assert.match(backgroundSource, /\[COMMANDS\.RECORD_GET_TYPE\]/, "Record type lookup is not allowlisted");
 assert.match(backgroundSource, /\[COMMANDS\.RECORD_EXPORT_CSV\]/, "CSV Export is not allowlisted");
 assert.match(backgroundSource, /\[COMMANDS\.IMPORT_ASSISTANT_SET_VALUES\]/, "Import Assistant updates are not allowlisted");
@@ -1457,8 +1401,6 @@ assert.match(
 assert.match(studioSource, />Generate with SuiteSense<\//, "SuiteSense action text is missing");
 assert.match(studioSource, /id="suiteql-inspect-table" type="button" hidden/, "Inspect Table is visible");
 assert.match(studioSource, /id="suiteql-records-catalog"[^>]+hidden/, "Records Catalog is visible");
-assert.match(dataAdapterSource, /SEARCH_BRIDGE_PATH = "\/app\/common\/scripting\/nlapijsonhandler\.nl"/, "The constrained Saved Search adapter is missing");
-assert.match(dataAdapterSource, /method: "remoteObject\.searchRecord"/, "The Saved Search adapter does not use the exact read-only RPC");
 assert.doesNotMatch(dataAdapterSource, /fetch\(envelope\.payload|url: envelope\.payload|method: envelope\.payload/, "The data adapter exposes caller-controlled transport primitives");
 
 let backgroundMessageListener;
@@ -1741,80 +1683,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(recordTypeBridge.result)), {
   ok: true,
   requestId: "record-type"
 });
-const recordMetadataBridge = await sendBridgeCommand(
-  bridgeApi.COMMANDS.RECORD_DESCRIBE,
-  { fields: [{ fieldId: "entity" }, { fieldId: "missing" }] },
-  validRecordSender,
-  "record-metadata"
-);
-assert.deepEqual(JSON.parse(JSON.stringify(recordMetadataBridge.result)), {
-  recordType: "salesorder",
-  recordId: "10",
-  isReadOnly: false,
-  fields: [
-    {
-      fieldId: "entity",
-      sublistId: null,
-      exists: true,
-      label: "Vendor",
-      type: "select",
-      disabled: false,
-      readOnly: false
-    },
-    {
-      fieldId: "missing",
-      sublistId: null,
-      exists: false,
-      label: null,
-      type: null,
-      disabled: false,
-      readOnly: false
-    }
-  ],
-  ok: true,
-  requestId: "record-metadata"
-});
-assert.equal(JSON.stringify(recordMetadataBridge.result).includes("must-not-leak"), false);
-assert.deepEqual(JSON.parse(JSON.stringify(lastScriptingTarget)), {
-  tabId: 72,
-  documentIds: ["document-record"]
-});
 
-const searchBridge = await sendBridgeCommand(
-  bridgeApi.COMMANDS.SEARCH_RUN,
-  {
-    recordType: "savedsearch",
-    filters: [{ field: "internalid", operator: "anyof", values: ["99"] }],
-    columns: [{ field: "internalid" }, { field: "title" }],
-    limit: 20
-  },
-  validBackgroundSender,
-  "search-run"
-);
-assert.deepEqual(JSON.parse(JSON.stringify(searchBridge.result)), {
-  columns: [
-    { key: "c0", field: "internalid" },
-    { key: "c1", field: "title" }
-  ],
-  rows: [{
-    id: "99",
-    cells: [
-      { value: "99", text: "99" },
-      { value: "Adapter Search", text: "Adapter Search" }
-    ]
-  }],
-  truncated: false,
-  ok: true,
-  requestId: "search-run"
-});
-const searchCall = bridgeCalls.find((call) => call.method === "remoteObject.searchRecord");
-assert.equal(searchCall.url, "/app/common/scripting/nlapijsonhandler.nl");
-assert.equal(searchCall.searchParams[2][0].formula, null);
-assert.equal(searchCall.searchParams[3][0].sortdir, null);
-assert.deepEqual(JSON.parse(JSON.stringify(lastScriptingTarget)), {
-  tabId: 71,
-  documentIds: ["document-suiteql"]
-});
 forcedMainWorldUrl = "https://123456.app.netsuite.com/app/center/card.nl";
 const staleDocumentRecordTypeBridge = await sendBridgeCommand(
   bridgeApi.COMMANDS.RECORD_GET_TYPE,

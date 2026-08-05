@@ -196,7 +196,7 @@ test("replaces duplicate watcher ids and stale handles cannot remove replacement
 
   assert.equal(oldCleanupCount, 1);
   assert.equal(staleHandle.dispose(), false);
-  assert.equal(currentHandle.active, true);
+  assert.equal(currentHandle.isCurrent(), true);
   assert.equal(api.getDiagnostics().watcherCount, 1);
   assert.equal(newRuns, 1);
 });

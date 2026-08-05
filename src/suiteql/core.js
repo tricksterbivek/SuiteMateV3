@@ -20,13 +20,6 @@
     return routeApi.isAllowedNetSuiteUrl(value);
   }
 
-  function isSuiteQLStudioUrl(value) {
-    return routeApi.supports(
-      routeApi.CAPABILITIES.SUITEQL_CONSOLE,
-      routeApi.createPageContext(value, { isTopFrame: true })
-    );
-  }
-
   function createStudioUrl(value) {
     const url = routeApi.parseUrl(value);
     if (!url || !isAllowedNetSuiteUrl(url.href)) {
@@ -261,14 +254,6 @@
     };
   }
 
-  function protectCsvValue(value) {
-    return utilityApi.csv.protectValue(value, { nullValue: "null" });
-  }
-
-  function escapeCsvValue(value) {
-    return utilityApi.csv.escapeValue(value, { nullValue: "null" });
-  }
-
   function toCsv(columns, rows) {
     return utilityApi.csv.serialize([
       columns,
@@ -292,7 +277,6 @@
     CLIENT_PAGE_SIZE,
     SESSION_KEYS,
     isAllowedNetSuiteUrl,
-    isSuiteQLStudioUrl,
     createStudioUrl,
     stripSqlCommentsAndStrings,
     validateQuery,
@@ -303,8 +287,6 @@
     displayValue,
     sortRows,
     getClientPage,
-    protectCsvValue,
-    escapeCsvValue,
     toCsv,
     sanitizeFilenamePart,
     createExportFilename

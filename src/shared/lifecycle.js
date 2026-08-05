@@ -13,9 +13,7 @@
   const documentRef = globalScope.document;
   const MutationObserverClass = globalScope.MutationObserver;
   const AbortControllerClass = globalScope.AbortController;
-  const enqueueMicrotask = typeof globalScope.queueMicrotask === "function"
-    ? globalScope.queueMicrotask.bind(globalScope)
-    : (callback) => Promise.resolve().then(callback);
+  const enqueueMicrotask = globalScope.queueMicrotask.bind(globalScope);
   const watchers = new Map();
 
   let sharedObserver = null;
@@ -28,7 +26,6 @@
   let forceRouteRefresh = false;
   let currentHref = readCurrentHref();
   let domReadyPromise = null;
-  let windowLoadedPromise = null;
 
   function reportError(id, phase, error) {
     globalScope.console?.error?.(`SuiteMate V3 lifecycle ${phase} failed for ${id}.`, error);
@@ -452,10 +449,6 @@
     };
     Object.defineProperties(handle, {
       id: { value: watcher.id, enumerable: true },
-      active: {
-        enumerable: true,
-        get: () => watchers.get(watcher.id) === watcher && isWatcherRunnable(watcher)
-      },
       signal: {
         enumerable: true,
         get: () => watcher.controller?.signal ?? null
@@ -626,10 +619,6 @@
     });
   }
 
-  function dispose(id, reason = "disposed") {
-    return watchers.get(String(id))?.handle.dispose(reason) ?? false;
-  }
-
   function disposeAll(reason = "disposed-all") {
     for (const watcher of [...watchers.values()]) {
       disposeWatcher(watcher, reason);
@@ -671,20 +660,6 @@
     return domReadyPromise;
   }
 
-  function whenWindowLoaded() {
-    if (documentRef?.readyState === "complete") {
-      return Promise.resolve();
-    }
-    windowLoadedPromise ??= whenDomReady().then(() => new Promise((resolve) => {
-      if (documentRef?.readyState === "complete") {
-        resolve();
-      } else {
-        globalScope.addEventListener("load", resolve, { once: true });
-      }
-    }));
-    return windowLoadedPromise;
-  }
-
   globalScope.addEventListener?.("popstate", () => scheduleRouteRefresh("popstate"));
   globalScope.addEventListener?.("hashchange", () => scheduleRouteRefresh("hashchange"));
   globalScope.addEventListener?.("pageshow", (event) =>
@@ -701,12 +676,9 @@
     VERSION,
     register,
     waitFor,
-    refreshRoute,
-    dispose,
     disposeAll,
     getDiagnostics,
-    whenDomReady,
-    whenWindowLoaded
+    whenDomReady
   });
   updateDiagnostics();
 })(globalThis);

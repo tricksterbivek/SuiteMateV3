@@ -117,17 +117,6 @@
     }
   }
 
-  function responseContainsSubtype(responseText, recordSubtype) {
-    const subtype = normalizeImportValue(recordSubtype);
-    if (!subtype) {
-      return false;
-    }
-    return String(responseText ?? "")
-      .split("\u0005")[0]
-      .split("\u0001")
-      .some((value, index) => index % 2 === 1 && value === subtype);
-  }
-
   function normalizeFieldValues(values) {
     const normalized = {};
     for (const fieldId of ALLOWED_FIELDS) {
@@ -139,10 +128,6 @@
     return normalized;
   }
 
-  function isAllowedNetSuiteUrl(value) {
-    return routeApi.isAllowedNetSuiteUrl(value);
-  }
-
   global.SuiteMateV3ImportAssistantCore = Object.freeze({
     IMPORT_ASSISTANT_PATH,
     ALLOWED_FIELDS,
@@ -150,7 +135,6 @@
     normalizeImportValue,
     resolveStaticCategory,
     parseOptionsData,
-    responseContainsSubtype,
     normalizeFieldValues,
   });
 })(globalThis);

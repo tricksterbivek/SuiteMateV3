@@ -25,8 +25,7 @@
   const FIELD_WRAPPER_SELECTOR = '[data-walkthrough^="Field:"]';
   const EXCLUDED_CONTAINER_SELECTOR = "#item_splits, .uir_list_filter_bar, .uir-filters-body";
   const CLASSES = Object.freeze({
-    hiddenField: "suitemate-v3-form-views-hidden-field",
-    personalizing: "suitemate-v3-form-views-personalizing"
+    hiddenField: "suitemate-v3-form-views-hidden-field"
   });
 
   if (globalScope.SuiteMateV3FormViewsCore?.VERSION === VERSION) {

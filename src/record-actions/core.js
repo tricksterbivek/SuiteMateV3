@@ -108,25 +108,11 @@
     }
   }
 
-  function isSupportedRecordPage(locationRef) {
-    const context = routeApi.createPageContext(locationRef, {
-      isTopFrame: true,
-      trustedContentScript: true
-    });
-    return routeApi.supports(routeApi.CAPABILITIES.CSV_IMPORT_TOOLBAR, context);
-  }
-
-  function isAllowedNetSuiteUrl(value) {
-    return routeApi.isAllowedNetSuiteUrl(value);
-  }
-
   global.SuiteMateV3RecordActionsCore = Object.freeze({
     CSV_IMPORT_PATH,
     deriveImportSubtype,
     resolveRecordTypeFromDocument,
     createCsvImportUrl,
-    isSupportedRecordPage,
-    isAllowedNetSuiteUrl,
     normalizeRecordType
   });
 })(globalThis);

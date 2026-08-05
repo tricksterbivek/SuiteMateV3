@@ -137,69 +137,11 @@
     };
   }
 
-  const MIGRATIONS = Object.freeze({
-    [LEGACY_SCHEMA_VERSION](value) {
-      const candidate = isPlainObject(value) ? value : {};
-      return {
-        ...candidate,
-        schemaVersion: 1
-      };
-    },
-    1(value) {
-      return {
-        ...value,
-        schemaVersion: 2,
-        showInternalIds: value.showInternalIds === true
-      };
-    },
-    2(value) {
-      return {
-        ...value,
-        schemaVersion: 3,
-        salesOrderColumns: value.salesOrderColumns === true
-      };
-    },
-    3(value) {
-      return {
-        ...value,
-        schemaVersion: 4,
-        smartTabTitles: value.smartTabTitles === true
-      };
-    },
-    4(value) {
-      return {
-        ...value,
-        schemaVersion: 5,
-        formViews: value.formViews === true
-      };
-    },
-    5(value) {
-      return {
-        ...value,
-        schemaVersion: 6,
-        salesOrderColumnsEdit: value.salesOrderColumnsEdit === true
-      };
-    }
-  });
-
   function migrate(value) {
-    let candidate = isPlainObject(value) ? value : {};
-    let version = readSchemaVersion(value);
-
-    while (version < SCHEMA_VERSION) {
-      const migration = MIGRATIONS[version];
-      if (typeof migration !== "function") {
-        throw settingsVersionError(
-          INVALID_VERSION_CODE,
-          `SuiteMate settings cannot be migrated from schema version ${version}.`,
-          version
-        );
-      }
-      candidate = migration(candidate);
-      version += 1;
-    }
-
-    return normalizeCurrent(candidate);
+    // Every historical migration only stamped schemaVersion and coerced fields
+    // normalizeCurrent re-derives anyway; validating the version is all that's left.
+    readSchemaVersion(value);
+    return normalizeCurrent(isPlainObject(value) ? value : {});
   }
 
   function normalize(value) {
@@ -381,19 +323,14 @@
   globalScope.SuiteMateV3Settings = Object.freeze({
     STORAGE_KEY,
     SCHEMA_VERSION,
-    LEGACY_SCHEMA_VERSION,
-    MAX_SYNC_ITEM_BYTES,
     INVALID_VERSION_CODE,
     UNSUPPORTED_VERSION_CODE,
     QUOTA_CODE,
     ROLE_CONTEXT_MESSAGE,
     THEME_PREVIEW_MESSAGE,
     DEFAULTS,
-    DEFAULT_ROLE_COLORS,
     THEME_VARIABLE_NAMES,
-    MODES,
     normalizeHexColor,
-    readSchemaVersion,
     migrate,
     normalize,
     isSettingsVersionError,

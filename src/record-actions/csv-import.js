@@ -112,7 +112,6 @@
 
     const link = globalScope.document.createElement("a");
     link.href = href;
-    link.textContent = label;
     link.dataset.suitemateV3Action = action;
     link.setAttribute("role", "menuitem");
     commandApi.applyMetadata(link, commandId);

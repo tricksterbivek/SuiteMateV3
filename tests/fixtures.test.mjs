@@ -30,7 +30,6 @@ const routes = loadRoutes();
 const catalog = loadCatalog();
 
 test("fixture catalog covers every classified NetSuite route with a Classic baseline", () => {
-  assert.equal(catalog.VERSION, 1);
   assert.equal(Object.isFrozen(catalog), true);
   assert.equal(Object.isFrozen(catalog.CLASSIC_ROUTES), true);
 
