@@ -1500,3 +1500,7 @@ The Summary box refinement (`65bb6d7`, 14 cascade-read value pins) verified live
 ## Summary card owner confirmation (2026-08-05, `5523dfc`)
 
 The owner visually confirmed the unified Summary card live ("yes now its perfect") after the wrapper-is-the-card fix. This closes the Summary box series: spec values (`65bb6d7`), wrapper stand-down (`58cff0e`, superseded), and unified geometry (`5523dfc` — caption-outside-border-box root cause, chrome on span.bgmd.totallingbg, flat table pinned, fixture markup made faithful). Lesson for the ledger, stated once: two rounds in a row the defect lived one element ABOVE the component every assertion measured, and both were found only by looking at pixels — computed-style pins verify the element they read, never the composition it renders inside.
+
+## v3.23.0 release (2026-08-05)
+
+Released from `feature/edit-mode-table-enhancements`: Show/Hide Columns for Sales Order Edit Mode (M3 + required-column protection + hidden-stays-hidden + cross-form unanimity + segment paging + UI parity), default primary #5058f4, transaction Summary card (spec values, theme propagation, wrapper-is-the-card geometry — owner visual confirmation), one active-tab treatment, zebra striping (isRedwood token fix). v3.22.0 is deliberately SKIPPED: that number belongs to the parked form-layout-builder state at `0a04764` and reusing it would alias two unrelated feature sets in the forensics record.
