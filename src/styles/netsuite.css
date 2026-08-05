@@ -3369,7 +3369,10 @@ html:not(.ext-f).sln .uir-machine-table-container:has(.uir-machine-headerrow:not
     counter-increment: sublist-line;
     content: counter(sublist-line) !important;
     font-size: var(--sln-cell-font-size);
-    color: light-dark(#333, var(--dark-text-1));
+    /* Clean Commerce: dimmed, centred, tabular row numbers. */
+    color: light-dark(#737d88, var(--dark-text-2));
+    text-align: center;
+    font-variant-numeric: tabular-nums;
     padding-block: 5px;
     vertical-align: top
 }
@@ -5039,6 +5042,62 @@ html:not(.ext-f) .selector-filter-button.checked {
 
 html:not(.ext-f) .totallingtable .inputtotalling {
     font-weight: bold !important
+}
+
+/* ===== CLEAN COMMERCE ITEM TABLES ("02. Clean Commerce", owner-approved) =====
+   MACHINE SUBLISTS ONLY — lists, dashboards, reports and custom tables keep
+   their existing chrome, which is why the zebra and hover retunes are
+   ROW-SCOPED token overrides rather than edits to the shared tokens at the
+   top of this file. The container is already the machine's own scroll box
+   (overflow auto), so the radius clips content and horizontal scrolling is
+   native and untouched. The header half of this design lives in
+   v3-compat.css as machine-scoped overrides of the shared header tokens. */
+html:not(.ext-f) .uir-machine-table-container {
+    border: 1px solid light-dark(rgba(10, 19, 23, 0.1), var(--dark-3)) !important;
+    background-color: light-dark(#fff, var(--dark-1));
+    box-shadow: 0 1px 4px rgba(20, 22, 26, 0.14)
+}
+
+html:not(.ext-f).isDarkMode .uir-machine-table-container {
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5)
+}
+
+html:not(.ext-f):not(.disable_radii) .uir-machine-table-container {
+    border-radius: 12px
+}
+
+/* Zebra at the owner's 4.5% and hover at 6%, both mixed from --theme-main so
+   a theme change re-tints every machine with no further rules. 4.5% of the
+   default primary computes ~7/255 — below the probe's old 8/255 floor, which
+   moved to 6/255 in the same round (capture-fixtures.mjs states why). The
+   pastel-ceiling ledger at the top-of-file token still applies, ~1.8x sooner
+   at this percentage. */
+html:not(.ext-f) :is(.uir-machine-row, .uir-machine-totals-row) {
+    --row-odd-bg-color: light-dark(color-mix(in srgb, var(--theme-main) 4.5%, #fff), var(--dark-2));
+    --row-hover-bg-color: light-dark(color-mix(in srgb, var(--theme-main) 6%, #fff), var(--dark-3))
+}
+
+/* Compact 46px rows with hairline dividers only. td height is a MINIMUM in
+   table layout, so wrapped descriptions and Edit Mode field widgets still
+   grow their row; nothing here draws vertical gridlines. */
+html:not(.ext-f) .uir-machine-table .uir-machine-row>td {
+    height: 46px;
+    padding: 0 12px !important;
+    border-bottom: 1px solid light-dark(rgba(10, 19, 23, 0.08), var(--dark-3)) !important
+}
+
+/* NetSuite marks numeric machine cells with align=right in the markup itself
+   (Quantity, Committed, Picked, Packed, Fulfilled, Invoiced, Back Ordered,
+   Available, prices) — alignment is native and preserved; this only adds
+   tabular figures where the markup says "number". */
+html:not(.ext-f) .uir-machine-table .uir-machine-row>td[align=right] {
+    font-variant-numeric: tabular-nums
+}
+
+html:not(.ext-f) .uir-machine-table .uir-machine-row td a:is(.dottedlink, [href]) {
+    color: var(--theme-main) !important;
+    font-weight: 500;
+    text-decoration: none
 }
 
 /* Transaction totals box. The Total row is matched POSITIONALLY (tbody tr:last-child):

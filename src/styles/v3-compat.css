@@ -34,7 +34,25 @@ html:not(.ext-f) :is(.uir-list-header-td, .uir-machine-headerrow>td) :is(.listhe
 
 html:not(.ext-f).sln .uir-machine-table-container {
     --sln-header-bg-color: var(--suitemate-v3-table-header-bg);
-    --sln-header-bottom-border: 1px solid var(--suitemate-v3-table-header-border)
+    --sln-header-bottom-border: 3px solid var(--suitemate-v3-table-header-border)
+}
+
+/* CLEAN COMMERCE machine header: clean white surface, 48px, medium weight,
+   3px theme rule below. Token-level overrides so the sln number header and
+   every existing consumer of the header tokens follow together. Scoped to
+   the machine container — list headers keep the Secondary treatment. */
+html:not(.ext-f) .uir-machine-table-container {
+    --suitemate-v3-table-header-bg: light-dark(#fff, var(--dark-1));
+    --suitemate-v3-table-header-border: var(--theme-main)
+}
+
+html:not(.ext-f) .uir-machine-table-container .uir-machine-table .uir-machine-headerrow>td {
+    height: 48px;
+    border-bottom-width: 3px !important
+}
+
+html:not(.ext-f) .uir-machine-headerrow>td :is(.listheader, [class*=listheader]) {
+    font-weight: 500 !important
 }
 
 html:not(.ext-f).sln .uir-machine-table-container .uir-machine-headerrow::before {

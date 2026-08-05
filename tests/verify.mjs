@@ -1105,15 +1105,59 @@ for (const [what, selector, property, expected] of [
     `The totals box: ${what} is not ${expected}`
   );
 }
+// ===== Clean Commerce item tables =====
+// Same terms as the totals box: every value cascade-read at its exact selector
+// head, because nothing else holds any of it — the machine tint at 4.5% sits
+// below even the stripe probe's old floor, and a respelled mix or a retuned
+// percentage renders pixel-identical to every screenshot gate. The zebra and
+// hover values are ROW-SCOPED overrides (machines only; lists keep 8%), which
+// is the scoping the owner's "do not modify unrelated lists" requires — these
+// pins hold the scoping as much as the values.
+const MACHINE_CONTAINER = "html:not(.ext-f) .uir-machine-table-container {";
+const MACHINE_ROW_TOKENS = "html:not(.ext-f) :is(.uir-machine-row, .uir-machine-totals-row) {";
+const MACHINE_CELL = "html:not(.ext-f) .uir-machine-table .uir-machine-row>td {";
+for (const [sheet, sheetName, what, selector, property, expected] of [
+  [netsuiteStyles, "netsuite.css", "the container hairline", MACHINE_CONTAINER, "border", "1px solid light-dark(rgba(10, 19, 23, 0.1), var(--dark-3))"],
+  [netsuiteStyles, "netsuite.css", "the container elevation", MACHINE_CONTAINER, "box-shadow", "0 1px 4px rgba(20, 22, 26, 0.14)"],
+  [netsuiteStyles, "netsuite.css", "the dark container elevation", "html:not(.ext-f).isDarkMode .uir-machine-table-container {", "box-shadow", "0 1px 4px rgba(0, 0, 0, 0.5)"],
+  [netsuiteStyles, "netsuite.css", "the container radius", `${TOTALS_RADII}.uir-machine-table-container {`, "border-radius", "12px"],
+  [netsuiteStyles, "netsuite.css", "the machine zebra tint", MACHINE_ROW_TOKENS, "--row-odd-bg-color", "light-dark(color-mix(in srgb, var(--theme-main) 4.5%, #fff), var(--dark-2))"],
+  [netsuiteStyles, "netsuite.css", "the machine hover tint", MACHINE_ROW_TOKENS, "--row-hover-bg-color", "light-dark(color-mix(in srgb, var(--theme-main) 6%, #fff), var(--dark-3))"],
+  [netsuiteStyles, "netsuite.css", "the row height", MACHINE_CELL, "height", "46px"],
+  [netsuiteStyles, "netsuite.css", "the cell padding", MACHINE_CELL, "padding", "0 12px"],
+  [netsuiteStyles, "netsuite.css", "the row divider", MACHINE_CELL, "border-bottom", "1px solid light-dark(rgba(10, 19, 23, 0.08), var(--dark-3))"],
+  [netsuiteStyles, "netsuite.css", "the tabular figures", "html:not(.ext-f) .uir-machine-table .uir-machine-row>td[align=right] {", "font-variant-numeric", "tabular-nums"],
+  [netsuiteStyles, "netsuite.css", "the item link colour", "html:not(.ext-f) .uir-machine-table .uir-machine-row td a:is(.dottedlink, [href]) {", "color", "var(--theme-main)"],
+  [compatibilityStyles, "v3-compat.css", "the header surface", MACHINE_CONTAINER, "--suitemate-v3-table-header-bg", "light-dark(#fff, var(--dark-1))"],
+  [compatibilityStyles, "v3-compat.css", "the header rule colour", MACHINE_CONTAINER, "--suitemate-v3-table-header-border", "var(--theme-main)"],
+  [compatibilityStyles, "v3-compat.css", "the header height", "html:not(.ext-f) .uir-machine-table-container .uir-machine-table .uir-machine-headerrow>td {", "height", "48px"],
+  [compatibilityStyles, "v3-compat.css", "the header rule width", "html:not(.ext-f) .uir-machine-table-container .uir-machine-table .uir-machine-headerrow>td {", "border-bottom-width", "3px"],
+  [compatibilityStyles, "v3-compat.css", "the header weight", "html:not(.ext-f) .uir-machine-headerrow>td :is(.listheader, [class*=listheader]) {", "font-weight", "500"]
+]) {
+  assert.equal(
+    ruleValue(sheet, `Clean Commerce: ${what} (${sheetName})`, selector, property),
+    expected,
+    `Clean Commerce: ${what} is not ${expected} in ${sheetName}`
+  );
+}
 assert.match(
   compatibilityStyles,
   /td\.fgroup_title\.uir-field-group>div\.fgroup_title[\s\S]*?background-color: var\(--theme-secondary-light\) !important/,
   "Global NetSuite field groups are not controlled by Secondary"
 );
-assert.doesNotMatch(
-  compatibilityStyles,
-  /suitemate-v3-table-header-(?:bg|border): var\(--theme-main/,
-  "Global NetSuite table headers still depend on Main"
+// The ROOT header tokens stay on Secondary — read at the root block head so
+// the Clean Commerce machine-scoped override (which deliberately puts the
+// MACHINE header underline on Main, per the owner's spec) does not trip a
+// whole-sheet regex that was only ever about the global defaults.
+assert.equal(
+  tokenValue(compatibilityStyles, "v3-compat root header bg", "--suitemate-v3-table-header-bg"),
+  "var(--theme-secondary-light)",
+  "Global NetSuite table headers no longer default to Secondary"
+);
+assert.equal(
+  tokenValue(compatibilityStyles, "v3-compat root header border", "--suitemate-v3-table-header-border"),
+  "var(--theme-secondary)",
+  "Global NetSuite table header borders no longer default to Secondary"
 );
 assert.doesNotMatch(
   compatibilityStyles,
@@ -2076,7 +2120,7 @@ await access(resolve(root, "save/SUITEMATE_V1_MASTER_FEATURE_INVENTORY.md"));
 const expectedStyleHashes = {
   "src/styles/font.css": "ecc7a99f6b820ee9290ab4a3ca2ff1ea4829c1a539c0d42becb19a3d5ea446cf",
   "src/styles/code.css": "e5607100c7432fd7028176ce74c4c999e181108861ea6b992ed3058d92d0d698",
-  "src/styles/netsuite.css": "1d8b2aa4c6017f646031eca6f1d00313edefc1431e245ddf47faf5889574821f",
+  "src/styles/netsuite.css": "aa34d01749a11185639c5f8b94e088c2bbd24328b9b25db31429d5d22375b994",
   "src/styles/pages/bundlebuilder.css": "bb9cae83f75b192d0a913233a33b6a8e557df656f7251a6e48e3105532e9f8fa",
   "src/styles/pages/codeeditor.css": "b58efb6517cfc13ca04cb621bdf269599ad9d6a589f38dee268743dda60f84df",
   "src/styles/pages/dashboard.css": "caedaa535b9bd516a977cdbb9f85de0f42d04e2e7f59a13f41996101dc0db7b5",
