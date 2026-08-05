@@ -374,6 +374,51 @@ test("applyWidths re-measures unstored columns every call — DEFECT, pinned so 
   assert.equal(live.widths()[0], "200px");
 });
 
+test("applyWidths batches every layout read before the first width write", () => {
+  // The 203x70 thrash: setColumnHidden runs applyHidden (geometry change) and
+  // then applyWidths. Interleaved per-cell read-write means every width write
+  // invalidates layout and the next getBoundingClientRect re-reflows the whole
+  // machine — measured live at 11.5s for ONE hide on a 203-row, 70-column
+  // order, ~69 full reflows. Batched (all reads, then all writes) the same
+  // loop costs at most one reflow. This pins the batching: a read appearing
+  // after the first write is the thrash coming back.
+  const core = createApi();
+  const events = [];
+  const cells = ["Item", "Rate", "Amount", "Qty"].map((label) => {
+    const cell = {
+      textContent: label,
+      classList: { contains: () => false, toggle: () => {} },
+      querySelector: () => null,
+      getBoundingClientRect: () => {
+        events.push("read");
+        return { width: 80 };
+      },
+      style: {}
+    };
+    Object.defineProperty(cell.style, "width", {
+      get: () => cell.frozenWidth,
+      set: (value) => {
+        events.push("write");
+        cell.frozenWidth = value;
+      }
+    });
+    return cell;
+  });
+  const headerRow = { cells };
+  const table = {
+    style: {},
+    querySelector: (selector) => (String(selector).includes("uir-machine-headerrow") ? headerRow : null)
+  };
+  assert.equal(core.applyWidths(table, { Item: 200 }), true);
+  const lastRead = events.lastIndexOf("read");
+  const firstWrite = events.indexOf("write");
+  assert.ok(lastRead !== -1 && firstWrite !== -1, `expected both reads and writes, saw: ${events.join(",")}`);
+  assert.ok(
+    lastRead < firstWrite,
+    `a layout read ran after a width write — the interleaved-reflow thrash is back: ${events.join(",")}`
+  );
+});
+
 test("applyHidden hides matching columns in every aligned row and unhides", () => {
   const core = createApi();
   const { table, rows, trailingRows } = createSortableTable(
