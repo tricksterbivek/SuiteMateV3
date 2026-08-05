@@ -117,7 +117,8 @@ form {
 .toggle-row,
 fieldset,
 .theme-card,
-.settings-transfer {
+.settings-transfer,
+.advanced-section {
   border: 1px solid var(--hairline-soft);
   border-radius: var(--r-lg);
   background: var(--canvas);
@@ -207,11 +208,13 @@ fieldset label input {
   padding: 16px 14px;
 }
 
-.settings-transfer {
+.settings-transfer,
+.advanced-section {
   overflow: hidden;
 }
 
-.settings-transfer summary {
+.settings-transfer summary,
+.advanced-section summary {
   display: flex;
   align-items: center;
   min-height: 48px;
@@ -220,11 +223,13 @@ fieldset label input {
   list-style: none;
 }
 
-.settings-transfer summary::-webkit-details-marker {
+.settings-transfer summary::-webkit-details-marker,
+.advanced-section summary::-webkit-details-marker {
   display: none;
 }
 
-.settings-transfer summary::after {
+.settings-transfer summary::after,
+.advanced-section summary::after {
   content: "+";
   margin-left: auto;
   color: var(--steel);
@@ -232,15 +237,28 @@ fieldset label input {
   line-height: 1;
 }
 
-.settings-transfer[open] summary::after {
+.settings-transfer[open] summary::after,
+.advanced-section[open] summary::after {
   content: "−";
 }
 
 .settings-transfer summary > span,
+.advanced-section summary > span,
 .settings-transfer-content,
 .settings-transfer-content label {
   display: grid;
   gap: 3px;
+}
+
+.advanced-content {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--hairline-soft);
+  padding: 12px 14px 14px;
+}
+
+.advanced-content .tool-card {
+  margin-bottom: 0;
 }
 
 .settings-transfer-content {
