@@ -72,13 +72,6 @@ html:not(.ext-f) {
 html:not(.ext-f):not(.isRedwood) {
     --table-border-color: light-dark(#ebebeb, var(--dark-3));
     --table-header-bg-color: light-dark(#e5e5e5, var(--dark-3));
-    /* Only as visible as the theme colour is dark: 14/255 on the default primary,
-       but a pastel theme (darkest channel above ~155) mixes below the guard's
-       8/255 floor, and the guard only ever measures the default theme. 
-       Upgrade path if a pastel default ever ships: floor the mix against a
-       fixed off-white instead of #fff, or give the guard a role-theme case. */
-    --row-odd-bg-color: light-dark(color-mix(in srgb, var(--theme-main) 8%, #fff), var(--dark-2));
-    --row-even-bg-color: light-dark(#fff, var(--dark-1));
     --row-hover-bg-color: light-dark(rgb(254.3, 254.3, 166.6), rgb(55.946, 55.946, 36.652));
     --subtab-sticky-top: 7px
 }
@@ -86,14 +79,24 @@ html:not(.ext-f):not(.isRedwood) {
 html:not(.ext-f).isRedwood {
     --table-border-color: light-dark(var(--uif-redwood-color-light-border-divider, rgb(22 21 19 / 0.12)), var(--dark-3));
     --table-header-bg-color: light-dark(var(--nsn-uif-redwood-color-light-neutral-0, #fff), var(--dark-1));
-    --row-odd-bg-color: var(--table-header-bg-color);
-    --row-even-bg-color: var(--table-header-bg-color);
     --row-hover-bg-color: light-dark(#e9e7e6, var(--dark-3));
     --subtab-sticky-top: 0
 }
 
 html:not(.ext-f) {
     --toggle-bg-color: light-dark(#999, var(--dark-gray-1));
+    /* ROW TOKENS LIVE HERE, NOT IN THE isRedwood SPLIT ABOVE. Classic pages
+       still carry the isRedwood class (same over-firing detection that broke
+       the active tabs), and the old .isRedwood branch set odd = even =
+       --table-header-bg-color, which neutralised the zebra tint on every
+       real page while fixtures (no isRedwood class) kept passing.
+       Only as visible as the theme colour is dark: 14/255 on the default primary,
+       but a pastel theme (darkest channel above ~155) mixes below the guard's
+       8/255 floor, and the guard only ever measures the default theme.
+       Upgrade path if a pastel default ever ships: floor the mix against a
+       fixed off-white instead of #fff, or give the guard a role-theme case. */
+    --row-odd-bg-color: light-dark(color-mix(in srgb, var(--theme-main) 8%, #fff), var(--dark-2));
+    --row-even-bg-color: light-dark(#fff, var(--dark-1));
     scrollbar-color: var(--scrollbar-foreground) var(--scrollbar-background)
 }
 

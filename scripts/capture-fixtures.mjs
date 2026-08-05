@@ -303,6 +303,17 @@ async function probeRowStripes(client, sessionId) {
       };
       const base = shade("--row-even-bg-color");
       const stripe = shade("--row-odd-bg-color");
+      // LIVE CLASSIC PAGES CARRY .isRedwood (the detection over-fires, same as
+      // the active tabs). The tokens once had an .isRedwood branch that set
+      // odd = even, so every real page lost the tint while these fixtures —
+      // which never carry the class — kept passing. Re-resolve the shades with
+      // the class forced on so that branch coming back fails here.
+      const hadRedwood = document.documentElement.classList.contains("isRedwood");
+      document.documentElement.classList.add("isRedwood");
+      const redwood = { base: shade("--row-even-bg-color"), stripe: shade("--row-odd-bg-color") };
+      if (!hadRedwood) {
+        document.documentElement.classList.remove("isRedwood");
+      }
       swatch.remove();
       const isData = (row) => !EXCLUDED.some((name) => row.classList.contains(name));
       // GROUPED BY PARENT, because :nth-child restarts at every parent: two
@@ -338,6 +349,7 @@ async function probeRowStripes(client, sessionId) {
       return {
         base,
         stripe,
+        redwood,
         groups: [...groups.values()].map((siblings) => siblings.map((row) => ({
           colour: paint(row),
           // Stateful rows stay IN the index. The rule carves them out of the
@@ -407,6 +419,11 @@ function assertStripes(label, stripes) {
   const delta = maxDelta(base, stripe);
   if (delta < STRIPE_MIN_DELTA) {
     throw new Error(`${label}: the stripe differs from the base by only ${delta}/255 (floor ${STRIPE_MIN_DELTA}) — rgb(${base}) vs rgb(${stripe}) is not visible.`);
+  }
+  // Under a forced .isRedwood class — what every live classic page carries.
+  const redwoodDelta = maxDelta(stripes.redwood.base, stripes.redwood.stripe);
+  if (redwoodDelta < STRIPE_MIN_DELTA) {
+    throw new Error(`${label}: with .isRedwood on <html> the stripe delta collapses to ${redwoodDelta}/255 (floor ${STRIPE_MIN_DELTA}) — a Redwood token branch is neutralising the tint on live pages again.`);
   }
   for (const rows of groups) {
     for (const [index, row] of rows.entries()) {
