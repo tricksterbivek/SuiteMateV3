@@ -16,6 +16,7 @@
     SUITEQL_CONSOLE: "suiteql-console",
     SUITEQL_BRIDGE: "suiteql-bridge",
     SUITEQL_LAUNCH: "suiteql-launch",
+    RECENT_RECORDS: "recent-records",
     FORM_VIEWS: "form-views",
     TRANSACTION_COLUMN_PERSONALIZATION_EDIT: "transaction-column-personalization-edit"
   });
@@ -250,6 +251,10 @@
         return true;
       case CAPABILITIES.INTERNAL_IDS:
         return Boolean(context.path);
+      case CAPABILITIES.RECENT_RECORDS:
+        return context.isTopFrame
+          && Boolean(context.path)
+          && context.routeId !== ROUTE_IDS.LOGIN;
       case CAPABILITIES.CSV_IMPORT_TOOLBAR:
         return context.isTopFrame
           && Boolean(context.path)

@@ -198,6 +198,7 @@ function createPopupDocument() {
   const showInternalIds = add("showInternalIds", "input");
   const salesOrderColumns = add("salesOrderColumns", "input");
   const smartTabTitles = add("smartTabTitles", "input");
+  const recentRecords = add("recentRecords", "input");
   const formViews = add("formViews", "input");
   const salesOrderColumnsEdit = add("salesOrderColumnsEdit", "input");
   const light = add("mode-light", "input");
@@ -214,6 +215,7 @@ function createPopupDocument() {
     showInternalIds,
     salesOrderColumns,
     smartTabTitles,
+    recentRecords,
     formViews,
     salesOrderColumnsEdit,
     ...modes,
@@ -317,7 +319,7 @@ function clone(value) {
 async function createPopupHarness(options = {}) {
   const dom = createPopupDocument();
   const initialSettings = {
-    schemaVersion: 6,
+    schemaVersion: 7,
     enabled: true,
     mode: "light",
     squareCorners: false,
@@ -326,6 +328,7 @@ async function createPopupHarness(options = {}) {
     smartTabTitles: false,
     formViews: false,
     salesOrderColumnsEdit: false,
+    recentRecords: false,
     roleThemes: {
       "role-1": {
         name: "Fixture Role",
@@ -532,7 +535,9 @@ test("popup exports, confirms and atomically imports a validated settings backup
   const exportButton = harness.element("exportSettings");
   const importButton = harness.element("importSettings");
   const salesOrderColumnsEdit = harness.element("salesOrderColumnsEdit");
+  const recentRecords = harness.element("recentRecords");
   assert.equal(salesOrderColumnsEdit.checked, false);
+  assert.equal(recentRecords.checked, false);
 
   assert.equal(exportButton.disabled, false);
   exportButton.click();
@@ -544,7 +549,7 @@ test("popup exports, confirms and atomically imports a validated settings backup
   assert.equal(harness.element("status").textContent, "Settings backup copied");
 
   const importedSettings = {
-    schemaVersion: 6,
+    schemaVersion: 7,
     enabled: false,
     mode: "dark",
     squareCorners: true,
@@ -553,6 +558,7 @@ test("popup exports, confirms and atomically imports a validated settings backup
     smartTabTitles: true,
     formViews: true,
     salesOrderColumnsEdit: true,
+    recentRecords: true,
     roleThemes: {
       "role-2": {
         name: "Imported Role",
@@ -575,6 +581,7 @@ test("popup exports, confirms and atomically imports a validated settings backup
   assert.equal(importButton.disabled, true);
   assert.equal(harness.element("status").textContent, "Settings imported");
   assert.equal(salesOrderColumnsEdit.checked, true, "An imported toggle value must be rendered back into the form");
+  assert.equal(recentRecords.checked, true, "The imported Recent Records value must be rendered back into the form");
 });
 
 test("popup rejects malformed backup text without touching storage", async () => {
