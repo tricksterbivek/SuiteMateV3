@@ -46,8 +46,8 @@ html:not(.ext-f).isRedwood {
 }
 
 html:not(.ext-f) {
-    --theme-default-main: light-dark(#5058f4, rgb(76.3373493976, 94.6265060241, 121.6626506024));
-    --theme-default-main-light: light-dark(rgb(125.9638554217, 145.3614457831, 174.0361445783), #5058f4);
+    --theme-default-main: light-dark(#6269e7, rgb(76.3373493976, 94.6265060241, 121.6626506024));
+    --theme-default-main-light: light-dark(rgb(125.9638554217, 145.3614457831, 174.0361445783), #6269e7);
     --theme-default-secondary: light-dark(#dee1e7, rgb(186.48, 189, 194.04));
     --theme-default-secondary-light: light-dark(#e0e6ef, rgb(188.16, 193.2, 200.76));
     --theme-default-secondary-light-light: light-dark(oklch(from #e0e6ef calc(l + 4) c h), oklch(from rgb(188.16, 193.2, 200.76) calc(l + 4) c h));

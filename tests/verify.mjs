@@ -1191,8 +1191,8 @@ materialPaletteSandbox.globalThis = materialPaletteSandbox;
 runInNewContext(utilitySource, materialPaletteSandbox);
 runInNewContext(materialPaletteSource, materialPaletteSandbox);
 const { generateMaterialShades } = materialPaletteSandbox.SuiteMateV3MaterialPalette;
-const materialShades = generateMaterialShades("#5058f4");
-assert.equal(materialShades.source, "#5058f4");
+const materialShades = generateMaterialShades("#6269e7");
+assert.equal(materialShades.source, "#6269e7");
 assert.deepEqual(JSON.parse(JSON.stringify(Object.keys(materialShades.shades))), [
   "50", "100", "200", "300", "400", "500", "600", "700", "800", "900"
 ]);
@@ -1210,7 +1210,7 @@ const materialLuminances = Object.values(materialShades.shades).map(relativeLumi
 for (let index = 1; index < materialLuminances.length; index += 1) {
   assert.equal(materialLuminances[index] < materialLuminances[index - 1], true, "Material tones are not ordered light to dark");
 }
-assert.equal(JSON.stringify(generateMaterialShades("#5058f4")), JSON.stringify(materialShades));
+assert.equal(JSON.stringify(generateMaterialShades("#6269e7")), JSON.stringify(materialShades));
 assert.equal(generateMaterialShades("#60g"), null);
 assert.equal(generateMaterialShades("#678").source, "#667788");
 assert.equal(generateMaterialShades("#12345678"), null);
@@ -2059,10 +2059,10 @@ await access(resolve(root, "save/SUITEMATE_V1_MASTER_FEATURE_INVENTORY.md"));
 const expectedStyleHashes = {
   "src/styles/font.css": "ecc7a99f6b820ee9290ab4a3ca2ff1ea4829c1a539c0d42becb19a3d5ea446cf",
   "src/styles/code.css": "e5607100c7432fd7028176ce74c4c999e181108861ea6b992ed3058d92d0d698",
-  "src/styles/netsuite.css": "b055cfbe59da9297d43e1b3ed5940588698cc8631cff2b684a2746ebe4bf298c",
+  "src/styles/netsuite.css": "aeda8bc44e7bc05cd4427e5f4e3b372e494c894212a2588f2bf4abcc3c50b89e",
   "src/styles/pages/bundlebuilder.css": "bb9cae83f75b192d0a913233a33b6a8e557df656f7251a6e48e3105532e9f8fa",
   "src/styles/pages/codeeditor.css": "b58efb6517cfc13ca04cb621bdf269599ad9d6a589f38dee268743dda60f84df",
-  "src/styles/pages/dashboard.css": "7c5cb547ce07074ed54d18b6bb7eb93d628099e7688dee6631ee24b9125e1b5f",
+  "src/styles/pages/dashboard.css": "caedaa535b9bd516a977cdbb9f85de0f42d04e2e7f59a13f41996101dc0db7b5",
   "src/styles/pages/fieldhelp.css": "8515c1f4faff7978138f7d1c4cff631703af0b550c5deb6eb4ea95351bb78e2d",
   "src/styles/pages/file.css": "7932445f8a76bf76b6d9ce6d02bc8d69f071e4c8f600171a8a26c03e8a3eb1b2",
   "src/styles/pages/filecabinet.css": "cac334ebfece700d1f4ab625b120226900c692ded5889e91227d3f266d41b0a5",
