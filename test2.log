@@ -1,0 +1,624 @@
+
+> suitemate-v3@3.25.0 test
+> npm run build && find src tests/fixtures scripts \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check && node --test tests/*.test.mjs && node tests/verify.mjs && npm run fixtures:verify
+
+
+> suitemate-v3@3.25.0 build
+> node scripts/build.mjs
+
+
+  dist/material-palette.js  87.2kb
+
+⚡ Done in 28ms
+
+  dist/suiteql-studio.js  448.7kb
+
+⚡ Done in 41ms
+✔ exports one frozen versioned command registry (0.738625ms)
+✔ enforces closed authenticated lookup schemas (0.453583ms)
+✔ reuses the same bridge API and reports its live protocol version (0.440625ms)
+✔ creates canonical requests and rejects malformed command payloads (1.700042ms)
+✔ rejects oversized payloads before runtime messaging (37.886208ms)
+✔ enforces command-specific route and frame authority (1.706084ms)
+✔ rejects unsupported versions, unknown commands, and invalid request IDs (0.104375ms)
+✔ normalizes response envelopes and rejects stale or malformed responses (0.27175ms)
+✔ validates bounded CSV Export response metadata (0.152041ms)
+✔ validates exact Record Trail responses (0.274875ms)
+✔ client request validates the response and forwards no extra fields (0.272875ms)
+✔ client request maps runtime failures, timeouts, and aborts (9.620958ms)
+✔ dispatcher invokes only allowlisted handlers and normalizes failures (1.239958ms)
+✔ dispatcher rejects duplicate in-flight request IDs per tab (1.903ms)
+✔ dispatcher cancellation aborts the active handler and releases its request (1.346959ms)
+✔ dispatcher deadline aborts a silent handler and releases its request (0.8345ms)
+✔ dispatcher allows SuiteQL dispose to interrupt a start with the same request ID (0.755167ms)
+✔ popup composes rapid color swap and appearance edits without stale rendering (18.32575ms)
+✔ popup exports, confirms and atomically imports a validated settings backup (18.577667ms)
+✔ popup rejects malformed backup text without touching storage (3.850583ms)
+✔ popup leaves settings untouched when overwrite confirmation is cancelled (5.810875ms)
+✔ popup rolls back its in-memory import when Chrome storage rejects the overwrite (4.471541ms)
+✔ SuiteQL Console gives each shortcut one owner and Execute sends one start request (23.24475ms)
+✔ SuiteQL Console Abort permits immediate restart and discards the abandoned completion (2.64725ms)
+✔ SuiteQL Console can load a new query page while an aborted page request is still pending (7.915542ms)
+✔ exports one deeply frozen versioned command registry (2.065208ms)
+✔ normalizes shortcuts and rejects ambiguous combinations (1.62675ms)
+✔ maps Mod consistently for macOS, Windows, Linux, display, ARIA, and CodeMirror (2.445583ms)
+✔ keeps shortcut signatures collision-free within every surface and platform (2.258208ms)
+✔ matches exact platform modifiers and rejects repeats, composition, AltGraph, and editable targets by default (4.247125ms)
+✔ enforces route capability and settings availability from one descriptor (1.390042ms)
+✔ applies labels, descriptions, shortcuts, and native link metadata from the registry (1.472875ms)
+✔ scope rejects unknown, cross-surface, duplicate, unavailable, and busy invocations (3.59525ms)
+✔ scope normalizes sync and async failures without leaking running state (1.891125ms)
+✔ scope authorizes and executes against one context snapshot (1.076792ms)
+✔ scope never executes a handler replaced during authorization (4.522041ms)
+✔ scope fails closed when availability returns a promise (1.394ms)
+✔ scope consumes and reports a rejecting async availability predicate (2.233083ms)
+✔ scope freezes only success envelopes and accepts hostile handler-owned values (1.306458ms)
+✔ scope normalizes a thenable with a throwing then getter (3.128792ms)
+✔ scope tracks allowed re-entry and rejects stale async completion after disposal (1.10625ms)
+✔ allowed re-entry supports abort followed by immediate execution restart (3.528083ms)
+✔ shortcut binding is idempotent, exact, and disposed with its scope (1.257292ms)
+✔ CodeMirror bindings derive from registry shortcuts and share command availability (5.879334ms)
+✔ exports one frozen versioned CSV baseline core (1.1855ms)
+✔ limits CSV Export to saved record-like locations (1.790208ms)
+✔ serializes RFC 4180 CSV and neutralizes spreadsheet formulas (2.004166ms)
+✔ removes columns that are blank across every exported row (1.315667ms)
+✔ validates event envelopes and renders only bounded result metadata (4.563333ms)
+✔ main-world baseline survives unsupported sublists and missing custom forms (3.430208ms)
+✔ main-world template downloads the same headers without record rows (0.764834ms)
+✔ golden quality cases reject internal fields, raw fallbacks, HTML controls, and multiline output (2.1335ms)
+✔ main-world baseline returns a readable failure instead of throwing (0.527791ms)
+✔ the core keeps record values out of extension storage and network APIs (0.183333ms)
+✔ readViewSnapshot exports visible columns and rows exactly as shown (1.179667ms)
+✔ request and result details accept the exportView mode (0.90025ms)
+✔ the runtime maps every mode to its own command (7.874ms)
+✔ readViewSnapshot dedupe never collides with literal duplicate labels (1.012292ms)
+✔ result detail accepts a zero-row exportView (headers-only export) (1.204042ms)
+✔ the CSV Utils menu wires the Export view item to the exportView mode (9.463041ms)
+✔ main-world view export snapshots the visible grid, protects formulas and guards edit mode (2.710209ms)
+✔ exports one frozen closed operation registry (2.582125ms)
+✔ binds SuiteQL to the fixed private bridge and authorized document (1.597917ms)
+✔ reads and deduplicates a fixed direct Record Trail query (4.303167ms)
+✔ restricts authenticated category lookup to the current Import Assistant (3.883208ms)
+✔ rejects stale documents, login redirects, and oversized responses (1.764416ms)
+✔ normalizes NetSuite online errors and blocks cross-account category responses (1.265625ms)
+✔ preserves pre-start cancellation tombstones (0.533333ms)
+✔ returns a later category match but does not misreport total transport failure (0.873416ms)
+✔ exports a frozen core with the Edit Mode storage and DOM contract (3.075417ms)
+✔ reads the column axis from visible cells only and ignores excluded rows (1.943542ms)
+✔ a segment-paged machine is read from the rows it is SHOWING, not its first lines (14.372958ms)
+✔ correlation cost depends on how many rows are shown, never on WHICH lines (3.501542ms)
+✔ the absolute line cap bounds the parse and degrades instead of refusing (24.711625ms)
+✔ parses the machine's serialized field list and line data (1.513875ms)
+✔ collapses display twins and drops option lists and bookkeeping mirrors (1.468792ms)
+✔ scores label-to-field affinity in five tiers (1.176875ms)
+✔ correlates the live label set onto the live field list (3.112042ms)
+✔ an empty raw value under a rendered cell is penalised, not excluded (1.388167ms)
+✔ per-column unanimity resolves what every optimum agrees on and holes the rest (1.743375ms)
+✔ the owner's other Sales Order form mounts: 62 columns, 3 holes, no mis-key (61.361083ms)
+✔ duplicate header labels are separated by position, never by name (0.531458ms)
+✔ reads the column axis from the machine's hidden inputs and header labels (6.493792ms)
+✔ readColumnIds fails closed on every unusable machine (0.728583ms)
+✔ readColumnIdsFrom derives the axis across the mini-form boundary (4.232166ms)
+✔ readColumnIdsFrom fails closed on every gate readColumnIds does (2.222375ms)
+✔ clampWidth refuses a non-numeric width and honours the per-column floor (0.427ms)
+✔ normalizes the stored container fail-closed and refuses a newer schema (0.541333ms)
+✔ writers merge, delete empty entries and evict over quota (1.3915ms)
+✔ quota eviction spares other scopes on a clearing write and refuses an oversized entry (1.17675ms)
+✔ derives a per-column minimum from the widest widget in that column (0.547ms)
+✔ applies widths to header cells only, clamped to the static bounds, and restores on clear (0.823ms)
+✔ applyWidths is idempotent under a TOTAL plan, and walks the columns a PARTIAL plan omits (1.476375ms)
+✔ applyWidths' minimums parameter is provably inert — nothing passed there can move a width (1.898375ms)
+✔ applyWidths keys widths by the axis it is handed, never by one it derives (1.287625ms)
+✔ hides a column across the header and every aligned row, and nothing else (0.7295ms)
+✔ applyHidden fails closed on an axis that is absent, empty or misaligned (0.45425ms)
+✔ ADJUDICATION #19: the reveal is unconditional — a stale class comes off a broken machine (0.699709ms)
+✔ an excluded row is never hidden, even when it aligns to the header (0.889875ms)
+✔ revealing needs no axis, and reaches the rows an apply can no longer key (0.4735ms)
+✔ a hidden column stays on the axis, measured on the live twelve-column machine (2.923084ms)
+✔ readCellText reads NetSuite's own text and never a node SuiteMate injected (0.650959ms)
+✔ readHeaderLabels reads both header shapes, strips injections, and never opens the blank-label gate (2.000542ms)
+✔ core has no DOM, storage, bridge or network authority (0.320208ms)
+✔ neither mode can read the other's storage key, in EITHER direction (1.068708ms)
+✔ the two modes write widths to disjoint key spaces, and neither reads the other's (0.724542ms)
+✔ registers paused against the edit capability with a synchronous cleanup (12.65125ms)
+✔ never registers on a View Mode record (0.92525ms)
+✔ declines to install when the machine table is absent (1.051375ms)
+✔ declines to install on a read-only edit page whose column axis cannot be decoded (0.988ms)
+✔ declines to install when the decoded axis carries duplicate ids (0.843542ms)
+✔ mounts across the mini-form boundary, and declines when nothing holds the inputs (3.64225ms)
+✔ declines to install when the machine has no container to bind to (0.669ms)
+✔ mounts one hidden marker, binds once and writes nothing (3.037917ms)
+✔ refuses a newer stored schema with one warning across repaints (1.547833ms)
+✔ absorbs a rejected storage read as an ordinary failure, logged once (1.038042ms)
+✔ teardown is synchronous, unstamps the page and can remount afterwards (1.345542ms)
+✔ turning the setting off tears down and turning it back on remounts (1.593792ms)
+✔ the runtime's own pagehide handler disposes only on a real navigation (1.021583ms)
+✔ an install interrupted by teardown never lands on the stale generation (0.946209ms)
+✔ relevance reacts to machine mutations and drops records targeted at owned nodes (1.007292ms)
+✔ body-level churn around the machine is not relevant, but churn inside it is (0.95525ms)
+✔ the install that mounts does not schedule the next install (1.720333ms)
+✔ installs without a session status script and without its identifiers (1.808ms)
+✔ the column axis is derived on a native DOM, pinned, and never re-derived under a permutation (1.748458ms)
+✔ teardown clears the pinned axis, the applied order and the mismatch latch (0.19225ms)
+✔ an install whose second axis read comes back empty never reaches applyAll, and reseeds nothing (1.318625ms)
+✔ the save queue survives a rejected operation and a teardown (1.117708ms)
+✔ every axis read in the runtime goes through the pin (0.161875ms)
+✔ a machine id that is not a bare identifier is never spliced into a selector (2.350125ms)
+✔ a drag on a header edge resizes that column, freezes the machine and writes once (2.77825ms)
+✔ only the 5px edge zone starts a gesture, and the hover marker never lingers (1.652625ms)
+✔ the column floor is measured at the moment of the clamp, never carried from pointerdown (1.908875ms)
+✔ stored widths are restored on install, applied through the pinned axis, and cost no write (1.341459ms)
+✔ a repaint restores the widths the mount froze, never a re-measured redistribution (3.50375ms)
+✔ a widget wider than its column never raises that column, and never becomes its frozen width (1.980416ms)
+✔ a restore never widens a column nobody dragged, and re-applying it writes the same bytes (4.043042ms)
+✔ an install landing between pointerup and the write does not discard the gesture (4.481917ms)
+✔ both halves of the reseed guard are load-bearing: a save in flight, and a save already done (8.458583ms)
+✔ a header index is only a column key while the axis and the header are the same width (1.243708ms)
+✔ a repaint with a line open still restores the widths (2.141542ms)
+✔ an install whose rendering already equals the target touches no cell (2.326416ms)
+✔ the target signature predicts what core writes, zero-rendered column included (2.468916ms)
+✔ each gesture writes its own snapshot, never a map a later gesture has moved (1.9045ms)
+✔ a save whose mount was torn down before it ran writes nothing (4.373792ms)
+✔ teardown restores the native layout, drops a live gesture and forgets the widths (2.016042ms)
+✔ every width apply hands core the pinned axis, and only teardown clears without one (0.737292ms)
+✔ hiding a column through the menu writes once, hides BY CLASS, and never moves the axis (2.697667ms)
+✔ ADJUDICATION #20: a width is never planned from a column we are hiding (2.863916ms)
+✔ ADJUDICATION #20 SURVIVES A REPAINT — no width is ever measured once the machine left its own layout (3.207333ms)
+✔ ADJUDICATION #20 SURVIVES A TEARDOWN — a dead mount's `fixed` never starves the next one (2.693917ms)
+✔ ADJUDICATION #20 SURVIVES A LEFTOVER LAYOUT — a `fixed` this mount did not set never blocks the measurement (2.628333ms)
+✔ the Columns menu fails closed on a machine whose axis cannot be read (1.11675ms)
+✔ the standard harness machine resolves every column — no hole, unchanged ids (2.186125ms)
+✔ an unresolved column is listed, checked, disabled and unkeyable (1.179125ms)
+✔ STORAGE SAFETY: nothing about an unresolved column can reach storage (3.845833ms)
+✔ paging to another segment re-hides the user's columns on the rows it swapped in (3.518916ms)
+✔ a segment that corroborates less HOLES a column without latching the mount (1.851458ms)
+✔ a chip reveals its column, and neither direction writes an inline display (2.423292ms)
+✔ the CLASS is the only channel, and a cell NetSuite hides after our apply is never resurrected (1.813541ms)
+✔ an open line changes NOTHING about what is hidden, and the repaint it causes puts it back (2.103375ms)
+✔ the hidden set survives the whole open → edit → commit cycle (2.441125ms)
+✔ no edit anywhere brings a hidden column back — entry row, open line, or a row nobody focused (3.139292ms)
+✔ A3.2: the menu's tick seeds from the STORED set, never from what the column renders (1.642708ms)
+✔ a column NetSuite stars is never hidden, whatever the container says — and the container is KEPT (2.454459ms)
+✔ the hide choke point refuses a starred column, with no write and no DOM change (1.796792ms)
+✔ the choke point is armed BEFORE the install's storage read, not only after it (2.783875ms)
+✔ the star is read from the FORM, so a machine that stars nothing hides that same column (1.989209ms)
+✔ a hide made WHILE a line is open lands on the spot, and still writes exactly once (5.01175ms)
+✔ two hide gestures with nothing between them each write their OWN snapshot (2.15675ms)
+✔ an install that applies NOTHING still shows the chips for what is stored (2.01975ms)
+✔ focus moving inside the machine repairs a drifted render, and costs nothing when it is current (2.5865ms)
+✔ teardown strips the class, the bar and the menu, and a remount rebuilds them (2.358833ms)
+✔ an install landing in a hide's save gap does not discard the gesture (2.508208ms)
+✔ the scope key is latched: an install that cannot read the session keeps the user's key (2.146167ms)
+✔ a hide that only got half-way is re-applied, not sealed in by the header-only signature (4.153834ms)
+✔ the column menu closes on an outside click and on Escape, and leaves no listener behind (2.134375ms)
+✔ UI PARITY: Reset restores the machine, empties the container in ONE write, and the mount stays (3.10175ms)
+✔ UI PARITY: Reset never writes a required column, and a machine with nothing stored resets to nothing (2.422709ms)
+✔ UI PARITY: a width set AFTER a reset is planned from the machine, not from the layout that was reset away (3.044958ms)
+✔ UI PARITY: Reset against a NEWER stored schema refuses, and does not wipe the container (1.205459ms)
+✔ UI PARITY: a header ▼ hides its own column, through the same choke point as the menu (1.996583ms)
+✔ UI PARITY: the header ▼ refuses a required column and an unresolved one, the same way the menu does (6.774583ms)
+✔ UI PARITY: the header menu shares the Columns menu's dismisser, and the ▼ toggles (2.006542ms)
+✔ UI PARITY: moving between header ▼s takes ONE click, because the menu knows which arrow owns it (1.946083ms)
+✔ UI PARITY: the ▼ comes back after a repaint, exactly one per cell, without perturbing convergence (1.937333ms)
+✔ teardown releases the bindings even when the machine table is already detached (1.402125ms)
+✔ runtime owns no observer, no HTML sink and no View Mode storage (0.752209ms)
+✔ every stylesheet rule is scoped to the feature and every hide rule wins (1.070958ms)
+✔ SIGHTING FOUR: the control bar out-specifies the rule that was hiding it (1.917ms)
+✔ the bound-attribute rule is anchored where the runtime actually stamps (0.363917ms)
+✔ fixture catalog covers every classified NetSuite route with a Classic baseline (2.82425ms)
+✔ fixture catalog exercises every page-specific stylesheet from the manifest (14.071334ms)
+✔ Classic route harness mirrors production load order and remains local (17.375375ms)
+✔ every route and retained Redwood contract has a valid screenshot baseline (87.4195ms)
+✔ exports a frozen versioned form-views core (2.514417ms)
+✔ withHiddenFields stores, dedupes, lowercases, clears and fails closed (1.090917ms)
+✔ withCollapsedSections trims, dedupes and coexists with hidden fields (0.71875ms)
+✔ normalizeStored rejects garbage, newer schema and hostile keys (0.992333ms)
+✔ quota eviction keeps only the entry being written (0.609709ms)
+✔ schema-2 containers from the deferred layout builder read through (0.298583ms)
+✔ fieldKey prefers data-field-name and falls back to the walkthrough hook (1.253666ms)
+✔ sectionKey clone-strips injected nodes and collapses whitespace (1.195042ms)
+✔ applyFieldVisibility toggles the hide class from the stored set (0.706083ms)
+✔ exports a frozen bounded identifier parser (0.939ms)
+✔ extracts V1 field, button, sublist and sublist-column IDs (1.590333ms)
+✔ parses only the supported V1 list-header handler signatures (0.897833ms)
+✔ decodes customization-grid script IDs without exposing row values (1.242709ms)
+✔ core has no DOM, storage, bridge or network authority (0.148542ms)
+✔ exports one per-document singleton and installs global listeners once (3.0405ms)
+✔ shares one native observer and batches deliveries across independent watchers (7.410917ms)
+✔ replaces duplicate watcher ids and stale handles cannot remove replacements (5.212917ms)
+✔ rejects accidental duplicate ids unless replacement is explicit (0.971875ms)
+✔ isolates callback failures and keeps other watchers running (3.273792ms)
+✔ one-shot watchers stop observing after success and restart on route refresh (4.111291ms)
+✔ waitFor resolves immediately, from mutations, on timeout, and on abort (8.314292ms)
+✔ route capability loss cleans up and the reverse transition activates once (1.611291ms)
+✔ pause, pagehide, and disposeAll invalidate work and disconnect the observer (2.987458ms)
+✔ invalidates stale asynchronous generations before they can mutate state (2.462667ms)
+✔ suspends bfcache pages and reactivates watchers on pageshow (3.621625ms)
+✔ Record Trail installs once, renders safely, cancels stale refreshes and restores focus (24.099542ms)
+✔ exports stable route and capability constants (0.679084ms)
+✔ normalizes repeated path separators without decoding or changing case (0.740625ms)
+✔ enforces one strict NetSuite account-host policy (0.386375ms)
+✔ classifies environments and frame state independently from page family (0.973375ms)
+✔ preserves existing page flags used by the V1 CSS layer (1.260625ms)
+✔ activates SuiteQL Console only from the exact route and parameter presence (1.661292ms)
+✔ keeps global styling and notifications available in supported child frames (0.102541ms)
+✔ allows Internal IDs on trusted NetSuite pages and same-account frames (0.170625ms)
+✔ preserves the broad CSV Import route probe while excluding known non-record results (0.315375ms)
+✔ limits CSV Export to saved top-frame records with a numeric ID (1.99525ms)
+✔ limits Record Trail to saved top-frame transaction view pages (0.632084ms)
+✔ limits transaction column personalization to top-frame view mode (0.290667ms)
+✔ limits form views to top-frame Sales Order view mode (0.179083ms)
+✔ limits edit-mode transaction column personalization to top-frame Sales Order edit URLs (0.430875ms)
+✔ isolates Import Assistant context and bridge capabilities (0.21525ms)
+✔ requires exact top-frame sender authority for privileged bridges (0.269875ms)
+✔ keeps popup SuiteQL launch account-scoped and rejects excluded hosts (0.07175ms)
+✔ serializes route metadata without leaking the SuiteQL activation parameter (0.117875ms)
+✔ theme ignores a stale settings read after a newer storage update (8.757792ms)
+✔ Internal IDs follows its setting live and removes only owned badges (2.497541ms)
+✔ SuiteMate toasts stack on the right, use text only and dismiss reliably (2.917875ms)
+✔ CSV Utils rejects stale installation and routes Import, Export and Template independently (7.996083ms)
+✔ CSV Utils Export and Template invoke the typed bridge and report their downloads (5.782042ms)
+✔ Import Assistant does not write a subtype after its sourced option wait fails (4.711166ms)
+✔ creates a versioned UTF-8 backup and restores canonical settings (8.320208ms)
+✔ imports a canonical schema 1 backup through the current settings migration (1.165291ms)
+✔ imports a canonical schema 2 backup through the current settings migration (2.166709ms)
+✔ rejects empty, unrecognized and malformed encoded input (1.44325ms)
+✔ rejects wrong application, future backup format and invalid timestamps (3.127958ms)
+✔ rejects schema mismatches, future settings and non-canonical data (1.315542ms)
+✔ rejects oversized settings both before export and after decoding (1.347041ms)
+✔ transfer core has no storage, network or DOM authority (0.158208ms)
+✔ parses hand-built schema 3, 4 and 5 backups through the legacy branch (1.014417ms)
+✔ exports a stable versioned schema and current defaults (1.775292ms)
+✔ migrates legacy appearance and role themes without changing their meaning (0.57025ms)
+✔ migrates schema 1 settings and preserves an explicit Internal IDs preference (0.320917ms)
+✔ migrates schema 2 settings and preserves an explicit column personalization preference (0.310375ms)
+✔ repairs invalid declared settings while preserving valid role data (0.350625ms)
+✔ rejects invalid and future schema versions with typed errors (3.179334ms)
+✔ reads legacy settings in memory without producing migration writes (0.46475ms)
+✔ ensureCurrentSchema persists one canonical migration and then becomes idempotent (1.501625ms)
+✔ set writes one canonical object and storage values are returned by copy (1.52575ms)
+✔ validateForStorage normalizes and enforces the same limit without writing (1.005208ms)
+✔ role operations preserve schema version and unrelated roles (0.989959ms)
+✔ future settings cannot be read, migrated or overwritten by an older release (0.950208ms)
+✔ rejects settings before Chrome sync produces an opaque quota failure (1.13425ms)
+✔ propagates Chrome storage failures without reporting false success (1.735125ms)
+✔ migrates schema 5 to 6 by adding the edit-mode grid flag (0.369916ms)
+✔ exports a frozen core with the column-order storage contract (4.868416ms)
+✔ plans saved orders by label with stable native fallbacks (2.068666ms)
+✔ pins duplicate and empty labels to their native positions (0.388542ms)
+✔ normalizeStored rejects garbage, newer versions and hostile keys (1.956709ms)
+✔ normalizeStored migrates v1 arrays and accepts v2 entries (0.425584ms)
+✔ withHidden stores, clears and preserves order in the same entry (0.925167ms)
+✔ withWidths stores clamped widths, merges with the entry and clears (0.682ms)
+✔ withSort stores, merges, clears and fails closed (0.494625ms)
+✔ withFilters normalizes, caps and clears (1.065ms)
+✔ schema v2 passes through under v3 and v4 is refused (0.614166ms)
+✔ clearing the last field deletes the whole entry across all writers (0.410166ms)
+✔ applyWidths freezes visible columns, honors stored widths and clears (0.518583ms)
+✔ applyWidths re-measures unstored columns every call — DEFECT, pinned so it cannot resurface unnoticed (0.509708ms)
+✔ applyWidths batches every layout read before the first width write (0.607459ms)
+✔ applyHidden hides matching columns in every aligned row and unhides (0.597083ms)
+✔ withOrder writes, deletes and preserves sibling scopes (0.365459ms)
+✔ withOrder refuses to rewrite a newer storage schema (0.247833ms)
+✔ readCellLabel strips injected SuiteMate badge nodes (0.296375ms)
+✔ withOrder evicts sibling scopes when the payload would exceed the sync quota (0.36225ms)
+✔ readHeaderLabels trims header-cell text and fails closed (0.357ms)
+✔ captureNativeOrder stamps pristine order and survives reorders (0.647ms)
+✔ applyOrder reorders every aligned row and skips colspan rows (0.427209ms)
+✔ applyOrder fails closed without mutating on mismatched targets (0.325416ms)
+✔ detectColumnKind and parseSortValue handle text, currency and dates (0.501291ms)
+✔ sortRows sorts asc, desc and native with empties last and summary anchored (0.7705ms)
+✔ sortRows fails closed on non-contiguous rows and invalid input (0.354125ms)
+✔ parseFilterQuery and matchesFilter cover text and numeric operators (0.545459ms)
+✔ matchesFilter supports multi-select anyOf within a column (0.305209ms)
+✔ applyFilters ORs multi-select values within a column, ANDs across columns (0.35075ms)
+✔ applyFilters hides non-matching rows, AND-combines and unhides (0.357125ms)
+✔ distinctColumnValues lists unique values and respects the cap (0.288792ms)
+✔ list-style rows (Item Fulfillment) sort, filter, hide and list values (0.340375ms)
+✔ core has no DOM, storage, bridge or network authority (0.147833ms)
+✔ exports a frozen versioned tab-title core (0.976875ms)
+✔ parseRecordPath maps known record tokens and rejects the rest (1.983333ms)
+✔ titleCaseStatus humanizes all-caps statuses only (0.476625ms)
+✔ extractHeaderParts splits document number, strips injected nodes and truncates (0.513042ms)
+✔ composeTitle joins parts and refuses degraded titles (0.340875ms)
+✔ loads without browser globals or initialization side effects (1.684833ms)
+✔ same-version registration is idempotent and incompatible globals are preserved (0.57425ms)
+✔ deepFreeze handles cycles without reading accessors or traversing host objects (0.3675ms)
+✔ normalizes hex colors and counts UTF-8 bytes (0.450458ms)
+✔ normalizes hostile errors without throwing or leaking stacks by default (0.700792ms)
+✔ serializes RFC 4180 CSV with formula protection and stable matrix order (0.913125ms)
+✔ clipboard writes synchronously inside the caller gesture and returns typed results (0.936ms)
+✔ clipboard disposal invalidates a pending completion (0.344083ms)
+✔ downloads text with one BOM and deterministic anchor cleanup and revocation (0.538333ms)
+✔ download revokes immediately on click failure and fails in worker context (0.352875ms)
+✔ notice controller uses textContent, cancels stale timers and supports persistent notices (0.396125ms)
+ℹ tests 318
+ℹ suites 0
+ℹ pass 318
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 476.442334
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Record Trail bypasses the shared accessible modal lifecycle
+    at file:///private/tmp/claude-503/-Users-Bivek-Shah-Documents-suitemate-suitematev3/ae314c18-f00e-46db-85bf-496391553538/scratchpad/pr32/tests/verify.mjs:637:8 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: '(function initializeSuiteMateV3RecordTrail(globalScope) {\n' +
+    '  "use strict";\n' +
+    '\n' +
+    '  const bridgeApi = globalScope.SuiteMateV3Bridge;\n' +
+    '  const browserApi = globalScope.SuiteMateV3BrowserUtilities;\n' +
+    '  const commandApi = globalScope.SuiteMateV3Commands;\n' +
+    '  const lifecycleApi = globalScope.SuiteMateV3Lifecycle;\n' +
+    '  const routeApi = globalScope.SuiteMateV3Routes;\n' +
+    '  const settingsApi = globalScope.SuiteMateV3Settings;\n' +
+    '  if (\n' +
+    '    !bridgeApi\n' +
+    '    || !browserApi\n' +
+    '    || !commandApi\n' +
+    '    || !lifecycleApi\n' +
+    '    || !routeApi\n' +
+    '    || !settingsApi\n' +
+    '    || !globalScope.document\n' +
+    '    || !globalScope.location\n' +
+    '    || !globalScope.chrome?.runtime\n' +
+    '  ) {\n' +
+    '    return;\n' +
+    '  }\n' +
+    '\n' +
+    '  try {\n' +
+    '    if (globalScope !== globalScope.top) {\n' +
+    '      return;\n' +
+    '    }\n' +
+    '  } catch {\n' +
+    '    return;\n' +
+    '  }\n' +
+    '\n' +
+    `  const ACTION_SELECTOR = '[data-suitemate-v3-action="record-trail"]';\n` +
+    `  const OVERLAY_SELECTOR = '[data-suitemate-v3-ui="record-trail"]';\n` +
+    '  const TOP_TOOLBAR_SELECTOR = ".uir-buttons-top.uir-header-buttons";\n' +
+    '  const ACTIONS_CELL_SELECTOR = `${TOP_TOOLBAR_SELECTOR} td.uir-button-menu`;\n' +
+    '  const recordTrailCommand = commandApi.IDS.RECORD_SHOW_TRAIL;\n' +
+    '  let currentSettings = null;\n' +
+    '  let settingsRevision = 0;\n' +
+    '  let activeView = null;\n' +
+    '\n' +
+    '  function pageContext() {\n' +
+    '    return routeApi.createPageContext(globalScope.location, {\n' +
+    '      isTopFrame: true,\n' +
+    '      trustedContentScript: true\n' +
+    '    });\n' +
+    '  }\n' +
+    '\n' +
+    '  const commandScope = commandApi.createScope(commandApi.SURFACES.RECORD, {\n' +
+    '    getContext: () => ({ pageContext: pageContext(), settings: currentSettings }),\n' +
+    '    onError: ({ error }) => {\n' +
+    '      globalScope.console?.error("SuiteMate V3 Record Trail command failed.", error);\n' +
+    '    }\n' +
+    '  });\n' +
+    '  commandScope.register(recordTrailCommand, {\n' +
+    '    run: ({ payload }) => openRecordTrail(payload?.trigger ?? null)\n' +
+    '  });\n' +
+    '\n' +
+    '  function findActionsCell() {\n' +
+    '    return [...globalScope.document.querySelectorAll(ACTIONS_CELL_SELECTOR)]\n' +
+    '      .find((cell) => cell.querySelector(":scope > .ns-menu > .ns-menuitem > a")\n' +
+    '        ?.textContent?.trim() === "Actions") ?? null;\n' +
+    '  }\n' +
+    '\n' +
+    '  function notify(message, type) {\n' +
+    '    globalScope.SuiteMateV3Notifications?.showToast?.(message, { type });\n' +
+    '  }\n' +
+    '\n' +
+    '  function closeRecordTrail(restoreFocus = true) {\n' +
+    '    const view = activeView;\n' +
+    '    if (!view) {\n' +
+    '      return false;\n' +
+    '    }\n' +
+    '    activeView = null;\n' +
+    '    view.controller?.abort("closed");\n' +
+    '    // close() restores focus to the opener natively; restoreFocus only\n' +
+    '    // documents the teardown callers where the page is going away anyway.\n' +
+    '    void restoreFocus;\n' +
+    '    view.overlay.close?.();\n' +
+    '    globalScope.document.body.classList?.remove?.("suitemate-v3-record-trail-open");\n' +
+    '    view.clipboard.dispose();\n' +
+    '    view.overlay.remove();\n' +
+    '    return true;\n' +
+    '  }\n' +
+    '\n' +
+    '  function renderState(view, message, type = "status") {\n' +
+    '    const state = globalScope.document.createElement("p");\n' +
+    '    state.className = `suitemate-v3-record-trail-state is-${type}`;\n' +
+    '    state.setAttribute("role", type === "error" ? "alert" : "status");\n' +
+    '    state.textContent = message;\n' +
+    '    view.body.replaceChildren(state);\n' +
+    '  }\n' +
+    '\n' +
+    '  function createRecordCard(view, transaction, current) {\n' +
+    '    const card = globalScope.document.createElement("article");\n' +
+    '    const heading = globalScope.document.createElement("div");\n' +
+    '    const type = globalScope.document.createElement("span");\n' +
+    '    const number = globalScope.document.createElement("strong");\n' +
+    '    const meta = globalScope.document.createElement("p");\n' +
+    '    const status = globalScope.document.createElement("p");\n' +
+    '    const footer = globalScope.document.createElement("footer");\n' +
+    '    const copy = globalScope.document.createElement("button");\n' +
+    '\n' +
+    '    card.className = `suitemate-v3-record-trail-card${current ? " is-current" : ""}`;\n' +
+    '    heading.className = "suitemate-v3-record-trail-card-heading";\n' +
+    '    type.textContent = transaction.type || transaction.typeName || "Transaction";\n' +
+    '    number.textContent = transaction.tranId || `#${transaction.id}`;\n' +
+    '    heading.append(type, number);\n' +
+    '\n' +
+    '    meta.className = "suitemate-v3-record-trail-meta";\n' +
+    '    meta.textContent = [transaction.typeName || transaction.type, transaction.tranDate]\n' +
+    '      .filter(Boolean)\n' +
+    '      .join(" · ");\n' +
+    '    status.className = "suitemate-v3-record-trail-status";\n' +
+    '    status.textContent = transaction.status;\n' +
+    '\n' +
+    '    footer.className = "suitemate-v3-record-trail-footer";\n' +
+    '    copy.type = "button";\n' +
+    '    copy.textContent = `#${transaction.id}`;\n' +
+    '    copy.title = `Copy Internal ID ${transaction.id}`;\n' +
+    '    copy.addEventListener("click", async () => {\n' +
+    '      const result = await view.clipboard.writeText(transaction.id);\n' +
+    '      notify(\n' +
+    '        result.ok ? `Internal ID ${transaction.id} copied.` : result.error.message,\n' +
+    '        result.ok ? "success" : "error"\n' +
+    '      );\n' +
+    '    });\n' +
+    '    footer.append(copy);\n' +
+    '\n' +
+    '    if (!current) {\n' +
+    '      const open = globalScope.document.createElement("a");\n' +
+    '      const url = new URL("/app/accounting/transactions/transaction.nl", globalScope.location.origin);\n' +
+    '      url.searchParams.set("id", transaction.id);\n' +
+    '      open.href = url.href;\n' +
+    '      open.target = "_blank";\n' +
+    '      open.rel = "noopener noreferrer";\n' +
+    '      open.textContent = "Open";\n' +
+    '      open.title = `Open ${number.textContent} in a new tab`;\n' +
+    '      footer.append(open);\n' +
+    '    }\n' +
+    '\n' +
+    '    card.append(heading);\n' +
+    '    if (meta.textContent) {\n' +
+    '      card.append(meta);\n' +
+    '    }\n' +
+    '    if (status.textContent) {\n' +
+    '      card.append(status);\n' +
+    '    }\n' +
+    '    card.append(footer);\n' +
+    '    return card;\n' +
+    '  }\n' +
+    '\n' +
+    '  function createColumn(view, title, transactions, emptyMessage, current = false) {\n' +
+    '    const section = globalScope.document.createElement("section");\n' +
+    '    const heading = globalScope.document.createElement("h3");\n' +
+    '    const count = globalScope.document.createElement("span");\n' +
+    '    section.className = `suitemate-v3-record-trail-column${current ? " is-current" : ""}`;\n' +
+    '    heading.textContent = title;\n' +
+    '    if (!current) {\n' +
+    '      count.textContent = String(transactions.length);\n' +
+    '      count.setAttribute("aria-label", `${transactions.length} transactions`);\n' +
+    '      heading.append(count);\n' +
+    '    }\n' +
+    '    section.append(heading);\n' +
+    '    if (!transactions.length) {\n' +
+    '      const empty = globalScope.document.createElement("p");\n' +
+    '      empty.className = "suitemate-v3-record-trail-empty";\n' +
+    '      empty.textContent = emptyMessage;\n' +
+    '      section.append(empty);\n' +
+    '    } else {\n' +
+    '      transactions.forEach((transaction) => {\n' +
+    '        section.append(createRecordCard(view, transaction, current));\n' +
+    '      });\n' +
+    '    }\n' +
+    '    return section;\n' +
+    '  }\n' +
+    '\n' +
+    '  function renderTrail(view, trail) {\n' +
+    '    const grid = globalScope.document.createElement("div");\n' +
+    '    grid.className = "suitemate-v3-record-trail-grid";\n' +
+    '    grid.append(\n' +
+    '      createColumn(view, "Sources", trail.sources, "No direct source transactions found."),\n' +
+    '      createColumn(view, "You are here", [trail.current], "Current transaction unavailable.", true),\n' +
+    '      createColumn(\n' +
+    '        view,\n' +
+    '        "Targets",\n' +
+    '        trail.targets,\n' +
+    `        "This record doesn't generate any direct target transactions yet."\n` +
+    '      )\n' +
+    '    );\n' +
+    '    view.body.replaceChildren(grid);\n' +
+    '  }\n' +
+    '\n' +
+    '  async function loadRecordTrail(view) {\n' +
+    '    view.controller?.abort("refreshed");\n' +
+    '    const controller = new AbortController();\n' +
+    '    view.controller = controller;\n' +
+    '    renderState(view, "Loading direct transaction links…", "loading");\n' +
+    '    try {\n' +
+    '      const response = await bridgeApi.request(\n' +
+    '        bridgeApi.COMMANDS.RECORD_GET_TRAIL,\n' +
+    '        {},\n' +
+    '        { signal: controller.signal, timeoutMs: 125000 }\n' +
+    '      );\n' +
+    '      if (controller.signal.aborted || activeView !== view) {\n' +
+    '        return;\n' +
+    '      }\n' +
+    '      const result = bridgeApi.toCommandResult(response);\n' +
+    '      if (!result.ok) {\n' +
+    '        throw result.error;\n' +
+    '      }\n' +
+    '      renderTrail(view, result);\n' +
+    '    } catch (error) {\n' +
+    '      if (controller.signal.aborted || activeView !== view) {\n' +
+    '        return;\n' +
+    '      }\n' +
+    '      const permissionDenied = /permission|privilege|access/i.test(\n' +
+    '        `${error?.code ?? ""} ${error?.message ?? ""}`\n' +
+    '      );\n' +
+    '      renderState(\n' +
+    '        view,\n' +
+    '        permissionDenied\n' +
+    '          ? "Your NetSuite role cannot read transaction links."\n' +
+    '          : String(error?.message || "Record Trail could not be loaded."),\n' +
+    '        "error"\n' +
+    '      );\n' +
+    '    } finally {\n' +
+    '      if (activeView === view && view.controller === controller) {\n' +
+    '        view.controller = null;\n' +
+    '      }\n' +
+    '    }\n' +
+    '  }\n' +
+    '\n' +
+    '  function openRecordTrail(trigger) {\n' +
+    '    closeRecordTrail(false);\n' +
+    '    const overlay = globalScope.document.createElement("dialog");\n' +
+    '    const panel = globalScope.document.createElement("section");\n' +
+    '    const header = globalScope.document.createElement("header");\n' +
+    '    const headerMain = globalScope.document.createElement("div");\n' +
+    '    const icon = globalScope.document.createElement("span");\n' +
+    '    const titles = globalScope.document.createElement("div");\n' +
+    '    const title = globalScope.document.createElement("h2");\n' +
+    '    const subtitle = globalScope.document.createElement("p");\n' +
+    '    const actions = globalScope.document.createElement("div");\n' +
+    '    const refresh = globalScope.document.createElement("button");\n' +
+    '    const close = globalScope.document.createElement("button");\n' +
+    '    const body = globalScope.document.createElement("div");\n' +
+    '\n' +
+    '    overlay.className = "suitemate-v3-record-trail-overlay";\n' +
+    '    overlay.dataset.suitemateV3Ui = "record-trail";\n' +
+    '    overlay.setAttribute("role", "dialog");\n' +
+    '    overlay.setAttribute("aria-modal", "true");\n' +
+    '    overlay.setAttribute("aria-labelledby", "suitemate-v3-record-trail-title");\n' +
+    '    overlay.setAttribute("aria-describedby", "suitemate-v3-record-trail-subtitle");\n' +
+    '    panel.className = "suitemate-v3-record-trail-panel";\n' +
+    '    header.className = "suitemate-v3-record-trail-header";\n' +
+    '    headerMain.className = "suitemate-v3-record-trail-header-main";\n' +
+    '    icon.className = "suitemate-v3-record-trail-icon";\n' +
+    '    icon.setAttribute("aria-hidden", "true");\n' +
+    '    title.id = "suitemate-v3-record-trail-title";\n' +
+    '    title.textContent = "Record Trail";\n' +
+    '    subtitle.id = "suitemate-v3-record-trail-subtitle";\n' +
+    '    subtitle.textContent = "Records related to this transaction";\n' +
+    '    titles.append(title, subtitle);\n' +
+    '    headerMain.append(icon, titles);\n' +
+    '\n' +
+    '    actions.className = "suitemate-v3-record-trail-actions";\n' +
+    '    refresh.type = "button";\n' +
+    '    refresh'... 5621 more characters,
+  expected: /browserApi\.modals\.create/,
+  operator: 'match',
+  diff: 'simple'
+}
+
+Node.js v24.14.0

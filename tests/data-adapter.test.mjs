@@ -126,6 +126,7 @@ test("exports one frozen closed operation registry", async () => {
     SUITEQL_PAGE: "suiteql.page",
     SUITEQL_DISPOSE: "suiteql.dispose",
     RECORD_GET_TYPE: "record.getType",
+    RECORD_GET_TRAIL: "record.getTrail",
     IMPORT_ASSISTANT_SET_VALUES: "importAssistant.setValues",
     IMPORT_ASSISTANT_RESOLVE_CATEGORY: "importAssistant.resolveCategory"
   });
@@ -186,6 +187,95 @@ test("binds SuiteQL to the fixed private bridge and authorized document", async 
   });
   assert.equal(harness.lastExecution.world, "MAIN");
   assert.equal(harness.documentElement.dataset.suitemateV3DataAdapter, "1");
+});
+
+test("reads and deduplicates a fixed direct Record Trail query", async () => {
+  const calls = [];
+  const url = "https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl?id=42";
+  const harness = createHarness({
+    url,
+    fetchImpl: async (_requestUrl, options) => {
+      calls.push(JSON.parse(options.body));
+      return response(JSON.stringify({
+        result: {
+          result: {
+            aliases: ["direction", "id", "type", "typename", "tranid", "trandate", "status"],
+            count: 4,
+            v0: ["current", 42, "SalesOrd", "Sales Order", "SO42", "1/8/2026", "Pending Fulfillment"],
+            v1: ["source", 40, "Estimate", "Estimate", "EST40", "30/7/2026", "Processed"],
+            v2: ["source", 40, "Estimate", "Estimate", "EST40", "30/7/2026", "Processed"],
+            v3: ["target", 43, "ItemShip", "Item Fulfillment", "IF43", "2/8/2026", "Shipped"]
+          }
+        }
+      }));
+    }
+  });
+  const result = await harness.createAdapter().execute(
+    harness.request("record-trail-fixed"),
+    harness.api.OPERATIONS.RECORD_GET_TRAIL
+  );
+  assert.deepEqual(plain(result), {
+    current: {
+      id: "42",
+      type: "SalesOrd",
+      typeName: "Sales Order",
+      tranId: "SO42",
+      tranDate: "1/8/2026",
+      status: "Pending Fulfillment"
+    },
+    sources: [{
+      id: "40",
+      type: "Estimate",
+      typeName: "Estimate",
+      tranId: "EST40",
+      tranDate: "30/7/2026",
+      status: "Processed"
+    }],
+    targets: [{
+      id: "43",
+      type: "ItemShip",
+      typeName: "Item Fulfillment",
+      tranId: "IF43",
+      tranDate: "2/8/2026",
+      status: "Shipped"
+    }]
+  });
+  assert.equal(calls.length, 1);
+  const [query, parameters, language, suffix] = JSON.parse(calls[0].params[2]);
+  assert.match(query, /FROM transaction t[\s\S]*WHERE t\.id = 42/);
+  assert.match(query, /FROM PreviousTransactionLink pl/);
+  assert.match(query, /FROM NextTransactionLink nl/);
+  assert.equal(parameters, "[]");
+  assert.equal(language, "SUITE_QL");
+  assert.equal(suffix, "");
+
+  const invalid = createHarness({
+    url: "https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl?id=not-a-number",
+    fetchImpl: async () => {
+      throw new Error("Record Trail must reject before fetching");
+    }
+  });
+  await assert.rejects(
+    () => invalid.createAdapter().execute(
+      invalid.request("record-trail-invalid"),
+      invalid.api.OPERATIONS.RECORD_GET_TRAIL
+    ),
+    (error) => error.code === "INVALID_RECORD_TRAIL_ID"
+  );
+
+  const oversizedId = createHarness({
+    url: "https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl?id=123456789012345678901",
+    fetchImpl: async () => {
+      throw new Error("Record Trail must reject oversized IDs before fetching");
+    }
+  });
+  await assert.rejects(
+    () => oversizedId.createAdapter().execute(
+      oversizedId.request("record-trail-oversized-id"),
+      oversizedId.api.OPERATIONS.RECORD_GET_TRAIL
+    ),
+    (error) => error.code === "INVALID_RECORD_TRAIL_ID"
+  );
 });
 
 test("restricts authenticated category lookup to the current Import Assistant", async () => {

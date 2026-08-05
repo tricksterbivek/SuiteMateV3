@@ -7,6 +7,7 @@
     SUITEQL_PAGE: "suiteql.page",
     SUITEQL_DISPOSE: "suiteql.dispose",
     RECORD_GET_TYPE: "record.getType",
+    RECORD_GET_TRAIL: "record.getTrail",
     IMPORT_ASSISTANT_SET_VALUES: "importAssistant.setValues",
     IMPORT_ASSISTANT_RESOLVE_CATEGORY: "importAssistant.resolveCategory"
   });
@@ -19,6 +20,7 @@
       "suiteql.page",
       "suiteql.dispose",
       "record.getType",
+      "record.getTrail",
       "importAssistant.setValues",
       "importAssistant.resolveCategory",
       "adapter.cancel"
@@ -539,6 +541,89 @@
       }
     }
 
+    function normalizeRecordTrailRow(row) {
+      const id = String(row?.id ?? "");
+      if (!/^[1-9]\d{0,19}$/.test(id)) {
+        throw {
+          code: "INVALID_RECORD_TRAIL_RESPONSE",
+          message: "NetSuite returned an invalid Record Trail transaction ID."
+        };
+      }
+      return {
+        id,
+        type: String(row?.type ?? "").slice(0, 100),
+        typeName: String(row?.typename ?? "").slice(0, 300),
+        tranId: String(row?.tranid ?? "").slice(0, 300),
+        tranDate: String(row?.trandate ?? "").slice(0, 100),
+        status: String(row?.status ?? "").slice(0, 300)
+      };
+    }
+
+    async function readRecordTrail() {
+      const id = new URL(location.href).searchParams.get("id") ?? "";
+      if (!/^[1-9]\d{0,19}$/.test(id)) {
+        throw {
+          code: "INVALID_RECORD_TRAIL_ID",
+          message: "Record Trail requires a valid transaction ID."
+        };
+      }
+
+      const columns = `t.id, t.type, BUILTIN.DF(t.type) AS typename,
+        t.tranid, t.trandate, BUILTIN.DF(t.status) AS status`;
+      const query = `
+        SELECT 'current' AS direction, ${columns}
+        FROM transaction t
+        WHERE t.id = ${id}
+        UNION ALL
+        SELECT DISTINCT 'source' AS direction, ${columns}
+        FROM PreviousTransactionLink pl
+        JOIN transaction t ON t.id = pl.previousdoc
+        WHERE pl.nextdoc = ${id}
+        UNION ALL
+        SELECT DISTINCT 'target' AS direction, ${columns}
+        FROM NextTransactionLink nl
+        JOIN transaction t ON t.id = nl.nextdoc
+        WHERE nl.previousdoc = ${id}
+      `.trim();
+      const result = await callSuiteQLBridge("runSuiteQL", [
+        query,
+        "[]",
+        "SUITE_QL",
+        ""
+      ]);
+      const { rows } = serializeSuiteQLRows(result);
+      const related = {
+        source: new Map(),
+        target: new Map()
+      };
+      let current = null;
+      for (const row of rows) {
+        const direction = String(row.direction ?? "").toLowerCase();
+        const transaction = normalizeRecordTrailRow(row);
+        if (direction === "current") {
+          current = transaction;
+        } else if (related[direction]) {
+          related[direction].set(transaction.id, transaction);
+        } else {
+          throw {
+            code: "INVALID_RECORD_TRAIL_RESPONSE",
+            message: "NetSuite returned an invalid Record Trail direction."
+          };
+        }
+      }
+      if (!current) {
+        throw {
+          code: "RECORD_TRAIL_NOT_FOUND",
+          message: "The current transaction is unavailable to this NetSuite role."
+        };
+      }
+      return {
+        current,
+        sources: [...related.source.values()],
+        targets: [...related.target.values()]
+      };
+    }
+
     function setImportAssistantValues() {
       return new Promise((resolve, reject) => {
         try {
@@ -721,6 +806,8 @@
           return success(await readSuiteQLPage());
         case "record.getType":
           return success(readRecordType());
+        case "record.getTrail":
+          return success(await readRecordTrail());
         case "importAssistant.setValues":
           return success(await setImportAssistantValues());
         case "importAssistant.resolveCategory":

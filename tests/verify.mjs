@@ -45,12 +45,14 @@ assert.deepEqual(globalThemeContentScript.css, [
   "src/styles/notifications.css",
   "src/internal-ids/internal-ids.css",
   "src/record-actions/csv-import.css",
+  "src/record-actions/record-trail.css",
   "src/so-columns/so-columns.css",
   "src/form-views/form-views.css",
   "src/edit-grid/edit-grid.css"
 ]);
 assert.deepEqual(globalThemeContentScript.js, [
   "src/shared/utilities.js",
+  "src/shared/browser-utilities.js",
   "src/shared/routes.js",
   "src/shared/commands.js",
   "src/shared/bridge.js",
@@ -67,6 +69,7 @@ assert.deepEqual(globalThemeContentScript.js, [
   "src/record-actions/core.js",
   "src/internal-ids/runtime.js",
   "src/record-actions/csv-import.js",
+  "src/record-actions/record-trail.js",
   "src/csv-export/runtime.js",
   "src/so-columns/runtime.js",
   "src/tab-title/runtime.js",
@@ -214,6 +217,8 @@ const extensionSources = [
   "src/record-actions/core.js",
   "src/record-actions/csv-import.js",
   "src/record-actions/csv-import.css",
+  "src/record-actions/record-trail.js",
+  "src/record-actions/record-trail.css",
   "src/so-columns/core.js",
   "src/so-columns/runtime.js",
   "src/so-columns/so-columns.css",
@@ -297,6 +302,7 @@ assert.equal(commandApi.IDS.RECORD_CSV_IMPORT, "record.csv-import");
 assert.equal(commandApi.IDS.RECORD_CSV_EXPORT, "record.csv-export");
 assert.equal(commandApi.IDS.RECORD_CSV_TEMPLATE, "record.csv-template");
 assert.equal(commandApi.IDS.RECORD_CSV_EXPORT_VIEW, "record.csv-export-view");
+assert.equal(commandApi.IDS.RECORD_SHOW_TRAIL, "record.show-trail");
 assert.equal(commandApi.IDS.SETTINGS_EXPORT_BACKUP, "settings.export-backup");
 assert.equal(commandApi.IDS.SETTINGS_IMPORT_BACKUP, "settings.import-backup");
 assert.equal(Object.isFrozen(commandApi.DEFINITIONS), true);
@@ -329,6 +335,7 @@ const bridgeApi = bridgeSandbox.SuiteMateV3Bridge;
 assert.equal(bridgeApi.VERSION, 2);
 assert.equal(bridgeApi.COMMANDS.SUITEQL_START, "suiteql.start");
 assert.equal(bridgeApi.COMMANDS.RECORD_GET_TYPE, "record.getType");
+assert.equal(bridgeApi.COMMANDS.RECORD_GET_TRAIL, "record.getTrail");
 assert.equal(bridgeApi.COMMANDS.RECORD_EXPORT_CSV, "record.exportCsv");
 assert.equal(
   bridgeApi.COMMANDS.IMPORT_ASSISTANT_SET_VALUES,
@@ -619,6 +626,23 @@ assert.match(csvImportStyles, /\[data-open=true\]>.suitemate-v3-csv-utils-dropdo
 assert.doesNotMatch(csvImportStyles, /:hover>.suitemate-v3-csv-utils-dropdown/, "CSV Utils still opens on hover");
 assert.doesNotMatch(csvImportStyles, /:focus-within>.suitemate-v3-csv-utils-dropdown/, "CSV Utils still opens on focus without activation");
 assert.doesNotMatch(csvImportSource, /addEventListener\("pointer(?:enter|leave)"/, "CSV Utils still binds hover-open listeners");
+
+const recordTrailSource = await readFile(resolve(root, "src/record-actions/record-trail.js"), "utf8");
+const serviceWorkerSource = await readFile(resolve(root, "src/background/service-worker.js"), "utf8");
+const recordTrailDataAdapterSource = await readFile(resolve(root, "src/netsuite/data-adapter.js"), "utf8");
+assert.match(recordTrailSource, /COMMANDS\.RECORD_GET_TRAIL/, "Record Trail bypasses the typed NetSuite bridge");
+assert.match(serviceWorkerSource, /\[COMMANDS\.RECORD_GET_TRAIL\]: handleRecordTrail/, "Record Trail is not registered with the background dispatcher");
+assert.match(recordTrailDataAdapterSource, /PreviousTransactionLink/, "Record Trail does not query direct source transactions");
+assert.match(recordTrailDataAdapterSource, /NextTransactionLink/, "Record Trail does not query direct target transactions");
+assert.match(recordTrailSource, /overlay\.showModal\?\.\(\)/, "Record Trail does not open through the native dialog top layer");
+assert.match(recordTrailSource, /lifecycleApi\.register/, "Record Trail bypasses the shared observer lifecycle");
+assert.match(recordTrailSource, /controller\?\.abort\("refreshed"\)/, "Record Trail refresh does not cancel stale work");
+assert.match(recordTrailSource, /noopener noreferrer/, "Record Trail links can retain opener access");
+assert.doesNotMatch(recordTrailSource, /postMessage|innerHTML/, "Record Trail uses an unsafe page bridge or HTML rendering");
+
+const recordTrailStyles = await readFile(resolve(root, "src/record-actions/record-trail.css"), "utf8");
+assert.match(recordTrailStyles, /--theme-main/, "Record Trail does not use the active SuiteMate theme");
+assert.match(recordTrailStyles, /record-trail-overlay::backdrop/, "Record Trail does not sit in the native top layer above NetSuite overlays");
 
 const csvExportCoreSource = await readFile(resolve(root, "src/csv-export/core.js"), "utf8");
 const csvExportMainWorldSource = await readFile(resolve(root, "src/csv-export/main-world.js"), "utf8");

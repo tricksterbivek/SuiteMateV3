@@ -29,6 +29,7 @@
     SUITEQL_PAGE: "suiteql.page",
     SUITEQL_DISPOSE: "suiteql.dispose",
     RECORD_GET_TYPE: "record.getType",
+    RECORD_GET_TRAIL: "record.getTrail",
     RECORD_EXPORT_CSV: "record.exportCsv",
     IMPORT_ASSISTANT_SET_VALUES: "importAssistant.setValues",
     IMPORT_ASSISTANT_RESOLVE_CATEGORY: "importAssistant.resolveCategory"
@@ -357,6 +358,104 @@
         );
   }
 
+  function validateRecordTrailNode(value) {
+    const invalid = validateResponseKeys(value, [
+      "id",
+      "type",
+      "typeName",
+      "tranId",
+      "tranDate",
+      "status"
+    ]);
+    if (invalid) {
+      return invalid;
+    }
+    if (typeof value.id !== "string" || !/^[1-9]\d{0,19}$/.test(value.id)) {
+      return validationFailure(
+        "INVALID_BRIDGE_RESPONSE",
+        "Record Trail transaction ID is invalid."
+      );
+    }
+    for (const [field, maximum] of Object.entries({
+      type: 100,
+      typeName: 300,
+      tranId: 300,
+      tranDate: 100,
+      status: 300
+    })) {
+      if (typeof value[field] !== "string" || value[field].length > maximum) {
+        return validationFailure(
+          "INVALID_BRIDGE_RESPONSE",
+          `Record Trail ${field} is invalid.`
+        );
+      }
+    }
+    return validationSuccess({
+      id: value.id,
+      type: value.type,
+      typeName: value.typeName,
+      tranId: value.tranId,
+      tranDate: value.tranDate,
+      status: value.status
+    });
+  }
+
+  function validateRecordTrailResponse(value) {
+    const invalid = validateResponseKeys(value, ["current", "sources", "targets"]);
+    if (invalid) {
+      return invalid;
+    }
+    if (!Array.isArray(value.sources) || !Array.isArray(value.targets)) {
+      return validationFailure(
+        "INVALID_BRIDGE_RESPONSE",
+        "Record Trail sources and targets must be arrays."
+      );
+    }
+    if (value.sources.length + value.targets.length > 4999) {
+      return validationFailure(
+        "INVALID_BRIDGE_RESPONSE",
+        "Record Trail returned too many related transactions."
+      );
+    }
+
+    const current = validateRecordTrailNode(value.current);
+    if (!current.ok) {
+      return current;
+    }
+    const validateList = (items) => {
+      const normalized = [];
+      const ids = new Set();
+      for (const item of items) {
+        const result = validateRecordTrailNode(item);
+        if (!result.ok) {
+          return result;
+        }
+        if (ids.has(result.payload.id)) {
+          return validationFailure(
+            "INVALID_BRIDGE_RESPONSE",
+            "Record Trail contains a duplicate transaction."
+          );
+        }
+        ids.add(result.payload.id);
+        normalized.push(result.payload);
+      }
+      return validationSuccess(normalized);
+    };
+    const sources = validateList(value.sources);
+    const targets = validateList(value.targets);
+    if (!sources.ok) {
+      return sources;
+    }
+    if (!targets.ok) {
+      return targets;
+    }
+    return validationSuccess({
+      current: current.payload,
+      sources: sources.payload,
+      targets: targets.payload
+    });
+  }
+
   function validateRecordCsvExportResponse(value) {
     const invalid = validateResponseKeys(value, [
       "filename",
@@ -476,6 +575,12 @@
       handlerTimeoutMs: 10000,
       validate: validateEmptyPayload,
       validateResponse: validateRecordTypeResponse
+    }),
+    [COMMANDS.RECORD_GET_TRAIL]: Object.freeze({
+      capability: routeApi?.CAPABILITIES?.RECORD_TRAIL,
+      handlerTimeoutMs: 125000,
+      validate: validateEmptyPayload,
+      validateResponse: validateRecordTrailResponse
     }),
     [COMMANDS.RECORD_EXPORT_CSV]: Object.freeze({
       capability: routeApi?.CAPABILITIES?.CSV_EXPORT_RECORD,

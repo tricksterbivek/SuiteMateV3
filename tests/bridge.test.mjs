@@ -59,6 +59,7 @@ test("exports one frozen versioned command registry", () => {
     SUITEQL_PAGE: "suiteql.page",
     SUITEQL_DISPOSE: "suiteql.dispose",
     RECORD_GET_TYPE: "record.getType",
+    RECORD_GET_TRAIL: "record.getTrail",
     RECORD_EXPORT_CSV: "record.exportCsv",
     IMPORT_ASSISTANT_SET_VALUES: "importAssistant.setValues",
     IMPORT_ASSISTANT_RESOLVE_CATEGORY: "importAssistant.resolveCategory"
@@ -135,6 +136,22 @@ test("creates canonical requests and rejects malformed command payloads", () => 
       { requestId: "record-1" }
     ).payload),
     {}
+  );
+  assert.deepEqual(
+    plain(bridge.createRequest(
+      bridge.COMMANDS.RECORD_GET_TRAIL,
+      {},
+      { requestId: "record-trail-1" }
+    ).payload),
+    {}
+  );
+  assert.throws(
+    () => bridge.createRequest(
+      bridge.COMMANDS.RECORD_GET_TRAIL,
+      { id: "42" },
+      { requestId: "record-trail-payload" }
+    ),
+    (error) => error.code === "UNEXPECTED_PAYLOAD_FIELD"
   );
   assert.deepEqual(
     plain(bridge.createRequest(
@@ -258,6 +275,21 @@ test("enforces command-specific route and frame authority", () => {
   assert.equal(bridge.validateRequest(recordRequest, sender(recordUrl)).ok, true);
   assert.equal(
     bridge.validateRequest(recordRequest, sender(studioUrl)).response.error.code,
+    "INVALID_SENDER"
+  );
+
+  const trailRequest = bridge.createRequest(
+    bridge.COMMANDS.RECORD_GET_TRAIL,
+    {},
+    { requestId: "record-trail-auth" }
+  );
+  assert.equal(bridge.validateRequest(trailRequest, sender(recordUrl)).ok, true);
+  assert.equal(
+    bridge.validateRequest(trailRequest, sender(`${recordUrl}&e=T`)).response.error.code,
+    "INVALID_SENDER"
+  );
+  assert.equal(
+    bridge.validateRequest(trailRequest, sender(recordUrl, 7, 1)).response.error.code,
     "INVALID_SENDER"
   );
 
@@ -490,6 +522,53 @@ test("validates bounded CSV Export response metadata", () => {
       },
       expected
     ).error.code,
+    "INVALID_BRIDGE_RESPONSE"
+  );
+});
+
+test("validates exact Record Trail responses", () => {
+  const expected = {
+    requestId: "record-trail-response",
+    command: bridge.COMMANDS.RECORD_GET_TRAIL
+  };
+  const transaction = {
+    id: "42",
+    type: "SalesOrd",
+    typeName: "Sales Order",
+    tranId: "SO42",
+    tranDate: "1/8/2026",
+    status: "Pending Fulfillment"
+  };
+  const success = bridge.createSuccessResponse(expected.requestId, expected.command, {
+    current: transaction,
+    sources: [{ ...transaction, id: "41", tranId: "EST41" }],
+    targets: [{ ...transaction, id: "43", tranId: "IF43" }]
+  });
+  const result = bridge.toCommandResult(bridge.normalizeResponse(success, expected));
+  assert.equal(result.ok, true);
+  assert.equal(result.current.id, "42");
+  assert.deepEqual(plain(result.sources.map((item) => item.id)), ["41"]);
+  assert.deepEqual(plain(result.targets.map((item) => item.id)), ["43"]);
+
+  assert.equal(
+    bridge.normalizeResponse({
+      ...success,
+      data: { ...success.data, arbitrary: true }
+    }, expected).error.code,
+    "INVALID_BRIDGE_RESPONSE"
+  );
+  assert.equal(
+    bridge.normalizeResponse({
+      ...success,
+      data: { ...success.data, sources: [success.data.sources[0], success.data.sources[0]] }
+    }, expected).error.code,
+    "INVALID_BRIDGE_RESPONSE"
+  );
+  assert.equal(
+    bridge.normalizeResponse({
+      ...success,
+      data: { ...success.data, current: { ...transaction, id: "0" } }
+    }, expected).error.code,
     "INVALID_BRIDGE_RESPONSE"
   );
 });

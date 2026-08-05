@@ -58,6 +58,18 @@ importScripts(chrome.runtime.getURL("src/netsuite/data-adapter.js"));
     }
   }
 
+  async function handleRecordTrail(request) {
+    try {
+      return await dataAdapter.execute(request, OPERATIONS.RECORD_GET_TRAIL);
+    } catch (error) {
+      throw {
+        code: String(error?.code || "RECORD_TRAIL_UNAVAILABLE"),
+        message: String(error?.message || "Record Trail is unavailable."),
+        details: String(error?.details || "")
+      };
+    }
+  }
+
   function createExactDocumentTarget(senderContext) {
     if (
       !Number.isInteger(senderContext?.tabId)
@@ -222,6 +234,7 @@ importScripts(chrome.runtime.getURL("src/netsuite/data-adapter.js"));
     [COMMANDS.SUITEQL_PAGE]: handleSuiteQLPage,
     [COMMANDS.SUITEQL_DISPOSE]: handleSuiteQLDispose,
     [COMMANDS.RECORD_GET_TYPE]: handleRecordTypeRequest,
+    [COMMANDS.RECORD_GET_TRAIL]: handleRecordTrail,
     [COMMANDS.RECORD_EXPORT_CSV]: handleRecordCsvExport,
     [COMMANDS.IMPORT_ASSISTANT_SET_VALUES]: handleImportAssistantSetValues,
     [COMMANDS.IMPORT_ASSISTANT_RESOLVE_CATEGORY]: handleImportAssistantResolveCategory
