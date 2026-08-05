@@ -16,9 +16,11 @@
     formViews: params.get("formViews") === "true",
     salesOrderColumnsEdit: params.get("salesOrderColumnsEdit") === "true"
   };
-  let columnOrders;
-  let formViews;
-  let editColumns;
+  const featureStores = {
+    suiteMateV3ColumnOrder: { value: undefined, counter: "columnOrderWrites" },
+    suiteMateV3FormViews: { value: undefined, counter: "formViewsWrites" },
+    suiteMateV3EditColumns: { value: undefined, counter: "editGridWrites" }
+  };
   const roleKey = params.get("roleKey");
   const main = params.get("mainColor");
   const secondary = params.get("secondaryColor");
@@ -208,61 +210,27 @@
     storage: {
       sync: {
         async get(key) {
-          if (key === "suiteMateV3ColumnOrder") {
-            return { [key]: columnOrders };
-          }
-          if (key === "suiteMateV3FormViews") {
-            return { [key]: formViews };
-          }
-          if (key === "suiteMateV3EditColumns") {
-            return { [key]: editColumns };
-          }
-          return { [key]: settings };
+          return { [key]: key in featureStores ? featureStores[key].value : settings };
         },
         async set(value) {
-          const [key, nextSettings] = Object.entries(value)[0];
-          if (key === "suiteMateV3FormViews") {
-            const previousViews = formViews;
-            formViews = nextSettings;
-            document.documentElement.dataset.formViewsWrites = String(
-              Number(document.documentElement.dataset.formViewsWrites ?? 0) + 1
+          const [key, next] = Object.entries(value)[0];
+          const store = featureStores[key];
+          const previous = store ? store.value : settings;
+          if (store) {
+            store.value = next;
+            document.documentElement.dataset[store.counter] = String(
+              Number(document.documentElement.dataset[store.counter] ?? 0) + 1
             );
-            for (const listener of listeners) {
-              listener({ [key]: { oldValue: previousViews, newValue: formViews } }, "sync");
-            }
-            return;
-          }
-          if (key === "suiteMateV3EditColumns") {
-            const previousEditColumns = editColumns;
-            editColumns = nextSettings;
-            document.documentElement.dataset.editGridWrites = String(
-              Number(document.documentElement.dataset.editGridWrites ?? 0) + 1
+          } else {
+            settings = next;
+            document.documentElement.dataset.storageWrites = String(
+              Number(document.documentElement.dataset.storageWrites ?? 0) + 1
             );
-            for (const listener of listeners) {
-              listener({ [key]: { oldValue: previousEditColumns, newValue: editColumns } }, "sync");
-            }
-            return;
+            document.documentElement.dataset.storedMain = settings.roleThemes?.[roleKey]?.main ?? "";
+            document.documentElement.dataset.storedSecondary = settings.roleThemes?.[roleKey]?.secondary ?? "";
           }
-          if (key === "suiteMateV3ColumnOrder") {
-            const previousOrders = columnOrders;
-            columnOrders = nextSettings;
-            document.documentElement.dataset.columnOrderWrites = String(
-              Number(document.documentElement.dataset.columnOrderWrites ?? 0) + 1
-            );
-            for (const listener of listeners) {
-              listener({ [key]: { oldValue: previousOrders, newValue: columnOrders } }, "sync");
-            }
-            return;
-          }
-          const previousSettings = settings;
-          settings = nextSettings;
-          document.documentElement.dataset.storageWrites = String(
-            Number(document.documentElement.dataset.storageWrites ?? 0) + 1
-          );
-          document.documentElement.dataset.storedMain = settings.roleThemes?.[roleKey]?.main ?? "";
-          document.documentElement.dataset.storedSecondary = settings.roleThemes?.[roleKey]?.secondary ?? "";
           for (const listener of listeners) {
-            listener({ [key]: { oldValue: previousSettings, newValue: settings } }, "sync");
+            listener({ [key]: { oldValue: previous, newValue: store ? store.value : settings } }, "sync");
           }
         }
       },

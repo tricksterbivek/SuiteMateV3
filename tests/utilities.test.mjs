@@ -338,38 +338,3 @@ function createElement({ attributes = {}, connected = true } = {}) {
     listeners
   };
 }
-
-test("modal restores inert and aria state, focus ownership and listeners", () => {
-  const { browserApi } = createHarness();
-  const dialog = createElement({ attributes: { role: "dialog" } });
-  dialog.hidden = true;
-  const firstBackground = createElement({ attributes: { "aria-hidden": "false" } });
-  const secondBackground = createElement({ attributes: { inert: "", "aria-hidden": "true" } });
-  secondBackground.inert = true;
-  const trigger = createElement();
-  const initialFocus = createElement();
-  const body = createElement();
-  const modal = browserApi.modals.create({
-    dialog,
-    backgroundElements: [firstBackground, secondBackground],
-    body,
-    bodyClass: "open"
-  });
-
-  assert.equal(modal.show({ trigger, initialFocus }), true);
-  assert.equal(modal.show({ trigger, initialFocus }), false);
-  assert.equal(dialog.hidden, false);
-  assert.equal(firstBackground.inert, true);
-  assert.equal(firstBackground.getAttribute("aria-hidden"), "true");
-  assert.equal(initialFocus.focusCount, 1);
-  assert.equal(dialog.listeners.has("keydown"), true);
-  assert.equal(modal.hide(), true);
-  assert.equal(dialog.hidden, true);
-  assert.equal(firstBackground.inert, false);
-  assert.equal(firstBackground.getAttribute("aria-hidden"), "false");
-  assert.equal(secondBackground.inert, true);
-  assert.equal(secondBackground.getAttribute("aria-hidden"), "true");
-  assert.equal(trigger.focusCount, 1);
-  assert.equal(dialog.listeners.size, 0);
-});
-

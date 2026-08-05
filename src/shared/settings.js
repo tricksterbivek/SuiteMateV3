@@ -137,15 +137,11 @@
     };
   }
 
-  function migrate(value) {
+  function normalize(value) {
     // Every historical migration only stamped schemaVersion and coerced fields
     // normalizeCurrent re-derives anyway; validating the version is all that's left.
     readSchemaVersion(value);
     return normalizeCurrent(isPlainObject(value) ? value : {});
-  }
-
-  function normalize(value) {
-    return migrate(value);
   }
 
   function assertWithinStorageLimit(settings) {
@@ -331,7 +327,6 @@
     DEFAULTS,
     THEME_VARIABLE_NAMES,
     normalizeHexColor,
-    migrate,
     normalize,
     isSettingsVersionError,
     getRoleTheme,
