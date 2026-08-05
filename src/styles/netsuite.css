@@ -1160,6 +1160,10 @@ html:not(.ext-f):not(.isRedwood) .formtabtext {
     color: #fff !important
 }
 
+html:not(.ext-f):not(.isRedwood) .formtabon .formtabtext {
+    color: var(--text-0) !important
+}
+
 html:not(.ext-f) [data-widget=FieldGroup]>[data-widget-section=title]>[data-widget=Text],
 html:not(.ext-f) td.fgroup_title>div.fgroup_title,
 html:not(.ext-f):not(.isRedwood) [data-widget=FieldGroup]>[role=button] [data-widget=Text],
@@ -2403,10 +2407,11 @@ html:not(.ext-f):not(.isRedwood) .bgtabbar .formtabtext {
     padding: 5px 13px 4px 13px !important
 }
 
-/* ACTIVE TAB, one treatment at both scales: the selected tab is a surface shifted
-   toward the theme colour plus a 3px bottom accent derived from it. Everything is
-   mixed from --theme-main, so a role theme restyles every active tab with no
-   further rules.
+/* ACTIVE TAB, one treatment at both scales, owner-directed LIGHT: the selected
+   tab takes the panel surface (var(--field-backgroud-color)) with dark text and
+   a 3px var(--theme-main) bottom accent — the grammar the nested subtab row
+   already used, now spoken by every bar. The accent carries the theme, so a
+   role theme restyles every active tab with no further rules.
 
    UNCONDITIONAL — NOT gated on :not(.isRedwood), and that is the correction this
    round exists for. These rules shipped classic-only on the theory that a
@@ -2432,8 +2437,8 @@ html:not(.ext-f):not(.isRedwood) .bgtabbar .formtabtext {
    The inactive tabs carry the same 3px border in transparent so that selecting a
    tab moves no text by a pixel. */
 html:not(.ext-f) :is(.uir-tabs, .uir-tab-list, .uir-tab-list-tabs, .bgtabbar) .formtabon {
-    background-color: color-mix(in srgb, var(--theme-main), #000 32%) !important;
-    border-bottom: 3px solid color-mix(in srgb, #fff 62%, var(--theme-main)) !important
+    background-color: var(--field-backgroud-color) !important;
+    border-bottom: 3px solid var(--theme-main) !important
 }
 
 html:not(.ext-f) :is(.uir-tabs, .uir-tab-list, .uir-tab-list-tabs, .bgtabbar) .formtaboff {
@@ -2445,6 +2450,8 @@ html:not(.ext-f) :is(.uir-tabs, .uir-tab-list, .uir-tab-list-tabs, .bgtabbar) .f
 }
 
 html:not(.ext-f) :is(.uir-tabs, .uir-tab-list, .uir-tab-list-tabs, .bgtabbar) .formtabon>.formtabtext {
+    color: var(--text-0) !important;
+    -webkit-text-fill-color: var(--text-0);
     font-weight: 600 !important
 }
 
@@ -2452,11 +2459,11 @@ html:not(.ext-f):not(.disable_radii) :is(.uir-tabs, .uir-tab-list, .uir-tab-list
     border-radius: 5px 5px 0 0 !important
 }
 
-/* The active SUBTAB takes the panel surface rather than a theme tint, which is the
-   other half of the same grammar: on the dark bar the selected tab sinks INTO the
-   bar, and on the light strip it rises OUT of it to meet the content below. A tint
-   was tried first and measured 1.05:1 against the strip — the two are near-identical
-   in luminance — so the surface does no work there and the accent did it alone. */
+/* The active SUBTAB takes the panel surface rather than a theme tint — the same
+   rise-out grammar the top tabs now share: the selected tab meets the content
+   below it. A tint was tried first and measured 1.05:1 against the strip — the
+   two are near-identical in luminance — so the surface does no work there and
+   the accent did it alone. */
 html:not(.ext-f) :is(.uir-subtab-panel-tabs-row, div.bgsubtabbar) .formsubtabon {
     background-color: var(--field-backgroud-color) !important;
     border-bottom: 3px solid var(--theme-main) !important
@@ -4685,10 +4692,15 @@ html:not(.ext-f) [data-widget=Calendar] :is([data-widget=CalendarDay], [data-wid
    below carries aria-expanded and its own dark fill). This used to sit in the
    --theme-main-light group above, the same orphaned grey-derivative that made
    .formtabon a "dull grey block": one more surface of the SAME defect, found
-   live after the subtab fix shipped. Same deep same-hue blend as the tabs so
-   the whole chrome uses one active treatment. */
+   live after the subtab fix shipped. Same light panel surface as the tabs so
+   the whole chrome uses one active treatment; the descendant rule flips the
+   uif text dark because the widget's own text is white-on-theme. */
 html:not(.ext-f) [data-header-section=navigation] [data-widget=MenuBar] [data-widget=MenuGroup]>[data-widget=MenuItem][data-highlighted=true] {
-    background-color: color-mix(in srgb, var(--theme-main), #000 32%) !important
+    background-color: var(--field-backgroud-color) !important
+}
+
+html:not(.ext-f) [data-header-section=navigation] [data-widget=MenuBar] [data-widget=MenuGroup]>[data-widget=MenuItem][data-highlighted=true] :is(a, span, div) {
+    color: var(--text-0) !important
 }
 
 html:not(.ext-f) [data-header-section=navigation] [data-widget=MenuBar] [data-widget=MenuGroup]>[data-widget=MenuItem]:is([aria-selected=true], [aria-expanded=true]) {
@@ -5361,7 +5373,7 @@ html:not(.ext-f):not(.isRedwood) [data-widget=Tab][aria-selected=true][data-posi
 }
 
 html:not(.ext-f) .formtabon {
-    background-color: color-mix(in srgb, var(--theme-main), #000 32%) !important
+    background-color: var(--field-backgroud-color) !important
 }
 
 html:not(.ext-f) :is(.formtaboff, .uir-unroll-tabs-button) {

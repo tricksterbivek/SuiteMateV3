@@ -885,7 +885,7 @@ assert.match(
 );
 assert.match(
   compatibilityStyles,
-  /\.uir-tab-list-tabs \.formtabon \{\s+border-bottom: 3px solid color-mix\(in srgb, #fff 62%, var\(--theme-main\)\) !important/,
+  /\.uir-tab-list-tabs \.formtabon \{\s+border-bottom: 3px solid var\(--theme-main\) !important/,
   "The active global NetSuite tab accent is not derived from Main"
 );
 assert.match(
@@ -900,8 +900,8 @@ assert.match(
 );
 assert.match(
   compatibilityStyles,
-  /html:not\(\.ext-f\) \.uir-tab-list-tabs \.formtabon \{\s+background-color: color-mix\(in srgb, var\(--theme-main\), #000 32%\) !important/,
-  "The active global NetSuite tab surface is not derived from Main"
+  /html:not\(\.ext-f\) \.uir-tab-list-tabs \.formtabon \{\s+background-color: var\(--field-backgroud-color\) !important/,
+  "The active global NetSuite tab surface does not take the panel surface"
 );
 assert.match(
   compatibilityStyles,
@@ -2076,7 +2076,7 @@ await access(resolve(root, "save/SUITEMATE_V1_MASTER_FEATURE_INVENTORY.md"));
 const expectedStyleHashes = {
   "src/styles/font.css": "ecc7a99f6b820ee9290ab4a3ca2ff1ea4829c1a539c0d42becb19a3d5ea446cf",
   "src/styles/code.css": "e5607100c7432fd7028176ce74c4c999e181108861ea6b992ed3058d92d0d698",
-  "src/styles/netsuite.css": "75f76a65cbf88534c67e12bda4276bf3a71ce0cbadbc3fd4dbf64c91c5fe3def",
+  "src/styles/netsuite.css": "8e4c2c35b172846bf154d85ec29f4af1dce31da546e9be8aa876d63a3097c41a",
   "src/styles/pages/bundlebuilder.css": "bb9cae83f75b192d0a913233a33b6a8e557df656f7251a6e48e3105532e9f8fa",
   "src/styles/pages/codeeditor.css": "b58efb6517cfc13ca04cb621bdf269599ad9d6a589f38dee268743dda60f84df",
   "src/styles/pages/dashboard.css": "caedaa535b9bd516a977cdbb9f85de0f42d04e2e7f59a13f41996101dc0db7b5",
