@@ -49,8 +49,6 @@
   const colorBrightness = document.querySelector("#colorBrightness");
   const colorHex = document.querySelector("#colorHex");
   const pickerMaterialShades = document.querySelector("#pickerMaterialShades");
-  const modalSiblings = [...document.querySelector("main").children]
-    .filter((element) => element !== colorPickerModal);
   const statusNotice = browserUtilityApi.notices.create({
     element: status,
     defaultDuration: 1600,
@@ -59,12 +57,6 @@
     clearTimeoutFn: window.clearTimeout.bind(window)
   });
   const settingsClipboard = browserUtilityApi.clipboard.create();
-  const colorPickerModalController = browserUtilityApi.modals.create({
-    dialog: colorPickerModal,
-    backgroundElements: modalSiblings,
-    body: document.body,
-    bodyClass: "picker-open"
-  });
   const LIVE_COLOR_SAVE_INTERVAL_MS = 500;
   let currentSettings = api.DEFAULTS;
   let currentRoleContext = null;
@@ -361,11 +353,14 @@
     colorPickerTitle.textContent = `${activePicker.label} color`;
     renderPickerControls();
     renderPickerMaterialShades(input.value);
-    colorPickerModalController.show({ trigger, initialFocus: colorPlane });
+    colorPickerModal.showModal();
+    document.body.classList.add("picker-open");
+    trigger.setAttribute("aria-expanded", "true");
+    colorPlane.focus();
   }
 
   function hideColorPicker() {
-    colorPickerModalController.hide();
+    colorPickerModal.close();
     activePicker = null;
   }
 
@@ -844,6 +839,14 @@
       void invokePopupCommand(COMMANDS.THEME_APPLY_AND_CLOSE_PICKER);
     }
   });
+  colorPickerModal.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    void invokePopupCommand(COMMANDS.THEME_APPLY_AND_CLOSE_PICKER);
+  });
+  colorPickerModal.addEventListener("close", () => {
+    document.body.classList.remove("picker-open");
+    activePicker?.trigger?.setAttribute("aria-expanded", "false");
+  });
   swapColorsButton.addEventListener("click", () => {
     void invokePopupCommand(COMMANDS.THEME_SWAP_COLORS);
   });
@@ -879,7 +882,6 @@
     }
     statusNotice.dispose();
     settingsClipboard.dispose();
-    colorPickerModalController.dispose();
     commandScope.dispose();
   });
 

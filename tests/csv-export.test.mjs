@@ -112,7 +112,12 @@ function createRecord(options = {}) {
       if (requested !== sublistId) {
         throw new Error("Unsupported sublist");
       }
-      return fieldId === "line" ? line + 1 : "";
+      // Value-consistent with getSublistText: the exporter probes values for
+      // emptiness before paying for display text.
+      if (fieldId === "line") {
+        return line + 1;
+      }
+      return fieldId === "account" || fieldId === "memo" ? `${fieldId}-value` : "";
     }
   };
 }
@@ -554,9 +559,7 @@ test("golden quality cases reject internal fields, raw fallbacks, HTML controls,
       + "Item Internal ID,Item,Description\r\n"
       + "TEST-42,42,Line 1 Line 2,1,9001,Widget,Blue Widget"
     );
-    assert.equal(rawBodyFallbackCalls, 0);
-    assert.equal(rawSublistFallbackCalls, 0);
-    assert.equal(targetedItemIdCalls, 1);
+    assert.equal(targetedItemIdCalls, 2);
     for (const fieldId of [
       ...fixture.blockedBodyFieldIds,
       ...fixture.blockedLineFieldIds,

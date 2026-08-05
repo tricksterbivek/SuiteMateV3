@@ -7,8 +7,7 @@
   // schema-2 containers into live storage; refusing them would silently stop
   // hidden fields from applying and block saves. normalizeEntry keeps only
   // the keys this build understands, so schema-2 entries read through cleanly.
-  // ponytail: a save from this build drops that branch's order keys for the
-  // touched scope; acceptable while the builder lives on its dev branch.
+  // A save from this build drops that branch's order keys for the touched scope.
   const STORAGE_SCHEMA_VERSION = 2;
   const MAX_SYNC_ITEM_BYTES = 7800;
   const MAX_FIELD_NAMES = 200;
@@ -138,8 +137,8 @@
   function evictOverQuota(next, key) {
     const bytes = new TextEncoder().encode(`${STORAGE_KEY}${JSON.stringify(next)}`).length;
     if (bytes > MAX_SYNC_ITEM_BYTES) {
-      // ponytail: single-entry eviction — over quota we keep only the entry
-      // being written; one pathological oversize entry can still fail the write.
+      // Single-entry eviction: over quota we keep only the entry being
+      // written; one pathological oversize entry can still fail the write.
       next.views = key in next.views ? { [key]: next.views[key] } : {};
     }
     return next;

@@ -185,8 +185,8 @@
   function evictOverQuota(next, key) {
     const bytes = new TextEncoder().encode(`${STORAGE_KEY}${JSON.stringify(next)}`).length;
     if (bytes > MAX_SYNC_ITEM_BYTES) {
-      // ponytail: single-entry eviction — over quota we keep only the entry
-      // being written; one pathological oversize entry can still fail the write.
+      // Single-entry eviction: over quota we keep only the entry being
+      // written; one pathological oversize entry can still fail the write.
       next.orders = key in next.orders ? { [key]: next.orders[key] } : {};
     }
     return next;
@@ -416,8 +416,7 @@
       if (!match) {
         return { empty: true, value: 0 };
       }
-      // ponytail: day-first (dd/mm/yyyy) matching this account's locale;
-      // upgrade path is reading the NetSuite date-format preference.
+      // Day-first (dd/mm/yyyy) matching this account's locale.
       const year = Number(match[3].length === 2 ? `20${match[3]}` : match[3]);
       return { empty: false, value: year * 10000 + Number(match[2]) * 100 + Number(match[1]) };
     }
@@ -452,8 +451,8 @@
       const firstIndex = all.indexOf(dataRows[0]);
       const lastIndex = all.indexOf(dataRows[dataRows.length - 1]);
       if (lastIndex - firstIndex + 1 !== dataRows.length) {
-        // ponytail: non-contiguous data rows (expansion sub-rows between lines)
-        // would be orphaned from their parents by sorting; fail closed.
+        // Non-contiguous data rows (expansion sub-rows between lines) would
+        // be orphaned from their parents by sorting; fail closed.
         return false;
       }
       dataRows.forEach((row, index) => {
@@ -617,8 +616,8 @@
       if (!stamped) {
         // First touch: record the pristine order in the DOM itself so later
         // evaluations can never mistake a reordered table for native.
-        // ponytail: a partially stamped table (another tool injecting columns
-        // mid-life) restamps from current order; acceptable ceiling.
+        // A partially stamped table (another tool injecting columns mid-life)
+        // restamps from current order.
         cells.forEach((cell, index) => cell.setAttribute(NATIVE_INDEX_ATTRIBUTE, String(index)));
         return cells.map(readCellLabel);
       }

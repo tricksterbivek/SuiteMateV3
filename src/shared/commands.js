@@ -592,18 +592,7 @@
     const path = typeof event?.composedPath === "function"
       ? event.composedPath()
       : [event?.target];
-    for (const node of path) {
-      if (isEditableNode(node)) {
-        return true;
-      }
-      const editableParent = node?.closest?.(
-        'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], .cm-content'
-      );
-      if (editableParent) {
-        return true;
-      }
-    }
-    return false;
+    return path.some((node) => isEditableNode(node));
   }
 
   function matchesShortcutValue(event, shortcut, options = {}) {
