@@ -356,8 +356,8 @@
     }
     const pinnedMap = new Map(scope.pinned.map((record) => [record.identity, record]));
     const pinned = scope.pinned.map((record) => ({
-      ...(merged.get(record.identity) ?? {}),
       ...record,
+      ...(merged.get(record.identity) ?? {}),
       pinned: true
     }));
     const recent = [...merged.values()]

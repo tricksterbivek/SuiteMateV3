@@ -18,6 +18,7 @@
   const showInternalIdsInput = document.querySelector("#showInternalIds");
   const salesOrderColumnsInput = document.querySelector("#salesOrderColumns");
   const smartTabTitlesInput = document.querySelector("#smartTabTitles");
+  const recentRecordsInput = document.querySelector("#recentRecords");
   const formViewsInput = document.querySelector("#formViews");
   const salesOrderColumnsEditInput = document.querySelector("#salesOrderColumnsEdit");
   const roleTheme = document.querySelector("#roleTheme");
@@ -409,6 +410,7 @@
     showInternalIdsInput.checked = currentSettings.showInternalIds;
     salesOrderColumnsInput.checked = currentSettings.salesOrderColumns;
     smartTabTitlesInput.checked = currentSettings.smartTabTitles;
+    recentRecordsInput.checked = currentSettings.recentRecords;
     formViewsInput.checked = currentSettings.formViews;
     salesOrderColumnsEditInput.checked = currentSettings.salesOrderColumnsEdit;
     document.querySelector(`input[name="mode"][value="${currentSettings.mode}"]`).checked = true;
@@ -419,6 +421,7 @@
     showInternalIdsInput.disabled = settingsLocked || settingsTransferBusy;
     salesOrderColumnsInput.disabled = settingsLocked || settingsTransferBusy;
     smartTabTitlesInput.disabled = settingsLocked || settingsTransferBusy;
+    recentRecordsInput.disabled = settingsLocked || settingsTransferBusy;
     formViewsInput.disabled = settingsLocked || settingsTransferBusy;
     salesOrderColumnsEditInput.disabled = settingsLocked || settingsTransferBusy;
     resetButton.disabled = settingsLocked || settingsTransferBusy;
@@ -439,6 +442,7 @@
       showInternalIds: showInternalIdsInput.checked,
       salesOrderColumns: salesOrderColumnsInput.checked,
       smartTabTitles: smartTabTitlesInput.checked,
+      recentRecords: recentRecordsInput.checked,
       formViews: formViewsInput.checked,
       salesOrderColumnsEdit: salesOrderColumnsEditInput.checked
     };

@@ -6,7 +6,7 @@
     return;
   }
   const STORAGE_KEY = "suiteMateV3Style";
-  const SCHEMA_VERSION = 6;
+  const SCHEMA_VERSION = 7;
   const LEGACY_SCHEMA_VERSION = 0;
   const MAX_SYNC_ITEM_BYTES = 7800;
   const INVALID_VERSION_CODE = "INVALID_SETTINGS_VERSION";
@@ -36,6 +36,7 @@
     smartTabTitles: false,
     formViews: false,
     salesOrderColumnsEdit: false,
+    recentRecords: false,
     roleThemes: Object.freeze({})
   });
 
@@ -133,6 +134,7 @@
       smartTabTitles: candidate.smartTabTitles === true,
       formViews: candidate.formViews === true,
       salesOrderColumnsEdit: candidate.salesOrderColumnsEdit === true,
+      recentRecords: candidate.recentRecords === true,
       roleThemes: normalizeRoleThemes(candidate.roleThemes)
     };
   }
