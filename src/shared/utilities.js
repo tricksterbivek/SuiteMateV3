@@ -5,12 +5,8 @@
   const MAX_ERROR_CODE_LENGTH = 128;
   const MAX_ERROR_MESSAGE_LENGTH = 4000;
   const MAX_ERROR_DETAILS_LENGTH = 12000;
-  const MAX_FORMAT_BYTES = 1000000;
   const FORMULA_PREFIX = /^[\t\r\n ]*[=+\-@]/;
 
-  if (globalScope.SuiteMateV3Utilities?.VERSION === VERSION) {
-    return;
-  }
   if (globalScope.SuiteMateV3Utilities !== undefined) {
     return;
   }
@@ -211,75 +207,13 @@
     return sanitize(value) || sanitize(fallback) || "download.txt";
   }
 
-  function syntaxResult(ok, language, text, error = null) {
-    return Object.freeze({ ok, language, text, error });
-  }
-
-  function formatJson(value, options = {}) {
-    const maximumBytes = Number.isSafeInteger(options.maxBytes) && options.maxBytes > 0
-      ? Math.min(options.maxBytes, MAX_FORMAT_BYTES)
-      : MAX_FORMAT_BYTES;
-    const indentation = Number.isInteger(options.indentation)
-      ? Math.min(8, Math.max(0, options.indentation))
-      : 2;
-    let parsed = value;
-
-    if (typeof value === "string") {
-      if (utf8ByteLength(value) > maximumBytes) {
-        return syntaxResult(false, "json", "", normalizeError({
-          code: "FORMAT_INPUT_TOO_LARGE",
-          message: `JSON formatting is limited to ${maximumBytes.toLocaleString()} bytes.`
-        }));
-      }
-      try {
-        parsed = JSON.parse(value);
-      } catch (error) {
-        return syntaxResult(false, "json", "", normalizeError({
-          code: "INVALID_JSON",
-          message: "The value is not valid JSON.",
-          details: safeRead(error, "message")
-        }));
-      }
-    }
-
-    try {
-      const text = JSON.stringify(parsed, null, indentation);
-      if (text === undefined) {
-        return syntaxResult(false, "json", "", normalizeError({
-          code: "UNSUPPORTED_JSON_VALUE",
-          message: "The value cannot be represented as JSON."
-        }));
-      }
-      if (utf8ByteLength(text) > maximumBytes) {
-        return syntaxResult(false, "json", "", normalizeError({
-          code: "FORMAT_OUTPUT_TOO_LARGE",
-          message: `Formatted JSON is limited to ${maximumBytes.toLocaleString()} bytes.`
-        }));
-      }
-      return syntaxResult(true, "json", text);
-    } catch (error) {
-      return syntaxResult(false, "json", "", normalizeError({
-        code: "JSON_FORMAT_FAILED",
-        message: "JSON formatting failed.",
-        details: safeRead(error, "message")
-      }));
-    }
-  }
-
   const api = Object.freeze({
     VERSION,
-    LIMITS: Object.freeze({
-      MAX_ERROR_CODE_LENGTH,
-      MAX_ERROR_MESSAGE_LENGTH,
-      MAX_ERROR_DETAILS_LENGTH,
-      MAX_FORMAT_BYTES
-    }),
     deepFreeze,
     safeString,
     normalizeHexColor,
     utf8ByteLength,
     normalizeError,
-    valueToText,
     csv: Object.freeze({
       protectValue: protectCsvValue,
       escapeValue: escapeCsvValue,
@@ -288,9 +222,6 @@
     files: Object.freeze({
       sanitizePart: sanitizeFilenamePart,
       sanitizeDownloadName: sanitizeDownloadFilename
-    }),
-    syntax: Object.freeze({
-      formatJson
     })
   });
 

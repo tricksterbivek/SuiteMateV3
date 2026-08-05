@@ -474,27 +474,33 @@
     core.applyWidths(table, Object.keys(columnWidths).length ? columnWidths : null);
   }
 
-  function saveWidths() {
+  function saveField(writeField, readValue, failureMessage, afterSave) {
     return enqueueSave(async () => {
       try {
         if (!scopeKey) {
           return;
         }
+        const value = readValue();
         const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
-        const next = core.withWidths(
-          stored[core.STORAGE_KEY],
-          scopeKey,
-          Object.keys(columnWidths).length ? columnWidths : null
-        );
+        const next = writeField(stored[core.STORAGE_KEY], scopeKey, value);
         if (!next) {
-          showToast("Column widths could not be saved.", "warning");
+          showToast(failureMessage, "warning");
           return;
         }
         await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
+        afterSave?.(value);
       } catch {
-        showToast("Column widths could not be saved.", "warning");
+        showToast(failureMessage, "warning");
       }
     });
+  }
+
+  function saveWidths() {
+    return saveField(
+      core.withWidths,
+      () => (Object.keys(columnWidths).length ? columnWidths : null),
+      "Column widths could not be saved."
+    );
   }
 
   // ===== Sort and filter persistence =====
@@ -525,48 +531,24 @@
   }
 
   function saveSort() {
-    return enqueueSave(async () => {
-      try {
-        if (!scopeKey) {
-          return;
-        }
-        const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
-        const sort = sortCell && sortDirection ? { label: cellLabel(sortCell), dir: sortDirection } : null;
-        const next = core.withSort(stored[core.STORAGE_KEY], scopeKey, sort?.label ? sort : null);
-        if (!next) {
-          showToast("Sort preference could not be saved.", "warning");
-          return;
-        }
-        await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
-      } catch {
-        showToast("Sort preference could not be saved.", "warning");
-      }
-    });
+    const readSort = () => {
+      const sort = sortCell && sortDirection ? { label: cellLabel(sortCell), dir: sortDirection } : null;
+      return sort?.label ? sort : null;
+    };
+    return saveField(core.withSort, readSort, "Sort preference could not be saved.");
   }
 
   function saveFilters() {
-    return enqueueSave(async () => {
-    try {
-      if (!scopeKey) {
-        return;
-      }
+    const readFilters = () => {
       const table = document.querySelector(TABLE_SELECTOR);
-      const filters = table ? serializeFilters(table) : null;
-      const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
-      const next = core.withFilters(stored[core.STORAGE_KEY], scopeKey, filters);
-      if (!next) {
-        showToast("Filters could not be saved.", "warning");
-        return;
-      }
-      await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
+      return table ? serializeFilters(table) : null;
+    };
+    return saveField(core.withFilters, readFilters, "Filters could not be saved.", (filters) => {
       const overCap = filters && (Object.keys(filters).length > core.MAX_FILTER_COLUMNS
         || Object.values(filters).some((filter) => (filter.anyOf?.length ?? 0) > core.MAX_FILTER_VALUES));
       if (overCap) {
         showToast("Some filters were too large to save and will last this session only.", "warning");
       }
-    } catch {
-      showToast("Filters could not be saved.", "warning");
-    }
     });
   }
 
@@ -665,22 +647,7 @@
 
   // ===== Hide and show columns =====
   function saveHidden() {
-    return enqueueSave(async () => {
-      try {
-        if (!scopeKey) {
-          return;
-        }
-        const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
-        const next = core.withHidden(stored[core.STORAGE_KEY], scopeKey, Array.from(hiddenLabels));
-        if (!next) {
-          showToast("Column visibility could not be saved.", "warning");
-          return;
-        }
-        await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
-      } catch {
-        showToast("Column visibility could not be saved.", "warning");
-      }
-    });
+    return saveField(core.withHidden, () => Array.from(hiddenLabels), "Column visibility could not be saved.");
   }
 
   function renderViewChip() {
@@ -766,23 +733,8 @@
 
   // ===== Order persistence =====
   function saveOrder(labels, message) {
-    return enqueueSave(async () => {
-      try {
-        if (!scopeKey) {
-          return;
-        }
-        const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
-        const next = core.withOrder(stored[core.STORAGE_KEY], scopeKey, labels);
-        if (!next) {
-          showToast("Column order could not be saved.", "warning");
-          return;
-        }
-        await chrome.storage.sync.set({ [core.STORAGE_KEY]: next });
-        showToast(message, "success");
-      } catch {
-        showToast("Column order could not be saved.", "warning");
-      }
-    });
+    return saveField(core.withOrder, () => labels, "Column order could not be saved.",
+      () => showToast(message, "success"));
   }
 
   function handleDragStart(event) {

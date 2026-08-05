@@ -10,9 +10,6 @@
   const utilityApi = globalScope.SuiteMateV3Utilities;
   const settingsApi = globalScope.SuiteMateV3Settings;
 
-  if (globalScope.SuiteMateV3SettingsTransfer?.VERSION === VERSION) {
-    return;
-  }
   if (globalScope.SuiteMateV3SettingsTransfer !== undefined || !utilityApi || !settingsApi) {
     return;
   }
@@ -75,12 +72,7 @@
     if (typeof globalScope.TextEncoder !== "function" || typeof globalScope.btoa !== "function") {
       throw transferError("BACKUP_ENCODING_UNAVAILABLE", "Settings backup encoding is unavailable in this browser.");
     }
-    const bytes = new globalScope.TextEncoder().encode(value);
-    let binary = "";
-    for (const byte of bytes) {
-      binary += String.fromCharCode(byte);
-    }
-    return globalScope.btoa(binary);
+    return globalScope.btoa(String.fromCharCode(...new globalScope.TextEncoder().encode(value)));
   }
 
   function decodeUtf8(value) {

@@ -14,7 +14,6 @@
     throw new Error(`Unknown SuiteMate V3 fixture: ${requestedFixtureId}`);
   }
 
-  globalScope.SuiteMateV3ActiveFixture = route;
   globalScope.history.replaceState({ fixtureId: route.fixtureId }, "", route.path);
   document.title = `${route.title} - SuiteMate V3 Classic fixture`;
   document.documentElement.dataset.fixtureId = route.fixtureId;
@@ -25,9 +24,7 @@
     const link = document.createElement("link");
     link.rel = "stylesheet";
     link.dataset.fixturePageStyle = style;
-    link.href = style.startsWith("../../")
-      ? `/src/styles/pages/${style}`
-      : `/src/styles/pages/${style}`;
+    link.href = `/src/styles/pages/${style}`;
     document.head.append(link);
   }
 

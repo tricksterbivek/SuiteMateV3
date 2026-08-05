@@ -650,11 +650,5 @@
   }
 
   globalScope.addEventListener(core.REQUEST_EVENT, handleRequest);
-  globalScope[INSTANCE_KEY] = Object.freeze({
-    VERSION: 1,
-    dispose() {
-      globalScope.removeEventListener(core.REQUEST_EVENT, handleRequest);
-      activeRequestId = "";
-    }
-  });
+  globalScope[INSTANCE_KEY] = true;
 })(globalThis);

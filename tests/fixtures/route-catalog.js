@@ -259,8 +259,7 @@
   ];
 
   function freezeRoute(route) {
-    const forbiddenSelectors = route.forbiddenSelectors
-      || (route.routeId === "suiteql-console" ? [] : ["#suitemate-suiteql-studio"]);
+    const forbiddenSelectors = route.routeId === "suiteql-console" ? [] : ["#suitemate-suiteql-studio"];
     return Object.freeze({
       ...route,
       pageStyles: Object.freeze([...route.pageStyles]),
@@ -270,17 +269,11 @@
   }
 
   const api = Object.freeze({
-    VERSION: 1,
     VIEWPORT: Object.freeze({ width: 1440, height: 1000, deviceScaleFactor: 1 }),
     CLASSIC_ROUTES: Object.freeze(CLASSIC_ROUTES.map(freezeRoute)),
     CLASSIC_VARIANTS: Object.freeze(CLASSIC_VARIANTS.map(freezeRoute)),
     REDWOOD_BASELINES: Object.freeze(REDWOOD_BASELINES.map((entry) => Object.freeze({ ...entry })))
   });
 
-  Object.defineProperty(globalScope, "SuiteMateV3FixtureCatalog", {
-    configurable: false,
-    enumerable: true,
-    writable: false,
-    value: api
-  });
+  globalScope.SuiteMateV3FixtureCatalog = api;
 })(globalThis);

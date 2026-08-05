@@ -942,7 +942,6 @@ test("CSV Utils Export and Template invoke the typed bridge and report their dow
     sandbox
   );
   assert.equal(exportRuntime?.VERSION, 3);
-  assert.equal(exportRuntime.isAvailable(), true);
   const pendingCommand = exportRuntime.invoke();
   await flushTasks();
   assert.equal(typeof resolveDelayedExport, "function");

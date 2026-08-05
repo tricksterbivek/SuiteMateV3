@@ -1,7 +1,6 @@
 importScripts(chrome.runtime.getURL("src/shared/utilities.js"));
 importScripts(chrome.runtime.getURL("src/shared/routes.js"));
 importScripts(chrome.runtime.getURL("src/shared/bridge.js"));
-importScripts(chrome.runtime.getURL("src/shared/permissions.js"));
 importScripts(chrome.runtime.getURL("src/suiteql/core.js"));
 importScripts(chrome.runtime.getURL("src/record-actions/core.js"));
 importScripts(chrome.runtime.getURL("src/import-assistant/core.js"));
@@ -42,14 +41,6 @@ importScripts(chrome.runtime.getURL("src/netsuite/data-adapter.js"));
 
   function handleSuiteQLDispose(request) {
     return dataAdapter.execute(request, OPERATIONS.SUITEQL_DISPOSE);
-  }
-
-  function handleSearchRun(request) {
-    return dataAdapter.execute(request, OPERATIONS.SEARCH_RUN, request.payload);
-  }
-
-  function handleRecordDescribe(request) {
-    return dataAdapter.execute(request, OPERATIONS.RECORD_DESCRIBE, request.payload);
   }
 
   async function handleRecordTypeRequest(request) {
@@ -230,8 +221,6 @@ importScripts(chrome.runtime.getURL("src/netsuite/data-adapter.js"));
     [COMMANDS.SUITEQL_START]: handleSuiteQLStart,
     [COMMANDS.SUITEQL_PAGE]: handleSuiteQLPage,
     [COMMANDS.SUITEQL_DISPOSE]: handleSuiteQLDispose,
-    [COMMANDS.SEARCH_RUN]: handleSearchRun,
-    [COMMANDS.RECORD_DESCRIBE]: handleRecordDescribe,
     [COMMANDS.RECORD_GET_TYPE]: handleRecordTypeRequest,
     [COMMANDS.RECORD_EXPORT_CSV]: handleRecordCsvExport,
     [COMMANDS.IMPORT_ASSISTANT_SET_VALUES]: handleImportAssistantSetValues,

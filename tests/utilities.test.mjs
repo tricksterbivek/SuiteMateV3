@@ -148,22 +148,6 @@ test("serializes RFC 4180 CSV with formula protection and stable matrix order", 
   assert.equal(api.files.sanitizePart("x".repeat(100)).length, 80);
 });
 
-test("formats JSON deterministically and rejects invalid or oversized input", () => {
-  const { api } = createHarness();
-  assert.deepEqual(plain(api.syntax.formatJson('{"b":2,"a":1}')), {
-    ok: true,
-    language: "json",
-    text: '{\n  "b": 2,\n  "a": 1\n}',
-    error: null
-  });
-  assert.equal(api.syntax.formatJson("{").ok, false);
-  assert.equal(api.syntax.formatJson("{").error.code, "INVALID_JSON");
-  assert.equal(api.syntax.formatJson(`"${"x".repeat(20)}"`, { maxBytes: 10 }).error.code, "FORMAT_INPUT_TOO_LARGE");
-  const cyclic = {};
-  cyclic.self = cyclic;
-  assert.equal(api.syntax.formatJson(cyclic).ok, false);
-});
-
 test("clipboard writes synchronously inside the caller gesture and returns typed results", async () => {
   let gesture = true;
   const calls = [];
@@ -389,59 +373,3 @@ test("modal restores inert and aria state, focus ownership and listeners", () =>
   assert.equal(dialog.listeners.size, 0);
 });
 
-function createXmlNode(name, children = [], text = "") {
-  return {
-    nodeType: 1,
-    nodeName: name,
-    childNodes: children,
-    textContent: text || children.map((child) => child.textContent || "").join(""),
-    cloneNode() {
-      return createXmlNode(name);
-    }
-  };
-}
-
-class FakeXmlParser {
-  parseFromString(text) {
-    if (text === "invalid") {
-      return { documentElement: null, getElementsByTagName: () => [{}] };
-    }
-    const textNode = { nodeType: 3, textContent: "value", serialized: "value" };
-    const child = createXmlNode("child", [textNode], "value");
-    const root = createXmlNode("root", [child], "value");
-    return {
-      documentElement: root,
-      childNodes: [root],
-      getElementsByTagName: () => []
-    };
-  }
-}
-
-class FakeXmlSerializer {
-  serializeToString(node) {
-    if (node.serialized) {
-      return node.serialized;
-    }
-    if (!node.childNodes?.length) {
-      return `<${node.nodeName}/>`;
-    }
-    return `<${node.nodeName}>${node.childNodes.map((child) => this.serializeToString(child)).join("")}</${node.nodeName}>`;
-  }
-}
-
-test("XML formatter returns text only and rejects invalid or unavailable parsers", () => {
-  const { browserApi } = createHarness();
-  const formatter = browserApi.syntax.createXmlFormatter({
-    DOMParserClass: FakeXmlParser,
-    XMLSerializerClass: FakeXmlSerializer
-  });
-  assert.deepEqual(plain(formatter.format("<root><child>value</child></root>")), {
-    ok: true,
-    language: "xml",
-    text: "<root>\n  <child>value</child>\n</root>",
-    error: null
-  });
-  assert.equal(formatter.format("invalid").error.code, "INVALID_XML");
-  assert.equal(formatter.format('<!DOCTYPE root [<!ENTITY x "value">]><root>&x;</root>').error.code, "UNSAFE_XML_DECLARATION");
-  assert.equal(browserApi.syntax.createXmlFormatter({ DOMParserClass: null }).format("<x/>").error.code, "XML_FORMATTER_UNAVAILABLE");
-});

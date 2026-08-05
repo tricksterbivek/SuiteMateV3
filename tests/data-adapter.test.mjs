@@ -125,8 +125,6 @@ test("exports one frozen closed operation registry", async () => {
     SUITEQL_START: "suiteql.start",
     SUITEQL_PAGE: "suiteql.page",
     SUITEQL_DISPOSE: "suiteql.dispose",
-    SEARCH_RUN: "search.run",
-    RECORD_DESCRIBE: "record.describe",
     RECORD_GET_TYPE: "record.getType",
     IMPORT_ASSISTANT_SET_VALUES: "importAssistant.setValues",
     IMPORT_ASSISTANT_RESOLVE_CATEGORY: "importAssistant.resolveCategory"
@@ -188,165 +186,6 @@ test("binds SuiteQL to the fixed private bridge and authorized document", async 
   });
   assert.equal(harness.lastExecution.world, "MAIN");
   assert.equal(harness.documentElement.dataset.suitemateV3DataAdapter, "1");
-});
-
-test("constructs the constrained search RPC internally and normalizes rows", async () => {
-  let call;
-  const harness = createHarness({
-    fetchImpl: async (url, options) => {
-      call = { url, options };
-      return response(JSON.stringify({
-        result: {
-          rows: [
-            {
-              id: 42,
-              cells: [
-                { name: "internalid", value: "42", text: "42" },
-                { name: "title", value: "Visible", text: "Visible" }
-              ]
-            },
-            {
-              id: 43,
-              cells: [
-                { name: "internalid", value: "43", text: "43" },
-                { name: "title", value: "Hidden", text: "Hidden" }
-              ]
-            }
-          ]
-        }
-      }));
-    }
-  });
-  const payload = {
-    recordType: "savedsearch",
-    filters: [
-      { field: "internalid", operator: "anyof", values: ["42"] },
-      { field: "title", operator: "isnotempty", values: [] }
-    ],
-    columns: [{ field: "internalid" }, { field: "title" }],
-    limit: 1
-  };
-  const result = await harness.createAdapter().execute(
-    harness.request("search-fixed"),
-    harness.api.OPERATIONS.SEARCH_RUN,
-    payload
-  );
-  assert.equal(
-    call.url,
-    "/app/common/scripting/nlapijsonhandler.nl"
-  );
-  const body = JSON.parse(call.options.body);
-  assert.equal(body.method, "remoteObject.searchRecord");
-  assert.equal(body.params[0], "savedsearch");
-  assert.equal(body.params[2][0].name, "internalid");
-  assert.equal(body.params[2][0].formula, null);
-  assert.equal(body.params[2][0].join, null);
-  assert.deepEqual(body.params[2][1].values, [""]);
-  assert.equal(body.params[3][0].sortdir, null);
-  assert.equal(result.truncated, true);
-  assert.deepEqual(plain(result), {
-    columns: [
-      { key: "c0", field: "internalid" },
-      { key: "c1", field: "title" }
-    ],
-    rows: [{
-      id: "42",
-      cells: [
-        { value: "42", text: "42" },
-        { value: "Visible", text: "Visible" }
-      ]
-    }],
-    truncated: true
-  });
-});
-
-test("returns bounded record metadata without field values", async () => {
-  const harness = createHarness();
-  const result = await harness.createAdapter().execute(
-    harness.request("record-metadata"),
-    harness.api.OPERATIONS.RECORD_DESCRIBE,
-    { fields: [{ fieldId: "entity" }, { fieldId: "missing" }] }
-  );
-  assert.deepEqual(plain(result), {
-    recordType: "salesorder",
-    recordId: "123",
-    isReadOnly: false,
-    fields: [
-      {
-        fieldId: "entity",
-        sublistId: null,
-        exists: true,
-        label: "Customer",
-        type: "select",
-        disabled: false,
-        readOnly: false
-      },
-      {
-        fieldId: "missing",
-        sublistId: null,
-        exists: false,
-        label: null,
-        type: null,
-        disabled: false,
-        readOnly: false
-      }
-    ]
-  });
-  assert.equal(JSON.stringify(result).includes("blocked"), false);
-});
-
-test("describes sublist columns through the legacy signature without leaking values", async () => {
-  const harness = createHarness({
-    currentRecord: {
-      id: "55",
-      type: "purchaseorder",
-      isReadOnly: true,
-      getField() {
-        return null;
-      },
-      getSublist(options) {
-        if (typeof options === "object") {
-          throw new TypeError("Positional API required.");
-        }
-        assert.equal(options, "item");
-        return {
-          getColumn(columnOptions) {
-            if (typeof columnOptions === "object") {
-              throw new TypeError("Positional API required.");
-            }
-            assert.equal(columnOptions, "quantity");
-            return {
-              label: "Quantity",
-              type: "float",
-              isDisabled: true,
-              isReadOnly: true,
-              value: "must-not-leak"
-            };
-          }
-        };
-      }
-    }
-  });
-  const result = await harness.createAdapter().execute(
-    harness.request("sublist-metadata"),
-    harness.api.OPERATIONS.RECORD_DESCRIBE,
-    { fields: [{ fieldId: "quantity", sublistId: "item" }] }
-  );
-  assert.deepEqual(plain(result), {
-    recordType: "purchaseorder",
-    recordId: "55",
-    isReadOnly: true,
-    fields: [{
-      fieldId: "quantity",
-      sublistId: "item",
-      exists: true,
-      label: "Quantity",
-      type: "float",
-      disabled: true,
-      readOnly: true
-    }]
-  });
-  assert.equal(JSON.stringify(result).includes("must-not-leak"), false);
 });
 
 test("restricts authenticated category lookup to the current Import Assistant", async () => {
@@ -469,13 +308,8 @@ test("normalizes NetSuite online errors and blocks cross-account category respon
   await assert.rejects(
     () => searchHarness.createAdapter().execute(
       searchHarness.request("online-error"),
-      searchHarness.api.OPERATIONS.SEARCH_RUN,
-      {
-        recordType: "savedsearch",
-        filters: [],
-        columns: [{ field: "internalid" }],
-        limit: 20
-      }
+      searchHarness.api.OPERATIONS.SUITEQL_START,
+      { query: "SELECT 1", paged: false, pageSize: 1000 }
     ),
     (error) => (
       error.code === "SSS_PERMISSION_VIOLATION"
@@ -504,7 +338,7 @@ test("normalizes NetSuite online errors and blocks cross-account category respon
   );
 });
 
-test("preserves pre-start cancellation tombstones and rejects malformed search successes", async () => {
+test("preserves pre-start cancellation tombstones", async () => {
   let fetchCalls = 0;
   const canceledHarness = createHarness({
     fetchImpl: async () => {
@@ -527,25 +361,6 @@ test("preserves pre-start cancellation tombstones and rejects malformed search s
     (error) => error.code === "ABORTED"
   );
   assert.equal(fetchCalls, 0);
-
-  for (const invalidResult of [null, {}, { rows: "not-an-array" }]) {
-    const malformedHarness = createHarness({
-      fetchImpl: async () => response(JSON.stringify({ result: invalidResult }))
-    });
-    await assert.rejects(
-      () => malformedHarness.createAdapter().execute(
-        malformedHarness.request(`malformed-${String(invalidResult)}`),
-        malformedHarness.api.OPERATIONS.SEARCH_RUN,
-        {
-          recordType: "savedsearch",
-          filters: [],
-          columns: [{ field: "internalid" }],
-          limit: 20
-        }
-      ),
-      (error) => error.code === "INVALID_SEARCH_RESPONSE"
-    );
-  }
 });
 
 test("returns a later category match but does not misreport total transport failure", async () => {

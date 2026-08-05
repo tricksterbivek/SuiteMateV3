@@ -479,9 +479,7 @@ test("exports a frozen core with the Edit Mode storage and DOM contract", () => 
   assert.equal(core.MACHINE_CONTAINER_SELECTOR, ".uir-machine-table-container");
   assert.equal(core.HEADER_ROW_SELECTOR, "tr.uir-machine-headerrow");
   assert.equal(core.DATA_ROW_SELECTOR, "tr.uir-machine-row");
-  assert.equal(core.COLUMN_SPAN_SELECTOR, 'span[id$="_fs"]');
   assert.equal(core.DATA_ATTRIBUTE, "data-suitemate-v3-edit-grid");
-  assert.equal(core.NATIVE_ROW_ATTRIBUTE, "data-suitemate-v3-edit-grid-native-row");
   assert.equal(core.BOUND_ATTRIBUTE, "data-suitemate-v3-edit-grid-bound");
   assert.equal(core.AXIS_ATTRIBUTE, "data-suitemate-v3-edit-grid-axis");
   // Distinct attribute NAMES, not a prefix family: [data-suitemate-v3-edit-grid]
@@ -511,15 +509,9 @@ test("exports a frozen core with the Edit Mode storage and DOM contract", () => 
     button: "suitemate-v3-edit-grid-button",
     chip: "suitemate-v3-edit-grid-chip",
     menu: "suitemate-v3-edit-grid-menu",
-    note: "suitemate-v3-edit-grid-note",
     colHidden: "suitemate-v3-edit-grid-col-hidden",
-    rowFiltered: "suitemate-v3-edit-grid-row-filtered",
-    personalizing: "suitemate-v3-edit-grid-personalizing",
-    dragging: "suitemate-v3-edit-grid-dragging",
-    dropTarget: "suitemate-v3-edit-grid-drop-target",
     resizeEdge: "suitemate-v3-edit-grid-resize-edge",
-    resizing: "suitemate-v3-edit-grid-resizing",
-    sorted: "suitemate-v3-edit-grid-sorted"
+    resizing: "suitemate-v3-edit-grid-resizing"
   });
   assert.equal(Object.isFrozen(core.CLASSES), true);
   assert.equal(core.MAX_MACHINE_FIELDS, 400);
@@ -550,6 +542,9 @@ test("exports a frozen core with the Edit Mode storage and DOM contract", () => 
   // a second `function readHeaderLabels` in the same scope silently wins and
   // would have re-pointed readColumnIds' and readColumnIdsFrom's label reads at
   // it without a single test noticing.
+  // 2026-08-05: owner-sanctioned dead-code cut removes six production-unused
+  // names — COLUMN_SPAN_SELECTOR, NATIVE_ROW_ATTRIBUTE, withOrder,
+  // columnIdFromSpanId, isDataRow, isOrderedMachine — 56 -> 50.
   // deepEqual on the NAMES, not a count: a count passes when one export is
   // renamed and another added, which is precisely the drift this guards.
   assert.deepEqual(Object.keys(core), [
@@ -557,57 +552,19 @@ test("exports a frozen core with the Edit Mode storage and DOM contract", () => 
     "MAX_COLUMN_ID_LENGTH", "MAX_COLUMN_IDS", "ABSOLUTE_MIN_COLUMN_WIDTH", "MAX_COLUMN_WIDTH",
     "MAX_MACHINE_FIELDS", "MAX_SAMPLE_ROWS",
     "MACHINE_TABLE_SELECTOR", "MACHINE_CONTAINER_SELECTOR", "HEADER_ROW_SELECTOR",
-    "DATA_ROW_SELECTOR", "FOCUSED_ROW_SELECTOR", "EXCLUDED_ROW_SELECTOR", "COLUMN_SPAN_SELECTOR",
+    "DATA_ROW_SELECTOR", "FOCUSED_ROW_SELECTOR", "EXCLUDED_ROW_SELECTOR",
     "HEADER_LABEL_SELECTOR", "REQUIRED_FIELD_SELECTOR",
     "FIELD_DELIMITER", "LINE_DELIMITER", "OPTION_DELIMITER",
-    "DATA_ATTRIBUTE", "NATIVE_ROW_ATTRIBUTE", "BOUND_ATTRIBUTE", "AXIS_ATTRIBUTE",
+    "DATA_ATTRIBUTE", "BOUND_ATTRIBUTE", "AXIS_ATTRIBUTE",
     "FOREIGN_NODE_SELECTOR", "CLASSES",
-    "clampWidth", "normalizeStored", "refusesNewerSchema", "withOrder", "withHidden", "withWidths",
-    "machineIdFromTable", "rowLineNumber", "columnIdFromSpanId", "visibleCells", "tableRows",
-    "headerRow", "isExcludedRow", "alignsToHeader", "isDataRow", "readColumnIds", "readColumnIdsFrom",
-    "isOrderedMachine", "columnMinimums", "applyWidths", "applyHidden",
+    "clampWidth", "normalizeStored", "refusesNewerSchema", "withHidden", "withWidths",
+    "machineIdFromTable", "rowLineNumber", "visibleCells", "tableRows",
+    "headerRow", "isExcludedRow", "alignsToHeader", "readColumnIds", "readColumnIdsFrom",
+    "columnMinimums", "applyWidths", "applyHidden",
     "parseMachineFieldData", "readMachineFieldData", "collapseDisplayTwins",
     "readCellText", "readHeaderLabels",
     "readSampleRowTexts", "labelAffinity", "correlateColumnIds"
   ]);
-});
-
-test("decodes column ids from _fs spans against the row's own line number", () => {
-  const core = createApi();
-  assert.equal(core.machineIdFromTable(createMachine()), "item");
-  assert.equal(core.columnIdFromSpanId("item_quantity1_fs", "item", 1), "quantity");
-  // Line 21 must not be mistaken for line 1 — the ambiguity that makes a naive
-  // span[id$="1_fs"] scan decode "quantity2" on a paged machine.
-  assert.equal(core.columnIdFromSpanId("item_quantity21_fs", "item", 21), "quantity");
-  // A span whose trailing digits don't match the passed line is refused outright.
-  // Passing the WRONG line truncates rather than refusing — line 1 against a line-21
-  // span yields "quantity2" — which is exactly why every caller derives the line from
-  // the row's own id instead of scanning for a hard-coded 1.
-  assert.equal(core.columnIdFromSpanId("item_quantity21_fs", "item", 2), null);
-  assert.equal(core.columnIdFromSpanId("item_custcol_abc21_fs", "item", 1), "custcol_abc2");
-  assert.equal(core.columnIdFromSpanId("item_item1_fs_lbl", "item", 1), null);
-  assert.equal(core.columnIdFromSpanId(null, "item", 1), null);
-  assert.equal(core.columnIdFromSpanId(`item_${"x".repeat(201)}1_fs`, "item", 1), null);
-  assert.equal(core.rowLineNumber(createMachine().rows[1], "item"), 1);
-  assert.equal(core.rowLineNumber(createMachine().rows[2], "item"), 2);
-  // The open line and the permanent entry row materialise line-LESS span ids
-  // (item_item_fs, not item_item1_fs) — live 2026-08-02, probe 7. Passing an
-  // explicit null line is how a caller says "this row has no line number".
-  assert.equal(core.columnIdFromSpanId("item_item_fs", "item", null), "item");
-  assert.equal(core.columnIdFromSpanId("item_custcol_rrp_fs", "item", null), "custcol_rrp");
-  assert.equal(core.columnIdFromSpanId("actionbuttons_item_item_fs", "item", null),
-    "actionbuttons_item_item", "an unrelated prefix is kept, not silently trimmed");
-  assert.equal(core.columnIdFromSpanId("parent_actionbuttons_item_item_fs", "item", null),
-    "parent_actionbuttons_item_item", "only a LEADING {machine}_ is stripped, and only once");
-  assert.equal(core.columnIdFromSpanId("item_item1_fs", "item", null), "item1",
-    "line-less mode does not strip digits — taxrate1 is a real column");
-  assert.equal(core.columnIdFromSpanId("item_item_fs_lbl", "item", null), null);
-  assert.equal(core.columnIdFromSpanId("", "item", null), null);
-  assert.equal(core.columnIdFromSpanId(null, "item", null), null);
-  // The numbered decode is UNCHANGED: a line-less span is refused when a line is
-  // given, and a mismatched line still refuses rather than truncating.
-  assert.equal(core.columnIdFromSpanId("item_item_fs", "item", 1), null);
-  assert.equal(core.columnIdFromSpanId("item_quantity21_fs", "item", 2), null);
 });
 
 test("reads the column axis from visible cells only and ignores excluded rows", () => {
@@ -619,41 +576,10 @@ test("reads the column axis from visible cells only and ignores excluded rows", 
   assert.deepEqual(plain(core.readColumnIds(table)), []);
   assert.equal(core.visibleCells(table.rows[1]).length, 3);
   assert.equal(core.alignsToHeader(table.rows[1], ["item", "quantity", "rate"]), true);
-  assert.equal(core.isDataRow(table.rows[1], ["item", "quantity", "rate"]), true);
   // machineButtonRow and the totals row are never data rows, never counted.
   assert.equal(core.isExcludedRow(table.rows[3]), true);
   assert.equal(core.isExcludedRow(table.rows[4]), true);
-  assert.equal(core.isDataRow(table.rows[3], ["item", "quantity", "rate"]), false);
-  assert.equal(core.isDataRow(table.rows[4], ["item", "quantity", "rate"]), false);
-  assert.equal(core.isDataRow(table.rows[0], ["item", "quantity", "rate"]), false);
   assert.deepEqual(plain(core.readColumnIds(createTable([]))), []);
-});
-
-test("only numbered rows are data rows, and uir-machine-row-last never is", () => {
-  const core = createApi();
-  const ids = ["item", "quantity", "rate"];
-  const cells = () => [createCell(), createCell(), createCell()];
-  const numbered = createRow({ id: "item_row_1", cells: cells() });
-  // The live machine's permanent entry row: uir-machine-row, uir-machine-row-focused,
-  // 43 cells, and NO id. M1 counted it as a data row.
-  const entryRow = createRow({
-    className: "uir-machine-row uir-machine-row-even listtextnonedit uir-machine-row-focused",
-    cells: cells()
-  });
-  const lastRow = createRow({ className: "uir-machine-row-last", cells: cells() });
-  assert.equal(core.isDataRow(numbered, ids), true);
-  assert.equal(core.isDataRow(entryRow, ids), false, "the id-less entry row is not a data row");
-  assert.equal(core.isDataRow(lastRow, ids), false);
-  assert.equal(core.isExcludedRow(lastRow), true);
-  assert.equal(core.isDataRow(createRow({ id: "item_row_0", cells: cells() }), ids), false);
-  assert.equal(core.isDataRow(createRow({ id: "item_row_x", cells: cells() }), ids), false);
-});
-
-test("refuses ordered machines, failing closed on anything unreadable", () => {
-  const core = createApi();
-  assert.equal(core.isOrderedMachine(createMachine()), false);
-  assert.equal(core.isOrderedMachine(createMachine({ className: "uir-machine-table uir-draggable-table" })), true);
-  assert.equal(core.isOrderedMachine(null), true);
 });
 
 // ===== M1.5 identity: a verbatim slice of the live machine =====
@@ -1470,43 +1396,43 @@ test("normalizes the stored container fail-closed and refuses a newer schema", (
   assert.deepEqual(plain(core.normalizeStored(undefined)), { schemaVersion: 1, grids: {} });
   assert.deepEqual(plain(core.normalizeStored({ schemaVersion: 1, grids: "nope" })), { schemaVersion: 1, grids: {} });
   assert.deepEqual(
-    plain(core.normalizeStored({ schemaVersion: 1, grids: { "1:2:salesord:edit": { order: ["item", "rate"] } } })),
-    { schemaVersion: 1, grids: { "1:2:salesord:edit": { order: ["item", "rate"] } } }
+    plain(core.normalizeStored({ schemaVersion: 1, grids: { "1:2:salesord:edit": { hidden: ["item", "rate"] } } })),
+    { schemaVersion: 1, grids: { "1:2:salesord:edit": { hidden: ["item", "rate"] } } }
   );
-  assert.deepEqual(plain(core.normalizeStored({ schemaVersion: 2, grids: { a: { order: ["x"] } } }).grids), {});
+  // 2026-08-05: `order` left the schema with withOrder; a legacy entry holding
+  // only an order is dropped rather than round-tripped.
+  assert.deepEqual(plain(core.normalizeStored({ schemaVersion: 1, grids: { a: { order: ["x"] } } }).grids), {});
+  assert.deepEqual(plain(core.normalizeStored({ schemaVersion: 2, grids: { a: { hidden: ["x"] } } }).grids), {});
   assert.equal(core.refusesNewerSchema({ schemaVersion: 2, grids: {} }), true);
   assert.equal(core.refusesNewerSchema({ schemaVersion: 1, grids: {} }), false);
-  assert.equal(core.withOrder({ schemaVersion: 2, grids: {} }, "1:2:salesord:edit", ["item"]), null);
+  assert.equal(core.withHidden({ schemaVersion: 2, grids: {} }, "1:2:salesord:edit", ["item"]), null);
   // Hostile input: prototype keys are refused as scope keys and as column ids.
-  assert.equal(core.withOrder(undefined, "__proto__", ["item"]), null);
-  assert.equal(core.withOrder(undefined, "1:2:salesord:edit", ["__proto__", "item"]), null);
-  assert.equal(core.withOrder(undefined, "1:2:salesord:edit", [`${"x".repeat(201)}`]), null);
-  assert.equal(core.withOrder(undefined, "1:2:salesord:edit", Array.from({ length: 101 }, (_, i) => `c${i}`)), null);
+  assert.equal(core.withHidden(undefined, "__proto__", ["item"]), null);
+  assert.equal(core.withHidden(undefined, "1:2:salesord:edit", ["__proto__", "item"]), null);
+  assert.equal(core.withHidden(undefined, "1:2:salesord:edit", [`${"x".repeat(201)}`]), null);
+  assert.equal(core.withHidden(undefined, "1:2:salesord:edit", Array.from({ length: 101 }, (_, i) => `c${i}`)), null);
 });
 
 test("writers merge, delete empty entries and evict over quota", () => {
   const core = createApi();
   const key = "1:2:salesord:edit";
-  const ordered = core.withOrder(undefined, key, ["rate", "item", "quantity"]);
-  assert.deepEqual(plain(ordered), {
+  const hidden = core.withHidden(undefined, key, ["quantity"]);
+  assert.deepEqual(plain(hidden), {
     schemaVersion: 1,
-    grids: { [key]: { order: ["rate", "item", "quantity"] } }
+    grids: { [key]: { hidden: ["quantity"] } }
   });
-  const hidden = core.withHidden(ordered, key, ["quantity"]);
-  assert.deepEqual(plain(hidden.grids[key]), { order: ["rate", "item", "quantity"], hidden: ["quantity"] });
   const sized = core.withWidths(hidden, key, { item: 240, quantity: 12, rate: 5000 });
-  assert.deepEqual(plain(sized.grids[key].widths), { item: 240, quantity: 50, rate: 1000 });
+  assert.deepEqual(plain(sized.grids[key]), { hidden: ["quantity"], widths: { item: 240, quantity: 50, rate: 1000 } });
   const clearedHidden = core.withHidden(sized, key, null);
   assert.equal("hidden" in plain(clearedHidden.grids[key]), false);
-  let emptied = core.withOrder(clearedHidden, key, null);
-  emptied = core.withWidths(emptied, key, null);
+  const emptied = core.withWidths(clearedHidden, key, null);
   assert.deepEqual(plain(emptied.grids), {});
   // Quota: eviction is scoped to grids and keeps only the entry being written.
   const fat = { schemaVersion: 1, grids: {} };
   for (let index = 0; index < 20; index += 1) {
-    fat.grids[`scope${index}`] = { order: Array.from({ length: 100 }, (_, i) => `column_${i}_padding`) };
+    fat.grids[`scope${index}`] = { hidden: Array.from({ length: 100 }, (_, i) => `column_${i}_padding`) };
   }
-  const evicted = core.withOrder(fat, "scope0", ["item", "rate"]);
+  const evicted = core.withHidden(fat, "scope0", ["item", "rate"]);
   assert.deepEqual(Object.keys(plain(evicted.grids)), ["scope0"]);
 });
 
@@ -1517,18 +1443,17 @@ test("quota eviction spares other scopes on a clearing write and refuses an over
   // evicting here would destroy every other scope's layout on a single delete.
   const crowded = { schemaVersion: 1, grids: {} };
   for (let index = 0; index < 187; index += 1) {
-    crowded.grids[`scope${index}`] = { order: ["item", "quantity", "rate"] };
+    crowded.grids[`scope${index}`] = { hidden: ["item", "quantity", "rate"] };
   }
   assert.equal(size(crowded) > core.MAX_SYNC_ITEM_BYTES, true);
-  const cleared = core.withOrder(crowded, "scope5", null);
+  const cleared = core.withHidden(crowded, "scope5", null);
   assert.equal("scope5" in cleared.grids, false);
   assert.equal(Object.keys(cleared.grids).length, 186);
-  assert.deepEqual(plain(cleared.grids.scope0), { order: ["item", "quantity", "rate"] });
-  assert.deepEqual(plain(cleared.grids.scope186), { order: ["item", "quantity", "rate"] });
+  assert.deepEqual(plain(cleared.grids.scope0), { hidden: ["item", "quantity", "rate"] });
+  assert.deepEqual(plain(cleared.grids.scope186), { hidden: ["item", "quantity", "rate"] });
   // An entry that alone exceeds the cap is refused through the same channel as
   // every other writer failure, never returned as a success storage would reject.
   const oversized = Array.from({ length: 100 }, (_, index) => String(index).padEnd(200, "c"));
-  assert.equal(core.withOrder(undefined, "1:2:salesord:edit", oversized), null);
   assert.equal(core.withHidden(undefined, "1:2:salesord:edit", oversized), null);
 });
 
@@ -1944,7 +1869,6 @@ test("hides a column across the header and every aligned row, and nothing else",
   // Which is the same statement, made positively: the column is still on the axis.
   assert.equal(core.alignsToHeader(table.rows[1], EDIT_AXIS), true);
   assert.equal(core.visibleCells(table.rows[0]).length, 3);
-  assert.equal(core.isDataRow(table.rows[1], EDIT_AXIS), true);
 
   // Idempotent (A3.3): a second identical apply leaves byte-identical classes.
   const applied = classSnapshot(core, table);
@@ -6810,11 +6734,10 @@ test("every stylesheet rule is scoped to the feature and every hide rule wins", 
   for (const group of selectors.flatMap((selector) => selector.split(","))) {
     assert.match(group, /suitemate-v3-edit-grid/, `${group.trim()} can match a View Mode node`);
   }
-  // display-defeats-hidden has FOUR recorded sightings; all three hide rules
+  // display-defeats-hidden has FOUR recorded sightings; both hide rules
   // and the [hidden] guard carry !important.
   assert.match(stylesheet, /\[data-suitemate-v3-edit-grid\]\[hidden\]\s*\{\s*display: none !important/);
   assert.match(stylesheet, /\.suitemate-v3-edit-grid-col-hidden\s*\{\s*display: none !important/);
-  assert.match(stylesheet, /\.suitemate-v3-edit-grid-row-filtered\s*\{\s*display: none !important/);
   // SIGHTING FOUR: the doctrine reads BOTH ways. A rule of ours that makes an
   // injected node VISIBLE is exposed to the same hostile cascade as one that
   // hides, so every `display` this sheet sets carries !important — not just the

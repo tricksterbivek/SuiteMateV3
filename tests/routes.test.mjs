@@ -46,8 +46,6 @@ test("exports stable route and capability constants", () => {
   assert.equal(CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION, "transaction-column-personalization");
   assert.equal(CAPABILITIES.FORM_VIEWS, "form-views");
   assert.equal(CAPABILITIES.SUITEQL_BRIDGE, "suiteql-bridge");
-  assert.equal(CAPABILITIES.SEARCH_QUERY_BRIDGE, "search-query-bridge");
-  assert.equal(CAPABILITIES.RECORD_METADATA_BRIDGE, "record-metadata-bridge");
   assert.equal(
     CAPABILITIES.IMPORT_ASSISTANT_FETCH_BRIDGE,
     "import-assistant-fetch-bridge"
@@ -422,49 +420,6 @@ test("isolates Import Assistant context and bridge capabilities", () => {
     routes.isAllowedSender(
       sender("https://123456.app.netsuite.com/app/center/card.nl", 9),
       CAPABILITIES.IMPORT_ASSISTANT_BRIDGE
-    ),
-    false
-  );
-});
-
-test("keeps read-only data capabilities on their exact page families", () => {
-  const suiteql = `https://123456.app.netsuite.com${PATHS.SUITEQL_CONSOLE}?suiteql`;
-  const savedSearch = "https://123456.app.netsuite.com/app/common/search/search.nl?e=T&id=1";
-  const record = "https://123456.app.netsuite.com/app/accounting/transactions/salesord.nl?id=1";
-  const dashboard = "https://123456.app.netsuite.com/app/center/card.nl";
-
-  for (const url of [suiteql, savedSearch]) {
-    assert.equal(
-      routes.isAllowedSender(sender(url, 10), CAPABILITIES.SEARCH_QUERY_BRIDGE),
-      true,
-      url
-    );
-  }
-  assert.equal(
-    routes.isAllowedSender(
-      sender(record, 10),
-      CAPABILITIES.SEARCH_QUERY_BRIDGE
-    ),
-    false
-  );
-  assert.equal(
-    routes.isAllowedSender(
-      sender(record, 10),
-      CAPABILITIES.RECORD_METADATA_BRIDGE
-    ),
-    true
-  );
-  assert.equal(
-    routes.isAllowedSender(
-      sender(dashboard, 10),
-      CAPABILITIES.RECORD_METADATA_BRIDGE
-    ),
-    false
-  );
-  assert.equal(
-    routes.isAllowedSender(
-      sender(savedSearch, 10, 1),
-      CAPABILITIES.SEARCH_QUERY_BRIDGE
     ),
     false
   );

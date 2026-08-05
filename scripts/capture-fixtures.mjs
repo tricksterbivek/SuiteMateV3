@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createHash } from "node:crypto";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, constants, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { spawn } from "node:child_process";
@@ -14,7 +14,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const catalog = globalThis.SuiteMateV3FixtureCatalog;
 const args = new Set(process.argv.slice(2));
 const update = args.has("--update");
-const verify = args.has("--verify") || !update;
+const verify = !update;
 const requestedFixture = process.argv.find((value) => value.startsWith("--fixture="))?.slice(10) || null;
 const chromeCandidates = [
   process.env.CHROME_PATH,
@@ -29,10 +29,7 @@ const chromeCandidates = [
 const mimeTypes = new Map([
   [".css", "text/css; charset=utf-8"],
   [".html", "text/html; charset=utf-8"],
-  [".js", "text/javascript; charset=utf-8"],
-  [".json", "application/json; charset=utf-8"],
-  [".png", "image/png"],
-  [".svg", "image/svg+xml"]
+  [".js", "text/javascript; charset=utf-8"]
 ]);
 
 function fixtureCases() {
@@ -58,18 +55,8 @@ if (args.has("--list")) {
   process.exit(0);
 }
 
-async function canExecute(path) {
-  if (!path) {
-    return false;
-  }
-  try {
-    const { constants } = await import("node:fs");
-    const { access } = await import("node:fs/promises");
-    await access(path, constants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
+function canExecute(path) {
+  return access(path, constants.X_OK).then(() => true, () => false);
 }
 
 async function findChrome() {
@@ -194,17 +181,16 @@ class CdpClient {
     });
   }
 
-  waitFor(method, sessionId, timeoutMs = 20000) {
+  waitFor(method, sessionId) {
     return new Promise((resolvePromise, reject) => {
       const waiter = {
         method,
         sessionId,
         resolve: resolvePromise,
-        reject,
         timeout: setTimeout(() => {
           this.waiters.delete(waiter);
           reject(new Error(`Timed out waiting for ${method}`));
-        }, timeoutMs)
+        }, 20000)
       };
       this.waiters.add(waiter);
     });

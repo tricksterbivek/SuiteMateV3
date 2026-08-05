@@ -6,8 +6,6 @@
     SUITEQL_START: "suiteql.start",
     SUITEQL_PAGE: "suiteql.page",
     SUITEQL_DISPOSE: "suiteql.dispose",
-    SEARCH_RUN: "search.run",
-    RECORD_DESCRIBE: "record.describe",
     RECORD_GET_TYPE: "record.getType",
     IMPORT_ASSISTANT_SET_VALUES: "importAssistant.setValues",
     IMPORT_ASSISTANT_RESOLVE_CATEGORY: "importAssistant.resolveCategory"
@@ -20,8 +18,6 @@
       "suiteql.start",
       "suiteql.page",
       "suiteql.dispose",
-      "search.run",
-      "record.describe",
       "record.getType",
       "importAssistant.setValues",
       "importAssistant.resolveCategory",
@@ -29,9 +25,7 @@
     ];
     const IMPORT_ASSISTANT_PATH = "/app/setup/assistants/nsimport/importassistant.nl";
     const SUITEQL_BRIDGE_PATH = "/app/common/scripting/PlatformClientScriptHandler.nl";
-    const SEARCH_BRIDGE_PATH = "/app/common/scripting/nlapijsonhandler.nl";
     const MAX_SUITEQL_RESPONSE_CHARS = 50000000;
-    const MAX_SEARCH_RESPONSE_CHARS = 10000000;
     const MAX_IMPORT_RESPONSE_CHARS = 2000000;
     const stateKey = Symbol.for("suitemate.v3.netsuite.data-adapter");
     const state = window[stateKey] ??= {
@@ -530,225 +524,6 @@
       };
     }
 
-    function parseJsonResponse(responseText, invalidCode, invalidMessage) {
-      try {
-        return JSON.parse(responseText);
-      } catch {
-        throw {
-          code: invalidCode,
-          message: invalidMessage,
-          details: responseText.slice(0, 500)
-        };
-      }
-    }
-
-    async function runSearch() {
-      const filters = envelope.payload.filters.map((filter) => ({
-        javaClass: "java.util.HashMap",
-        name: filter.field,
-        operator: filter.operator,
-        values: filter.values.length ? [...filter.values] : [""],
-        join: null,
-        formula: null,
-        summarytype: null,
-        isor: false,
-        isnot: false,
-        leftparens: 0,
-        rightparens: 0
-      }));
-      const columns = envelope.payload.columns.map((column) => ({
-        name: column.field,
-        join: null,
-        summary: null,
-        label: null,
-        type: null,
-        functionid: null,
-        formula: null,
-        sortdir: null,
-        whenorderedby: null,
-        whenorderedbyjoin: null,
-        userindex: 1
-      }));
-      const responseText = await fetchText({
-        requestId: envelope.requestId,
-        url: SEARCH_BRIDGE_PATH,
-        options: {
-          method: "POST",
-          headers: {
-            accept: "*/*",
-            "accept-language": navigator.language || "en-US",
-            "cache-control": "no-cache",
-            nsxmlhttprequest: "NSXMLHttpRequest",
-            pragma: "no-cache"
-          },
-          referrerPolicy: "no-referrer-when-downgrade",
-          mode: "cors",
-          body: JSON.stringify({
-            method: "remoteObject.searchRecord",
-            params: [envelope.payload.recordType, null, filters, columns]
-          })
-        },
-        maxChars: MAX_SEARCH_RESPONSE_CHARS,
-        timeoutMs: 30000,
-        timeoutCode: "SEARCH_TIMEOUT",
-        timeoutMessage: "NetSuite search did not finish within 30 seconds.",
-        abortedMessage: "NetSuite search was stopped."
-      }).catch((error) => {
-        if (
-          typeof error?.message === "string"
-          && error.code?.startsWith?.("NETSUITE_HTTP_")
-          && error.message.includes("<onlineError>")
-        ) {
-          throw extractOnlineError(error.message);
-        }
-        throw error;
-      });
-      const decoded = parseJsonResponse(
-        responseText,
-        "INVALID_SEARCH_RESPONSE",
-        "NetSuite returned an unreadable search response."
-      );
-      if (!decoded || typeof decoded !== "object") {
-        throw {
-          code: "INVALID_SEARCH_RESPONSE",
-          message: "NetSuite returned an empty search response."
-        };
-      }
-      if (decoded.result === "error") {
-        throw decoded.error || {
-          code: "SEARCH_ERROR",
-          message: "NetSuite rejected the search."
-        };
-      }
-      if (!("result" in decoded)) {
-        if (decoded.code || decoded.details) {
-          throw decoded;
-        }
-        throw {
-          code: "INVALID_SEARCH_RESPONSE",
-          message: "NetSuite returned an unrecognized search response."
-        };
-      }
-
-      if (
-        !decoded.result
-        || typeof decoded.result !== "object"
-        || !Array.isArray(decoded.result.rows)
-      ) {
-        throw {
-          code: "INVALID_SEARCH_RESPONSE",
-          message: "NetSuite returned malformed search rows."
-        };
-      }
-      const rawRows = decoded.result.rows;
-      const limitedRows = rawRows.slice(0, envelope.payload.limit);
-      return {
-        columns: envelope.payload.columns.map((column, index) => ({
-          key: `c${index}`,
-          field: column.field
-        })),
-        rows: limitedRows.map((row) => {
-          const cells = Array.isArray(row?.cells) ? row.cells : [];
-          const cellsByName = new Map();
-          for (const cell of cells) {
-            const name = typeof cell?.name === "string" ? cell.name : "";
-            if (name) {
-              const namedCells = cellsByName.get(name) ?? [];
-              namedCells.push(cell);
-              cellsByName.set(name, namedCells);
-            }
-          }
-          return {
-            id: String(row?.id ?? ""),
-            cells: envelope.payload.columns.map((column, index) => {
-              const cell = cellsByName.get(column.field)?.shift() ?? cells[index] ?? {};
-              const value = ["string", "number", "boolean"].includes(typeof cell.value)
-                ? cell.value
-                : cell.value == null
-                  ? null
-                  : String(cell.value);
-              return {
-                value,
-                text: cell.text == null ? null : String(cell.text)
-              };
-            })
-          };
-        }),
-        truncated: rawRows.length > envelope.payload.limit
-      };
-    }
-
-    function describeRecord() {
-      return new Promise((resolve, reject) => {
-        const amdRequire = window.require;
-        if (typeof amdRequire !== "function") {
-          reject({
-            code: "NETSUITE_MODULE_LOADER_UNAVAILABLE",
-            message: "NetSuite's module loader is unavailable."
-          });
-          return;
-        }
-        amdRequire(["N/currentRecord"], (currentRecord) => {
-          try {
-            ensureActive(envelope.requestId, "Record metadata request was stopped.");
-            const record = currentRecord.get();
-            const fields = envelope.payload.fields.map(({ fieldId, sublistId }) => {
-              let field = null;
-              try {
-                if (sublistId) {
-                  let sublist;
-                  try {
-                    sublist = record.getSublist({ sublistId });
-                  } catch {
-                    sublist = record.getSublist(sublistId);
-                  }
-                  if (sublist) {
-                    try {
-                      field = sublist.getColumn({ fieldId });
-                    } catch {
-                      field = sublist.getColumn(fieldId);
-                    }
-                  }
-                } else {
-                  try {
-                    field = record.getField({ fieldId });
-                  } catch {
-                    field = record.getField(fieldId);
-                  }
-                }
-              } catch {}
-              return {
-                fieldId,
-                sublistId: sublistId || null,
-                exists: Boolean(field),
-                label: field?.label == null ? null : String(field.label),
-                type: field?.type == null ? null : String(field.type),
-                disabled: Boolean(field?.isDisabled),
-                readOnly: Boolean(field?.isReadOnly)
-              };
-            });
-            resolve({
-              recordType: record?.type == null
-                ? typeof window.nlapiGetRecordType === "function"
-                  ? window.nlapiGetRecordType()
-                  : null
-                : String(record.type),
-              recordId: record?.id == null ? null : String(record.id),
-              isReadOnly: Boolean(record?.isReadOnly),
-              fields
-            });
-          } catch (error) {
-            reject(error);
-          }
-        }, (error) => {
-          reject({
-            code: "CURRENT_RECORD_UNAVAILABLE",
-            message: String(error?.message || error || "N/currentRecord could not be loaded.")
-          });
-        });
-      });
-    }
-
     function readRecordType() {
       try {
         return {
@@ -766,19 +541,16 @@
 
     function setImportAssistantValues() {
       return new Promise((resolve, reject) => {
-        const finish = (callback, value) => {
-          callback(value);
-        };
         try {
           ensureActive(envelope.requestId, "Import Assistant update was stopped.");
         } catch (error) {
-          finish(reject, error);
+          reject(error);
           return;
         }
 
         const amdRequire = window.require;
         if (typeof amdRequire !== "function") {
-          finish(reject, {
+          reject({
             code: "NETSUITE_MODULE_LOADER_UNAVAILABLE",
             message: "NetSuite's module loader is unavailable."
           });
@@ -819,12 +591,12 @@
               }
               applied.push(fieldId);
             }
-            finish(resolve, { applied });
+            resolve({ applied });
           } catch (error) {
-            finish(reject, error);
+            reject(error);
           }
         }, (error) => {
-          finish(reject, {
+          reject({
             code: "CURRENT_RECORD_UNAVAILABLE",
             message: String(error?.message || error || "N/currentRecord could not be loaded.")
           });
@@ -947,10 +719,6 @@
           return success(await startSuiteQL());
         case "suiteql.page":
           return success(await readSuiteQLPage());
-        case "search.run":
-          return success(await runSearch());
-        case "record.describe":
-          return success(await describeRecord());
         case "record.getType":
           return success(readRecordType());
         case "importAssistant.setValues":

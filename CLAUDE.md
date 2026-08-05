@@ -1,5 +1,9 @@
 # SuiteMate V3 — Project Rules
 
+## Browser automation
+
+- For live testing, ALWAYS connect to **Browser 1** via claude-in-chrome (`select_browser` deviceId `5c485ee5-431a-48e5-bae1-1aaeafa43cf6`) — it holds the NetSuite session and the unpacked SuiteMate V3 extension. The other connected Chrome profile does not work for this project.
+
 ## Live testing records (account 6998262)
 
 - Every live validation runs on BOTH records, always:

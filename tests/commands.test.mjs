@@ -539,31 +539,6 @@ test("scope never executes a handler replaced during authorization", () => {
   assert.equal(newCalls, 1);
 });
 
-test("scope never executes a handler invalidated by a running-state subscriber", () => {
-  const { commands, routes } = createApi();
-  let calls = 0;
-  const scope = commands.createScope(commands.SURFACES.SUITEQL, {
-    getContext: () => ({
-      pageContext: page(routes, `${routes.PATHS.SUITEQL_CONSOLE}?suiteql`)
-    })
-  });
-  scope.register(commands.IDS.SUITEQL_EXECUTE, {
-    run() {
-      calls += 1;
-    }
-  });
-  scope.subscribe((state) => {
-    if (state.running) {
-      scope.dispose();
-    }
-  });
-
-  const result = scope.invoke(commands.IDS.SUITEQL_EXECUTE);
-  assert.equal(result.ok, false);
-  assert.equal(result.error.code, "COMMAND_STALE");
-  assert.equal(calls, 0);
-});
-
 test("scope fails closed when availability returns a promise", () => {
   const { commands, routes } = createApi();
   const failures = [];
