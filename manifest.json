@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "SuiteMate V3",
   "short_name": "SuiteMate V3",
-  "version": "3.21.1",
+  "version": "3.23.0",
   "description": "Restores the SuiteMate V1 NetSuite UI and adds focused developer tools.",
   "icons": {
     "16": "icons/16.png",
@@ -48,7 +48,8 @@
         "src/internal-ids/internal-ids.css",
         "src/record-actions/csv-import.css",
         "src/so-columns/so-columns.css",
-        "src/form-views/form-views.css"
+        "src/form-views/form-views.css",
+        "src/edit-grid/edit-grid.css"
       ],
       "js": [
         "src/shared/utilities.js",
@@ -62,6 +63,7 @@
         "src/so-columns/core.js",
         "src/tab-title/core.js",
         "src/form-views/core.js",
+        "src/edit-grid/core.js",
         "src/runtime/theme-runtime.js",
         "src/runtime/notification-runtime.js",
         "src/record-actions/core.js",
@@ -70,7 +72,8 @@
         "src/csv-export/runtime.js",
         "src/so-columns/runtime.js",
         "src/tab-title/runtime.js",
-        "src/form-views/runtime.js"
+        "src/form-views/runtime.js",
+        "src/edit-grid/runtime.js"
       ],
       "run_at": "document_start",
       "all_frames": true

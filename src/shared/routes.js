@@ -17,7 +17,8 @@
     SUITEQL_CONSOLE: "suiteql-console",
     SUITEQL_BRIDGE: "suiteql-bridge",
     SUITEQL_LAUNCH: "suiteql-launch",
-    FORM_VIEWS: "form-views"
+    FORM_VIEWS: "form-views",
+    TRANSACTION_COLUMN_PERSONALIZATION_EDIT: "transaction-column-personalization-edit"
   });
 
   const PATHS = Object.freeze({
@@ -293,6 +294,17 @@
           && context.path.toLowerCase() === PATHS.SALES_ORDER
           && hasParam(context, "id")
           && !hasParam(context, "e");
+      case CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION_EDIT:
+        // Sales Orders only for this phase; generalize by widening this rule.
+        // hasParam("e") — not e === "T" — makes this the exact byte-complement
+        // of the two !hasParam(context, "e") rules above, so the modes are
+        // mutually exclusive by construction. A non-editable ?e=F page reaches
+        // the runtime and then fails closed at install.
+        return context.isTopFrame
+          && Boolean(context.path)
+          && context.path.toLowerCase() === PATHS.SALES_ORDER
+          && hasParam(context, "id")
+          && hasParam(context, "e");
       case CAPABILITIES.RECORD_TYPE_BRIDGE:
       case CAPABILITIES.RECORD_METADATA_BRIDGE:
         return context.isTopFrame

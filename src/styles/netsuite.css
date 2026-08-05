@@ -46,8 +46,8 @@ html:not(.ext-f).isRedwood {
 }
 
 html:not(.ext-f) {
-    --theme-default-main: light-dark(#607799, rgb(76.3373493976, 94.6265060241, 121.6626506024));
-    --theme-default-main-light: light-dark(rgb(125.9638554217, 145.3614457831, 174.0361445783), #607799);
+    --theme-default-main: light-dark(#5058f4, rgb(76.3373493976, 94.6265060241, 121.6626506024));
+    --theme-default-main-light: light-dark(rgb(125.9638554217, 145.3614457831, 174.0361445783), #5058f4);
     --theme-default-secondary: light-dark(#dee1e7, rgb(186.48, 189, 194.04));
     --theme-default-secondary-light: light-dark(#e0e6ef, rgb(188.16, 193.2, 200.76));
     --theme-default-secondary-light-light: light-dark(oklch(from #e0e6ef calc(l + 4) c h), oklch(from rgb(188.16, 193.2, 200.76) calc(l + 4) c h));
@@ -72,8 +72,6 @@ html:not(.ext-f) {
 html:not(.ext-f):not(.isRedwood) {
     --table-border-color: light-dark(#ebebeb, var(--dark-3));
     --table-header-bg-color: light-dark(#e5e5e5, var(--dark-3));
-    --row-odd-bg-color: light-dark(#fafafa, var(--dark-2));
-    --row-even-bg-color: light-dark(#fff, var(--dark-1));
     --row-hover-bg-color: light-dark(rgb(254.3, 254.3, 166.6), rgb(55.946, 55.946, 36.652));
     --subtab-sticky-top: 7px
 }
@@ -81,14 +79,24 @@ html:not(.ext-f):not(.isRedwood) {
 html:not(.ext-f).isRedwood {
     --table-border-color: light-dark(var(--uif-redwood-color-light-border-divider, rgb(22 21 19 / 0.12)), var(--dark-3));
     --table-header-bg-color: light-dark(var(--nsn-uif-redwood-color-light-neutral-0, #fff), var(--dark-1));
-    --row-odd-bg-color: var(--table-header-bg-color);
-    --row-even-bg-color: var(--table-header-bg-color);
     --row-hover-bg-color: light-dark(#e9e7e6, var(--dark-3));
     --subtab-sticky-top: 0
 }
 
 html:not(.ext-f) {
     --toggle-bg-color: light-dark(#999, var(--dark-gray-1));
+    /* ROW TOKENS LIVE HERE, NOT IN THE isRedwood SPLIT ABOVE. Classic pages
+       still carry the isRedwood class (same over-firing detection that broke
+       the active tabs), and the old .isRedwood branch set odd = even =
+       --table-header-bg-color, which neutralised the zebra tint on every
+       real page while fixtures (no isRedwood class) kept passing.
+       Only as visible as the theme colour is dark: 14/255 on the default primary,
+       but a pastel theme (darkest channel above ~155) mixes below the guard's
+       8/255 floor, and the guard only ever measures the default theme.
+       Upgrade path if a pastel default ever ships: floor the mix against a
+       fixed off-white instead of #fff, or give the guard a role-theme case. */
+    --row-odd-bg-color: light-dark(color-mix(in srgb, var(--theme-main) 8%, #fff), var(--dark-2));
+    --row-even-bg-color: light-dark(#fff, var(--dark-1));
     scrollbar-color: var(--scrollbar-foreground) var(--scrollbar-background)
 }
 
@@ -190,14 +198,42 @@ html:not(.ext-f).sln .uir-machine-table-container:has(.uir-machine-headerrow:not
     background-color: var(--row-bg-color) !important
 }
 
-html:not(.ext-f) :is(.uir-machine-row, .uir-machine-totals-row):nth-child(even):not(:hover),
-html:not(.ext-f) .uir-list-row-tr:nth-child(odd):not(:hover) {
-    --row-bg-color: var(--row-odd-bg-color)
+/* ZEBRA STRIPING, counted over DATA ROWS ONLY.
+
+   `:nth-child(… of S)` is what makes that possible and is why this is not plain
+   :nth-child any more. A machine's siblings include the header row, the button
+   row, the totals row and — in Edit Mode — the permanent entry row, so plain
+   parity gave the first data row whichever shade the non-data rows above it
+   happened to leave, and a loading or no-data row appearing flipped every stripe
+   below it. Counting only the data rows makes the pattern a property of the DATA.
+
+   The exclusion list is edit-grid/core.js's EXCLUDED_ROW_SELECTOR verbatim. That
+   list was assembled from live observation rather than from the spec (it is where
+   uir-machine-row-last came from, which neither half named), so quoting it keeps
+   the two in step instead of inventing a second opinion about what a data row is.
+
+   EVENS ARE STRIPED, so the first data row keeps the base surface and a short
+   machine looks untouched — the directive's "polished enhancement, not a
+   redesign". Lists get the same treatment; they used inverted parity before
+   purely to cancel out their header, which `of` now handles properly.
+
+   NATIVE STATES WIN. No !important on these, and hover/focused/active are carved
+   out by :not() so an open line, an inline edit and a hover render exactly as
+   NetSuite draws them. The stripe only sets a custom property that the
+   --row-bg-color rule above consumes; it paints nothing itself.
+
+   PARITY IS DOM PARITY, NOT VISIBLE PARITY — the one honest limitation. View
+   Mode's row filtering hides rows with display:none and :nth-child still counts
+   them, so two same-shade rows can meet across a filtered-out block. Correcting
+   that needs JS re-striping on every filter change, which is exactly the
+   per-row cost this is required not to have. Left as-is, deliberately. */
+html:not(.ext-f) :is(.uir-list-row-tr, .uir-machine-row, .uir-machine-totals-row) {
+    --row-bg-color: var(--row-even-bg-color)
 }
 
-html:not(.ext-f) :is(.uir-machine-row, .uir-machine-totals-row):nth-child(odd):not(:hover),
-html:not(.ext-f) .uir-list-row-tr:nth-child(even):not(:hover) {
-    --row-bg-color: var(--row-even-bg-color)
+html:not(.ext-f) tr:nth-child(even of .uir-machine-row:not(.machineButtonRow, .totalrow, .uir-machine-loading-row, .uir-machine-nodata-row, .uir-machine-button-row, .uir-machine-totals-row, .uir-loading-row, .uir-nodata-row, .uir-machine-row-last)):not(:hover, .uir-machine-row-focused, .listfocusedrow, .uir-active),
+html:not(.ext-f) tr:nth-child(even of .uir-list-row-tr):not(:hover, .uir-machine-row-focused, .listfocusedrow, .uir-active) {
+    --row-bg-color: var(--row-odd-bg-color)
 }
 
 html:not(.ext-f) :is(tr.uir-list-row-tr.uir-active, .uir-machine-row:hover),
@@ -2367,6 +2403,82 @@ html:not(.ext-f):not(.isRedwood) .bgtabbar .formtabtext {
     padding: 5px 13px 4px 13px !important
 }
 
+/* ACTIVE TAB, one treatment at both scales: the selected tab is a surface shifted
+   toward the theme colour plus a 3px bottom accent derived from it. Everything is
+   mixed from --theme-main, so a role theme restyles every active tab with no
+   further rules.
+
+   UNCONDITIONAL — NOT gated on :not(.isRedwood), and that is the correction this
+   round exists for. These rules shipped classic-only on the theory that a
+   .isRedwood page carried its own accent grammar. Measured live on the owner's
+   record page: documentElement HAS .isRedwood, and the tabs are the SAME
+   formtab*/formsubtab* markup showing the same broken colours — active #7e91ae
+   (the orphaned --theme-main-light) on a #5058f4 bar, and #e2e2e2 subtabs on
+   #ebebeb. So the flag does not describe the markup. theme-runtime.js:59 appears
+   to over-fire on pages that are structurally classic; that detection is NOT
+   chased here — the fix is simply to stop keying the tab treatment on it, which
+   is also what the owner asked for ("all of my users are classic users").
+   The .isRedwood-scoped accent pair that used to sit further down this file was
+   removed with the same change: it would have out-specified the accent below on
+   any flagged page, so exactly one treatment renders either way.
+
+   WHAT WAS WRONG: .formtabon was painted --theme-main-light over a --theme-main
+   bar. Those two stopped being neighbours when the default primary moved to
+   #5058f4, so the selected tab read as a grey block, and white-on-#7e91ae is about
+   2.6:1 — the ACTIVE tab had worse text contrast than the inactive ones beside it.
+   The subtab strip had the mirror problem: --theme-secondary on a
+   --theme-secondary-light row, near enough to invisible.
+
+   The inactive tabs carry the same 3px border in transparent so that selecting a
+   tab moves no text by a pixel. */
+html:not(.ext-f) :is(.uir-tabs, .uir-tab-list, .uir-tab-list-tabs, .bgtabbar) .formtabon {
+    background-color: color-mix(in srgb, var(--theme-main), #000 32%) !important;
+    border-bottom: 3px solid color-mix(in srgb, #fff 62%, var(--theme-main)) !important
+}
+
+html:not(.ext-f) :is(.uir-tabs, .uir-tab-list, .uir-tab-list-tabs, .bgtabbar) .formtaboff {
+    border-bottom: 3px solid transparent !important
+}
+
+html:not(.ext-f) :is(.uir-tabs, .uir-tab-list, .uir-tab-list-tabs, .bgtabbar) .formtaboff:has(>a:hover) {
+    background-color: color-mix(in srgb, var(--theme-main), #000 10%) !important
+}
+
+html:not(.ext-f) :is(.uir-tabs, .uir-tab-list, .uir-tab-list-tabs, .bgtabbar) .formtabon>.formtabtext {
+    font-weight: 600 !important
+}
+
+html:not(.ext-f):not(.disable_radii) :is(.uir-tabs, .uir-tab-list, .uir-tab-list-tabs, .bgtabbar) .formtabon {
+    border-radius: 5px 5px 0 0 !important
+}
+
+/* The active SUBTAB takes the panel surface rather than a theme tint, which is the
+   other half of the same grammar: on the dark bar the selected tab sinks INTO the
+   bar, and on the light strip it rises OUT of it to meet the content below. A tint
+   was tried first and measured 1.05:1 against the strip — the two are near-identical
+   in luminance — so the surface does no work there and the accent did it alone. */
+html:not(.ext-f) :is(.uir-subtab-panel-tabs-row, div.bgsubtabbar) .formsubtabon {
+    background-color: var(--field-backgroud-color) !important;
+    border-bottom: 3px solid var(--theme-main) !important
+}
+
+html:not(.ext-f) :is(.uir-subtab-panel-tabs-row, div.bgsubtabbar) .formsubtaboff {
+    border-bottom: 3px solid transparent !important
+}
+
+html:not(.ext-f) :is(.uir-subtab-panel-tabs-row, div.bgsubtabbar) .formsubtaboff:has(>a:hover) {
+    background-color: color-mix(in srgb, var(--theme-main) 6%, var(--field-backgroud-color)) !important
+}
+
+html:not(.ext-f) :is(.uir-subtab-panel-tabs-row, div.bgsubtabbar) .formsubtabon>.formsubtabtext {
+    color: var(--text-0) !important;
+    font-weight: 600 !important
+}
+
+html:not(.ext-f):not(.disable_radii) :is(.uir-subtab-panel-tabs-row, div.bgsubtabbar) .formsubtabon {
+    border-radius: 5px 5px 0 0 !important
+}
+
 html:not(.ext-f).isRedwood.isDarkMode :is(body, .uir-tabs) {
     background-color: var(--dark-1)
 }
@@ -2428,14 +2540,6 @@ html:not(.ext-f).isRedwood :is(.uir-tab-list-tabs, .uir-subtab-panel-tabs-row) {
 
 html:not(.ext-f).isRedwood :is(.uir-tab-list-tabs, .uir-subtab-panel-tabs-row) :is(.formtaboff, .formtabon, .formsubtaboff, .formsubtabon) {
     align-items: stretch
-}
-
-html:not(.ext-f).isRedwood :is(.uir-tab-list-tabs, .uir-subtab-panel-tabs-row) :is(.formtabon, .formsubtabon) {
-    border-bottom-color: light-dark(var(--theme-main), var(--theme-main-light))
-}
-
-html:not(.ext-f).isRedwood :is(.uir-tab-list-tabs, .uir-subtab-panel-tabs-row) :is(.formtaboff, .formsubtaboff):has(>a:hover) {
-    border-bottom-color: light-dark(var(--theme-main-light), var(--theme-main))
 }
 
 html:not(.ext-f).isRedwood :is(.uir-tab-list-tabs, .uir-subtab-panel-tabs-row) :is(.formtabtext, .formsubtabtext) {
@@ -4924,6 +5028,122 @@ html:not(.ext-f) .totallingtable .inputtotalling {
     font-weight: bold !important
 }
 
+/* Transaction totals box. The Total row is matched POSITIONALLY (tbody tr:last-child):
+   NetSuite gives it no class of its own, and .inputtotalling marks summary amounts
+   generally rather than that row. Row dividers replace .uir-totallingtable-seperator,
+   which is hidden along with its cell's padding rather than left as a blank band. */
+
+/* THE WRAPPER IS THE CARD, NOT THE TABLE. A <caption> lives OUTSIDE the table's
+   border box, so chrome on table.totallingtable wrapped only the body: the
+   header rendered as a detached pill and the Subtotal block below it grew its
+   own rounded top corners — the owner's "multiple rounded boxes stacked
+   together". span.bgmd.totallingbg encloses caption AND grid as one box, so
+   the radius, hairline, fill and shadow all live here, and its overflow:hidden
+   clips the caption fill and the last row on the card's own arc — which also
+   retires the per-corner 15px inner radii the table-as-card version needed.
+   Generic .bgmd elsewhere keeps its own treatment (this out-specifies it);
+   background-color carries !important to outrank the shared .bgmd group's. */
+html:not(.ext-f) span.bgmd.totallingbg {
+    overflow: hidden;
+    background-color: var(--field-backgroud-color) !important;
+    border: 1px solid var(--table-border-color);
+    box-shadow: 0 1px 4px rgba(20, 22, 26, 0.22)
+}
+
+html:not(.ext-f):not(.disable_radii) span.bgmd.totallingbg {
+    border-radius: 16px
+}
+
+/* Flat on purpose: any chrome here splits the card at the caption seam again. */
+html:not(.ext-f) table.totallingtable {
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    background-color: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important
+}
+
+/* 16px in, 8px down, everywhere in the box — the only two padded surfaces are the
+   caption and the cells, and both said 7px 12px, which was on no system at all.
+   The separator cell keeps its 0 and stays on it. */
+html:not(.ext-f) table.totallingtable caption {
+    padding: 8px 16px !important;
+    color: #fff !important;
+    font-weight: 600 !important;
+    letter-spacing: .02em !important;
+    text-align: left !important
+}
+
+html:not(.ext-f) .totallingtable td {
+    padding: 8px 16px !important;
+    border-top: 1px solid var(--table-border-color) !important;
+    vertical-align: middle !important
+}
+
+html:not(.ext-f) .totallingtable tbody tr:first-child td {
+    border-top: 0 !important
+}
+
+html:not(.ext-f) .totallingtable td:first-child,
+html:not(.ext-f) .totallingtable span.uir-label {
+    color: var(--text-2) !important;
+    font-weight: 600 !important
+}
+
+html:not(.ext-f) .totallingtable td+td {
+    color: var(--text-1) !important;
+    font-variant-numeric: tabular-nums !important;
+    text-align: right !important;
+    white-space: nowrap !important
+}
+
+/* The Total row. Its rule above the row is PURE var(--theme-main) with nothing in
+   between — it used to be a 30% blend towards the table border, which meant the
+   one line in this box that is supposed to announce the theme announced a colour
+   the theme could not be read back out of. The FILL stays the 7% tint it shipped
+   with; the border is the accent, the fill is the surface, and only one of them
+   was asked to change.
+
+   The row sits at .98em and the amount alone at 1.08em: the weight does the
+   emphasis, the size only separates the number from its label. Setting the row
+   itself larger is what made it look oversized. */
+html:not(.ext-f) .totallingtable tbody tr:last-child td {
+    background-color: color-mix(in srgb, var(--theme-main) 7%, transparent) !important;
+    border-top: 2px solid var(--theme-main) !important;
+    color: var(--text-0) !important;
+    font-size: .98em !important;
+    font-weight: 700 !important
+}
+
+html:not(.ext-f) .totallingtable tbody tr:last-child td+td {
+    font-size: 1.08em !important
+}
+
+/* The Total LABEL, which the dimmed tier above was also catching: the tier is for
+   Subtotal, Discount Item and Tax Total, and it reached the word "Total" too
+   because it matches span.uir-label rather than a row. The td rule above cannot
+   undo it — the label is a span inside the cell with its own colour and weight,
+   so the cell's --text-0 and 700 never reached it and the strongest line in the
+   box was announced by its faintest label. */
+html:not(.ext-f) .totallingtable tbody tr:last-child span.uir-label {
+    color: var(--text-0) !important;
+    font-weight: 700 !important
+}
+
+html:not(.ext-f) .totallingtable .uir-totallingtable-seperator {
+    display: none !important
+}
+
+html:not(.ext-f) .totallingtable td:has(>.uir-totallingtable-seperator) {
+    padding: 0 !important;
+    border-top: 0 !important
+}
+
+html:not(.ext-f).isDarkMode span.bgmd.totallingbg {
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5)
+}
+
 html:not(.ext-f) .newelement-item:hover,
 html:not(.ext-f) .uir-pagination-select ul li a:hover,
 html:not(.ext-f) .selector-options .selector-selected {
@@ -5130,11 +5350,11 @@ html:not(.ext-f):not(.isRedwood) [data-widget=Tab][aria-selected=true][data-posi
     display: none
 }
 
-html:not(.ext-f):not(.isRedwood) .formtabon {
-    background-color: var(--theme-main-light) !important
+html:not(.ext-f) .formtabon {
+    background-color: color-mix(in srgb, var(--theme-main), #000 32%) !important
 }
 
-html:not(.ext-f):not(.isRedwood) :is(.formtaboff, .uir-unroll-tabs-button) {
+html:not(.ext-f) :is(.formtaboff, .uir-unroll-tabs-button) {
     background-color: var(--theme-main) !important
 }
 
@@ -5159,11 +5379,11 @@ html:not(.ext-f):not(.isRedwood) div.bgsubtabbar::after {
     background-color: var(--theme-secondary-light)
 }
 
-html:not(.ext-f):not(.isRedwood) .formsubtabon {
-    background-color: var(--theme-secondary) !important
+html:not(.ext-f) .formsubtabon {
+    background-color: var(--field-backgroud-color) !important
 }
 
-html:not(.ext-f):not(.isRedwood) .formsubtaboff {
+html:not(.ext-f) .formsubtaboff {
     background-color: var(--theme-secondary-light) !important
 }
 

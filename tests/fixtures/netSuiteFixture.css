@@ -85,7 +85,10 @@ body {
 
 .totallingtable {
   width: 360px;
-  margin: 22px 0 0 auto;
+  /* 12px, not 22px: the sublist container above carries a 300px min-height from
+     netsuite.css, so on this two-line order the totals box starts low enough
+     that the extra 10px pushed its bottom border past the 1000px capture. */
+  margin: 12px 0 0 auto;
 }
 
 .totallingtable td {

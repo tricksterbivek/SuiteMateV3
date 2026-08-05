@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8
 
 assert.equal(manifest.manifest_version, 3);
 assert.equal(manifest.name, "SuiteMate V3");
-assert.equal(manifest.version, "3.21.1");
+assert.equal(manifest.version, "3.23.0");
 assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
 assert.equal(
   Object.hasOwn(manifest, "optional_permissions"),
@@ -37,7 +37,8 @@ assert.deepEqual(globalThemeContentScript.css, [
   "src/internal-ids/internal-ids.css",
   "src/record-actions/csv-import.css",
   "src/so-columns/so-columns.css",
-  "src/form-views/form-views.css"
+  "src/form-views/form-views.css",
+  "src/edit-grid/edit-grid.css"
 ]);
 assert.deepEqual(globalThemeContentScript.js, [
   "src/shared/utilities.js",
@@ -51,6 +52,7 @@ assert.deepEqual(globalThemeContentScript.js, [
   "src/so-columns/core.js",
   "src/tab-title/core.js",
   "src/form-views/core.js",
+  "src/edit-grid/core.js",
   "src/runtime/theme-runtime.js",
   "src/runtime/notification-runtime.js",
   "src/record-actions/core.js",
@@ -59,7 +61,8 @@ assert.deepEqual(globalThemeContentScript.js, [
   "src/csv-export/runtime.js",
   "src/so-columns/runtime.js",
   "src/tab-title/runtime.js",
-  "src/form-views/runtime.js"
+  "src/form-views/runtime.js",
+  "src/edit-grid/runtime.js"
 ]);
 assert.equal(
   globalThemeContentScript.js.includes("src/shared/permissions.js"),
@@ -157,6 +160,7 @@ for (const fixture of [
   "tests/fixtures/classic.html",
   "tests/fixtures/redwood.html",
   "tests/fixtures/sales-order.html",
+  "tests/fixtures/sales-order-edit.html",
   "tests/fixtures/import-assistant.html",
   "tests/fixtures/saved-search-results.html",
   "tests/fixtures/saved-search-edit.html",
@@ -205,6 +209,9 @@ const extensionSources = [
   "src/so-columns/core.js",
   "src/so-columns/runtime.js",
   "src/so-columns/so-columns.css",
+  "src/edit-grid/core.js",
+  "src/edit-grid/runtime.js",
+  "src/edit-grid/edit-grid.css",
   "src/import-assistant/core.js",
   "src/import-assistant/context-runtime.js",
   "src/popup/popup.html",
@@ -757,6 +764,9 @@ assert.match(importFixtureSource, /name="recordtype"[^>]+value="ACCOUNTING"/, "T
 assert.match(importFixtureSource, /name="recordsubtype"[^>]+value="ACCOUNT"/, "The Import Assistant fixture lacks the native subtype field");
 
 const compatibilityStyles = await readFile(resolve(root, "src/styles/v3-compat.css"), "utf8");
+// Read for the sheet-equality pin below: the active-tab treatment is stated in
+// both sheets and the two must agree value-for-value.
+const netsuiteStyles = await readFile(resolve(root, "src/styles/netsuite.css"), "utf8");
 const radiusStyles = await readFile(resolve(root, "src/styles/radii.css"), "utf8");
 assert.match(
   compatibilityStyles,
@@ -875,8 +885,13 @@ assert.match(
 );
 assert.match(
   compatibilityStyles,
-  /border-bottom-color: light-dark\(var\(--theme-main\), var\(--theme-main-light\)\)/,
-  "Global NetSuite tabs are not controlled by Main"
+  /\.uir-tab-list-tabs \.formtabon \{\s+border-bottom: 3px solid color-mix\(in srgb, #fff 62%, var\(--theme-main\)\) !important/,
+  "The active global NetSuite tab accent is not derived from Main"
+);
+assert.match(
+  compatibilityStyles,
+  /\.uir-subtab-panel-tabs-row \.formsubtabon \{\s+border-bottom: 3px solid var\(--theme-main\) !important/,
+  "The active nested-subtab accent is not derived from Main"
 );
 assert.match(
   compatibilityStyles,
@@ -885,8 +900,13 @@ assert.match(
 );
 assert.match(
   compatibilityStyles,
-  /html:not\(\.ext-f\) \.uir-tab-list-tabs \.formtabon,[\s\S]*?background-color: var\(--theme-main-light\) !important/,
-  "The active global NetSuite tab is not controlled by Main Light"
+  /html:not\(\.ext-f\) \.uir-tab-list-tabs \.formtabon \{\s+background-color: color-mix\(in srgb, var\(--theme-main\), #000 32%\) !important/,
+  "The active global NetSuite tab surface is not derived from Main"
+);
+assert.match(
+  compatibilityStyles,
+  /--suitemate-v3-subtab-active-bg: var\(--field-backgroud-color\)/,
+  "The active nested subtab no longer takes the panel surface"
 );
 assert.match(
   compatibilityStyles,
@@ -910,9 +930,164 @@ assert.match(
 );
 assert.match(
   compatibilityStyles,
-  /\.uir-subtab-panel-tabs-row \.formsubtabon,[\s\S]*?background-color: var\(--suitemate-v3-subtab-active-bg\) !important/,
-  "The active nested NetSuite tab is not controlled by Secondary"
+  /\.uir-subtab-panel-tabs-row \.formsubtabon \{\s+background-color: var\(--suitemate-v3-subtab-active-bg\) !important/,
+  "The active nested NetSuite tab does not use the shared subtab-active token"
 );
+
+// ===== Active-tab sheet equality =====
+// The active-tab treatment is stated in THREE places on purpose: netsuite.css
+// scopes it to a container set, netsuite.css states it again bare for strips that
+// set does not reach, and v3-compat.css states it a third time because that sheet
+// loads last and is what a page actually renders. Three copies is the deliberate
+// design — one sheet winning by load order must produce the same pixels as another
+// winning by specificity — but three copies is also three chances to drift.
+//
+// These assertions COMPARE THE SHEETS TO EACH OTHER rather than describe any one
+// of them, which is the difference that matters: the checks above pin v3-compat's
+// derivation, and every one of them would still have passed while netsuite.css
+// said something else. That is not hypothetical — this round shipped an accent
+// that rendered 3px from one sheet and 2px from another, because only one site
+// carried the width. A divergence now names the site that moved.
+// Scans EVERY rule with this selector and keeps the LAST one that sets the
+// property, because that is the one the page gets: v3-compat states the surface
+// and the accent under one identical selector, and between two equal-specificity
+// blocks the cascade takes the later. Returning the first read a declaration that
+// does not render — an appended duplicate saying something else passed this pin
+// while the browser painted the duplicate, which is the exact drift these
+// assertions exist to catch.
+// CEILING, stated so the claim matches the mechanism: "last" means the last
+// block whose selector head is EXACTLY this text. A duplicate hiding in a
+// comma-list head or winning on higher specificity evades a literal-text
+// reader; closing that means parsing CSS, which this file deliberately does
+// not do.
+const ruleValue = (sheet, label, selector, property) => {
+  let value = null;
+  for (let at = sheet.indexOf(selector); at !== -1; at = sheet.indexOf(selector, at + 1)) {
+    const block = sheet.slice(at + selector.length, sheet.indexOf("}", at));
+    const found = new RegExp(`(?:^|[;{\\s])${property}:([^;\\n}]+)`).exec(block);
+    if (found) {
+      value = found[1].replace("!important", "").trim();
+    }
+  }
+  return value ?? assert.fail(`${label}: no rule "${selector}" sets ${property}`);
+};
+
+// A token is a declaration like any other, so it is read the same way — block
+// scoped and last-wins. Read loose over the whole sheet it would have taken the
+// first block that happened to name it, wherever that block was and whether or
+// not a later one overrode it.
+const tokenValue = (sheet, label, name) => ruleValue(sheet, label, "html:not(.ext-f) {", name);
+
+const TOP_SCOPED = "html:not(.ext-f) :is(.uir-tabs, .uir-tab-list, .uir-tab-list-tabs, .bgtabbar) .formtabon {";
+const SUB_SCOPED = "html:not(.ext-f) :is(.uir-subtab-panel-tabs-row, div.bgsubtabbar) .formsubtabon {";
+for (const [what, sites] of Object.entries({
+  "the active top-tab surface": [
+    ["netsuite.css scoped", () => ruleValue(netsuiteStyles, "netsuite.css scoped", TOP_SCOPED, "background-color")],
+    ["netsuite.css bare", () => ruleValue(netsuiteStyles, "netsuite.css bare", "html:not(.ext-f) .formtabon {", "background-color")],
+    ["v3-compat.css", () => ruleValue(compatibilityStyles, "v3-compat.css", "html:not(.ext-f) .uir-tab-list-tabs .formtabon {", "background-color")]
+  ],
+  "the active top-tab accent": [
+    ["netsuite.css scoped", () => ruleValue(netsuiteStyles, "netsuite.css scoped", TOP_SCOPED, "border-bottom")],
+    ["v3-compat.css", () => ruleValue(compatibilityStyles, "v3-compat.css", "html:not(.ext-f) .uir-tab-list-tabs .formtabon {", "border-bottom")]
+  ],
+  "the active subtab surface": [
+    ["netsuite.css scoped", () => ruleValue(netsuiteStyles, "netsuite.css scoped", SUB_SCOPED, "background-color")],
+    ["netsuite.css bare", () => ruleValue(netsuiteStyles, "netsuite.css bare", "html:not(.ext-f) .formsubtabon {", "background-color")],
+    ["v3-compat.css token", () => tokenValue(compatibilityStyles, "v3-compat.css token", "--suitemate-v3-subtab-active-bg")]
+  ],
+  "the active subtab accent": [
+    ["netsuite.css scoped", () => ruleValue(netsuiteStyles, "netsuite.css scoped", SUB_SCOPED, "border-bottom")],
+    ["v3-compat.css", () => ruleValue(compatibilityStyles, "v3-compat.css", "html:not(.ext-f) .uir-subtab-panel-tabs-row .formsubtabon {", "border-bottom")]
+  ],
+  // The hover halves are duplicated across the same two sheets as the active
+  // ones — they were split out of a single rule this round, which is precisely
+  // when a pair starts to drift — and the descriptive assertions above never
+  // compare them. A hover shade that moved in one sheet only would render
+  // whichever the cascade picked, with the whole suite green.
+  "the inactive top-tab hover surface": [
+    ["netsuite.css scoped", () => ruleValue(netsuiteStyles, "netsuite.css scoped", "html:not(.ext-f) :is(.uir-tabs, .uir-tab-list, .uir-tab-list-tabs, .bgtabbar) .formtaboff:has(>a:hover) {", "background-color")],
+    ["v3-compat.css", () => ruleValue(compatibilityStyles, "v3-compat.css", "html:not(.ext-f) .uir-tab-list-tabs .formtaboff:has(>a:hover) {", "background-color")]
+  ],
+  "the inactive subtab hover surface": [
+    ["netsuite.css scoped", () => ruleValue(netsuiteStyles, "netsuite.css scoped", "html:not(.ext-f) :is(.uir-subtab-panel-tabs-row, div.bgsubtabbar) .formsubtaboff:has(>a:hover) {", "background-color")],
+    ["v3-compat.css token", () => tokenValue(compatibilityStyles, "v3-compat.css token", "--suitemate-v3-subtab-hover-bg")]
+  ]
+})) {
+  const [[baselineLabel, readBaseline], ...rest] = sites;
+  const expected = readBaseline();
+  for (const [label, read] of rest) {
+    assert.equal(
+      read(),
+      expected,
+      `${what} differs between "${baselineLabel}" and "${label}" — the copies have drifted`
+    );
+  }
+}
+// ===== Transaction totals box =====
+// EVERY value here goes through ruleValue, not a bare assert.match. Existence
+// matching answers "does the sheet say this anywhere", which an APPENDED
+// duplicate block satisfies while the browser paints the duplicate — the exact
+// hole this file closed for the tab treatment, reopened by pinning this
+// component the easy way. ruleValue reads the block the cascade lands on, and
+// its exact selector heads also stop a loose /table.totallingtable {/ from
+// matching the .isDarkMode rule that merely ends the same way.
+//
+// The WHOLE component is pinned, not just the interesting parts, because
+// NOTHING ELSE HOLDS ANY OF IT. The screenshot gate fails at 1% and this box is
+// small: a full revert of the cell padding moves the record baseline 0.276%, the
+// Total sizing 0.053%, the Total-label rule 0.019%, the inner radii 0.007%, the
+// container radius 0.002%, and a theme hardcode or a respelled shadow 0.000%.
+// Measured on netsuite-page, every one of them green.
+const TOTALS_ROW = "html:not(.ext-f) .totallingtable tbody tr:last-child ";
+const TOTALS_RADII = "html:not(.ext-f):not(.disable_radii) ";
+for (const [what, selector, property, expected] of [
+  // The two theme-derived surfaces. Both must read var(--theme-main) DIRECTLY:
+  // the live check is moving the variable and watching the caption and the rule
+  // above the Total follow together, and a hardcode renders pixel-identical to
+  // the variable that produced it. The rule was a color-mix towards the table
+  // border until this round and did not follow. The caption's selector head ends
+  // in a comma because the fill lives in a shared group — slicing from there to
+  // the block still reads that group's declaration and nobody else's.
+  ["the caption fill", "html:not(.ext-f) table.totallingtable caption,", "background-color", "var(--theme-main)"],
+  ["the rule above the Total row", `${TOTALS_ROW}td {`, "border-top", "2px solid var(--theme-main)"],
+  // Literals, because the spec named literals — an equivalent spelling renders
+  // identically and passes every screenshot. The dark variant is pinned on the
+  // same terms as the light one: no fixture renders either shadow to within the
+  // 1% gate, so "no test can see it" argues for pinning both or neither.
+  // Card chrome lives on the WRAPPER (span.bgmd.totallingbg): a <caption> sits
+  // outside the table's border box, so chrome on the table wraps only the body
+  // and renders the header as a detached pill over a separately-rounded
+  // Subtotal block — the owner saw exactly that. The wrapper's overflow:hidden
+  // is what rounds the caption fill and the last row now, so it is pinned on
+  // the same terms as the radius it implements.
+  ["the elevation", "html:not(.ext-f) span.bgmd.totallingbg {", "box-shadow", "0 1px 4px rgba(20, 22, 26, 0.22)"],
+  ["the dark-mode elevation", "html:not(.ext-f).isDarkMode span.bgmd.totallingbg {", "box-shadow", "0 1px 4px rgba(0, 0, 0, 0.5)"],
+  ["the container radius", `${TOTALS_RADII}span.bgmd.totallingbg {`, "border-radius", "16px"],
+  ["the card fill", "html:not(.ext-f) span.bgmd.totallingbg {", "background-color", "var(--field-backgroud-color)"],
+  ["the hairline", "html:not(.ext-f) span.bgmd.totallingbg {", "border", "1px solid var(--table-border-color)"],
+  ["the corner clip", "html:not(.ext-f) span.bgmd.totallingbg {", "overflow", "hidden"],
+  // And the table stays FLAT: any of these coming back splits the card at the
+  // caption seam again, which is the defect this geometry exists to kill.
+  ["the table's flat background", "html:not(.ext-f) table.totallingtable {", "background-color", "transparent"],
+  ["the table's flat border", "html:not(.ext-f) table.totallingtable {", "border", "0"],
+  ["the table's flat shadow", "html:not(.ext-f) table.totallingtable {", "box-shadow", "none"],
+  ["the caption padding", "html:not(.ext-f) table.totallingtable caption {", "padding", "8px 16px"],
+  ["the cell padding", "html:not(.ext-f) .totallingtable td {", "padding", "8px 16px"],
+  ["the Total row size", `${TOTALS_ROW}td {`, "font-size", ".98em"],
+  ["the Total amount size", `${TOTALS_ROW}td+td {`, "font-size", "1.08em"],
+  // The Total LABEL, which the dimmed tier was also catching. Pinned because the
+  // rule that undims it is one deletable block and deleting it renders a box
+  // that still passes at 0.019% — the defect it fixes is invisible to the gate
+  // in exactly the way the defect itself was.
+  ["the Total label colour", `${TOTALS_ROW}span.uir-label {`, "color", "var(--text-0)"],
+  ["the Total label weight", `${TOTALS_ROW}span.uir-label {`, "font-weight", "700"]
+]) {
+  assert.equal(
+    ruleValue(netsuiteStyles, `the totals box: ${what}`, selector, property),
+    expected,
+    `The totals box: ${what} is not ${expected}`
+  );
+}
 assert.match(
   compatibilityStyles,
   /td\.fgroup_title\.uir-field-group>div\.fgroup_title[\s\S]*?background-color: var\(--theme-secondary-light\) !important/,
@@ -942,17 +1117,18 @@ runInNewContext(utilitySource, settingsSandbox);
 runInNewContext(settingsSource, settingsSandbox);
 const settingsApi = settingsSandbox.SuiteMateV3Settings;
 assert.equal(settingsApi.THEME_PREVIEW_MESSAGE, "SUITEMATE_V3_PREVIEW_ROLE_THEME");
-assert.equal(settingsApi.SCHEMA_VERSION, 5);
+assert.equal(settingsApi.SCHEMA_VERSION, 6);
 assert.equal(settingsApi.DEFAULTS.schemaVersion, settingsApi.SCHEMA_VERSION);
 assert.equal(settingsApi.DEFAULTS.squareCorners, false);
 assert.equal(settingsApi.DEFAULTS.showInternalIds, false);
 assert.equal(settingsApi.DEFAULTS.salesOrderColumns, false);
 assert.equal(settingsApi.DEFAULTS.smartTabTitles, false);
 assert.equal(settingsApi.DEFAULTS.formViews, false);
+assert.equal(settingsApi.DEFAULTS.salesOrderColumnsEdit, false);
 assert.deepEqual(
   JSON.parse(JSON.stringify(settingsApi.validateForStorage({ mode: "dark" }))),
   {
-    schemaVersion: 5,
+    schemaVersion: 6,
     enabled: true,
     mode: "dark",
     squareCorners: false,
@@ -960,6 +1136,7 @@ assert.deepEqual(
     salesOrderColumns: false,
     smartTabTitles: false,
     formViews: false,
+    salesOrderColumnsEdit: false,
     roleThemes: {}
   }
 );
@@ -1014,8 +1191,8 @@ materialPaletteSandbox.globalThis = materialPaletteSandbox;
 runInNewContext(utilitySource, materialPaletteSandbox);
 runInNewContext(materialPaletteSource, materialPaletteSandbox);
 const { generateMaterialShades } = materialPaletteSandbox.SuiteMateV3MaterialPalette;
-const materialShades = generateMaterialShades("#607799");
-assert.equal(materialShades.source, "#607799");
+const materialShades = generateMaterialShades("#5058f4");
+assert.equal(materialShades.source, "#5058f4");
 assert.deepEqual(JSON.parse(JSON.stringify(Object.keys(materialShades.shades))), [
   "50", "100", "200", "300", "400", "500", "600", "700", "800", "900"
 ]);
@@ -1033,7 +1210,7 @@ const materialLuminances = Object.values(materialShades.shades).map(relativeLumi
 for (let index = 1; index < materialLuminances.length; index += 1) {
   assert.equal(materialLuminances[index] < materialLuminances[index - 1], true, "Material tones are not ordered light to dark");
 }
-assert.equal(JSON.stringify(generateMaterialShades("#607799")), JSON.stringify(materialShades));
+assert.equal(JSON.stringify(generateMaterialShades("#5058f4")), JSON.stringify(materialShades));
 assert.equal(generateMaterialShades("#60g"), null);
 assert.equal(generateMaterialShades("#678").source, "#667788");
 assert.equal(generateMaterialShades("#12345678"), null);
@@ -1882,10 +2059,10 @@ await access(resolve(root, "save/SUITEMATE_V1_MASTER_FEATURE_INVENTORY.md"));
 const expectedStyleHashes = {
   "src/styles/font.css": "ecc7a99f6b820ee9290ab4a3ca2ff1ea4829c1a539c0d42becb19a3d5ea446cf",
   "src/styles/code.css": "e5607100c7432fd7028176ce74c4c999e181108861ea6b992ed3058d92d0d698",
-  "src/styles/netsuite.css": "56c4251792aa7884469cb6904ae2ce0fa68731db5e9d660ead7bff2144b2af56",
+  "src/styles/netsuite.css": "b055cfbe59da9297d43e1b3ed5940588698cc8631cff2b684a2746ebe4bf298c",
   "src/styles/pages/bundlebuilder.css": "bb9cae83f75b192d0a913233a33b6a8e557df656f7251a6e48e3105532e9f8fa",
   "src/styles/pages/codeeditor.css": "b58efb6517cfc13ca04cb621bdf269599ad9d6a589f38dee268743dda60f84df",
-  "src/styles/pages/dashboard.css": "024b4ea648cf4227bdb7fabe762255a36180ce34c8291e1ba0400ee8295d6a68",
+  "src/styles/pages/dashboard.css": "7c5cb547ce07074ed54d18b6bb7eb93d628099e7688dee6631ee24b9125e1b5f",
   "src/styles/pages/fieldhelp.css": "8515c1f4faff7978138f7d1c4cff631703af0b550c5deb6eb4ea95351bb78e2d",
   "src/styles/pages/file.css": "7932445f8a76bf76b6d9ce6d02bc8d69f071e4c8f600171a8a26c03e8a3eb1b2",
   "src/styles/pages/filecabinet.css": "cac334ebfece700d1f4ab625b120226900c692ded5889e91227d3f266d41b0a5",

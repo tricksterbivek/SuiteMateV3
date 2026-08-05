@@ -18,7 +18,7 @@
   const FIELD_NAME_PATTERN = /^[a-z0-9_.:-]{1,100}$/i;
   const WALKTHROUGH_FIELD_PREFIX = "Field:";
   const DATA_ATTRIBUTE = "data-suitemate-v3-form-views";
-  const FOREIGN_NODE_SELECTOR = "[data-suitemate-v3-internal-id], [data-suitemate-v3-so-columns], [data-suitemate-v3-form-views]";
+  const FOREIGN_NODE_SELECTOR = "[data-suitemate-v3-internal-id], [data-suitemate-v3-so-columns], [data-suitemate-v3-form-views], [data-suitemate-v3-edit-grid]";
   // Live-proven field finder (internal-ids uses the same walkthrough hook);
   // sublist and filter wrappers belong to other features and are excluded by
   // the runtime's containment check, not this selector.

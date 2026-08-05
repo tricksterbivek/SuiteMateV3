@@ -104,6 +104,7 @@ test("imports a canonical schema 1 backup through the current settings migration
     salesOrderColumns: false,
     smartTabTitles: false,
     formViews: false,
+    salesOrderColumnsEdit: false,
     roleThemes: legacySettings.roleThemes
   });
 });
@@ -140,6 +141,7 @@ test("imports a canonical schema 2 backup through the current settings migration
     salesOrderColumns: false,
     smartTabTitles: false,
     formViews: false,
+    salesOrderColumnsEdit: false,
     roleThemes: legacySettings.roleThemes
   });
 });
@@ -238,7 +240,7 @@ test("transfer core has no storage, network or DOM authority", () => {
   assert.doesNotMatch(transferSource, /chrome\.|fetch\(|XMLHttpRequest|document\.|localStorage|sessionStorage/);
 });
 
-test("parses hand-built schema 3 and 4 backups through the legacy branch", () => {
+test("parses hand-built schema 3, 4 and 5 backups through the legacy branch", () => {
   const { settings, transfer } = createHarness();
   const encodeEnvelope = (envelope) =>
     `${transfer.PREFIX}${Buffer.from(JSON.stringify(envelope), "utf8").toString("base64")}`;
@@ -270,6 +272,7 @@ test("parses hand-built schema 3 and 4 backups through the legacy branch", () =>
     salesOrderColumns: true,
     smartTabTitles: true,
     formViews: false,
+    salesOrderColumnsEdit: false,
     roleThemes: {}
   });
 
@@ -287,12 +290,45 @@ test("parses hand-built schema 3 and 4 backups through the legacy branch", () =>
   assert.equal(parsed3.settings.smartTabTitles, false);
   assert.equal(parsed3.settings.formViews, false);
 
+  const v5 = {
+    schemaVersion: 5,
+    enabled: false,
+    mode: "system",
+    squareCorners: true,
+    showInternalIds: true,
+    salesOrderColumns: true,
+    smartTabTitles: true,
+    formViews: true,
+    roleThemes: {}
+  };
+  const parsed5 = transfer.parse(encodeEnvelope(envelope(5, v5)));
+  assert.deepEqual(plain(parsed5.settings), {
+    schemaVersion: settings.SCHEMA_VERSION,
+    enabled: false,
+    mode: "system",
+    squareCorners: true,
+    showInternalIds: true,
+    salesOrderColumns: true,
+    smartTabTitles: true,
+    formViews: true,
+    salesOrderColumnsEdit: false,
+    roleThemes: {}
+  });
+
   expectCode(
     () => transfer.parse(encodeEnvelope(envelope(4, { ...v4, junk: true }))),
     "NON_CANONICAL_BACKUP_SETTINGS"
   );
   expectCode(
     () => transfer.parse(encodeEnvelope(envelope(4, { ...v4, formViews: false }))),
+    "NON_CANONICAL_BACKUP_SETTINGS"
+  );
+  expectCode(
+    () => transfer.parse(encodeEnvelope(envelope(5, { ...v5, junk: true }))),
+    "NON_CANONICAL_BACKUP_SETTINGS"
+  );
+  expectCode(
+    () => transfer.parse(encodeEnvelope(envelope(5, { ...v5, salesOrderColumnsEdit: false }))),
     "NON_CANONICAL_BACKUP_SETTINGS"
   );
 });

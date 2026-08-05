@@ -246,6 +246,233 @@ async function waitForFixture(client, sessionId, entry) {
   throw new Error(`${entry.fixtureId}: fixture did not become ready. ${JSON.stringify(lastState)} ${client.diagnostics.slice(-10).join(" | ")}`);
 }
 
+// TIER-2 ZEBRA GUARD. Row striping is a ~9/255 background change, and comparePng
+// below only counts a pixel when a channel moves by more than 24 — so the stripes
+// are invisible to the screenshot diff BY CONSTRUCTION, and deleting every stripe
+// rule leaves all 28 baselines at 0.000%. Proven, not assumed: with the shipped
+// tint fixtures:verify reported no drift while the DOM was genuinely re-coloured,
+// and only forcing the stripe to #ff0000 failed the diff.
+//
+// This is the tier that can see it, so it reads the computed backgrounds directly.
+// It runs inside the page that was just captured — no second browser, no extra
+// navigation — and answers null on fixtures with no machine, which is most of
+// them. AFTER the capture, not before, because it forces states and toggles
+// classes to make the carve-outs observable, and none of that may reach a
+// baseline. SIGHTING FOUR is the precedent: the tier that could have seen the
+// defect was the tier we skipped.
+async function probeRowStripes(client, sessionId) {
+  const { result } = await client.send("Runtime.evaluate", {
+    expression: `(() => {
+      const rows = [...document.querySelectorAll("tr.uir-machine-row, tr.uir-list-row-tr")];
+      if (rows.length < 2) {
+        return null;
+      }
+      // The same split the stylesheet makes: a row is DATA unless it carries one
+      // of the excluded classes. Kept in sync with edit-grid/core.js's
+      // EXCLUDED_ROW_SELECTOR, which the stripe rule quotes.
+      const EXCLUDED = ["machineButtonRow", "totalrow", "uir-machine-loading-row", "uir-machine-nodata-row",
+        "uir-machine-button-row", "uir-machine-totals-row", "uir-loading-row", "uir-nodata-row", "uir-machine-row-last"];
+      const STATEFUL = ["uir-machine-row-focused", "listfocusedrow", "uir-active"];
+      // Returned as 0-255 triples, not strings: computed colours come back as
+      // rgb() or color(srgb …) depending on whether a color-mix produced them,
+      // so string equality would call two identical colours different.
+      const colourOf = (element) => {
+        if (!element) {
+          return null;
+        }
+        const value = getComputedStyle(element).backgroundColor;
+        // \\d, not \\\\d and not \\d-in-a-template: this whole expression is a JS
+        // template literal, so a bare \\d would reach the page as a plain "d".
+        const parts = (value.match(/[\\d.]+/g) || []).slice(0, 3).map(Number);
+        return value.startsWith("color(") ? parts.map((n) => Math.round(n * 255)) : parts;
+      };
+      const paint = (row) => colourOf(row.querySelector("td"));
+      window.__suitemateStripePaint = paint;
+      // The two shades are READ FROM THE TOKENS, not inferred from the first two
+      // rows. Inferring them means a regression that inverts the parity renames
+      // the shades as well as breaking them, and every message downstream then
+      // describes the wrong defect — the base is whatever row 0 happens to be.
+      // A hidden span resolves the tokens because custom properties compute to
+      // their own text, not to a colour.
+      const swatch = document.createElement("span");
+      swatch.style.display = "none";
+      document.body.append(swatch);
+      const shade = (name) => {
+        swatch.style.backgroundColor = "var(" + name + ")";
+        return colourOf(swatch);
+      };
+      const base = shade("--row-even-bg-color");
+      const stripe = shade("--row-odd-bg-color");
+      // LIVE CLASSIC PAGES CARRY .isRedwood (the detection over-fires, same as
+      // the active tabs). The tokens once had an .isRedwood branch that set
+      // odd = even, so every real page lost the tint while these fixtures —
+      // which never carry the class — kept passing. Re-resolve the shades with
+      // the class forced on so that branch coming back fails here.
+      const hadRedwood = document.documentElement.classList.contains("isRedwood");
+      document.documentElement.classList.add("isRedwood");
+      const redwood = { base: shade("--row-even-bg-color"), stripe: shade("--row-odd-bg-color") };
+      if (!hadRedwood) {
+        document.documentElement.classList.remove("isRedwood");
+      }
+      swatch.remove();
+      const isData = (row) => !EXCLUDED.some((name) => row.classList.contains(name));
+      // GROUPED BY PARENT, because :nth-child restarts at every parent: two
+      // machines on one page are two independent runs, and reading them as one
+      // list would call the second machine's first row a parity break. Every
+      // fixture today holds a single tbody, so this changes nothing now and
+      // stops a second one from arriving as a false failure.
+      const groups = new Map();
+      for (const row of rows.filter(isData)) {
+        const siblings = groups.get(row.parentElement) || [];
+        siblings.push(row);
+        groups.set(row.parentElement, siblings);
+      }
+      // FORCED STATES. Three of the four carve-outs are classes, so they can be
+      // stood in for from here — applied to a row the stripe DOES paint, so a
+      // deleted carve-out shows up as the stripe surviving a state that must
+      // always beat it. The fourth is :hover and needs CDP; the row is marked
+      // for the caller, which forces it and reads the same cell.
+      // From the first group the ASSERTIONS will walk (>= 2 rows), not the first
+      // group that exists: a lone-row group ahead of the machine would hand this
+      // probe a row the parity check never looks at, and the forced-hover guard
+      // would fail closed on a page that is entirely correct.
+      const target = [...groups.values()].find((siblings) => siblings.length >= 2)?.[1];
+      const forced = [];
+      for (const name of target ? STATEFUL : []) {
+        target.classList.add(name);
+        forced.push({ state: name, colour: paint(target) });
+        target.classList.remove(name);
+      }
+      if (target) {
+        target.dataset.stripeProbe = "hover";
+      }
+      return {
+        base,
+        stripe,
+        redwood,
+        groups: [...groups.values()].map((siblings) => siblings.map((row) => ({
+          colour: paint(row),
+          // Stateful rows stay IN the index. The rule carves them out of the
+          // paint, not out of the count, so removing them here would renumber
+          // every row below an open line and report a parity break that the
+          // page does not have.
+          stateful: STATEFUL.some((name) => row.classList.contains(name))
+        }))),
+        nonData: [...document.querySelectorAll("tr.uir-machine-headerrow"), ...rows.filter((row) => !isData(row))].map(paint),
+        forced
+      };
+    })()`,
+    returnByValue: true
+  }, sessionId);
+  const stripes = result.value ?? null;
+  if (stripes?.forced.length) {
+    stripes.hover = await probeForcedHover(client, sessionId);
+  }
+  return stripes;
+}
+
+// The :hover carve-out, which no class can stand in for. This mutates nothing —
+// it is the browser's own hover state, applied to the row the probe above
+// marked — but it does run against a live page, which is why the whole probe
+// now happens AFTER the screenshot rather than before it.
+async function probeForcedHover(client, sessionId) {
+  await client.send("DOM.enable", {}, sessionId);
+  await client.send("CSS.enable", {}, sessionId);
+  const { root } = await client.send("DOM.getDocument", {}, sessionId);
+  const { nodeId } = await client.send("DOM.querySelector", { nodeId: root.nodeId, selector: "[data-stripe-probe]" }, sessionId);
+  if (!nodeId) {
+    return null;
+  }
+  await client.send("CSS.forcePseudoState", { nodeId, forcedPseudoClasses: ["hover"] }, sessionId);
+  const { result } = await client.send("Runtime.evaluate", {
+    expression: `window.__suitemateStripePaint(document.querySelector("[data-stripe-probe]"))`,
+    returnByValue: true
+  }, sessionId);
+  await client.send("CSS.forcePseudoState", { nodeId, forcedPseudoClasses: [] }, sessionId);
+  return result.value ?? null;
+}
+
+// Below this the stripe exists in the CSSOM but not to a human eye. Measured, not
+// guessed: the tint this feature shipped with for months was #fafafa on #fff — a
+// delta of 5, which is what "there is no striping" looked like to the owner. The
+// current tint is 14. A floor of 8 fails the invisible one and passes the real
+// one, and it is the check that makes this guard about the FEATURE rather than
+// about the rules merely being present.
+const STRIPE_MIN_DELTA = 8;
+
+// How many of the 28 baselines hold a striped machine or list today. Raise it
+// when a fixture gains one; never lower it to make a run pass.
+const STRIPE_CHECK_FLOOR = 17;
+
+const sameColour = (a, b) => a && b && a.every((channel, index) => channel === b[index]);
+const maxDelta = (a, b) => Math.max(...a.map((channel, index) => Math.abs(channel - b[index])));
+
+function assertStripes(label, stripes) {
+  const groups = (stripes?.groups || []).filter((rows) => rows.length >= 2);
+  if (groups.length === 0) {
+    return null;
+  }
+  const { base, stripe } = stripes;
+  if (sameColour(stripe, base)) {
+    throw new Error(`${label}: --row-odd-bg-color and --row-even-bg-color are both rgb(${base}) — there is no stripe to render.`);
+  }
+  const delta = maxDelta(base, stripe);
+  if (delta < STRIPE_MIN_DELTA) {
+    throw new Error(`${label}: the stripe differs from the base by only ${delta}/255 (floor ${STRIPE_MIN_DELTA}) — rgb(${base}) vs rgb(${stripe}) is not visible.`);
+  }
+  // Under a forced .isRedwood class — what every live classic page carries.
+  const redwoodDelta = maxDelta(stripes.redwood.base, stripes.redwood.stripe);
+  if (redwoodDelta < STRIPE_MIN_DELTA) {
+    throw new Error(`${label}: with .isRedwood on <html> the stripe delta collapses to ${redwoodDelta}/255 (floor ${STRIPE_MIN_DELTA}) — a Redwood token branch is neutralising the tint on live pages again.`);
+  }
+  for (const rows of groups) {
+    for (const [index, row] of rows.entries()) {
+      // A stateful row is asserted NOT-STRIPE rather than equal-to-base: the
+      // carve-out only promises the stripe stands down, and what wins instead
+      // is NetSuite's business — a .uir-active list row genuinely paints the
+      // hover fill, so demanding the base would fail a correct page.
+      if (row.stateful) {
+        if (sameColour(row.colour, stripe)) {
+          throw new Error(`${label}: data row ${index} carries a native state and is still rgb(${row.colour}), the stripe colour — a carve-out is gone.`);
+        }
+        continue;
+      }
+      const wanted = index % 2 === 0 ? base : stripe;
+      if (!sameColour(row.colour, wanted)) {
+        throw new Error(`${label}: data row ${index} is rgb(${row.colour}), expected rgb(${wanted}) — stripe parity is not alternating over data rows.`);
+      }
+    }
+  }
+  // NATIVE STATES WIN, checked by forcing them rather than by reading the rule.
+  // A class carve-out that goes missing leaves an open line or an inline edit
+  // striped; the :hover one leaves a hovered row striped instead of highlighted,
+  // because the stripe rule out-specifies the hover rule once its :not() shrinks.
+  for (const { state, colour } of stripes.forced) {
+    if (sameColour(colour, stripe)) {
+      throw new Error(`${label}: a striped data row keeps the stripe under .${state} — that carve-out is gone, so the native state no longer wins.`);
+    }
+  }
+  if (!stripes.hover) {
+    throw new Error(`${label}: the forced-hover probe read nothing — the :hover carve-out went unchecked.`);
+  }
+  if (sameColour(stripes.hover, stripe) || sameColour(stripes.hover, base)) {
+    throw new Error(`${label}: a hovered data row is rgb(${stripes.hover}), the ${sameColour(stripes.hover, stripe) ? "stripe" : "base"} colour — hover no longer beats the stripe.`);
+  }
+  // Non-data rows are checked against the STRIPE colour, not against the base.
+  // The header row legitimately carries its own header fill (v3-compat paints it
+  // from --suitemate-v3-table-header-bg), so "equals the base" is the wrong
+  // property and asserting it fails on a correct page — this check said so the
+  // first time it ran. What must never happen is a non-data row picking up the
+  // alternating colour, which is exactly what plain :nth-child used to do.
+  for (const colour of stripes.nonData) {
+    if (sameColour(colour, stripe)) {
+      throw new Error(`${label}: a header/totals/button row is rgb(${colour}), the stripe colour — a non-data row is being striped.`);
+    }
+  }
+  const counted = groups.reduce((total, rows) => total + rows.length, 0);
+  return `${counted} data rows in ${groups.length} machine(s) alternate, delta ${delta}/255, ${stripes.forced.length + 1} states forced`;
+}
+
 async function captureCase(client, origin, entry) {
   const { targetId } = await client.send("Target.createTarget", { url: "about:blank", background: true });
   const { sessionId } = await client.send("Target.attachToTarget", { targetId, flatten: true });
@@ -289,7 +516,8 @@ async function captureCase(client, origin, entry) {
       fromSurface: true,
       captureBeyondViewport: false
     }, sessionId);
-    return { buffer: Buffer.from(data, "base64"), state };
+    const stripes = await probeRowStripes(client, sessionId);
+    return { buffer: Buffer.from(data, "base64"), state, stripes };
   } finally {
     await client.send("Target.closeTarget", { targetId }).catch(() => {});
   }
@@ -416,8 +644,9 @@ try {
   await client.connect();
   await mkdir(outputDirectory, { recursive: true });
   const results = [];
+  let stripeChecks = 0;
   for (const entry of cases) {
-    const { buffer, state } = await captureCase(client, origin, entry);
+    const { buffer, state, stripes } = await captureCase(client, origin, entry);
     const relativePath = `${entry.profile}/${entry.fixtureId}.png`;
     const target = resolve(outputDirectory, relativePath);
     await mkdir(dirname(target), { recursive: true });
@@ -433,12 +662,25 @@ try {
       if (comparison.changedRatio > 0.01) {
         throw new Error(`${relativePath}: visual difference ${(comparison.changedRatio * 100).toFixed(3)}% exceeds 1%. ${comparison.reason}`);
       }
-      results.push(`${relativePath} ${state.route || entry.profile} ${(comparison.changedRatio * 100).toFixed(3)}%`);
+      const striping = assertStripes(relativePath, stripes);
+      stripeChecks += striping ? 1 : 0;
+      results.push(`${relativePath} ${state.route || entry.profile} ${(comparison.changedRatio * 100).toFixed(3)}%${striping ? ` [zebra: ${striping}]` : ""}`);
     } else {
       results.push(`${relativePath} ${digest}`);
     }
   }
-  process.stdout.write(`${update ? "Updated" : "Verified"} ${results.length} fixture screenshots at ${catalog.VIEWPORT.width}x${catalog.VIEWPORT.height}.\n${results.join("\n")}\n`);
+  // A FLOOR ON THE COUNT, because every check above is skipped silently when the
+  // probe finds no rows. Renaming the row selector — or renaming the class in the
+  // fixtures — reported "verified on 0 of them" and exited 0, which is the guard
+  // saying nothing in the voice of the guard saying yes.
+  if (verify && !requestedFixture) {
+    assert.ok(
+      stripeChecks >= STRIPE_CHECK_FLOOR,
+      `Row striping was checked on only ${stripeChecks} fixtures, floor ${STRIPE_CHECK_FLOOR} — the probe stopped finding rows it used to find.`
+    );
+  }
+  const striping = verify ? ` Row striping verified on ${stripeChecks} of them.` : "";
+  process.stdout.write(`${update ? "Updated" : "Verified"} ${results.length} fixture screenshots at ${catalog.VIEWPORT.width}x${catalog.VIEWPORT.height}.${striping}\n${results.join("\n")}\n`);
 } finally {
   client?.close();
   child.kill("SIGTERM");

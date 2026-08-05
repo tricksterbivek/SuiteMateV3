@@ -6,7 +6,7 @@
     return;
   }
   const STORAGE_KEY = "suiteMateV3Style";
-  const SCHEMA_VERSION = 5;
+  const SCHEMA_VERSION = 6;
   const LEGACY_SCHEMA_VERSION = 0;
   const MAX_SYNC_ITEM_BYTES = 7800;
   const INVALID_VERSION_CODE = "INVALID_SETTINGS_VERSION";
@@ -16,7 +16,7 @@
   const THEME_PREVIEW_MESSAGE = "SUITEMATE_V3_PREVIEW_ROLE_THEME";
   const MODES = Object.freeze(["light", "dark", "system"]);
   const DEFAULT_ROLE_COLORS = Object.freeze({
-    main: "#607799",
+    main: "#5058f4",
     secondary: "#a2a4a8"
   });
   const THEME_VARIABLE_NAMES = Object.freeze([
@@ -35,6 +35,7 @@
     salesOrderColumns: false,
     smartTabTitles: false,
     formViews: false,
+    salesOrderColumnsEdit: false,
     roleThemes: Object.freeze({})
   });
 
@@ -131,6 +132,7 @@
       salesOrderColumns: candidate.salesOrderColumns === true,
       smartTabTitles: candidate.smartTabTitles === true,
       formViews: candidate.formViews === true,
+      salesOrderColumnsEdit: candidate.salesOrderColumnsEdit === true,
       roleThemes: normalizeRoleThemes(candidate.roleThemes)
     };
   }
@@ -169,6 +171,13 @@
         ...value,
         schemaVersion: 5,
         formViews: value.formViews === true
+      };
+    },
+    5(value) {
+      return {
+        ...value,
+        schemaVersion: 6,
+        salesOrderColumnsEdit: value.salesOrderColumnsEdit === true
       };
     }
   });

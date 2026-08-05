@@ -285,6 +285,95 @@ test("applyWidths freezes visible columns, honors stored widths and clears", () 
   assert.equal(core.applyWidths(null, { Item: 100 }), false);
 });
 
+// A header whose BORDER-BOX rect is `delta` wider than the inline width that was
+// set on it — which is what a real cell does, and what createSortableTable's flat
+// `() => ({ width: 80 })` cannot express. delta 0 is the ideal (rect == style);
+// delta 2 is this repo's own measured collapsed-border figure for the machine
+// table (tests/edit-grid.test.mjs, "collapsed borders render ~2px over the style
+// value"); delta 11 reproduces the View Mode observation that prompted this test,
+// Committed 90px -> 101px on the apply after the one that froze it.
+function createMeasuredTable(labels, natural, delta) {
+  const cells = labels.map((label, index) => {
+    const cell = {
+      textContent: label,
+      style: {},
+      classList: { contains: () => false, toggle: () => {} },
+      querySelector: () => null,
+      getBoundingClientRect: () => ({
+        width: cell.style.width ? Number.parseInt(cell.style.width, 10) + delta : natural[index]
+      })
+    };
+    return cell;
+  });
+  const headerRow = { className: "uir-machine-headerrow", cells };
+  return {
+    style: {},
+    cells,
+    widths: () => cells.map((cell) => cell.style.width ?? ""),
+    querySelector: (selector) =>
+      (String(selector).includes("uir-machine-headerrow") ? headerRow : null)
+  };
+}
+
+test("applyWidths re-measures unstored columns every call — DEFECT, pinned so it cannot resurface unnoticed", () => {
+  // *** THIS TEST DOCUMENTS A DEFECT. IT IS NOT A CONTRACT. ***
+  //
+  // applyWidths freezes an unstored column at `cell.getBoundingClientRect().width`
+  // and there is no record of what a previous apply froze — so the width it wrote
+  // last time is the width it measures this time, PLUS whatever the border box
+  // adds over the inline value. Every apply therefore grows every unstored column
+  // by that delta. Stored columns are unaffected: they are read from the map.
+  //
+  // This is the same root-cause family as edit-grid's D1 (M2 Task 13): a value
+  // that is re-derived from the rendering it produced. edit-grid closed it by
+  // recording a frozen set on the FIRST apply and never re-measuring; so-columns
+  // has no equivalent, so `columnWidths` holds only what the user stored.
+  //
+  // It is pinned rather than fixed because so-columns is a View Mode file and the
+  // plan forbids modifying it. This test only READS it. ESCALATED to the owner —
+  // when the fix is authorised, the delta-2 and delta-11 blocks below collapse
+  // into the delta-0 one and this becomes the idempotence invariant it should be.
+  const core = createApi();
+
+  // The invariant that DOES hold today, at every delta: a STORED column is
+  // byte-identical across applies, because it never consults the rendering.
+  for (const delta of [0, 2, 11]) {
+    const table = createMeasuredTable(["Item", "Committed", "Rate"], [120, 90, 100], delta);
+    for (let round = 0; round < 4; round += 1) {
+      assert.equal(core.applyWidths(table, { Item: 200 }), true);
+      assert.equal(table.cells[0].style.width, "200px",
+        `a stored column drifted at delta ${delta} on apply ${round + 1}`);
+    }
+  }
+
+  // delta 0 — rect equals what was applied, so the re-measurement is a no-op and
+  // the whole table is idempotent. This is the behaviour the fix must generalise.
+  const ideal = createMeasuredTable(["Item", "Committed", "Rate"], [120, 90, 100], 0);
+  core.applyWidths(ideal, { Item: 200 });
+  const first = ideal.widths();
+  core.applyWidths(ideal, { Item: 200 });
+  assert.deepEqual(first, ["200px", "90px", "100px"]);
+  assert.deepEqual(ideal.widths(), first, "even with rect == style the second apply moved a column");
+  assert.equal(ideal.style.width, "390px");
+
+  // delta 11 — the live shape. Committed goes 90 -> 101 -> 112 -> 123 and the
+  // table grows with it. The first apply is correct; every one after it is not.
+  const live = createMeasuredTable(["Item", "Committed", "Rate"], [120, 90, 100], 11);
+  const seen = [];
+  const totals = [];
+  for (let round = 0; round < 4; round += 1) {
+    core.applyWidths(live, { Item: 200 });
+    seen.push(live.widths()[1]);
+    totals.push(live.style.width);
+  }
+  assert.deepEqual(seen, ["90px", "101px", "112px", "123px"],
+    "so-columns' unstored-column drift changed shape — re-check the escalation before editing this");
+  assert.deepEqual(totals, ["390px", "412px", "434px", "456px"],
+    "table.style.width compounds the same drift");
+  // The stored column is the control: it did not move while the others walked.
+  assert.equal(live.widths()[0], "200px");
+});
+
 test("applyHidden hides matching columns in every aligned row and unhides", () => {
   const core = createApi();
   const { table, rows, trailingRows } = createSortableTable(

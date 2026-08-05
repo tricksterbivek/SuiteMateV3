@@ -14,7 +14,7 @@
 
 .suitemate-v3-form-views-ghost-field {
     opacity: .35;
-    outline: 1px dashed var(--theme-main, #607799);
+    outline: 1px dashed var(--theme-main, #5058f4);
     outline-offset: 2px
 }
 
@@ -33,14 +33,14 @@
     padding: 4px 8px;
     background: #f1f4f7;
     border: 1px solid #c9d1d9;
-    border-left: 3px solid var(--theme-main, #607799);
+    border-left: 3px solid var(--theme-main, #5058f4);
     border-radius: var(--suitemate-radius-compact, 4px)
 }
 
 html.isDarkMode .suitemate-v3-form-views-mode-active {
     background: var(--dark-3, #2b2b2e);
     border-color: var(--dark-2, #414147);
-    border-left-color: var(--theme-main, #607799)
+    border-left-color: var(--theme-main, #5058f4)
 }
 
 [data-suitemate-v3-form-views="mode-hint"] {
@@ -59,10 +59,10 @@ html.isDarkMode [data-suitemate-v3-form-views="mode-hint"] {
     box-sizing: border-box;
     min-height: 24px;
     padding: 0 12px;
-    border: 1px solid color-mix(in srgb, var(--theme-main, #607799) 38%, var(--field-border-color, #c7c7c7));
+    border: 1px solid color-mix(in srgb, var(--theme-main, #5058f4) 38%, var(--field-border-color, #c7c7c7));
     border-radius: var(--suitemate-radius-pill, 100px);
     background: transparent;
-    color: var(--theme-main, #607799);
+    color: var(--theme-main, #5058f4);
     font-family: var(--normal-font, "Open Sans", Arial, sans-serif);
     font-size: 12px;
     font-weight: 600;
@@ -72,18 +72,18 @@ html.isDarkMode [data-suitemate-v3-form-views="mode-hint"] {
 }
 
 .suitemate-v3-form-views-button:hover {
-    border-color: var(--theme-main, #607799);
+    border-color: var(--theme-main, #5058f4);
     background: var(--theme-secondary-light-light, rgb(0 0 0 / .05))
 }
 
 .suitemate-v3-form-views-button:focus-visible {
-    outline: 2px solid var(--theme-main, #607799);
+    outline: 2px solid var(--theme-main, #5058f4);
     outline-offset: 2px
 }
 
 .suitemate-v3-form-views-mode-active [data-suitemate-v3-form-views="done"] {
-    background: var(--theme-main, #607799);
-    border-color: var(--theme-main, #607799);
+    background: var(--theme-main, #5058f4);
+    border-color: var(--theme-main, #5058f4);
     color: #fff
 }
 
@@ -97,10 +97,10 @@ html.isDarkMode [data-suitemate-v3-form-views="mode-hint"] {
 
 [data-suitemate-v3-form-views="hidden-chip"] {
     padding: 1px 7px;
-    border: 1px solid var(--theme-main, #607799);
+    border: 1px solid var(--theme-main, #5058f4);
     border-radius: 999px;
     background: transparent;
-    color: var(--theme-main, #607799);
+    color: var(--theme-main, #5058f4);
     font-family: var(--normal-font, "Open Sans", Arial, sans-serif);
     font-size: 10.5px;
     line-height: 16px;
@@ -109,13 +109,13 @@ html.isDarkMode [data-suitemate-v3-form-views="mode-hint"] {
 }
 
 [data-suitemate-v3-form-views="hidden-chip"]:hover {
-    background: var(--theme-main, #607799);
+    background: var(--theme-main, #5058f4);
     color: #fff
 }
 
 html.isDarkMode [data-suitemate-v3-form-views="hidden-chip"] {
-    border-color: var(--theme-main-light, #607799);
-    color: var(--theme-main-light, #607799)
+    border-color: var(--theme-main-light, #5058f4);
+    color: var(--theme-main-light, #5058f4)
 }
 
 [data-suitemate-v3-form-views="hide-toggle"] {
@@ -133,10 +133,10 @@ html.isDarkMode [data-suitemate-v3-form-views="hidden-chip"] {
 
 [data-suitemate-v3-form-views="hide-toggle"]:hover {
     background: rgb(0 0 0 / .07);
-    color: var(--theme-main, #607799)
+    color: var(--theme-main, #5058f4)
 }
 
 [data-suitemate-v3-form-views="hide-toggle"]:focus-visible {
-    outline: 2px solid var(--theme-main, #607799);
+    outline: 2px solid var(--theme-main, #5058f4);
     outline-offset: 1px
 }

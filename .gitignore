@@ -2,3 +2,4 @@
 *.zip
 artifacts/
 node_modules/
+.playwright-mcp/

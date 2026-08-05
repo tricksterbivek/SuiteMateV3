@@ -208,7 +208,7 @@
   }
 
   // ===== View snapshot (Export view reads the personalized grid DOM) =====
-  const VIEW_FOREIGN_NODE_SELECTOR = "[data-suitemate-v3-so-columns], [data-suitemate-v3-internal-id], [data-suitemate-v3-form-views]";
+  const VIEW_FOREIGN_NODE_SELECTOR = "[data-suitemate-v3-so-columns], [data-suitemate-v3-internal-id], [data-suitemate-v3-form-views], [data-suitemate-v3-edit-grid]";
 
   function readViewCellLabel(cell) {
     if (!cell) {

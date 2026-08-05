@@ -116,7 +116,8 @@
       1: ["enabled", "mode", "squareCorners", "roleThemes"],
       2: ["enabled", "mode", "squareCorners", "showInternalIds", "roleThemes"],
       3: ["enabled", "mode", "squareCorners", "showInternalIds", "salesOrderColumns", "roleThemes"],
-      4: ["enabled", "mode", "squareCorners", "showInternalIds", "salesOrderColumns", "smartTabTitles", "roleThemes"]
+      4: ["enabled", "mode", "squareCorners", "showInternalIds", "salesOrderColumns", "smartTabTitles", "roleThemes"],
+      5: ["enabled", "mode", "squareCorners", "showInternalIds", "salesOrderColumns", "smartTabTitles", "formViews", "roleThemes"]
     };
     const legacyFields = legacySchemaFields[declaredSchemaVersion];
     if (

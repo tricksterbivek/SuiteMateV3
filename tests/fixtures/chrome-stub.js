@@ -13,10 +13,12 @@
     squareCorners: params.get("squareCorners") === "true",
     showInternalIds: params.get("showInternalIds") === "true",
     salesOrderColumns: params.get("salesOrderColumns") === "true",
-    formViews: params.get("formViews") === "true"
+    formViews: params.get("formViews") === "true",
+    salesOrderColumnsEdit: params.get("salesOrderColumnsEdit") === "true"
   };
   let columnOrders;
   let formViews;
+  let editColumns;
   const roleKey = params.get("roleKey");
   const main = params.get("mainColor");
   const secondary = params.get("secondaryColor");
@@ -212,6 +214,9 @@
           if (key === "suiteMateV3FormViews") {
             return { [key]: formViews };
           }
+          if (key === "suiteMateV3EditColumns") {
+            return { [key]: editColumns };
+          }
           return { [key]: settings };
         },
         async set(value) {
@@ -224,6 +229,17 @@
             );
             for (const listener of listeners) {
               listener({ [key]: { oldValue: previousViews, newValue: formViews } }, "sync");
+            }
+            return;
+          }
+          if (key === "suiteMateV3EditColumns") {
+            const previousEditColumns = editColumns;
+            editColumns = nextSettings;
+            document.documentElement.dataset.editGridWrites = String(
+              Number(document.documentElement.dataset.editGridWrites ?? 0) + 1
+            );
+            for (const listener of listeners) {
+              listener({ [key]: { oldValue: previousEditColumns, newValue: editColumns } }, "sync");
             }
             return;
           }
@@ -317,6 +333,9 @@
     },
     get formViews() {
       return formViews;
+    },
+    get editColumns() {
+      return editColumns;
     },
     previewMessages,
     suiteqlMessages,

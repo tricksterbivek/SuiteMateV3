@@ -327,6 +327,74 @@ test("limits form views to top-frame Sales Order view mode", () => {
   );
 });
 
+test("limits edit-mode transaction column personalization to top-frame Sales Order edit URLs", () => {
+  for (const path of [
+    "/app/accounting/transactions/salesord.nl?id=1&e=T",
+    "/app/accounting/transactions/salesord.nl?id=1&e=F",
+    "/app/accounting/transactions/salesord.nl?id=16342809&e=T&whence="
+  ]) {
+    assert.equal(
+      routes.supports(CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION_EDIT, page(path)),
+      true,
+      path
+    );
+  }
+
+  for (const path of [
+    "/app/accounting/transactions/salesord.nl?id=1",
+    "/app/accounting/transactions/salesord.nl?e=T",
+    "/app/accounting/transactions/salesord.nl",
+    "/app/accounting/transactions/custinvc.nl?id=7&e=T",
+    "/app/accounting/transactions/purchord.nl?id=12&e=T",
+    "/app/accounting/transactions/itemship.nl?id=99&e=T",
+    "/app/common/entity/custjob.nl?id=5&e=T",
+    "/app/accounting/transactions/transactionlist.nl"
+  ]) {
+    assert.equal(
+      routes.supports(CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION_EDIT, page(path)),
+      false,
+      path
+    );
+  }
+
+  assert.equal(
+    routes.supports(
+      CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION_EDIT,
+      page("/app/accounting/transactions/salesord.nl?id=1&e=T", { isTopFrame: false })
+    ),
+    false
+  );
+  assert.equal(
+    routes.supports(
+      CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION_EDIT,
+      routes.createPageContext("https://example.com/app/accounting/transactions/salesord.nl?id=1&e=T")
+    ),
+    false
+  );
+
+  // Spec H3: the edit rule is the exact complement of the two view-mode rules,
+  // so no URL can ever satisfy both. This is the whole mode-separation proof.
+  for (const path of [
+    "/app/accounting/transactions/salesord.nl?id=1",
+    "/app/accounting/transactions/salesord.nl?id=1&e=T",
+    "/app/accounting/transactions/salesord.nl?id=1&e=F"
+  ]) {
+    const context = page(path);
+    assert.equal(
+      routes.supports(CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION, context)
+        && routes.supports(CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION_EDIT, context),
+      false,
+      path
+    );
+    assert.equal(
+      routes.supports(CAPABILITIES.FORM_VIEWS, context)
+        && routes.supports(CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION_EDIT, context),
+      false,
+      path
+    );
+  }
+});
+
 test("isolates Import Assistant context and bridge capabilities", () => {
   const top = page(`${PATHS.IMPORT_ASSISTANT}?recordsubtype=salesorder`);
   assert.equal(top.routeId, ROUTE_IDS.IMPORT_ASSISTANT);

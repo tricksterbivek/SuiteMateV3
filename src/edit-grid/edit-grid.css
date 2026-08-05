@@ -1,0 +1,334 @@
+/* SuiteMate V3 — Sales Order Edit Mode grid (src/edit-grid/*).
+   Every rule is scoped to this feature's own attribute or classes; nothing here
+   may match a View Mode node.
+
+   THE DOCTRINE READS BOTH WAYS. Hide rules carry !important — display-defeats-
+   hidden has three recorded sightings (CHECKPOINTS.md:858, :972, :1143) — and so
+   do SHOW rules, because the hazard is a hostile cascade in BOTH directions.
+   SIGHTING FOUR is what taught us the second half: the control bar mounted and
+   computed `display: none` on the live page, and the doctrine had been applied
+   to hide rules only.
+
+   AND !important IS NOT ENOUGH ON ITS OWN — measured, not assumed. The rule that
+   kills the bar is src/styles/netsuite.css:152, `.uir-machine-table-container>div`
+   in a `display: none !important` list, specificity (0,2,2). A bare
+   `.suitemate-v3-edit-grid-controls { display: inline-flex !important }` is
+   (0,1,0) and LOSES to it: both are !important, so specificity decides. A show
+   rule that has to survive that list must out-specify it as well as shout, which
+   is why the controls rule below is anchored at the container and carries the
+   ownership stamp. Verified on the fixture: plain !important on a bare div child
+   still computes none; the anchored form computes inline-flex.
+
+   Note also whose sheet that is. It is not NetSuite's — it is SuiteMate's own
+   View Mode restyling sheet, reaching into Edit Mode through a selector written
+   for View Mode. That file is out of bounds (global constraints: View Mode files
+   are untouched), so the fix belongs here, in our own sheet, every time. */
+
+[data-suitemate-v3-edit-grid][hidden] {
+    display: none !important
+}
+
+.suitemate-v3-edit-grid-col-hidden {
+    display: none !important
+}
+
+.suitemate-v3-edit-grid-row-filtered {
+    display: none !important
+}
+
+.suitemate-v3-edit-grid-controls {
+    display: inline-flex !important;
+    flex-wrap: wrap;
+    max-width: 100%;
+    box-sizing: border-box;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 4px 6px;
+    vertical-align: middle
+}
+
+/* SIGHTING FOUR. The control bar is a <div> prepended directly into
+   .uir-machine-table-container, which is exactly what netsuite.css:152 hides
+   with `display: none !important`. That selector is (0,2,2); the class rule
+   above is (0,1,0), so !important alone is a tie-break it cannot reach. This
+   one is (0,3,2) — container class, our class, our stamp, over `html` and
+   `div` — so it wins on specificity and then on !important.
+
+   Measured on the fixture, which reproduces the bug because it loads the very
+   same netsuite.css: bare div child -> none, bare div child with a plain
+   !important class -> STILL none, this rule -> inline-flex.
+
+   WHAT PINS WHICH HALF, stated exactly, because this rule is only as safe as
+   the check that outlives it. The ARITHMETIC — that this selector out-specifies
+   the hostile one, and that a bare class rule does not — is pinned by the
+   SIGHTING FOUR test in tests/edit-grid.test.mjs, which computes both
+   specificities from the two sheets rather than matching a selector string. The
+   COMPUTED DISPLAY is not, and cannot be: that suite runs in a sandbox with no
+   cascade in it. It is measured at Tier 2, on the served fixture, which is the
+   tier whose standing rule is to assert at computed style or bounding rect.
+
+   Only the bar needs this. The chips strip and the buttons are not direct
+   children of the container, and the same Tier 2 pass is where they were seen
+   computing inline-flex without an anchored rule of their own. */
+html .uir-machine-table-container>div.suitemate-v3-edit-grid-controls[data-suitemate-v3-edit-grid] {
+    display: inline-flex !important
+}
+
+/* UI-PARITY DIRECTIVE 2026-08-04. Everything from here down carries View Mode's
+   VALUES under this feature's own names. The owner's complaint was that a user
+   who learns one surface has to re-learn the other, and the fix is that the two
+   look identical — not that they share a line of CSS. The H-constraint is
+   unchanged and is what makes the duplication deliberate: not one selector here
+   may match a View Mode node, so the values are copied and the source is cited
+   per block. When View's palette moves, these move with it BY HAND. */
+
+/* so-columns.css:122-146. */
+.suitemate-v3-edit-grid-button {
+    display: inline-flex !important;
+    align-items: center;
+    box-sizing: border-box;
+    min-height: 24px;
+    padding: 0 10px;
+    border: 1px solid color-mix(in srgb, var(--theme-main, #5058f4) 38%, var(--field-border-color, #c7c7c7));
+    border-radius: var(--suitemate-radius-compact, 4px);
+    background: transparent;
+    color: var(--theme-main, #5058f4);
+    font-family: var(--normal-font, "Open Sans", Arial, sans-serif);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 22px;
+    white-space: nowrap;
+    cursor: pointer
+}
+
+.suitemate-v3-edit-grid-button:hover {
+    border-color: var(--theme-main, #5058f4);
+    background: var(--theme-secondary-light-light, rgb(0 0 0 / .05))
+}
+
+.suitemate-v3-edit-grid-button:focus-visible {
+    outline: 2px solid var(--theme-main, #5058f4);
+    outline-offset: 2px
+}
+
+/* so-columns.css:61-85, View's hidden-chip. The pill shape is the parity that
+   matters here — Edit's chip used to be a dashed rectangle, which read as a
+   different control for the same job. */
+.suitemate-v3-edit-grid-chip {
+    display: inline-flex !important;
+    align-items: center;
+    padding: 1px 7px;
+    border: 1px solid var(--theme-main, #5058f4);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--theme-main, #5058f4);
+    font-family: var(--normal-font, "Open Sans", Arial, sans-serif);
+    font-size: 10.5px;
+    line-height: 16px;
+    white-space: nowrap;
+    cursor: pointer
+}
+
+.suitemate-v3-edit-grid-chip:hover {
+    background: var(--theme-main, #5058f4);
+    color: #fff
+}
+
+html.isDarkMode .suitemate-v3-edit-grid-chip {
+    border-color: var(--theme-main-light, #5058f4);
+    color: var(--theme-main-light, #5058f4)
+}
+
+.suitemate-v3-edit-grid-note {
+    font-size: 11px;
+    opacity: .75
+}
+
+.suitemate-v3-edit-grid-resize-edge {
+    cursor: col-resize !important;
+    box-shadow: inset -3px 0 0 var(--theme-main, #5058f4) !important
+}
+
+body.suitemate-v3-edit-grid-resizing {
+    cursor: col-resize !important;
+    user-select: none !important
+}
+
+/* Anchored at the container, which is where ensureBindings() stamps
+   BOUND_ATTRIBUTE — #item_splits is the table inside it and never carries the
+   stamp, so a rule anchored at the table could never match. */
+.uir-machine-table-container[data-suitemate-v3-edit-grid-bound] #item_splits tr.uir-machine-headerrow td {
+    box-sizing: border-box
+}
+
+/* so-columns.css:194-234, View's column-menu — the accent border, the shadow,
+   the radius and the enter animation are what make the two menus read as one
+   control. TWO DELIBERATE DIVERGENCES, both functional rather than cosmetic:
+
+   `position: absolute` and not View's `fixed`, because openColumnMenu positions
+   with scrollX/scrollY ADDED to the client rect. That arithmetic is correct for
+   an absolutely positioned node and would double-count the scroll on a fixed
+   one, so the property and the positioning code are one decision.
+
+   `max-height` with `overflow: auto`, which View has no need of: View's menu is
+   per-column and holds a handful of items, while this one lists EVERY column and
+   the live order carries 43. Without it the menu runs off the viewport. */
+.suitemate-v3-edit-grid-menu {
+    display: flex !important;
+    flex-direction: column;
+    gap: 4px;
+    position: absolute;
+    z-index: 9999;
+    max-height: 320px;
+    min-width: 224px;
+    max-width: 320px;
+    overflow: auto;
+    padding: 8px;
+    background: #fff;
+    color: #303030;
+    border: 1px solid #c9d2dc;
+    border-left: 3px solid var(--theme-main, #5058f4);
+    border-radius: var(--suitemate-radius-overlay, 8px);
+    box-shadow: 0 8px 24px rgb(0 0 0 / .22);
+    font-family: var(--normal-font, "Open Sans", Arial, sans-serif);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.45;
+    text-align: left;
+    white-space: nowrap;
+    animation: suitemate-v3-edit-grid-menu-enter .16s ease-out
+}
+
+@keyframes suitemate-v3-edit-grid-menu-enter {
+    from {
+        opacity: 0;
+        transform: translateY(-4px)
+    }
+    to {
+        opacity: 1;
+        transform: none
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .suitemate-v3-edit-grid-menu {
+        animation: none
+    }
+}
+
+html.isDarkMode .suitemate-v3-edit-grid-menu {
+    background: var(--dark-3, #2b2b2e);
+    color: var(--dark-text-1, #e6e8ea);
+    border-color: var(--dark-2, #414147)
+}
+
+.suitemate-v3-edit-grid-menu label {
+    display: flex !important;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 7px;
+    border-radius: var(--suitemate-radius-compact, 4px);
+    white-space: nowrap
+}
+
+.suitemate-v3-edit-grid-menu label:hover {
+    background: #eef2f7
+}
+
+html.isDarkMode .suitemate-v3-edit-grid-menu label:hover {
+    background: var(--dark-2, #414147)
+}
+
+/* The ▼ that opens a column's own menu, inside the header's div.listheader.
+   so-columns.css:166-188. */
+[data-suitemate-v3-edit-grid="menu-toggle"] {
+    display: inline-block !important;
+    margin-left: 4px;
+    padding: 0 3px;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: #7a828d;
+    font-size: 8px;
+    line-height: 1;
+    cursor: pointer;
+    vertical-align: middle
+}
+
+[data-suitemate-v3-edit-grid="menu-toggle"]:hover {
+    background: rgb(0 0 0 / .07);
+    color: var(--theme-main, #5058f4)
+}
+
+[data-suitemate-v3-edit-grid="menu-toggle"]:focus-visible {
+    outline: 2px solid var(--theme-main, #5058f4);
+    outline-offset: 1px
+}
+
+html.isDarkMode [data-suitemate-v3-edit-grid="menu-toggle"] {
+    color: var(--dark-text-2, #a7adb5)
+}
+
+/* so-columns.css:244-272. */
+[data-suitemate-v3-edit-grid="menu-item"] {
+    display: flex !important;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 7px;
+    border: 0;
+    border-radius: var(--suitemate-radius-compact, 4px);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer
+}
+
+[data-suitemate-v3-edit-grid="menu-item"]:hover {
+    background: #eef2f7
+}
+
+[data-suitemate-v3-edit-grid="menu-item"]:focus-visible {
+    outline: 2px solid var(--theme-main, #5058f4);
+    outline-offset: -1px
+}
+
+/* The refusal, shown rather than merely enforced: a required column and an
+   unresolved one both reach this state, and the cursor is what tells a user
+   before they click. */
+[data-suitemate-v3-edit-grid="menu-item"][disabled] {
+    opacity: .45;
+    cursor: not-allowed
+}
+
+[data-suitemate-v3-edit-grid="menu-item"][disabled]:hover {
+    background: transparent
+}
+
+[data-suitemate-v3-edit-grid="menu-item-icon"] {
+    display: inline-block !important;
+    width: 14px;
+    color: #6b7480;
+    font-size: 11px;
+    text-align: center
+}
+
+html.isDarkMode [data-suitemate-v3-edit-grid="menu-item"]:hover {
+    background: var(--dark-2, #414147)
+}
+
+html.isDarkMode [data-suitemate-v3-edit-grid="menu-item-icon"] {
+    color: var(--dark-text-2, #a7adb5)
+}
+
+.suitemate-v3-edit-grid-personalizing tr.uir-machine-headerrow td {
+    cursor: grab
+}
+
+.suitemate-v3-edit-grid-dragging {
+    opacity: .55
+}
+
+.suitemate-v3-edit-grid-drop-target {
+    box-shadow: inset 3px 0 0 var(--theme-main, #5058f4)
+}
