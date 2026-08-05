@@ -105,6 +105,7 @@ test("imports a canonical schema 1 backup through the current settings migration
     smartTabTitles: false,
     formViews: false,
     salesOrderColumnsEdit: false,
+    recentRecords: false,
     roleThemes: legacySettings.roleThemes
   });
 });
@@ -142,6 +143,7 @@ test("imports a canonical schema 2 backup through the current settings migration
     smartTabTitles: false,
     formViews: false,
     salesOrderColumnsEdit: false,
+    recentRecords: false,
     roleThemes: legacySettings.roleThemes
   });
 });
@@ -240,7 +242,7 @@ test("transfer core has no storage, network or DOM authority", () => {
   assert.doesNotMatch(transferSource, /chrome\.|fetch\(|XMLHttpRequest|document\.|localStorage|sessionStorage/);
 });
 
-test("parses hand-built schema 3, 4 and 5 backups through the legacy branch", () => {
+test("parses hand-built schema 3 through 6 backups through the legacy branch", () => {
   const { settings, transfer } = createHarness();
   const encodeEnvelope = (envelope) =>
     `${transfer.PREFIX}${Buffer.from(JSON.stringify(envelope), "utf8").toString("base64")}`;
@@ -273,6 +275,7 @@ test("parses hand-built schema 3, 4 and 5 backups through the legacy branch", ()
     smartTabTitles: true,
     formViews: false,
     salesOrderColumnsEdit: false,
+    recentRecords: false,
     roleThemes: {}
   });
 
@@ -312,8 +315,19 @@ test("parses hand-built schema 3, 4 and 5 backups through the legacy branch", ()
     smartTabTitles: true,
     formViews: true,
     salesOrderColumnsEdit: false,
+    recentRecords: false,
     roleThemes: {}
   });
+
+  const v6 = {
+    ...v5,
+    schemaVersion: 6,
+    salesOrderColumnsEdit: true
+  };
+  const parsed6 = transfer.parse(encodeEnvelope(envelope(6, v6)));
+  assert.equal(parsed6.settings.schemaVersion, settings.SCHEMA_VERSION);
+  assert.equal(parsed6.settings.salesOrderColumnsEdit, true);
+  assert.equal(parsed6.settings.recentRecords, false);
 
   expectCode(
     () => transfer.parse(encodeEnvelope(envelope(4, { ...v4, junk: true }))),
@@ -329,6 +343,10 @@ test("parses hand-built schema 3, 4 and 5 backups through the legacy branch", ()
   );
   expectCode(
     () => transfer.parse(encodeEnvelope(envelope(5, { ...v5, salesOrderColumnsEdit: false }))),
+    "NON_CANONICAL_BACKUP_SETTINGS"
+  );
+  expectCode(
+    () => transfer.parse(encodeEnvelope(envelope(6, { ...v6, recentRecords: false }))),
     "NON_CANONICAL_BACKUP_SETTINGS"
   );
 });

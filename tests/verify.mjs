@@ -48,6 +48,7 @@ assert.deepEqual(globalThemeContentScript.css, [
   "src/record-actions/record-trail.css",
   "src/so-columns/so-columns.css",
   "src/form-views/form-views.css",
+  "src/recent-records/recent-records.css",
   "src/edit-grid/edit-grid.css"
 ]);
 assert.deepEqual(globalThemeContentScript.js, [
@@ -63,6 +64,7 @@ assert.deepEqual(globalThemeContentScript.js, [
   "src/so-columns/core.js",
   "src/tab-title/core.js",
   "src/form-views/core.js",
+  "src/recent-records/core.js",
   "src/edit-grid/core.js",
   "src/runtime/theme-runtime.js",
   "src/runtime/notification-runtime.js",
@@ -74,6 +76,7 @@ assert.deepEqual(globalThemeContentScript.js, [
   "src/so-columns/runtime.js",
   "src/tab-title/runtime.js",
   "src/form-views/runtime.js",
+  "src/recent-records/runtime.js",
   "src/edit-grid/runtime.js"
 ]);
 assert.equal(
@@ -161,6 +164,11 @@ assert.match(
   /for="showInternalIds"[\s\S]*?>Show Internal IDs<[\s\S]*?id="showInternalIds"[^>]*type="checkbox"/,
   "The Internal IDs popup checkbox is missing"
 );
+assert.match(
+  popupHtml,
+  /for="recentRecords"[\s\S]*?>Recent Records<[\s\S]*?id="recentRecords"[^>]*type="checkbox"/,
+  "The Recent Records popup checkbox is missing"
+);
 for (const match of popupHtml.matchAll(/(?:src|href)="([^"]+)"/g)) {
   const reference = match[1];
   if (!reference.startsWith("#")) {
@@ -222,6 +230,9 @@ const extensionSources = [
   "src/so-columns/core.js",
   "src/so-columns/runtime.js",
   "src/so-columns/so-columns.css",
+  "src/recent-records/core.js",
+  "src/recent-records/runtime.js",
+  "src/recent-records/recent-records.css",
   "src/edit-grid/core.js",
   "src/edit-grid/runtime.js",
   "src/edit-grid/edit-grid.css",
@@ -1161,7 +1172,7 @@ assert.doesNotMatch(settingsSource, /function normalizeHexColor|function utf8Byt
 const settingsSandbox = makeSandbox({}, utilitySource, settingsSource);
 const settingsApi = settingsSandbox.SuiteMateV3Settings;
 assert.equal(settingsApi.THEME_PREVIEW_MESSAGE, "SUITEMATE_V3_PREVIEW_ROLE_THEME");
-assert.equal(settingsApi.SCHEMA_VERSION, 6);
+assert.equal(settingsApi.SCHEMA_VERSION, 7);
 assert.equal(settingsApi.DEFAULTS.schemaVersion, settingsApi.SCHEMA_VERSION);
 assert.equal(settingsApi.DEFAULTS.squareCorners, false);
 assert.equal(settingsApi.DEFAULTS.showInternalIds, false);
@@ -1169,10 +1180,11 @@ assert.equal(settingsApi.DEFAULTS.salesOrderColumns, false);
 assert.equal(settingsApi.DEFAULTS.smartTabTitles, false);
 assert.equal(settingsApi.DEFAULTS.formViews, false);
 assert.equal(settingsApi.DEFAULTS.salesOrderColumnsEdit, false);
+assert.equal(settingsApi.DEFAULTS.recentRecords, false);
 assert.deepEqual(
   JSON.parse(JSON.stringify(settingsApi.validateForStorage({ mode: "dark" }))),
   {
-    schemaVersion: 6,
+    schemaVersion: 7,
     enabled: true,
     mode: "dark",
     squareCorners: false,
@@ -1181,6 +1193,7 @@ assert.deepEqual(
     smartTabTitles: false,
     formViews: false,
     salesOrderColumnsEdit: false,
+    recentRecords: false,
     roleThemes: {}
   }
 );

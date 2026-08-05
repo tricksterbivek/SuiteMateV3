@@ -44,6 +44,7 @@ test("exports stable route and capability constants", () => {
   assert.equal(CAPABILITIES.INTERNAL_IDS, "internal-ids");
   assert.equal(CAPABILITIES.CSV_EXPORT_RECORD, "csv-export-record");
   assert.equal(CAPABILITIES.RECORD_TRAIL, "record-trail");
+  assert.equal(CAPABILITIES.RECENT_RECORDS, "recent-records");
   assert.equal(CAPABILITIES.TRANSACTION_COLUMN_PERSONALIZATION, "transaction-column-personalization");
   assert.equal(CAPABILITIES.FORM_VIEWS, "form-views");
   assert.equal(CAPABILITIES.SUITEQL_BRIDGE, "suiteql-bridge");
@@ -186,6 +187,28 @@ test("allows Internal IDs on trusted NetSuite pages and same-account frames", ()
     routes.supports(
       CAPABILITIES.INTERNAL_IDS,
       routes.createPageContext("https://example.com/app/accounting/transactions/salesord.nl?id=1")
+    ),
+    false
+  );
+});
+
+test("allows Recent Records only on signed-in top-frame NetSuite pages", () => {
+  for (const path of [
+    "/app/center/card.nl",
+    "/app/accounting/transactions/salesord.nl?id=1",
+    "/app/common/search/searchresults.nl?searchid=1"
+  ]) {
+    assert.equal(routes.supports(CAPABILITIES.RECENT_RECORDS, page(path)), true, path);
+  }
+  assert.equal(
+    routes.supports(CAPABILITIES.RECENT_RECORDS, page("/app/center/card.nl", { isTopFrame: false })),
+    false
+  );
+  assert.equal(routes.supports(CAPABILITIES.RECENT_RECORDS, page(PATHS.LOGIN)), false);
+  assert.equal(
+    routes.supports(
+      CAPABILITIES.RECENT_RECORDS,
+      routes.createPageContext("https://example.com/app/center/card.nl")
     ),
     false
   );

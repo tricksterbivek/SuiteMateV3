@@ -50,6 +50,7 @@
         "src/record-actions/record-trail.css",
         "src/so-columns/so-columns.css",
         "src/form-views/form-views.css",
+        "src/recent-records/recent-records.css",
         "src/edit-grid/edit-grid.css"
       ],
       "js": [
@@ -65,6 +66,7 @@
         "src/so-columns/core.js",
         "src/tab-title/core.js",
         "src/form-views/core.js",
+        "src/recent-records/core.js",
         "src/edit-grid/core.js",
         "src/runtime/theme-runtime.js",
         "src/runtime/notification-runtime.js",
@@ -76,6 +78,7 @@
         "src/so-columns/runtime.js",
         "src/tab-title/runtime.js",
         "src/form-views/runtime.js",
+        "src/recent-records/runtime.js",
         "src/edit-grid/runtime.js"
       ],
       "run_at": "document_start",

@@ -63,7 +63,7 @@ function createHarness(initialValue, options = {}) {
 test("exports a stable versioned schema and current defaults", () => {
   const { api } = createHarness();
   assert.equal(api.STORAGE_KEY, "suiteMateV3Style");
-  assert.equal(api.SCHEMA_VERSION, 6);
+  assert.equal(api.SCHEMA_VERSION, 7);
   assert.equal(api.DEFAULTS.schemaVersion, api.SCHEMA_VERSION);
 
   for (const value of [undefined, null, "invalid", 42, [], true]) {
@@ -93,7 +93,7 @@ test("migrates legacy appearance and role themes without changing their meaning"
 
   const migrated = api.normalize(legacy);
   assert.deepEqual(plain(migrated), {
-    schemaVersion: 6,
+    schemaVersion: 7,
     enabled: false,
     mode: "dark",
     squareCorners: true,
@@ -102,6 +102,7 @@ test("migrates legacy appearance and role themes without changing their meaning"
     smartTabTitles: false,
     formViews: false,
     salesOrderColumnsEdit: false,
+    recentRecords: false,
     roleThemes: {
       "9845683_SB2~11596~3~N": {
         name: "DBG Health (SB2) - Administrator",
@@ -128,7 +129,7 @@ test("migrates schema 1 settings and preserves an explicit Internal IDs preferen
     showInternalIds: true,
     roleThemes: {}
   })), {
-    schemaVersion: 6,
+    schemaVersion: 7,
     enabled: true,
     mode: "dark",
     squareCorners: false,
@@ -137,6 +138,7 @@ test("migrates schema 1 settings and preserves an explicit Internal IDs preferen
     smartTabTitles: false,
     formViews: false,
     salesOrderColumnsEdit: false,
+    recentRecords: false,
     roleThemes: {}
   });
 });
@@ -153,9 +155,10 @@ test("migrates schema 2 settings and preserves an explicit column personalizatio
     smartTabTitles: false,
     formViews: false,
     salesOrderColumnsEdit: false,
+    recentRecords: false,
     roleThemes: {}
   })), {
-    schemaVersion: 6,
+    schemaVersion: 7,
     enabled: true,
     mode: "dark",
     squareCorners: false,
@@ -164,6 +167,7 @@ test("migrates schema 2 settings and preserves an explicit column personalizatio
     smartTabTitles: false,
     formViews: false,
     salesOrderColumnsEdit: false,
+    recentRecords: false,
     roleThemes: {}
   });
 });
@@ -184,7 +188,7 @@ test("repairs invalid declared settings while preserving valid role data", () =>
   });
 
   assert.deepEqual(plain(repaired), {
-    schemaVersion: 6,
+    schemaVersion: 7,
     enabled: true,
     mode: "light",
     squareCorners: false,
@@ -193,6 +197,7 @@ test("repairs invalid declared settings while preserving valid role data", () =>
     smartTabTitles: false,
     formViews: false,
     salesOrderColumnsEdit: false,
+    recentRecords: false,
     roleThemes: {
       valid: {
         name: "valid",
@@ -223,7 +228,7 @@ test("reads legacy settings in memory without producing migration writes", async
   const harness = createHarness({ enabled: false, mode: "system", squareCorners: true });
   const settings = await harness.api.get();
   assert.deepEqual(plain(settings), {
-    schemaVersion: 6,
+    schemaVersion: 7,
     enabled: false,
     mode: "system",
     squareCorners: true,
@@ -232,6 +237,7 @@ test("reads legacy settings in memory without producing migration writes", async
     smartTabTitles: false,
     formViews: false,
     salesOrderColumnsEdit: false,
+    recentRecords: false,
     roleThemes: {}
   });
   assert.equal(harness.reads, 1);
@@ -248,7 +254,7 @@ test("ensureCurrentSchema persists one canonical migration and then becomes idem
   });
 
   const first = await harness.api.ensureCurrentSchema();
-  assert.equal(first.schemaVersion, 6);
+  assert.equal(first.schemaVersion, 7);
   assert.equal(harness.writes.length, 1);
   assert.deepEqual(harness.storedValue, plain(first));
 
@@ -276,7 +282,7 @@ test("validateForStorage normalizes and enforces the same limit without writing"
   const harness = createHarness();
   const validated = harness.api.validateForStorage({ mode: "dark" });
   assert.deepEqual(plain(validated), {
-    schemaVersion: 6,
+    schemaVersion: 7,
     enabled: true,
     mode: "dark",
     squareCorners: false,
@@ -285,6 +291,7 @@ test("validateForStorage normalizes and enforces the same limit without writing"
     smartTabTitles: false,
     formViews: false,
     salesOrderColumnsEdit: false,
+    recentRecords: false,
     roleThemes: {}
   });
   assert.equal(harness.reads, 0);
@@ -310,7 +317,7 @@ test("role operations preserve schema version and unrelated roles", () => {
 
 test("future settings cannot be read, migrated or overwritten by an older release", async () => {
   const future = {
-    schemaVersion: 7,
+    schemaVersion: 8,
     enabled: false,
     futureFeature: { importantData: ["must", "survive"] }
   };
@@ -372,10 +379,10 @@ function harnessDefaults(schemaVersion) {
   };
 }
 
-test("migrates schema 5 to 6 by adding the edit-mode grid flag", () => {
+test("migrates schema 6 to 7 by adding the Recent Records flag", () => {
   const { api } = createHarness();
-  const v5 = {
-    schemaVersion: 5,
+  const v6 = {
+    schemaVersion: 6,
     enabled: true,
     mode: "dark",
     squareCorners: false,
@@ -383,13 +390,15 @@ test("migrates schema 5 to 6 by adding the edit-mode grid flag", () => {
     salesOrderColumns: true,
     smartTabTitles: false,
     formViews: true,
+    salesOrderColumnsEdit: true,
     roleThemes: {}
   };
-  const migrated = api.normalize(v5);
-  assert.equal(migrated.schemaVersion, 6);
-  assert.equal(migrated.salesOrderColumnsEdit, false);
+  const migrated = api.normalize(v6);
+  assert.equal(migrated.schemaVersion, 7);
+  assert.equal(migrated.salesOrderColumnsEdit, true);
+  assert.equal(migrated.recentRecords, false);
   assert.equal(migrated.salesOrderColumns, true);
   assert.equal(migrated.formViews, true);
-  assert.equal(api.normalize({ salesOrderColumnsEdit: "yes" }).salesOrderColumnsEdit, false);
-  assert.equal(api.normalize({ salesOrderColumnsEdit: true }).salesOrderColumnsEdit, true);
+  assert.equal(api.normalize({ recentRecords: "yes" }).recentRecords, false);
+  assert.equal(api.normalize({ recentRecords: true }).recentRecords, true);
 });
