@@ -7,8 +7,8 @@
   const STATUS_SELECTOR = ".uir-record-status";
   const MAX_ENTITY_LENGTH = 60;
   // Path token (basename sans .nl) -> [abbreviation, header starts with a
-  // document number]. ponytail: curated common types; unknown tokens keep the
-  // native title, add here when a page matters.
+  // document number]. Curated common types; unknown tokens keep the native
+  // title — add here when a page matters.
   const RECORD_TYPES = Object.freeze({
     salesord: Object.freeze(["SO", true]),
     purchord: Object.freeze(["PO", true]),
