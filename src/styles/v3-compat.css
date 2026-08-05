@@ -6,7 +6,7 @@ html:not(.ext-f) {
     /* The active subtab takes the PANEL surface so it reads as joined to the
        content below. It was --theme-secondary on a --theme-secondary-light strip,
        which measured 1.06:1 — the near-invisible pair reported live. */
-    --suitemate-v3-subtab-active-bg: var(--field-backgroud-color);
+    --suitemate-v3-subtab-active-bg: color-mix(in srgb, var(--theme-main) 68%, #fff);
     --suitemate-v3-subtab-hover-bg: color-mix(in srgb, var(--theme-main) 6%, var(--field-backgroud-color))
 }
 
@@ -57,14 +57,15 @@ html:not(.ext-f) .uir-tab-list>.uir-unroll-tabs-button {
    used to paint --theme-main-light, which stopped being a neighbour of
    --theme-main when the default primary moved off #607799: measured live as
    #7e91ae on a #5058f4 bar, the "dull grey block", with white text at ~2.6:1 —
-   worse contrast than the inactive tabs beside it. Owner-directed LIGHT
-   treatment: the active tab takes the panel surface with dark text and the
-   theme accent — the exact grammar the nested subtab row already uses — so
-   every active tab at every scale rises out of its bar to meet the content.
-   Same values as netsuite.css's copy, so whichever wins the result is
-   identical. */
+   worse contrast than the inactive tabs beside it. OWNER-DIRECTED TINT: the
+   active tab is a lighter tint of the configured theme colour (68% theme,
+   32% white — the owner's exact mix), white text kept, on the top nav and
+   every subtab alike. Not a pure white surface — that treatment shipped once
+   and was rejected. The mix is derived from --theme-main so a theme change
+   restyles every active tab with no further rules. Same values as
+   netsuite.css's copy, so whichever wins the result is identical. */
 html:not(.ext-f) .uir-tab-list-tabs .formtabon {
-    background-color: var(--field-backgroud-color) !important
+    background-color: color-mix(in srgb, var(--theme-main) 68%, #fff) !important
 }
 
 html:not(.ext-f) .uir-tab-list-tabs .formtaboff:has(>a:hover) {
@@ -75,14 +76,9 @@ html:not(.ext-f) .uir-tab-list-tabs :is(.formtabon, .formtaboff) {
     background-image: none !important
 }
 
-html:not(.ext-f) .uir-tab-list-tabs .formtaboff>a.formtabtext {
+html:not(.ext-f) .uir-tab-list-tabs :is(.formtabon, .formtaboff)>a.formtabtext {
     color: #fff !important;
     -webkit-text-fill-color: #fff
-}
-
-html:not(.ext-f) .uir-tab-list-tabs .formtabon>a.formtabtext {
-    color: var(--text-0) !important;
-    -webkit-text-fill-color: var(--text-0)
 }
 
 /* The full shorthand, not just the colour: a colour-only declaration leaves the
