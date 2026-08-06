@@ -591,28 +591,15 @@
     rows[next].focus();
   }
 
-  function renderActivePanel(options = {}) {
-    const state = activePanel;
-    if (!state?.panel?.isConnected || !state.popover?.isConnected) {
-      activePanel = null;
-      return;
-    }
-    const focusIdentity = document.activeElement?.closest?.("[data-record-identity]")?.dataset.recordIdentity;
-    const panel = state.panel;
-    const previousScroll = panel.querySelector(".suitemate-v3-rr-list")?.scrollTop ?? 0;
-    panel.replaceChildren();
-
+  // Built once per injection. Rebuilding the chrome on every keystroke would
+  // detach the focused search mid-typing, and NetSuite's menu manager closes
+  // its popover the moment focus leaves it.
+  function buildPanelChrome(state) {
     const header = createElement("header", "suitemate-v3-rr-header");
-    const model = core.mergeRecords(getScope(), location.origin);
-    const total = model.pinned.length + model.recent.length;
-    const filtered = matchingRecords(model, state.query);
-    const filteredTotal = filtered.pinned.length + filtered.recent.length;
     const titleRow = createElement("div", "suitemate-v3-rr-title-row");
     titleRow.append(createElement("h2", "suitemate-v3-rr-title", "Recent records"));
-    const countText = state.query ? `${filteredTotal} / ${total}` : (total ? String(total) : "");
-    if (countText) {
-      titleRow.append(createElement("span", "suitemate-v3-rr-count", countText));
-    }
+    const count = createElement("span", "suitemate-v3-rr-count");
+    titleRow.append(count);
     header.append(titleRow);
     const searchWrap = createElement("div", "suitemate-v3-rr-search-wrap");
     searchWrap.append(createSvgIcon("search", "suitemate-v3-rr-search-icon"));
@@ -625,12 +612,15 @@
     search.value = state.query;
     search.addEventListener("input", () => {
       state.query = search.value;
-      renderActivePanel({ focusSearch: true });
+      renderActivePanel();
     });
     const slashHint = createElement("kbd", "suitemate-v3-rr-slash-hint", "/");
     slashHint.setAttribute("aria-hidden", "true");
     searchWrap.append(search, slashHint);
     header.append(searchWrap);
+
+    const body = createElement("div", "suitemate-v3-rr-list");
+    body.setAttribute("role", "list");
 
     const footer = createElement("footer", "suitemate-v3-rr-footer");
     const viewAll = createElement("a", "suitemate-v3-rr-all-button");
@@ -642,8 +632,31 @@
     );
     footer.append(viewAll);
 
-    const body = createElement("div", "suitemate-v3-rr-list");
-    body.setAttribute("role", "list");
+    state.countEl = count;
+    state.searchEl = search;
+    state.listEl = body;
+    state.panel.append(header, body, footer);
+  }
+
+  function renderActivePanel(options = {}) {
+    const state = activePanel;
+    if (!state?.panel?.isConnected || !state.popover?.isConnected) {
+      activePanel = null;
+      return;
+    }
+    const focusIdentity = document.activeElement?.closest?.("[data-record-identity]")?.dataset.recordIdentity;
+    const model = core.mergeRecords(getScope(), location.origin);
+    const total = model.pinned.length + model.recent.length;
+    const filtered = matchingRecords(model, state.query);
+    const filteredTotal = filtered.pinned.length + filtered.recent.length;
+    state.countEl.textContent = state.query ? `${filteredTotal} / ${total}` : (total ? String(total) : "");
+    if (state.searchEl.value !== state.query) {
+      state.searchEl.value = state.query;
+    }
+    const search = state.searchEl;
+    const body = state.listEl;
+    const previousScroll = body.scrollTop;
+    body.replaceChildren();
     if (state.status === "loading" && total === 0) {
       body.append(createElement("div", "suitemate-v3-rr-message", "Loading recent records..."));
     } else if (state.status === "error" && total === 0) {
@@ -672,13 +685,12 @@
           core.groupForTimestamp(record.timestamp || core.parseRecentDate(record.dateText)) === group));
       }
     }
-    panel.append(header, body, footer);
     body.scrollTop = previousScroll;
     if (options.focusSearch) {
       search.focus();
       search.setSelectionRange(search.value.length, search.value.length);
     } else if (focusIdentity) {
-      panel.querySelector(`[data-record-identity="${CSS.escape(focusIdentity)}"] .suitemate-v3-rr-main`)?.focus();
+      body.querySelector(`[data-record-identity="${CSS.escape(focusIdentity)}"] .suitemate-v3-rr-main`)?.focus();
     }
   }
 
@@ -712,6 +724,7 @@
       viewAllHref,
       status: fetchController ? "loading" : "ready"
     };
+    buildPanelChrome(activePanel);
     retainPopover(popover);
     renderActivePanel();
     if (options.focusSearch) {

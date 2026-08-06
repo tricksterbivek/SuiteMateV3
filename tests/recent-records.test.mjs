@@ -205,7 +205,9 @@ test("groups records into a pinned section, date sections and a footer link", ()
   assert.match(runtimeSource, /\["Today", "Yesterday", "This week", "Older"\]/);
   assert.match(runtimeSource, /"View all recent records"/);
   assert.match(runtimeSource, /createSvgIcon\("arrow-right"\)/);
-  assert.match(runtimeSource, /panel\.append\(header, body, footer\);/);
+  assert.match(runtimeSource, /function buildPanelChrome/);
+  assert.match(runtimeSource, /state\.panel\.append\(header, body, footer\);/);
+  assert.match(runtimeSource, /state\.query = search\.value;\s*renderActivePanel\(\);/);
   assert.match(runtimeSource, /body\.scrollTop = previousScroll;/);
 });
 
