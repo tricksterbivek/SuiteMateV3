@@ -1102,29 +1102,38 @@ for (const [what, selector, property, expected] of [
     `The totals box: ${what} is not ${expected}`
   );
 }
-// ===== Clean Commerce item tables =====
+// ===== Clean Commerce item tables (Option 4) =====
 // Same terms as the totals box: every value cascade-read at its exact selector
-// head, because nothing else holds any of it — the machine tint at 4.5% sits
-// below even the stripe probe's old floor, and a respelled mix or a retuned
-// percentage renders pixel-identical to every screenshot gate. The zebra and
-// hover values are ROW-SCOPED overrides (machines only; lists keep 8%), which
-// is the scoping the owner's "do not modify unrelated lists" requires — these
-// pins hold the scoping as much as the values.
+// head, because nothing else holds any of it — a respelled literal or a
+// retuned shadow renders near-identical to every screenshot gate. The zebra
+// and hover values are ROW-SCOPED overrides (machines only; lists keep the
+// shared 8% mix), which is the scoping the owner's "do not modify unrelated
+// lists" requires — these pins hold the scoping as much as the values.
 const MACHINE_CONTAINER = "html:not(.ext-f) .uir-machine-table-container {";
 const MACHINE_ROW_TOKENS = "html:not(.ext-f) :is(.uir-machine-row, .uir-machine-totals-row) {";
 const MACHINE_CELL = "html:not(.ext-f) .uir-machine-table .uir-machine-row>td {";
+const MACHINE_HOVER_ROW = "html:not(.ext-f) .uir-machine-table .uir-machine-row:hover {";
 for (const [sheet, sheetName, what, selector, property, expected] of [
   [netsuiteStyles, "netsuite.css", "the container hairline", MACHINE_CONTAINER, "border", "1px solid light-dark(rgba(10, 19, 23, 0.1), var(--dark-3))"],
-  [netsuiteStyles, "netsuite.css", "the container elevation", MACHINE_CONTAINER, "box-shadow", "0 1px 4px rgba(20, 22, 26, 0.14)"],
-  [netsuiteStyles, "netsuite.css", "the dark container elevation", "html:not(.ext-f).isDarkMode .uir-machine-table-container {", "box-shadow", "0 1px 4px rgba(0, 0, 0, 0.5)"],
-  [netsuiteStyles, "netsuite.css", "the container radius", `${TOTALS_RADII}.uir-machine-table-container {`, "border-radius", "12px"],
-  [netsuiteStyles, "netsuite.css", "the machine zebra tint", MACHINE_ROW_TOKENS, "--row-odd-bg-color", "light-dark(color-mix(in srgb, var(--theme-main) 4.5%, #fff), var(--dark-2))"],
-  [netsuiteStyles, "netsuite.css", "the machine hover tint", MACHINE_ROW_TOKENS, "--row-hover-bg-color", "light-dark(color-mix(in srgb, var(--theme-main) 6%, #fff), var(--dark-3))"],
-  [netsuiteStyles, "netsuite.css", "the row height", MACHINE_CELL, "height", "46px"],
+  [netsuiteStyles, "netsuite.css", "the container elevation", MACHINE_CONTAINER, "box-shadow", "0 14px 34px rgba(15, 23, 42, 0.12), 0 3px 8px rgba(15, 23, 42, 0.07)"],
+  [netsuiteStyles, "netsuite.css", "the container scrollbar", MACHINE_CONTAINER, "scrollbar-width", "thin"],
+  [netsuiteStyles, "netsuite.css", "the dark container elevation", "html:not(.ext-f).isDarkMode .uir-machine-table-container {", "box-shadow", "0 14px 34px rgba(0, 0, 0, 0.5), 0 3px 8px rgba(0, 0, 0, 0.35)"],
+  [netsuiteStyles, "netsuite.css", "the container radius", `${TOTALS_RADII}.uir-machine-table-container {`, "border-radius", "8px"],
+  [netsuiteStyles, "netsuite.css", "the wrapper elevation", "html:not(.ext-f) .subtabblock.uir-machine-block:has(>.uir-machine-table-container) {", "box-shadow", "0 14px 34px rgba(15, 23, 42, 0.12), 0 3px 8px rgba(15, 23, 42, 0.07)"],
+  [netsuiteStyles, "netsuite.css", "the dark wrapper elevation", "html:not(.ext-f).isDarkMode .subtabblock.uir-machine-block:has(>.uir-machine-table-container) {", "box-shadow", "0 14px 34px rgba(0, 0, 0, 0.5), 0 3px 8px rgba(0, 0, 0, 0.35)"],
+  [netsuiteStyles, "netsuite.css", "the wrapper radius", `${TOTALS_RADII}.subtabblock.uir-machine-block:has(>.uir-machine-table-container) {`, "border-radius", "8px"],
+  [netsuiteStyles, "netsuite.css", "the machine zebra tint", MACHINE_ROW_TOKENS, "--row-odd-bg-color", "light-dark(#f2f5fa, var(--dark-2))"],
+  [netsuiteStyles, "netsuite.css", "the machine hover tint", MACHINE_ROW_TOKENS, "--row-hover-bg-color", "light-dark(#f3f4ff, var(--dark-3))"],
+  [netsuiteStyles, "netsuite.css", "the hover accent", MACHINE_HOVER_ROW, "--suitemate-row-accent", "inset 3px 0 0 var(--theme-main)"],
+  [netsuiteStyles, "netsuite.css", "the row height", MACHINE_CELL, "height", "58px"],
+  [netsuiteStyles, "netsuite.css", "the cell alignment", MACHINE_CELL, "vertical-align", "middle"],
   [netsuiteStyles, "netsuite.css", "the cell padding", MACHINE_CELL, "padding", "0 12px"],
   [netsuiteStyles, "netsuite.css", "the row divider", MACHINE_CELL, "border-bottom", "1px solid light-dark(rgba(10, 19, 23, 0.08), var(--dark-3))"],
   [netsuiteStyles, "netsuite.css", "the tabular figures", "html:not(.ext-f) .uir-machine-table .uir-machine-row>td[align=right] {", "font-variant-numeric", "tabular-nums"],
+  [netsuiteStyles, "netsuite.css", "the numeric emphasis", "html:not(.ext-f) .uir-machine-table .uir-machine-row>td[align=right] {", "font-weight", "500"],
   [netsuiteStyles, "netsuite.css", "the item link colour", "html:not(.ext-f) .uir-machine-table .uir-machine-row td a:is(.dottedlink, [href]) {", "color", "var(--theme-main)"],
+  [netsuiteStyles, "netsuite.css", "the item link weight", "html:not(.ext-f) .uir-machine-table .uir-machine-row td a:is(.dottedlink, [href]) {", "font-weight", "600"],
+  [netsuiteStyles, "netsuite.css", "the item link underline", "html:not(.ext-f) .uir-machine-table .uir-machine-row td a:is(.dottedlink, [href]) {", "text-decoration", "underline"],
   [compatibilityStyles, "v3-compat.css", "the header surface", MACHINE_CONTAINER, "--suitemate-v3-table-header-bg", "light-dark(#fff, var(--dark-1))"],
   [compatibilityStyles, "v3-compat.css", "the header rule colour", MACHINE_CONTAINER, "--suitemate-v3-table-header-border", "var(--theme-main)"],
   [compatibilityStyles, "v3-compat.css", "the header height", "html:not(.ext-f) .uir-machine-table-container .uir-machine-table .uir-machine-headerrow>td {", "height", "48px"],
@@ -1137,6 +1146,26 @@ for (const [sheet, sheetName, what, selector, property, expected] of [
     `Clean Commerce: ${what} is not ${expected} in ${sheetName}`
   );
 }
+// The three Option 4 rules whose selectors are not flat heads: first-row
+// breathing room over the zebra's data-row `of` list (cells AND the sln
+// number pseudo-cell), the accent seat on the gutter (consumed where the
+// gutter is defined, so its :has() chain lives in one place), and the hover
+// motion held behind the reduced-motion gate.
+assert.match(
+  netsuiteStyles,
+  /tr:nth-child\(1 of \.uir-machine-row:not\(\.machineButtonRow[^)]*\)\)>td,[\s\S]{0,400}?::before \{\s*padding-top: 12px !important/,
+  "Clean Commerce: the first machine row has lost its 12px breathing room below the header rule"
+);
+assert.match(
+  netsuiteStyles,
+  /box-shadow: var\(--suitemate-row-accent, none\)/,
+  "Clean Commerce: the sln gutter no longer seats the hover accent"
+);
+assert.match(
+  netsuiteStyles,
+  /@media \(prefers-reduced-motion: no-preference\) \{\s*html:not\(\.ext-f\) \.uir-machine-table \.uir-machine-row>td,\s*html:not\(\.ext-f\) \.uir-machine-row::before \{\s*transition: background-color 140ms ease, box-shadow 140ms ease/,
+  "Clean Commerce: the hover transition is missing or no longer behind the reduced-motion gate"
+);
 assert.match(
   compatibilityStyles,
   /td\.fgroup_title\.uir-field-group>div\.fgroup_title[\s\S]*?background-color: var\(--theme-secondary-light\) !important/,
@@ -2011,7 +2040,7 @@ await access(resolve(root, "save/SUITEMATE_V1_MASTER_FEATURE_INVENTORY.md"));
 const expectedStyleHashes = {
   "src/styles/font.css": "ecc7a99f6b820ee9290ab4a3ca2ff1ea4829c1a539c0d42becb19a3d5ea446cf",
   "src/styles/code.css": "e5607100c7432fd7028176ce74c4c999e181108861ea6b992ed3058d92d0d698",
-  "src/styles/netsuite.css": "aa34d01749a11185639c5f8b94e088c2bbd24328b9b25db31429d5d22375b994",
+  "src/styles/netsuite.css": "5b2b0528b22dad5541aae34a0eda2e2ff035c59db15077bae631a1205b1687e8",
   "src/styles/pages/bundlebuilder.css": "bb9cae83f75b192d0a913233a33b6a8e557df656f7251a6e48e3105532e9f8fa",
   "src/styles/pages/codeeditor.css": "b58efb6517cfc13ca04cb621bdf269599ad9d6a589f38dee268743dda60f84df",
   "src/styles/pages/dashboard.css": "caedaa535b9bd516a977cdbb9f85de0f42d04e2e7f59a13f41996101dc0db7b5",

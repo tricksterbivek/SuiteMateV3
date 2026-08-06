@@ -399,11 +399,13 @@ async function probeForcedHover(client, sessionId) {
 // current tint is 14. A floor of 8 fails the invisible one and passes the real
 // one, and it is the check that makes this guard about the FEATURE rather than
 // about the rules merely being present.
-// 6, down from 8: Clean Commerce sets the machine tint at the owner's 4.5%
-// mix, which computes ~7/255 on the default primary. The floor still catches
+// 6, down from 8: Clean Commerce once set the machine tint at a 4.5% theme
+// mix computing ~7/255 on the default primary; Option 4 replaced it with the
+// literal #f2f5fa, a 13/255 delta, so machines now clear the floor easily and
+// the floor's tight margin only guards the lists' shared mix. It still catches
 // the class of defect it was built for — the shipped-invisible stripe measured
-// 1-2/255 — while accepting the owner's deliberately subtle tint. Never lower
-// this to make a run pass; lower it only when the DESIGN gets subtler.
+// 1-2/255. Never lower this to make a run pass; lower it only when the DESIGN
+// gets subtler.
 const STRIPE_MIN_DELTA = 6;
 
 // How many of the 28 baselines hold a striped machine or list today. Raise it
