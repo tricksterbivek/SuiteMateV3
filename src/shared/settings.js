@@ -6,7 +6,7 @@
     return;
   }
   const STORAGE_KEY = "suiteMateV3Style";
-  const SCHEMA_VERSION = 7;
+  const SCHEMA_VERSION = 8;
   const LEGACY_SCHEMA_VERSION = 0;
   const MAX_SYNC_ITEM_BYTES = 7800;
   const INVALID_VERSION_CODE = "INVALID_SETTINGS_VERSION";
@@ -15,6 +15,53 @@
   const ROLE_CONTEXT_MESSAGE = "SUITEMATE_V3_GET_ROLE_CONTEXT";
   const THEME_PREVIEW_MESSAGE = "SUITEMATE_V3_PREVIEW_ROLE_THEME";
   const MODES = Object.freeze(["light", "dark", "system"]);
+  // THE font registry: id → { family (doubles as the UI label), files
+  // (weight-or-range → woff2 under src/styles/fonts/) }; null is the system
+  // default. Adding or removing a font is one entry here plus its woff2 —
+  // fontFaceCss derives the @font-face rules and verify.mjs holds the files
+  // in step. Ids are storage values; never rename one without a migration.
+  // Faces are INJECTED as a document-level style, never declared in the
+  // manifest-injected sheets: relative url() there resolves against the
+  // page, and CSS cannot ask chrome.runtime for the extension origin —
+  // measured live as NetSuite 404s decoding as fonts.
+  const FONTS = Object.freeze({
+    "default": null,
+    "poppins": Object.freeze({ family: "Poppins", files: Object.freeze({ "400": "poppins-400.woff2", "500": "poppins-500.woff2", "600": "poppins-600.woff2", "700": "poppins-700.woff2" }) }),
+    "plus-jakarta-sans": Object.freeze({ family: "Plus Jakarta Sans", files: Object.freeze({ "200 800": "plus-jakarta-sans.woff2" }) }),
+    "outfit": Object.freeze({ family: "Outfit", files: Object.freeze({ "100 900": "outfit.woff2" }) }),
+    "montserrat": Object.freeze({ family: "Montserrat", files: Object.freeze({ "100 900": "montserrat.woff2" }) }),
+    "urbanist": Object.freeze({ family: "Urbanist", files: Object.freeze({ "100 900": "urbanist.woff2" }) }),
+    "nunito": Object.freeze({ family: "Nunito", files: Object.freeze({ "200 1000": "nunito.woff2" }) }),
+    "figtree": Object.freeze({ family: "Figtree", files: Object.freeze({ "300 900": "figtree.woff2" }) }),
+    "manrope": Object.freeze({ family: "Manrope", files: Object.freeze({ "200 800": "manrope.woff2" }) }),
+    "satoshi": Object.freeze({ family: "Satoshi", files: Object.freeze({ "300 900": "satoshi.woff2" }) }),
+    "quicksand": Object.freeze({ family: "Quicksand", files: Object.freeze({ "300 700": "quicksand.woff2" }) })
+  });
+
+  function fontStack(fontId) {
+    const font = Object.prototype.hasOwnProperty.call(FONTS, fontId) ? FONTS[fontId] : null;
+    // The V1 stack stays as the tail so glyphs outside the packaged latin
+    // subset keep rendering through the existing chain.
+    return font ? `"${font.family}", "Oracle Sans", "Open Sans", Helvetica, sans-serif` : null;
+  }
+
+  function fontFaceCss(resolveFontUrl) {
+    // Every registered face at once: the browser only fetches a face whose
+    // family rendered text actually uses, so declaring the full set is free
+    // and the selected font needs no follow-up injection to swap in.
+    const rules = [];
+    for (const font of Object.values(FONTS)) {
+      if (!font) {
+        continue;
+      }
+      for (const [weight, file] of Object.entries(font.files)) {
+        rules.push(
+          `@font-face{font-family:"${font.family}";font-style:normal;font-weight:${weight};font-display:swap;src:url("${resolveFontUrl(file)}") format("woff2")}`
+        );
+      }
+    }
+    return rules.join("\n");
+  }
   const DEFAULT_ROLE_COLORS = Object.freeze({
     main: "#6269e7",
     secondary: "#a2a4a8"
@@ -30,6 +77,7 @@
     schemaVersion: SCHEMA_VERSION,
     enabled: true,
     mode: "light",
+    font: "default",
     squareCorners: false,
     showInternalIds: false,
     salesOrderColumns: false,
@@ -128,6 +176,7 @@
       schemaVersion: SCHEMA_VERSION,
       enabled: candidate.enabled !== false,
       mode: MODES.includes(candidate.mode) ? candidate.mode : DEFAULTS.mode,
+      font: Object.prototype.hasOwnProperty.call(FONTS, candidate.font) ? candidate.font : DEFAULTS.font,
       squareCorners: candidate.squareCorners === true,
       showInternalIds: candidate.showInternalIds === true,
       salesOrderColumns: candidate.salesOrderColumns === true,
@@ -327,6 +376,9 @@
     ROLE_CONTEXT_MESSAGE,
     THEME_PREVIEW_MESSAGE,
     DEFAULTS,
+    FONTS,
+    fontStack,
+    fontFaceCss,
     THEME_VARIABLE_NAMES,
     normalizeHexColor,
     normalize,

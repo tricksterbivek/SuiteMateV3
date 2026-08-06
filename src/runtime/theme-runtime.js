@@ -10,6 +10,22 @@
 
   const root = document.documentElement;
   const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+  // Registers every selectable font face as a DOCUMENT-level style with
+  // absolute extension URLs. The manifest sheets cannot host these: their
+  // relative url() resolves against the page and CSS cannot reach
+  // chrome.runtime.getURL. Fetches stay lazy — only the family in use loads.
+  function ensureFontFaces() {
+    if (document.getElementById("suitemate-v3-font-faces")) {
+      return;
+    }
+    const style = document.createElement("style");
+    style.id = "suitemate-v3-font-faces";
+    style.textContent = settingsApi.fontFaceCss(
+      (file) => chrome.runtime.getURL(`src/styles/fonts/${file}`)
+    );
+    (document.head ?? root).append(style);
+  }
   let currentSettings = settingsApi.DEFAULTS;
   let roleContext = null;
   let settingsRevision = 0;
@@ -218,6 +234,16 @@
     setClass("disable_radii", enabled && value.squareCorners);
     setClass("sfc", enabled);
     setClass("sln", enabled);
+    // The UI font rides :root's --normal-font, which every sheet already
+    // consumes; an inline value out-cascades the stylesheet default and
+    // removeProperty restores it — so "default" is the pre-feature render.
+    const selectedFontStack = settingsApi.fontStack(value.font);
+    if (enabled && selectedFontStack) {
+      ensureFontFaces();
+      root.style.setProperty("--normal-font", selectedFontStack);
+    } else {
+      root.style.removeProperty("--normal-font");
+    }
     applyThemeColors(value, enabled);
     root.dataset.suitemateV3 = enabled ? "active" : "disabled";
     root.dataset.suitemateV3Mode = value.mode;

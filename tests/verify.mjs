@@ -1217,8 +1217,9 @@ assert.doesNotMatch(settingsSource, /function normalizeHexColor|function utf8Byt
 const settingsSandbox = makeSandbox({}, utilitySource, settingsSource);
 const settingsApi = settingsSandbox.SuiteMateV3Settings;
 assert.equal(settingsApi.THEME_PREVIEW_MESSAGE, "SUITEMATE_V3_PREVIEW_ROLE_THEME");
-assert.equal(settingsApi.SCHEMA_VERSION, 7);
+assert.equal(settingsApi.SCHEMA_VERSION, 8);
 assert.equal(settingsApi.DEFAULTS.schemaVersion, settingsApi.SCHEMA_VERSION);
+assert.equal(settingsApi.DEFAULTS.font, "default");
 assert.equal(settingsApi.DEFAULTS.squareCorners, false);
 assert.equal(settingsApi.DEFAULTS.showInternalIds, false);
 assert.equal(settingsApi.DEFAULTS.salesOrderColumns, false);
@@ -1229,9 +1230,10 @@ assert.equal(settingsApi.DEFAULTS.recentRecords, false);
 assert.deepEqual(
   JSON.parse(JSON.stringify(settingsApi.validateForStorage({ mode: "dark" }))),
   {
-    schemaVersion: 7,
+    schemaVersion: 8,
     enabled: true,
     mode: "dark",
+    font: "default",
     squareCorners: false,
     showInternalIds: false,
     salesOrderColumns: false,
@@ -1244,6 +1246,54 @@ assert.deepEqual(
 );
 assert.equal(settingsApi.normalize({ squareCorners: true }).squareCorners, true);
 assert.equal(settingsApi.normalize({ showInternalIds: true }).showInternalIds, true);
+// ===== Selectable UI fonts =====
+// The FONTS registry is the single configuration; these pins hold its
+// dependents in step: the generated @font-face rules, the woff2 files on
+// disk, the page-fetch grant in the manifest, and the two injection sites.
+// Faces are generated (fontFaceCss) and injected document-level rather than
+// declared in the manifest sheets, whose relative url() resolves against the
+// page — the live failure mode that shaped this design.
+assert.equal(settingsApi.normalize({ font: "poppins" }).font, "poppins");
+assert.equal(settingsApi.normalize({ font: "not-a-font" }).font, "default");
+const fontIds = Object.keys(settingsApi.FONTS);
+assert.equal(fontIds[0], "default", "The system default is not the registry's first entry");
+assert.equal(fontIds.length, 11, "The font registry no longer lists the ten selectable fonts plus the default");
+const fontFaceRules = settingsApi.fontFaceCss((file) => `fonts/${file}`);
+for (const [fontId, font] of Object.entries(settingsApi.FONTS)) {
+  if (!font) {
+    continue;
+  }
+  assert.match(
+    fontFaceRules,
+    new RegExp(`@font-face\\{font-family:"${font.family}";`),
+    `fontFaceCss emits no @font-face for ${font.family}`
+  );
+  assert.equal(
+    settingsApi.fontStack(fontId),
+    `"${font.family}", "Oracle Sans", "Open Sans", Helvetica, sans-serif`,
+    `The ${fontId} stack does not end in the V1 fallback chain`
+  );
+  for (const file of Object.values(font.files)) {
+    await access(resolve(root, "src/styles/fonts", file));
+  }
+}
+assert.match(fontFaceRules, /font-display:swap/, "Packaged fonts do not swap in over the system stack");
+assert.deepEqual(
+  manifest.web_accessible_resources,
+  [{ resources: ["src/styles/fonts/*.woff2"], matches: ["https://*.netsuite.com/*"] }],
+  "NetSuite pages cannot fetch the packaged font files"
+);
+assert.match(themeRuntimeSource, /settingsApi\.fontStack\(value\.font\)/, "The theme runtime never applies the font setting");
+assert.match(themeRuntimeSource, /setProperty\("--normal-font"/, "The font is not applied through the shared --normal-font token");
+assert.match(
+  themeRuntimeSource,
+  /settingsApi\.fontFaceCss\(\s*\(file\) => chrome\.runtime\.getURL\(`src\/styles\/fonts\/\$\{file\}`\)\s*\)/,
+  "The theme runtime no longer injects the faces with absolute extension URLs"
+);
+const popupFontSource = await readFile(resolve(root, "src/popup/popup.js"), "utf8");
+assert.match(popupFontSource, /api\.fontFaceCss\(\(file\) => `\.\.\/styles\/fonts\/\$\{file\}`\)/, "The popup no longer injects the packaged font faces");
+assert.match(popupHtml, /<select id="fontSelect" name="font">/, "The popup has no font selector");
+assert.match(popupStyles, /font-family: var\(--suitemate-popup-font, /, "The popup no longer previews the selected font");
 const roleContext = { id: "9845683_SB2~11596~3~N", name: "DBG Health (SB2) - Administrator" };
 const roleSettings = settingsApi.withRoleTheme(settingsApi.DEFAULTS, roleContext, {
   main: "#123456",

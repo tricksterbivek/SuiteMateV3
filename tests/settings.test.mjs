@@ -63,7 +63,7 @@ function createHarness(initialValue, options = {}) {
 test("exports a stable versioned schema and current defaults", () => {
   const { api } = createHarness();
   assert.equal(api.STORAGE_KEY, "suiteMateV3Style");
-  assert.equal(api.SCHEMA_VERSION, 7);
+  assert.equal(api.SCHEMA_VERSION, 8);
   assert.equal(api.DEFAULTS.schemaVersion, api.SCHEMA_VERSION);
 
   for (const value of [undefined, null, "invalid", 42, [], true]) {
@@ -93,9 +93,10 @@ test("migrates legacy appearance and role themes without changing their meaning"
 
   const migrated = api.normalize(legacy);
   assert.deepEqual(plain(migrated), {
-    schemaVersion: 7,
+    schemaVersion: 8,
     enabled: false,
     mode: "dark",
+    font: "default",
     squareCorners: true,
     showInternalIds: false,
     salesOrderColumns: false,
@@ -129,9 +130,10 @@ test("migrates schema 1 settings and preserves an explicit Internal IDs preferen
     showInternalIds: true,
     roleThemes: {}
   })), {
-    schemaVersion: 7,
+    schemaVersion: 8,
     enabled: true,
     mode: "dark",
+    font: "default",
     squareCorners: false,
     showInternalIds: true,
     salesOrderColumns: false,
@@ -158,9 +160,10 @@ test("migrates schema 2 settings and preserves an explicit column personalizatio
     recentRecords: false,
     roleThemes: {}
   })), {
-    schemaVersion: 7,
+    schemaVersion: 8,
     enabled: true,
     mode: "dark",
+    font: "default",
     squareCorners: false,
     showInternalIds: true,
     salesOrderColumns: true,
@@ -188,9 +191,10 @@ test("repairs invalid declared settings while preserving valid role data", () =>
   });
 
   assert.deepEqual(plain(repaired), {
-    schemaVersion: 7,
+    schemaVersion: 8,
     enabled: true,
     mode: "light",
+    font: "default",
     squareCorners: false,
     showInternalIds: false,
     salesOrderColumns: false,
@@ -228,9 +232,10 @@ test("reads legacy settings in memory without producing migration writes", async
   const harness = createHarness({ enabled: false, mode: "system", squareCorners: true });
   const settings = await harness.api.get();
   assert.deepEqual(plain(settings), {
-    schemaVersion: 7,
+    schemaVersion: 8,
     enabled: false,
     mode: "system",
+    font: "default",
     squareCorners: true,
     showInternalIds: false,
     salesOrderColumns: false,
@@ -254,7 +259,7 @@ test("ensureCurrentSchema persists one canonical migration and then becomes idem
   });
 
   const first = await harness.api.ensureCurrentSchema();
-  assert.equal(first.schemaVersion, 7);
+  assert.equal(first.schemaVersion, 8);
   assert.equal(harness.writes.length, 1);
   assert.deepEqual(harness.storedValue, plain(first));
 
@@ -282,9 +287,10 @@ test("validateForStorage normalizes and enforces the same limit without writing"
   const harness = createHarness();
   const validated = harness.api.validateForStorage({ mode: "dark" });
   assert.deepEqual(plain(validated), {
-    schemaVersion: 7,
+    schemaVersion: 8,
     enabled: true,
     mode: "dark",
+    font: "default",
     squareCorners: false,
     showInternalIds: false,
     salesOrderColumns: false,
@@ -317,7 +323,7 @@ test("role operations preserve schema version and unrelated roles", () => {
 
 test("future settings cannot be read, migrated or overwritten by an older release", async () => {
   const future = {
-    schemaVersion: 8,
+    schemaVersion: 9,
     enabled: false,
     futureFeature: { importantData: ["must", "survive"] }
   };
@@ -394,11 +400,53 @@ test("migrates schema 6 to 7 by adding the Recent Records flag", () => {
     roleThemes: {}
   };
   const migrated = api.normalize(v6);
-  assert.equal(migrated.schemaVersion, 7);
+  assert.equal(migrated.schemaVersion, 8);
   assert.equal(migrated.salesOrderColumnsEdit, true);
   assert.equal(migrated.recentRecords, false);
   assert.equal(migrated.salesOrderColumns, true);
   assert.equal(migrated.formViews, true);
   assert.equal(api.normalize({ recentRecords: "yes" }).recentRecords, false);
   assert.equal(api.normalize({ recentRecords: true }).recentRecords, true);
+});
+
+test("migrates schema 7 to 8 by adding the font preference", () => {
+  const { api } = createHarness();
+  const v7 = {
+    schemaVersion: 7,
+    enabled: true,
+    mode: "dark",
+    squareCorners: false,
+    showInternalIds: true,
+    salesOrderColumns: true,
+    smartTabTitles: false,
+    formViews: true,
+    salesOrderColumnsEdit: true,
+    recentRecords: true,
+    roleThemes: {}
+  };
+  const migrated = api.normalize(v7);
+  assert.equal(migrated.schemaVersion, 8);
+  assert.equal(migrated.font, "default");
+  assert.equal(migrated.recentRecords, true);
+
+  // The registry is the only source of valid ids; anything else — junk,
+  // prototype keys, casing drift — falls back to the default.
+  assert.equal(api.normalize({ font: "poppins" }).font, "poppins");
+  assert.equal(api.normalize({ font: "plus-jakarta-sans" }).font, "plus-jakarta-sans");
+  assert.equal(api.normalize({ font: "Comic Sans" }).font, "default");
+  assert.equal(api.normalize({ font: "__proto__" }).font, "default");
+  assert.equal(api.normalize({ font: "Poppins" }).font, "default");
+
+  assert.equal(Object.isFrozen(api.FONTS), true);
+  assert.equal(api.FONTS.default, null);
+  assert.equal(api.fontStack("default"), null);
+  const faces = api.fontFaceCss((file) => `u/${file}`);
+  assert.match(faces, /@font-face\{font-family:"Poppins";font-style:normal;font-weight:400;font-display:swap;src:url\("u\/poppins-400\.woff2"\) format\("woff2"\)\}/);
+  assert.match(faces, /font-family:"Satoshi";font-style:normal;font-weight:300 900/);
+  assert.equal((faces.match(/@font-face/g) ?? []).length, 13);
+  assert.equal(api.fontStack("nonsense"), null);
+  assert.equal(
+    api.fontStack("satoshi"),
+    '"Satoshi", "Oracle Sans", "Open Sans", Helvetica, sans-serif'
+  );
 });
