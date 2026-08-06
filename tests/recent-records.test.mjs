@@ -157,6 +157,23 @@ test("matches the reference hover activation behavior", () => {
   );
 });
 
+test("retains the popup while the trigger or popup is active", () => {
+  assert.match(runtimeSource, /const HOVER_CLOSE_DELAY_MS = 200;/);
+  assert.match(runtimeSource, /function retainPopover/);
+  assert.match(runtimeSource, /function schedulePopoverClose/);
+  assert.match(runtimeSource, /trigger\?\.matches\(":hover"\)/);
+  assert.match(runtimeSource, /popover\.matches\(":hover"\)/);
+  assert.match(runtimeSource, /popover\.contains\(document\.activeElement\)/);
+  assert.match(runtimeSource, /popover\.addEventListener\("mouseenter"/);
+  assert.match(runtimeSource, /popover\.addEventListener\("mouseleave"/);
+  assert.match(runtimeSource, /document\.addEventListener\("mouseout", handleTriggerExit, true\)/);
+  assert.doesNotMatch(runtimeSource, /renderActivePanel\(\);\s*setTimeout\(\(\) => activePanel\?\.panel === panel/);
+  assert.match(
+    styleSource,
+    /\.suitemate-v3-rr-hover-retained \{[\s\S]*?display: flex !important;[\s\S]*?visibility: visible !important;/
+  );
+});
+
 test("renders the reference-quality Recent Records panel structure", () => {
   for (const token of [
     "createSvgIcon",

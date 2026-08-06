@@ -11,6 +11,12 @@ html.suitemate-v3-recent-records-enabled
 }
 
 html.suitemate-v3-recent-records-enabled
+  div[data-widget="Popover"].suitemate-v3-rr-hover-retained {
+  display: flex !important;
+  visibility: visible !important;
+}
+
+html.suitemate-v3-recent-records-enabled
   div[data-widget="Popover"][data-suitemate-v3-recent-records-injected="true"]
   [data-widget="WindowBody"],
 html.suitemate-v3-recent-records-enabled

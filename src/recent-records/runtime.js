@@ -40,6 +40,8 @@
   const CACHE_TTL_MS = 60_000;
   const MAX_RESPONSE_BYTES = 2_000_000;
   const ACTIVATION_THROTTLE_MS = 200;
+  const HOVER_CLOSE_DELAY_MS = 200;
+  const HOVER_RETAINED_CLASS = "suitemate-v3-rr-hover-retained";
   const GROUPS = Object.freeze(["Today", "Yesterday", "This week", "Older"]);
   const RECORD_ICONS = Object.freeze({
     employee: "person",
@@ -74,6 +76,7 @@
   let storeWriteQueue = Promise.resolve();
   let settingsRevision = 0;
   let lastActivationAt = 0;
+  let hoverCloseTimer = 0;
 
   function resolveScopeKey() {
     let sessionId = "unknown";
@@ -146,6 +149,61 @@
     return records.some((record) => [...record.addedNodes].some((node) =>
       node.nodeType === Node.ELEMENT_NODE
       && (node.matches?.(POPOVER_SELECTOR) || node.querySelector?.(POPOVER_SELECTOR))));
+  }
+
+  function clearHoverClose() {
+    if (hoverCloseTimer) {
+      clearTimeout(hoverCloseTimer);
+      hoverCloseTimer = 0;
+    }
+  }
+
+  function retainPopover(popover = activePanel?.popover) {
+    clearHoverClose();
+    if (!popover?.isConnected) {
+      return;
+    }
+    popover.style.removeProperty("display");
+    popover.classList.add(HOVER_RETAINED_CLASS);
+  }
+
+  function schedulePopoverClose(popover = activePanel?.popover) {
+    clearHoverClose();
+    if (!popover?.isConnected) {
+      return;
+    }
+    hoverCloseTimer = setTimeout(() => {
+      hoverCloseTimer = 0;
+      if (!popover.isConnected || popover !== activePanel?.popover) {
+        return;
+      }
+      const trigger = document.querySelector(TRIGGER_SELECTOR);
+      if (
+        trigger?.matches(":hover")
+        || popover.matches(":hover")
+        || popover.contains(document.activeElement)
+      ) {
+        return;
+      }
+      popover.classList.remove(HOVER_RETAINED_CLASS);
+      popover.style.display = "none";
+    }, HOVER_CLOSE_DELAY_MS);
+  }
+
+  function isInsideActiveRegion(target) {
+    return target?.nodeType === Node.ELEMENT_NODE
+      && (
+        Boolean(target.closest?.(TRIGGER_SELECTOR))
+        || Boolean(activePanel?.popover?.contains(target))
+      );
+  }
+
+  function handleTriggerExit(event) {
+    const trigger = event.target?.closest?.(TRIGGER_SELECTOR);
+    if (!trigger || isInsideActiveRegion(event.relatedTarget)) {
+      return;
+    }
+    schedulePopoverClose();
   }
 
   function createElement(tagName, className, text) {
@@ -434,7 +492,7 @@
     }
   }
 
-  function injectPanel(popover) {
+  function injectPanel(popover, options = {}) {
     if (!enabled || disposed || !popover?.isConnected) {
       return;
     }
@@ -450,7 +508,21 @@
     panel.addEventListener("keydown", handlePanelKeydown);
     panel.addEventListener("click", (event) => {
       if (event.target?.closest?.("a")) {
+        clearHoverClose();
+        popover.classList.remove(HOVER_RETAINED_CLASS);
         popover.style.display = "none";
+      }
+    });
+    popover.addEventListener("mouseenter", () => retainPopover(popover));
+    popover.addEventListener("mouseleave", (event) => {
+      if (!isInsideActiveRegion(event.relatedTarget)) {
+        schedulePopoverClose(popover);
+      }
+    });
+    popover.addEventListener("focusin", () => retainPopover(popover));
+    popover.addEventListener("focusout", (event) => {
+      if (!isInsideActiveRegion(event.relatedTarget)) {
+        schedulePopoverClose(popover);
       }
     });
     body.replaceChildren(panel);
@@ -463,8 +535,11 @@
       viewAllHref,
       status: fetchController ? "loading" : "ready"
     };
+    retainPopover(popover);
     renderActivePanel();
-    setTimeout(() => activePanel?.panel === panel && panel.querySelector("input")?.focus(), 60);
+    if (options.focusSearch) {
+      setTimeout(() => activePanel?.panel === panel && panel.querySelector("input")?.focus(), 60);
+    }
     void refreshSnapshot();
   }
 
@@ -562,7 +637,7 @@
     }
   }
 
-  function scheduleActivation() {
+  function scheduleActivation(options = {}) {
     if (!enabled || disposed) {
       return;
     }
@@ -583,9 +658,14 @@
     }).then((popover) => {
       if (popover && enabled && !controller.signal.aborted) {
         if (popover.getAttribute(INJECTED_ATTRIBUTE) === "true") {
+          retainPopover(popover);
           renderActivePanel();
+          if (options.focusSearch) {
+            setTimeout(() => activePanel?.popover === popover
+              && activePanel.panel.querySelector("input")?.focus(), 60);
+          }
         } else {
-          injectPanel(popover);
+          injectPanel(popover, options);
         }
         return;
       }
@@ -597,12 +677,20 @@
     if (!enabled || !event.target?.closest?.(TRIGGER_SELECTOR)) {
       return;
     }
+    if (activePanel?.popover?.isConnected) {
+      retainPopover(activePanel.popover);
+      renderActivePanel();
+      if (event.type === "focusin") {
+        setTimeout(() => activePanel?.panel?.querySelector("input")?.focus(), 60);
+      }
+      return;
+    }
     const now = Date.now();
     if (now - lastActivationAt < ACTIVATION_THROTTLE_MS) {
       return;
     }
     lastActivationAt = now;
-    scheduleActivation();
+    scheduleActivation({ focusSearch: event.type === "focusin" });
   }
 
   const historyWatcher = lifecycleApi.register({
@@ -640,6 +728,8 @@
     );
     document.addEventListener("mouseover", handleActivation, true);
     document.addEventListener("focusin", handleActivation, true);
+    document.addEventListener("mouseout", handleTriggerExit, true);
+    document.addEventListener("focusout", handleTriggerExit, true);
     historyWatcher.resume("feature-enabled");
   }
 
@@ -648,6 +738,7 @@
       return;
     }
     enabled = false;
+    clearHoverClose();
     activationController?.abort("feature-disabled");
     activationController = null;
     fetchController?.abort("feature-disabled");
@@ -655,6 +746,8 @@
     historyWatcher.pause("feature-disabled");
     document.removeEventListener("mouseover", handleActivation, true);
     document.removeEventListener("focusin", handleActivation, true);
+    document.removeEventListener("mouseout", handleTriggerExit, true);
+    document.removeEventListener("focusout", handleTriggerExit, true);
     document.documentElement.classList.remove(
       "suitemate-v3-recent-records-enabled",
       "suitemate-v3-recent-records-armed"
