@@ -81,7 +81,7 @@ class FakeElement {
     this.id = id;
     this.classList = new FakeClassList(classes);
     this.dataset = {};
-    this.style = { setProperty() {} };
+    this.style = { setProperty() {}, removeProperty() {} };
     this.attributes = new Map();
     this.listeners = new Map();
     this.children = [];
@@ -209,7 +209,10 @@ function createPopupDocument() {
   const system = add("mode-system", "input");
   system.value = "system";
   const modes = [light, dark, system];
+  const fontSelect = add("fontSelect", "select");
+  fontSelect.value = "default";
   const formControls = [
+    fontSelect,
     enabled,
     squareCorners,
     showInternalIds,
@@ -241,8 +244,8 @@ function createPopupDocument() {
     if (selector === "input, button" || selector === "input, button, textarea") {
       return formControls;
     }
-    if (selector === "fieldset input, #squareCorners") {
-      return [...modes, squareCorners];
+    if (selector === "fieldset input, #squareCorners" || selector === "fieldset input, fieldset select, #squareCorners") {
+      return [...modes, fontSelect, squareCorners];
     }
     return [];
   };
@@ -319,9 +322,10 @@ function clone(value) {
 async function createPopupHarness(options = {}) {
   const dom = createPopupDocument();
   const initialSettings = {
-    schemaVersion: 7,
+    schemaVersion: 8,
     enabled: true,
     mode: "light",
+    font: "default",
     squareCorners: false,
     showInternalIds: false,
     salesOrderColumns: false,
@@ -549,9 +553,10 @@ test("popup exports, confirms and atomically imports a validated settings backup
   assert.equal(harness.element("status").textContent, "Settings backup copied");
 
   const importedSettings = {
-    schemaVersion: 7,
+    schemaVersion: 8,
     enabled: false,
     mode: "dark",
+    font: "satoshi",
     squareCorners: true,
     showInternalIds: true,
     salesOrderColumns: true,

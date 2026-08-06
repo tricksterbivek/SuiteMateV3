@@ -3,7 +3,9 @@
    colors stay WCAG-tuned over raw tokens. */
 :root {
   color-scheme: light;
-  font-family: "Helvetica Neue", Helvetica, Arial, "Noto Sans", sans-serif;
+  /* The selected UI font rides the same setting the content pages honor;
+     popup.js sets the variable and the popup previews it live. */
+  font-family: var(--suitemate-popup-font, "Helvetica Neue", Helvetica, Arial, "Noto Sans", sans-serif);
   background: #ffffff;
   color: #1c1e21;
   min-width: 360px;
@@ -199,6 +201,34 @@ fieldset label:has(input:focus-visible) {
 fieldset label input {
   width: 14px;
   height: 14px;
+}
+
+/* The font row holds a select, not a radio: full-width, squarer, no pill
+   states. The select inherits the live popup font so it previews itself. */
+fieldset .font-row {
+  grid-column: 1 / -1;
+  justify-content: space-between;
+  border-radius: var(--r-lg);
+  cursor: default;
+}
+
+.font-row select {
+  flex: 1;
+  max-width: 216px;
+  min-height: 26px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background: var(--canvas);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 6px;
+}
+
+.font-row select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .theme-card {

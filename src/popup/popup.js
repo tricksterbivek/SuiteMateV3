@@ -14,7 +14,25 @@
   const { IDS: COMMANDS, SOURCES: COMMAND_SOURCES } = commandApi;
   const form = document.querySelector("#settings");
   const enabledInput = document.querySelector("#enabled");
+  const fontSelect = document.querySelector("#fontSelect");
   const squareCornersInput = document.querySelector("#squareCorners");
+
+  // One option per registry entry; the family name doubles as the label so
+  // the registry stays the single source (settings.js FONTS). The faces are
+  // injected document-level with popup-relative URLs so each option and the
+  // popup itself can render the real face.
+  const fontFaceStyle = document.createElement("style");
+  fontFaceStyle.textContent = api.fontFaceCss((file) => `../styles/fonts/${file}`);
+  (document.head ?? document.documentElement).append(fontFaceStyle);
+  for (const [fontId, font] of Object.entries(api.FONTS)) {
+    const option = document.createElement("option");
+    option.value = fontId;
+    option.textContent = font ? font.family : "Default (system font)";
+    if (font) {
+      option.style.fontFamily = api.fontStack(fontId);
+    }
+    fontSelect.append(option);
+  }
   const showInternalIdsInput = document.querySelector("#showInternalIds");
   const salesOrderColumnsInput = document.querySelector("#salesOrderColumns");
   const smartTabTitlesInput = document.querySelector("#smartTabTitles");
@@ -414,6 +432,14 @@
     formViewsInput.checked = currentSettings.formViews;
     salesOrderColumnsEditInput.checked = currentSettings.salesOrderColumnsEdit;
     document.querySelector(`input[name="mode"][value="${currentSettings.mode}"]`).checked = true;
+    fontSelect.value = currentSettings.font;
+    // The popup previews its own setting: the selected stack rides the same
+    // variable popup.css falls back through, cleared for the default.
+    if (currentSettings.enabled && api.fontStack(currentSettings.font)) {
+      document.documentElement.style.setProperty("--suitemate-popup-font", api.fontStack(currentSettings.font));
+    } else {
+      document.documentElement.style.removeProperty("--suitemate-popup-font");
+    }
     form.dataset.settingsLocked = String(settingsLocked);
     form.setAttribute("aria-disabled", String(settingsLocked || settingsTransferBusy || !currentSettings.enabled));
     form.setAttribute("aria-busy", String(settingsTransferBusy));
@@ -426,7 +452,7 @@
     salesOrderColumnsEditInput.disabled = settingsLocked || settingsTransferBusy;
     resetButton.disabled = settingsLocked || settingsTransferBusy;
 
-    for (const input of form.querySelectorAll('fieldset input, #squareCorners')) {
+    for (const input of form.querySelectorAll('fieldset input, fieldset select, #squareCorners')) {
       input.disabled = settingsLocked || settingsTransferBusy || !currentSettings.enabled;
     }
 
@@ -438,6 +464,7 @@
     return {
       enabled: enabledInput.checked,
       mode: form.elements.mode.value,
+      font: fontSelect.value,
       squareCorners: squareCornersInput.checked,
       showInternalIds: showInternalIdsInput.checked,
       salesOrderColumns: salesOrderColumnsInput.checked,
