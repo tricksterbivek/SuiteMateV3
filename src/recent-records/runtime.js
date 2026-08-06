@@ -175,6 +175,9 @@
     if (!popover?.isConnected) {
       return;
     }
+    if (popover.contains(document.activeElement)) {
+      document.activeElement.blur();
+    }
     popover.classList.remove(HOVER_RETAINED_CLASS);
     popover.style.display = "none";
     if (popover.classList.contains(FLOAT_CLASS)) {
@@ -213,8 +216,8 @@
     }
     const anchor = trigger.getBoundingClientRect();
     const viewWidth = document.documentElement.clientWidth;
-    const width = Math.min(480, viewWidth - 24);
-    const left = Math.max(12, Math.min(anchor.left, viewWidth - width - 12));
+    const width = Math.min(412, viewWidth - 16);
+    const left = Math.max(8, Math.min(anchor.left, viewWidth - width - 8));
     const headingIn = lastPointer.y >= anchor.bottom - 4
       && lastPointer.x >= left - 24
       && lastPointer.x <= left + width + 24;
@@ -342,6 +345,9 @@
         add("line", { x1: "8", y1: String(y), x2: "21", y2: String(y) });
         add("line", { x1: "3", y1: String(y), x2: "3.01", y2: String(y) });
       }
+    } else if (name === "arrow-right") {
+      add("line", { x1: "5", y1: "12", x2: "19", y2: "12" });
+      add("polyline", { points: "12 5 19 12 12 19" });
     } else if (name === "external") {
       add("path", { d: "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" });
       add("polyline", { points: "15 3 21 3 21 9" });
@@ -382,12 +388,28 @@
     };
   }
 
+  function iconTint(record) {
+    if (["employee", "customer", "vendor", "contact", "partner"].includes(record.kind)) {
+      return "entity";
+    }
+    if (record.kind === "item") {
+      return "item";
+    }
+    if (record.kind === "transaction") {
+      const name = (record.name || "").toLowerCase();
+      if (name.startsWith("purchase order")) return "po";
+      if (name.startsWith("item receipt")) return "item";
+      return "transaction";
+    }
+    return "neutral";
+  }
+
   function createRecordRow(record) {
     const row = createElement("div", "suitemate-v3-rr-row");
     row.dataset.recordIdentity = record.identity;
     row.setAttribute("role", "listitem");
 
-    const icon = createElement("span", `suitemate-v3-rr-icon suitemate-v3-rr-icon-${record.kind}`);
+    const icon = createElement("span", `suitemate-v3-rr-icon suitemate-v3-rr-icon-tint-${iconTint(record)}`);
     icon.append(createSvgIcon(RECORD_ICONS[record.kind] ?? "file"));
     icon.setAttribute("aria-hidden", "true");
 
@@ -444,11 +466,7 @@
       return;
     }
     const modifier = options.pinned ? " suitemate-v3-rr-group-title-pinned" : "";
-    const heading = createElement("h3", `suitemate-v3-rr-group-title${modifier}`);
-    if (options.pinned) {
-      heading.append(createSvgIcon("star", "suitemate-v3-rr-group-star"));
-    }
-    heading.append(document.createTextNode(title));
+    const heading = createElement("h3", `suitemate-v3-rr-group-title${modifier}`, title);
     container.append(heading);
     for (const record of records) {
       container.append(createRecordRow(record));
@@ -471,22 +489,40 @@
     hidePopover();
   }
 
-  // NetSuite's own document-capture Escape handling can starve the panel's
-  // bubble listener while the rescued float is up, so cover Escape at capture
-  // level for the float; defaultPrevented guards against double handling.
-  function handleFloatKeydown(event) {
+  function isPanelOpen() {
     const popover = activePanel?.popover;
-    if (
-      event.key !== "Escape"
-      || event.defaultPrevented
-      || !popover?.isConnected
-      || !popover.classList.contains(FLOAT_CLASS)
-      || !popover.contains(event.target)
-    ) {
+    return Boolean(popover?.isConnected) && popover.style.display !== "none";
+  }
+
+  function isTypingTarget(target) {
+    return target?.nodeType === Node.ELEMENT_NODE && (
+      ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)
+      || target.isContentEditable
+    );
+  }
+
+  // Document-capture keyboard support: "/" focuses the search while the panel
+  // is open, and Escape still works while the rescued float is up (NetSuite's
+  // own capture handling can starve the panel's bubble listener there).
+  // defaultPrevented guards against double handling.
+  function handleGlobalKeydown(event) {
+    if (event.defaultPrevented || !isPanelOpen()) {
       return;
     }
-    event.preventDefault();
-    handlePanelEscape(activePanel.panel);
+    if (event.key === "/" && !isTypingTarget(event.target)) {
+      event.preventDefault();
+      activePanel.panel.querySelector(".suitemate-v3-rr-search")?.focus();
+      return;
+    }
+    const popover = activePanel.popover;
+    if (
+      event.key === "Escape"
+      && popover.classList.contains(FLOAT_CLASS)
+      && popover.contains(event.target)
+    ) {
+      event.preventDefault();
+      handlePanelEscape(activePanel.panel);
+    }
   }
 
   function handlePanelKeydown(event) {
@@ -529,19 +565,26 @@
     }
     const focusIdentity = document.activeElement?.closest?.("[data-record-identity]")?.dataset.recordIdentity;
     const panel = state.panel;
+    const previousScroll = panel.querySelector(".suitemate-v3-rr-list")?.scrollTop ?? 0;
     panel.replaceChildren();
 
     const header = createElement("header", "suitemate-v3-rr-header");
-    header.append(createElement("h2", "suitemate-v3-rr-title", "Recent Records"));
     const model = core.mergeRecords(getScope(), location.origin);
     const total = model.pinned.length + model.recent.length;
     const filtered = matchingRecords(model, state.query);
     const filteredTotal = filtered.pinned.length + filtered.recent.length;
+    const titleRow = createElement("div", "suitemate-v3-rr-title-row");
+    titleRow.append(createElement("h2", "suitemate-v3-rr-title", "Recent records"));
+    const countText = state.query ? `${filteredTotal} / ${total}` : (total ? String(total) : "");
+    if (countText) {
+      titleRow.append(createElement("span", "suitemate-v3-rr-count", countText));
+    }
+    header.append(titleRow);
     const searchWrap = createElement("div", "suitemate-v3-rr-search-wrap");
     searchWrap.append(createSvgIcon("search", "suitemate-v3-rr-search-icon"));
     const search = createElement("input", "suitemate-v3-rr-search");
     search.type = "text";
-    search.placeholder = "Search...";
+    search.placeholder = "Search recent records";
     search.setAttribute("aria-label", "Search recent records");
     search.setAttribute("autocomplete", "off");
     search.setAttribute("spellcheck", "false");
@@ -550,22 +593,20 @@
       state.query = search.value;
       renderActivePanel({ focusSearch: true });
     });
-    searchWrap.append(search, createElement(
-      "span",
-      "suitemate-v3-rr-count",
-      state.query ? `${filteredTotal} / ${total}` : (total ? String(total) : "")
-    ));
+    const slashHint = createElement("kbd", "suitemate-v3-rr-slash-hint", "/");
+    slashHint.setAttribute("aria-hidden", "true");
+    searchWrap.append(search, slashHint);
     header.append(searchWrap);
 
-    const allBar = createElement("div", "suitemate-v3-rr-allbar");
+    const footer = createElement("footer", "suitemate-v3-rr-footer");
     const viewAll = createElement("a", "suitemate-v3-rr-all-button");
     viewAll.href = state.viewAllHref;
     viewAll.title = "View all recent NetSuite records";
     viewAll.append(
-      createSvgIcon("list"),
-      createElement("span", "", "View all recent records")
+      createElement("span", "", "View all recent records"),
+      createSvgIcon("arrow-right")
     );
-    allBar.append(viewAll);
+    footer.append(viewAll);
 
     const body = createElement("div", "suitemate-v3-rr-list");
     body.setAttribute("role", "list");
@@ -597,7 +638,8 @@
           core.groupForTimestamp(record.timestamp || core.parseRecentDate(record.dateText)) === group));
       }
     }
-    panel.append(header, allBar, body);
+    panel.append(header, body, footer);
+    body.scrollTop = previousScroll;
     if (options.focusSearch) {
       search.focus();
       search.setSelectionRange(search.value.length, search.value.length);
@@ -838,7 +880,7 @@
     document.addEventListener("focusin", handleActivation, true);
     document.addEventListener("mouseout", handleTriggerExit, true);
     document.addEventListener("focusout", handleTriggerExit, true);
-    document.addEventListener("keydown", handleFloatKeydown, true);
+    document.addEventListener("keydown", handleGlobalKeydown, true);
     historyWatcher.resume("feature-enabled");
   }
 
@@ -857,7 +899,7 @@
     document.removeEventListener("focusin", handleActivation, true);
     document.removeEventListener("mouseout", handleTriggerExit, true);
     document.removeEventListener("focusout", handleTriggerExit, true);
-    document.removeEventListener("keydown", handleFloatKeydown, true);
+    document.removeEventListener("keydown", handleGlobalKeydown, true);
     document.documentElement.classList.remove(
       "suitemate-v3-recent-records-enabled",
       "suitemate-v3-recent-records-armed"

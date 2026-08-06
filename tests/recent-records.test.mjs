@@ -174,11 +174,14 @@ test("retains the popup while the trigger or popup is active", () => {
   );
 });
 
-test("renders the reference-quality Recent Records panel structure", () => {
+test("renders the compact Recent Records panel structure", () => {
   for (const token of [
     "createSvgIcon",
     "suitemate-v3-rr-search-icon",
-    "suitemate-v3-rr-allbar",
+    "suitemate-v3-rr-title-row",
+    "suitemate-v3-rr-count",
+    "suitemate-v3-rr-slash-hint",
+    "suitemate-v3-rr-footer",
     "suitemate-v3-rr-group-title-pinned",
     "suitemate-v3-rr-action-view",
     "suitemate-v3-rr-action-edit",
@@ -186,11 +189,45 @@ test("renders the reference-quality Recent Records panel structure", () => {
   ]) {
     assert.match(runtimeSource, new RegExp(token));
   }
-  assert.match(styleSource, /width: min\(480px, calc\(100vw - 24px\)\)/);
-  assert.match(styleSource, /max-height: min\(480px, calc\(100vh - 40px\)\)/);
+  assert.match(runtimeSource, /"Recent records"/);
+  assert.match(runtimeSource, /"Search recent records"/);
+  assert.match(styleSource, /width: min\(412px, calc\(100vw - 16px\)\)/);
+  assert.match(styleSource, /max-height: min\(560px, calc\(100vh - 40px\)\)/);
   assert.match(styleSource, /\.suitemate-v3-rr-group-title \{[\s\S]*?position: sticky;/);
   assert.match(styleSource, /\.suitemate-v3-rr-row:hover \.suitemate-v3-rr-row-actions/);
+  assert.match(styleSource, /\.suitemate-v3-rr-row:focus-within \.suitemate-v3-rr-row-actions/);
   assert.match(styleSource, /\.suitemate-v3-rr-action-pin\.is-pinned svg/);
+  assert.match(styleSource, /scrollbar-width: thin;/);
+});
+
+test("groups records into a pinned section, date sections and a footer link", () => {
+  assert.match(runtimeSource, /appendGroup\(body, "Pinned", filtered\.pinned, \{ pinned: true \}\)/);
+  assert.match(runtimeSource, /\["Today", "Yesterday", "This week", "Older"\]/);
+  assert.match(runtimeSource, /"View all recent records"/);
+  assert.match(runtimeSource, /createSvgIcon\("arrow-right"\)/);
+  assert.match(runtimeSource, /panel\.append\(header, body, footer\);/);
+  assert.match(runtimeSource, /body\.scrollTop = previousScroll;/);
+});
+
+test("record icons carry restrained semantic tints", () => {
+  assert.match(runtimeSource, /function iconTint/);
+  assert.match(runtimeSource, /suitemate-v3-rr-icon-tint-\$\{iconTint\(record\)\}/);
+  for (const tint of ["transaction", "item", "entity", "po", "neutral"]) {
+    assert.match(styleSource, new RegExp(`\\.suitemate-v3-rr-icon-tint-${tint} \\{`));
+  }
+});
+
+test("slash focuses the search unless the user is already typing", () => {
+  assert.match(runtimeSource, /function isTypingTarget/);
+  assert.match(runtimeSource, /\["INPUT", "TEXTAREA", "SELECT"\]\.includes\(target\.tagName\)/);
+  assert.match(runtimeSource, /target\.isContentEditable/);
+  assert.match(runtimeSource, /event\.key === "\/" && !isTypingTarget\(event\.target\)/);
+});
+
+test("responsive rules keep the popup inside the viewport", () => {
+  assert.match(styleSource, /max-width: calc\(100vw - 16px\)/);
+  assert.match(styleSource, /@media \(max-width: 380px\) \{[\s\S]*?\.suitemate-v3-rr-secondary \{\s*display: none;/);
+  assert.match(styleSource, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
 test("panel survives NetSuite unmounting its popover mid-hover", () => {
@@ -202,13 +239,26 @@ test("panel survives NetSuite unmounting its popover mid-hover", () => {
 
 test("panel offers keyboard escape, semantic group headings and recoverable states", () => {
   assert.match(runtimeSource, /suppressActivationUntil = Date\.now\(\) \+ 350;\s*hidePopover\(\);/);
-  assert.match(runtimeSource, /function handleFloatKeydown/);
-  assert.match(runtimeSource, /document\.addEventListener\("keydown", handleFloatKeydown, true\)/);
-  assert.match(runtimeSource, /document\.removeEventListener\("keydown", handleFloatKeydown, true\)/);
-  assert.match(runtimeSource, /createElement\("h3", `suitemate-v3-rr-group-title\$\{modifier\}`\)/);
+  assert.match(runtimeSource, /function handleGlobalKeydown/);
+  assert.match(runtimeSource, /createElement\("h3", `suitemate-v3-rr-group-title\$\{modifier\}`, title\)/);
   assert.doesNotMatch(runtimeSource, /"presentation"/);
   assert.match(runtimeSource, /suitemate-v3-rr-retry/);
   assert.match(runtimeSource, /suitemate-v3-rr-message-hint/);
+  assert.match(runtimeSource, /if \(popover\.contains\(document\.activeElement\)\) \{\s*document\.activeElement\.blur\(\);/);
+});
+
+test("disabling the feature removes every document listener", () => {
+  for (const pair of [
+    ['"mouseover", handleActivation'],
+    ['"focusin", handleActivation'],
+    ['"mouseout", handleTriggerExit'],
+    ['"focusout", handleTriggerExit'],
+    ['"keydown", handleGlobalKeydown']
+  ]) {
+    const suffix = pair[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    assert.match(runtimeSource, new RegExp(`document\\.addEventListener\\(${suffix}, true\\)`));
+    assert.match(runtimeSource, new RegExp(`document\\.removeEventListener\\(${suffix}, true\\)`));
+  }
 });
 
 test("the core has no DOM, Chrome storage or network authority", () => {
