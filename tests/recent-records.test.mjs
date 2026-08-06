@@ -246,6 +246,8 @@ test("panel offers keyboard escape, semantic group headings and recoverable stat
   assert.match(runtimeSource, /suppressActivationUntil = Date\.now\(\) \+ 350;\s*hidePopover\(\);/);
   assert.match(runtimeSource, /function handleGlobalKeydown/);
   assert.match(runtimeSource, /maybeRescuePanel\(\{ force: true \}\)/);
+  assert.match(runtimeSource, /function ensureFloatHost/);
+  assert.match(runtimeSource, /if \(activePanel\.popover\?\.isConnected\) \{\s*ensureFloatHost\(\);/);
   assert.match(runtimeSource, /event\.key === "Escape" && activePanel\.panel\?\.contains\(event\.target\)/);
   assert.match(runtimeSource, /createElement\("h3", `suitemate-v3-rr-group-title\$\{modifier\}`, title\)/);
   assert.doesNotMatch(runtimeSource, /"presentation"/);

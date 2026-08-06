@@ -204,6 +204,17 @@
     });
   }
 
+  function buildFloatHolder(anchor) {
+    const viewWidth = document.documentElement.clientWidth;
+    const width = Math.min(412, viewWidth - 16);
+    const left = Math.max(8, Math.min(anchor.left, viewWidth - width - 8));
+    const holder = createElement("div", FLOAT_CLASS);
+    holder.style.left = `${left}px`;
+    holder.style.top = `${anchor.bottom}px`;
+    holder.style.width = `${width}px`;
+    return holder;
+  }
+
   // NetSuite unmounts its popover when the cursor clips a neighboring menu item
   // on the way in. The panel node survives detachment, so re-seat it in a
   // fixed-position holder anchored under the trigger and keep the same
@@ -216,9 +227,9 @@
       return;
     }
     const anchor = trigger.getBoundingClientRect();
-    const viewWidth = document.documentElement.clientWidth;
-    const width = Math.min(412, viewWidth - 16);
-    const left = Math.max(8, Math.min(anchor.left, viewWidth - width - 8));
+    const holder = buildFloatHolder(anchor);
+    const left = parseFloat(holder.style.left);
+    const width = parseFloat(holder.style.width);
     const headingIn = options.force || (lastPointer.y >= anchor.bottom - 4
       && lastPointer.x >= left - 24
       && lastPointer.x <= left + width + 24);
@@ -226,15 +237,34 @@
       activePanel = null;
       return;
     }
-    const holder = createElement("div", FLOAT_CLASS);
-    holder.style.left = `${left}px`;
-    holder.style.top = `${anchor.bottom}px`;
-    holder.style.width = `${width}px`;
     holder.append(panel);
     bindHoverRegion(holder);
     document.body.append(holder);
     activePanel.popover = holder;
     schedulePopoverClose(holder);
+  }
+
+  // Move the panel out of NetSuite's popover into our own float while the
+  // popover is still connected — used when NetSuite is about to unmount it
+  // (its Escape handling ignores preventDefault) and we intend to stay open.
+  function ensureFloatHost() {
+    const state = activePanel;
+    const trigger = document.querySelector(TRIGGER_SELECTOR);
+    if (!state?.panel || !trigger || state.popover?.classList?.contains(FLOAT_CLASS)) {
+      return;
+    }
+    const previous = state.popover;
+    const holder = buildFloatHolder(trigger.getBoundingClientRect());
+    holder.append(state.panel);
+    bindHoverRegion(holder);
+    document.body.append(holder);
+    state.popover = holder;
+    if (previous?.isConnected) {
+      previous.classList.remove(HOVER_RETAINED_CLASS);
+      previous.removeAttribute(INJECTED_ATTRIBUTE);
+      previous.style.display = "none";
+    }
+    retainPopover(holder);
   }
 
   function schedulePopoverClose(popover = activePanel?.popover) {
@@ -501,11 +531,13 @@
       search.value = "";
       if (activePanel) {
         activePanel.query = "";
-      }
-      // NetSuite's own capture handler may have unmounted the popover on this
-      // same Escape; re-seat the panel so the clear stays visible.
-      if (activePanel && !activePanel.popover?.isConnected) {
-        maybeRescuePanel({ force: true });
+        // NetSuite processes this same Escape after us and unmounts its
+        // popover regardless of preventDefault, so re-seat the panel first.
+        if (activePanel.popover?.isConnected) {
+          ensureFloatHost();
+        } else {
+          maybeRescuePanel({ force: true });
+        }
       }
       renderActivePanel({ focusSearch: true });
       return;
