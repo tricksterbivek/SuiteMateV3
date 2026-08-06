@@ -42,6 +42,8 @@
   const ACTIVATION_THROTTLE_MS = 200;
   const HOVER_CLOSE_DELAY_MS = 200;
   const HOVER_RETAINED_CLASS = "suitemate-v3-rr-hover-retained";
+  const FLOAT_CLASS = "suitemate-v3-rr-float";
+  const KEY_HANDLED_FLAG = "suitemateV3RecentRecordsKeyHandled";
   const GROUPS = Object.freeze(["Today", "Yesterday", "This week", "Older"]);
   const RECORD_ICONS = Object.freeze({
     employee: "person",
@@ -77,6 +79,8 @@
   let settingsRevision = 0;
   let lastActivationAt = 0;
   let hoverCloseTimer = 0;
+  let suppressActivationUntil = 0;
+  const lastPointer = { x: 0, y: 0 };
 
   function resolveScopeKey() {
     let sessionId = "unknown";
@@ -167,6 +171,102 @@
     popover.classList.add(HOVER_RETAINED_CLASS);
   }
 
+  function hidePopover(popover = activePanel?.popover) {
+    clearHoverClose();
+    if (!popover?.isConnected) {
+      return;
+    }
+    if (popover.contains(document.activeElement)) {
+      document.activeElement.blur();
+    }
+    popover.classList.remove(HOVER_RETAINED_CLASS);
+    popover.style.display = "none";
+    if (popover.classList.contains(FLOAT_CLASS)) {
+      popover.remove();
+      if (activePanel?.popover === popover) {
+        activePanel = null;
+      }
+    }
+  }
+
+  function bindHoverRegion(popover) {
+    popover.addEventListener("mouseenter", () => retainPopover(popover));
+    popover.addEventListener("mouseleave", (event) => {
+      if (!isInsideActiveRegion(event.relatedTarget)) {
+        schedulePopoverClose(popover);
+      }
+    });
+    popover.addEventListener("focusin", () => retainPopover(popover));
+    popover.addEventListener("focusout", (event) => {
+      if (!isInsideActiveRegion(event.relatedTarget)) {
+        schedulePopoverClose(popover);
+      }
+    });
+  }
+
+  function buildFloatHolder(anchor) {
+    const viewWidth = document.documentElement.clientWidth;
+    const width = Math.min(412, viewWidth - 16);
+    const left = Math.max(8, Math.min(anchor.left, viewWidth - width - 8));
+    const holder = createElement("div", FLOAT_CLASS);
+    holder.style.left = `${left}px`;
+    holder.style.top = `${anchor.bottom}px`;
+    holder.style.width = `${width}px`;
+    return holder;
+  }
+
+  // NetSuite unmounts its popover when the cursor clips a neighboring menu item
+  // on the way in. The panel node survives detachment, so re-seat it in a
+  // fixed-position holder anchored under the trigger and keep the same
+  // retain/close lifecycle.
+  function maybeRescuePanel(options = {}) {
+    const panel = activePanel?.panel;
+    const trigger = document.querySelector(TRIGGER_SELECTOR);
+    if (!panel || panel.isConnected || !trigger) {
+      activePanel = null;
+      return;
+    }
+    const anchor = trigger.getBoundingClientRect();
+    const holder = buildFloatHolder(anchor);
+    const left = parseFloat(holder.style.left);
+    const width = parseFloat(holder.style.width);
+    const headingIn = options.force || (lastPointer.y >= anchor.bottom - 4
+      && lastPointer.x >= left - 24
+      && lastPointer.x <= left + width + 24);
+    if (!headingIn) {
+      activePanel = null;
+      return;
+    }
+    holder.append(panel);
+    bindHoverRegion(holder);
+    document.body.append(holder);
+    activePanel.popover = holder;
+    schedulePopoverClose(holder);
+  }
+
+  // Move the panel out of NetSuite's popover into our own float while the
+  // popover is still connected — used when NetSuite is about to unmount it
+  // (its Escape handling ignores preventDefault) and we intend to stay open.
+  function ensureFloatHost() {
+    const state = activePanel;
+    const trigger = document.querySelector(TRIGGER_SELECTOR);
+    if (!state?.panel || !trigger || state.popover?.classList?.contains(FLOAT_CLASS)) {
+      return;
+    }
+    const previous = state.popover;
+    const holder = buildFloatHolder(trigger.getBoundingClientRect());
+    holder.append(state.panel);
+    bindHoverRegion(holder);
+    document.body.append(holder);
+    state.popover = holder;
+    if (previous?.isConnected) {
+      previous.classList.remove(HOVER_RETAINED_CLASS);
+      previous.removeAttribute(INJECTED_ATTRIBUTE);
+      previous.style.display = "none";
+    }
+    retainPopover(holder);
+  }
+
   function schedulePopoverClose(popover = activePanel?.popover) {
     clearHoverClose();
     if (!popover?.isConnected) {
@@ -174,7 +274,11 @@
     }
     hoverCloseTimer = setTimeout(() => {
       hoverCloseTimer = 0;
-      if (!popover.isConnected || popover !== activePanel?.popover) {
+      if (popover !== activePanel?.popover) {
+        return;
+      }
+      if (!popover.isConnected) {
+        maybeRescuePanel();
         return;
       }
       const trigger = document.querySelector(TRIGGER_SELECTOR);
@@ -185,8 +289,7 @@
       ) {
         return;
       }
-      popover.classList.remove(HOVER_RETAINED_CLASS);
-      popover.style.display = "none";
+      hidePopover(popover);
     }, HOVER_CLOSE_DELAY_MS);
   }
 
@@ -199,6 +302,10 @@
   }
 
   function handleTriggerExit(event) {
+    if (event.type === "mouseout") {
+      lastPointer.x = event.clientX;
+      lastPointer.y = event.clientY;
+    }
     const trigger = event.target?.closest?.(TRIGGER_SELECTOR);
     if (!trigger || isInsideActiveRegion(event.relatedTarget)) {
       return;
@@ -269,6 +376,9 @@
         add("line", { x1: "8", y1: String(y), x2: "21", y2: String(y) });
         add("line", { x1: "3", y1: String(y), x2: "3.01", y2: String(y) });
       }
+    } else if (name === "arrow-right") {
+      add("line", { x1: "5", y1: "12", x2: "19", y2: "12" });
+      add("polyline", { points: "12 5 19 12 12 19" });
     } else if (name === "external") {
       add("path", { d: "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" });
       add("polyline", { points: "15 3 21 3 21 9" });
@@ -309,13 +419,42 @@
     };
   }
 
+  function iconTint(record) {
+    if (["employee", "customer", "vendor", "contact", "partner"].includes(record.kind)) {
+      return "entity";
+    }
+    if (record.kind === "item") {
+      return "item";
+    }
+    if (record.kind === "transaction") {
+      const name = (record.name || "").toLowerCase();
+      if (name.startsWith("purchase order")) return "po";
+      if (name.startsWith("item receipt")) return "item";
+      return "transaction";
+    }
+    if (/^(customer|vendor|employee|contact|partner)$/i.test((record.secondary || "").trim())) {
+      return "entity";
+    }
+    return "neutral";
+  }
+
+  function iconGlyph(record) {
+    if (iconTint(record) === "entity") {
+      return "person";
+    }
+    if ((record.name || "").toLowerCase().startsWith("item receipt")) {
+      return "file";
+    }
+    return RECORD_ICONS[record.kind] ?? "file";
+  }
+
   function createRecordRow(record) {
     const row = createElement("div", "suitemate-v3-rr-row");
     row.dataset.recordIdentity = record.identity;
     row.setAttribute("role", "listitem");
 
-    const icon = createElement("span", `suitemate-v3-rr-icon suitemate-v3-rr-icon-${record.kind}`);
-    icon.append(createSvgIcon(RECORD_ICONS[record.kind] ?? "file"));
+    const icon = createElement("span", `suitemate-v3-rr-icon suitemate-v3-rr-icon-tint-${iconTint(record)}`);
+    icon.append(createSvgIcon(iconGlyph(record)));
     icon.setAttribute("aria-hidden", "true");
 
     const main = createElement("a", "suitemate-v3-rr-main");
@@ -360,7 +499,11 @@
     actions.append(pin);
     row.append(main);
     if (!record.pinned) {
-      row.append(createElement("span", "suitemate-v3-rr-date", core.displayDate(record)));
+      row.append(createElement(
+        "span",
+        "suitemate-v3-rr-date",
+        core.displayDate(record).replace(/^(today|yesterday),\s*/i, "")
+      ));
     }
     row.append(actions);
     return row;
@@ -371,12 +514,7 @@
       return;
     }
     const modifier = options.pinned ? " suitemate-v3-rr-group-title-pinned" : "";
-    const heading = createElement("div", `suitemate-v3-rr-group-title${modifier}`);
-    heading.setAttribute("role", "presentation");
-    if (options.pinned) {
-      heading.append(createSvgIcon("star", "suitemate-v3-rr-group-star"));
-    }
-    heading.append(document.createTextNode(title));
+    const heading = createElement("h3", `suitemate-v3-rr-group-title${modifier}`, title);
     container.append(heading);
     for (const record of records) {
       container.append(createRecordRow(record));
@@ -387,14 +525,81 @@
     return [...panel.querySelectorAll(".suitemate-v3-rr-main")];
   }
 
+  function handlePanelEscape(panel) {
+    const search = panel.querySelector(".suitemate-v3-rr-search");
+    if (search?.value) {
+      search.value = "";
+      if (activePanel) {
+        activePanel.query = "";
+        // NetSuite processes this same Escape after us and unmounts its
+        // popover regardless of preventDefault, so re-seat the panel first.
+        if (activePanel.popover?.isConnected) {
+          ensureFloatHost();
+        } else {
+          maybeRescuePanel({ force: true });
+        }
+      }
+      renderActivePanel({ focusSearch: true });
+      return;
+    }
+    suppressActivationUntil = Date.now() + 350;
+    hidePopover();
+  }
+
+  function isPanelOpen() {
+    const popover = activePanel?.popover;
+    return Boolean(popover?.isConnected) && popover.style.display !== "none";
+  }
+
+  function isTypingTarget(target) {
+    return target?.nodeType === Node.ELEMENT_NODE && (
+      ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)
+      || target.isContentEditable
+    );
+  }
+
+  // Escape runs at WINDOW capture so it precedes NetSuite's document-level
+  // handlers (which preventDefault the key and unmount the popover before a
+  // later listener can clear the search). "/" deliberately stays at DOCUMENT
+  // capture: NetSuite must process it first and close its menu state, or its
+  // menubar typeahead swallows the letters typed into the search afterwards.
+  // The expando flag dedupes against the panel's own listener —
+  // defaultPrevented is unusable because NetSuite sets it on Escape itself.
+  function handleGlobalKeydown(event) {
+    if (event[KEY_HANDLED_FLAG] || !activePanel) {
+      return;
+    }
+    if (event.key === "Escape" && activePanel.panel?.contains(event.target)) {
+      event[KEY_HANDLED_FLAG] = true;
+      event.preventDefault();
+      handlePanelEscape(activePanel.panel);
+    }
+  }
+
+  function handleSlashKeydown(event) {
+    if (
+      event[KEY_HANDLED_FLAG]
+      || event.key !== "/"
+      || !isPanelOpen()
+      || isTypingTarget(event.target)
+    ) {
+      return;
+    }
+    event[KEY_HANDLED_FLAG] = true;
+    event.preventDefault();
+    activePanel.panel.querySelector(".suitemate-v3-rr-search")?.focus();
+  }
+
   function handlePanelKeydown(event) {
     const panel = event.currentTarget;
     const search = panel.querySelector(".suitemate-v3-rr-search");
-    if (event.key === "Escape" && search?.value) {
+    if (event.key === "Escape") {
+      if (event[KEY_HANDLED_FLAG]) {
+        return;
+      }
+      event[KEY_HANDLED_FLAG] = true;
       event.preventDefault();
-      search.value = "";
-      activePanel.query = "";
-      renderActivePanel({ focusSearch: true });
+      handlePanelEscape(panel);
       return;
     }
     const rows = focusRows(panel);
@@ -418,6 +623,53 @@
     rows[next].focus();
   }
 
+  // Built once per injection. Rebuilding the chrome on every keystroke would
+  // detach the focused search mid-typing, and NetSuite's menu manager closes
+  // its popover the moment focus leaves it.
+  function buildPanelChrome(state) {
+    const header = createElement("header", "suitemate-v3-rr-header");
+    const titleRow = createElement("div", "suitemate-v3-rr-title-row");
+    titleRow.append(createElement("h2", "suitemate-v3-rr-title", "Recent records"));
+    const count = createElement("span", "suitemate-v3-rr-count");
+    titleRow.append(count);
+    header.append(titleRow);
+    const searchWrap = createElement("div", "suitemate-v3-rr-search-wrap");
+    searchWrap.append(createSvgIcon("search", "suitemate-v3-rr-search-icon"));
+    const search = createElement("input", "suitemate-v3-rr-search");
+    search.type = "text";
+    search.placeholder = "Search recent records";
+    search.setAttribute("aria-label", "Search recent records");
+    search.setAttribute("autocomplete", "off");
+    search.setAttribute("spellcheck", "false");
+    search.value = state.query;
+    search.addEventListener("input", () => {
+      state.query = search.value;
+      renderActivePanel();
+    });
+    const slashHint = createElement("kbd", "suitemate-v3-rr-slash-hint", "/");
+    slashHint.setAttribute("aria-hidden", "true");
+    searchWrap.append(search, slashHint);
+    header.append(searchWrap);
+
+    const body = createElement("div", "suitemate-v3-rr-list");
+    body.setAttribute("role", "list");
+
+    const footer = createElement("footer", "suitemate-v3-rr-footer");
+    const viewAll = createElement("a", "suitemate-v3-rr-all-button");
+    viewAll.href = state.viewAllHref;
+    viewAll.title = "View all recent NetSuite records";
+    viewAll.append(
+      createElement("span", "", "View all recent records"),
+      createSvgIcon("arrow-right")
+    );
+    footer.append(viewAll);
+
+    state.countEl = count;
+    state.searchEl = search;
+    state.listEl = body;
+    state.panel.append(header, body, footer);
+  }
+
   function renderActivePanel(options = {}) {
     const state = activePanel;
     if (!state?.panel?.isConnected || !state.popover?.isConnected) {
@@ -425,57 +677,39 @@
       return;
     }
     const focusIdentity = document.activeElement?.closest?.("[data-record-identity]")?.dataset.recordIdentity;
-    const panel = state.panel;
-    panel.replaceChildren();
-
-    const header = createElement("header", "suitemate-v3-rr-header");
-    header.append(createElement("h2", "suitemate-v3-rr-title", "Recent Records"));
     const model = core.mergeRecords(getScope(), location.origin);
     const total = model.pinned.length + model.recent.length;
     const filtered = matchingRecords(model, state.query);
     const filteredTotal = filtered.pinned.length + filtered.recent.length;
-    const searchWrap = createElement("div", "suitemate-v3-rr-search-wrap");
-    searchWrap.append(createSvgIcon("search", "suitemate-v3-rr-search-icon"));
-    const search = createElement("input", "suitemate-v3-rr-search");
-    search.type = "text";
-    search.placeholder = "Search...";
-    search.setAttribute("aria-label", "Search recent records");
-    search.setAttribute("autocomplete", "off");
-    search.setAttribute("spellcheck", "false");
-    search.value = state.query;
-    search.addEventListener("input", () => {
-      state.query = search.value;
-      renderActivePanel({ focusSearch: true });
-    });
-    searchWrap.append(search, createElement(
-      "span",
-      "suitemate-v3-rr-count",
-      state.query ? `${filteredTotal} / ${total}` : (total ? String(total) : "")
-    ));
-    header.append(searchWrap);
-
-    const allBar = createElement("div", "suitemate-v3-rr-allbar");
-    const viewAll = createElement("a", "suitemate-v3-rr-all-button");
-    viewAll.href = state.viewAllHref;
-    viewAll.title = "View all recent NetSuite records";
-    viewAll.append(
-      createSvgIcon("list"),
-      createElement("span", "", "View all recent records")
-    );
-    allBar.append(viewAll);
-
-    const body = createElement("div", "suitemate-v3-rr-list");
-    body.setAttribute("role", "list");
+    state.countEl.textContent = state.query ? `${filteredTotal} / ${total}` : (total ? String(total) : "");
+    if (state.searchEl.value !== state.query) {
+      state.searchEl.value = state.query;
+    }
+    const search = state.searchEl;
+    const body = state.listEl;
+    const previousScroll = body.scrollTop;
+    body.replaceChildren();
     if (state.status === "loading" && total === 0) {
       body.append(createElement("div", "suitemate-v3-rr-message", "Loading recent records..."));
     } else if (state.status === "error" && total === 0) {
-      body.append(createElement("div", "suitemate-v3-rr-message suitemate-v3-rr-error", "Recent records could not be loaded."));
+      const failed = createElement("div", "suitemate-v3-rr-message");
+      failed.append(createElement("strong", "suitemate-v3-rr-error", "Recent records could not be loaded."));
+      const retry = createElement("button", "suitemate-v3-rr-retry", "Try again");
+      retry.type = "button";
+      retry.addEventListener("click", () => void refreshSnapshot());
+      failed.append(retry);
+      body.append(failed);
     } else if (filteredTotal === 0) {
-      body.append(createElement(
-        "div",
-        "suitemate-v3-rr-message",
-        state.query ? "No matching records." : "No recent records yet."
-      ));
+      const empty = createElement("div", "suitemate-v3-rr-message");
+      empty.append(
+        createElement("strong", "", state.query ? "No matching records." : "No recent records yet."),
+        createElement(
+          "span",
+          "suitemate-v3-rr-message-hint",
+          state.query ? "Try a shorter or different search." : "Records you open in NetSuite will show up here."
+        )
+      );
+      body.append(empty);
     } else {
       appendGroup(body, "Pinned", filtered.pinned, { pinned: true });
       for (const group of GROUPS) {
@@ -483,12 +717,12 @@
           core.groupForTimestamp(record.timestamp || core.parseRecentDate(record.dateText)) === group));
       }
     }
-    panel.append(header, allBar, body);
+    body.scrollTop = previousScroll;
     if (options.focusSearch) {
       search.focus();
       search.setSelectionRange(search.value.length, search.value.length);
     } else if (focusIdentity) {
-      panel.querySelector(`[data-record-identity="${CSS.escape(focusIdentity)}"] .suitemate-v3-rr-main`)?.focus();
+      body.querySelector(`[data-record-identity="${CSS.escape(focusIdentity)}"] .suitemate-v3-rr-main`)?.focus();
     }
   }
 
@@ -508,23 +742,10 @@
     panel.addEventListener("keydown", handlePanelKeydown);
     panel.addEventListener("click", (event) => {
       if (event.target?.closest?.("a")) {
-        clearHoverClose();
-        popover.classList.remove(HOVER_RETAINED_CLASS);
-        popover.style.display = "none";
+        hidePopover(popover);
       }
     });
-    popover.addEventListener("mouseenter", () => retainPopover(popover));
-    popover.addEventListener("mouseleave", (event) => {
-      if (!isInsideActiveRegion(event.relatedTarget)) {
-        schedulePopoverClose(popover);
-      }
-    });
-    popover.addEventListener("focusin", () => retainPopover(popover));
-    popover.addEventListener("focusout", (event) => {
-      if (!isInsideActiveRegion(event.relatedTarget)) {
-        schedulePopoverClose(popover);
-      }
-    });
+    bindHoverRegion(popover);
     body.replaceChildren(panel);
     popover.setAttribute(INJECTED_ATTRIBUTE, "true");
     popover.removeAttribute(BAILOUT_ATTRIBUTE);
@@ -535,6 +756,7 @@
       viewAllHref,
       status: fetchController ? "loading" : "ready"
     };
+    buildPanelChrome(activePanel);
     retainPopover(popover);
     renderActivePanel();
     if (options.focusSearch) {
@@ -674,7 +896,14 @@
   }
 
   function handleActivation(event) {
+    if (event.type === "mouseover") {
+      lastPointer.x = event.clientX;
+      lastPointer.y = event.clientY;
+    }
     if (!enabled || !event.target?.closest?.(TRIGGER_SELECTOR)) {
+      return;
+    }
+    if (Date.now() < suppressActivationUntil) {
       return;
     }
     if (activePanel?.popover?.isConnected) {
@@ -730,6 +959,8 @@
     document.addEventListener("focusin", handleActivation, true);
     document.addEventListener("mouseout", handleTriggerExit, true);
     document.addEventListener("focusout", handleTriggerExit, true);
+    window.addEventListener("keydown", handleGlobalKeydown, true);
+    document.addEventListener("keydown", handleSlashKeydown, true);
     historyWatcher.resume("feature-enabled");
   }
 
@@ -738,7 +969,7 @@
       return;
     }
     enabled = false;
-    clearHoverClose();
+    hidePopover();
     activationController?.abort("feature-disabled");
     activationController = null;
     fetchController?.abort("feature-disabled");
@@ -748,6 +979,8 @@
     document.removeEventListener("focusin", handleActivation, true);
     document.removeEventListener("mouseout", handleTriggerExit, true);
     document.removeEventListener("focusout", handleTriggerExit, true);
+    window.removeEventListener("keydown", handleGlobalKeydown, true);
+    document.removeEventListener("keydown", handleSlashKeydown, true);
     document.documentElement.classList.remove(
       "suitemate-v3-recent-records-enabled",
       "suitemate-v3-recent-records-armed"

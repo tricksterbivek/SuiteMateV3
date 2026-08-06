@@ -5,9 +5,13 @@ html.suitemate-v3-recent-records-armed
 
 html.suitemate-v3-recent-records-enabled
   div[data-widget="Popover"][data-suitemate-v3-recent-records-injected="true"] {
-  width: min(480px, calc(100vw - 24px)) !important;
-  min-width: min(380px, calc(100vw - 24px)) !important;
-  max-width: calc(100vw - 24px) !important;
+  width: min(412px, calc(100vw - 16px)) !important;
+  min-width: min(360px, calc(100vw - 16px)) !important;
+  max-width: calc(100vw - 16px) !important;
+  overflow: hidden !important;
+  border: 1px solid light-dark(#e4e7ec, #3a404a) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 12px 32px rgb(15 23 42 / 14%), 0 2px 6px rgb(15 23 42 / 8%) !important;
 }
 
 html.suitemate-v3-recent-records-enabled
@@ -28,12 +32,29 @@ html.suitemate-v3-recent-records-enabled
   overflow: visible !important;
 }
 
+.suitemate-v3-rr-float,
+.suitemate-v3-rr-panel {
+  --rr-border: light-dark(#e4e7ec, #3a404a);
+  --rr-border-soft: light-dark(#eef0f4, #2e333c);
+  --rr-hover: light-dark(#f5f6f9, #262b34);
+}
+
+.suitemate-v3-rr-float {
+  position: fixed;
+  z-index: 99999;
+  display: flex;
+  overflow: hidden;
+  background: var(--field-backgroud-color, light-dark(#fff, #20242b));
+  border: 1px solid light-dark(#e4e7ec, #3a404a);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgb(15 23 42 / 14%), 0 2px 6px rgb(15 23 42 / 8%);
+}
+
 .suitemate-v3-rr-panel {
   box-sizing: border-box;
   display: flex;
   width: 100%;
-  height: min(480px, calc(100vh - 40px));
-  min-height: min(360px, calc(100vh - 40px));
+  max-height: min(560px, calc(100vh - 40px));
   flex-direction: column;
   overflow: hidden;
   color: var(--text-1, light-dark(#1f2937, #e5e7eb));
@@ -52,17 +73,35 @@ html.suitemate-v3-recent-records-enabled
 
 .suitemate-v3-rr-header {
   flex: none;
-  padding: 10px 12px 11px;
+  padding: 14px 16px 12px;
   background: var(--field-backgroud-color, light-dark(#fff, #20242b));
-  border-bottom: 1px solid var(--field-border-color, light-dark(#d8dce3, #424750));
+  border-bottom: 1px solid var(--rr-border);
+}
+
+.suitemate-v3-rr-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
 .suitemate-v3-rr-title {
-  margin: 0 0 7px;
+  margin: 0;
+  color: var(--text-1, light-dark(#1f2937, #eef0f4));
+  font: 600 15px/20px var(--normal-font, "Inter", Arial, sans-serif);
+  letter-spacing: -0.1px;
+}
+
+.suitemate-v3-rr-count {
+  padding: 2px 8px;
   color: var(--text-3, light-dark(#667085, #a8afb9));
-  font: 700 10px/14px var(--normal-font, "Inter", Arial, sans-serif);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  background: light-dark(#eef1f4, #2b3038);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  white-space: nowrap;
 }
 
 .suitemate-v3-rr-search-wrap {
@@ -75,8 +114,8 @@ html.suitemate-v3-recent-records-enabled
   z-index: 1;
   top: 50%;
   left: 10px;
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
   color: var(--text-3, light-dark(#7b8493, #a8afb9));
   pointer-events: none;
   transform: translateY(-50%);
@@ -84,20 +123,22 @@ html.suitemate-v3-recent-records-enabled
 
 .suitemate-v3-rr-search {
   width: 100%;
-  height: 34px;
+  height: 35px;
   margin: 0;
-  padding: 6px 56px 6px 30px;
+  padding: 6px 38px 6px 30px;
+  padding-right: 38px !important;
+  padding-left: 30px !important;
   color: var(--text-1, light-dark(#1f2937, #e5e7eb));
   background: var(--field-backgroud-color, light-dark(#fff, #20242b));
-  border: 1px solid var(--field-border-color, light-dark(#cfd4dc, #4b515c));
-  border-radius: var(--suitemate-radius-control, 6px);
+  border: 1px solid var(--rr-border);
+  border-radius: 6px;
   outline: none;
   font: 400 13px/20px var(--normal-font, "Inter", Arial, sans-serif);
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
 .suitemate-v3-rr-search::placeholder {
-  color: var(--text-3, light-dark(#8a93a1, #929aa7));
+  color: var(--text-3, light-dark(#68727f, #929aa7));
 }
 
 .suitemate-v3-rr-search:focus {
@@ -105,50 +146,14 @@ html.suitemate-v3-recent-records-enabled
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--theme-main, #6269e7) 20%, transparent);
 }
 
-.suitemate-v3-rr-count {
+.suitemate-v3-rr-slash-hint {
   position: absolute;
   top: 50%;
-  right: 10px;
-  max-width: 48px;
-  overflow: hidden;
-  color: var(--text-3, light-dark(#7b8493, #a8afb9));
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
+  right: 12px;
+  color: var(--text-3, light-dark(#667085, #a8afb9));
+  font: 400 13px/1 var(--normal-font, "Inter", Arial, sans-serif);
   pointer-events: none;
-  text-overflow: ellipsis;
   transform: translateY(-50%);
-  white-space: nowrap;
-}
-
-.suitemate-v3-rr-allbar {
-  flex: none;
-  padding: 6px 8px;
-  background: var(--field-backgroud-color, light-dark(#fff, #20242b));
-  border-bottom: 1px solid var(--field-border-color, light-dark(#d8dce3, #424750));
-}
-
-.suitemate-v3-rr-all-button {
-  display: flex;
-  min-height: 30px;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  color: var(--link-text, light-dark(#3349a5, #aeb8ff));
-  border-radius: var(--suitemate-radius-compact, 5px);
-  outline: none;
-  font-weight: 650;
-  text-decoration: none;
-}
-
-.suitemate-v3-rr-all-button svg {
-  width: 15px;
-  height: 15px;
-}
-
-.suitemate-v3-rr-all-button:hover,
-.suitemate-v3-rr-all-button:focus-visible {
-  color: var(--theme-main, #6269e7);
-  background: var(--row-hover-bg-color, light-dark(#f3f5fa, #2b3039));
 }
 
 .suitemate-v3-rr-list {
@@ -158,6 +163,7 @@ html.suitemate-v3-recent-records-enabled
   flex-direction: column;
   overflow: auto;
   overscroll-behavior: contain;
+  scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-foreground, #a8afb9) var(--scrollbar-background, transparent);
 }
 
@@ -165,45 +171,34 @@ html.suitemate-v3-recent-records-enabled
   position: sticky;
   z-index: 4;
   top: 0;
+  margin: 0;
   display: flex;
-  min-height: 27px;
+  min-height: 24px;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px 5px;
-  color: var(--text-3, light-dark(#667085, #adb4c0));
-  background: var(--theme-secondary-light, light-dark(#f3f4f6, #292e36));
-  border-bottom: 1px solid var(--field-border-color, light-dark(#e2e5ea, #414751));
-  font: 700 10px/1.4 var(--normal-font, "Inter", Arial, sans-serif);
-  letter-spacing: 0.065em;
+  gap: 5px;
+  padding: 8px 16px 4px;
+  color: var(--text-3, light-dark(#667085, #a1a8b3));
+  background: var(--field-backgroud-color, light-dark(#fff, #20242b));
+  border-bottom: 1px solid var(--rr-border-soft);
+  font: 700 10.5px/1.3 var(--normal-font, "Inter", Arial, sans-serif);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-}
-
-.suitemate-v3-rr-group-title-pinned {
-  color: light-dark(#8a5a00, #f4c86b);
-  background: light-dark(#fff8e5, #352e1f);
-  border-bottom-color: light-dark(#f2d68c, #61502b);
-}
-
-.suitemate-v3-rr-group-star {
-  width: 12px;
-  height: 12px;
-  fill: currentColor;
 }
 
 .suitemate-v3-rr-row {
   position: relative;
   display: flex;
-  min-height: 58px;
+  min-height: 56px;
   flex: none;
   align-items: center;
   background: var(--field-backgroud-color, light-dark(#fff, #20242b));
-  border-bottom: 1px solid color-mix(in srgb, var(--field-border-color, light-dark(#d8dce3, #424750)) 72%, transparent);
+  border-bottom: 1px solid var(--rr-border-soft);
   transition: background-color 100ms ease;
 }
 
 .suitemate-v3-rr-row:hover,
 .suitemate-v3-rr-row:focus-within {
-  background: var(--row-hover-bg-color, light-dark(#f5f7fb, #2a2f37));
+  background: var(--rr-hover);
 }
 
 .suitemate-v3-rr-main {
@@ -212,7 +207,7 @@ html.suitemate-v3-recent-records-enabled
   flex: 1;
   align-items: center;
   gap: 10px;
-  padding: 8px 132px 8px 12px;
+  padding: 8px 108px 8px 16px;
   color: inherit;
   outline: none;
   text-decoration: none;
@@ -227,53 +222,42 @@ html.suitemate-v3-recent-records-enabled
 
 .suitemate-v3-rr-icon {
   display: inline-flex;
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   flex: none;
   align-items: center;
   justify-content: center;
-  color: #5067c9;
-  background: light-dark(#eef1ff, #2c3555);
-  border-radius: var(--suitemate-radius-compact, 6px);
+  border-radius: 6px;
 }
 
 .suitemate-v3-rr-icon svg {
-  width: 17px;
-  height: 17px;
+  width: 16px;
+  height: 16px;
 }
 
-.suitemate-v3-rr-icon-employee,
-.suitemate-v3-rr-icon-customer,
-.suitemate-v3-rr-icon-vendor,
-.suitemate-v3-rr-icon-contact,
-.suitemate-v3-rr-icon-partner {
-  color: #287457;
-  background: light-dark(#e8f7f0, #203d34);
-}
-
-.suitemate-v3-rr-icon-item {
-  color: #a45b20;
-  background: light-dark(#fff1e5, #453022);
-}
-
-.suitemate-v3-rr-icon-transaction {
-  color: #4e62c5;
+.suitemate-v3-rr-icon-tint-transaction {
+  color: light-dark(#4e62c5, #a4b1f2);
   background: light-dark(#edf0ff, #2b3454);
 }
 
-.suitemate-v3-rr-icon-custom-record-type,
-.suitemate-v3-rr-icon-custom-record,
-.suitemate-v3-rr-icon-custom-field,
-.suitemate-v3-rr-icon-setup {
-  color: #7b50b3;
-  background: light-dark(#f5edff, #382b4a);
+.suitemate-v3-rr-icon-tint-item {
+  color: light-dark(#1e7a55, #6fd3a6);
+  background: light-dark(#e6f6ee, #1f3a30);
 }
 
-.suitemate-v3-rr-icon-script,
-.suitemate-v3-rr-icon-workflow,
-.suitemate-v3-rr-icon-search {
-  color: #a13f61;
-  background: light-dark(#ffeaf1, #472735);
+.suitemate-v3-rr-icon-tint-entity {
+  color: light-dark(#7048b0, #c7a9f2);
+  background: light-dark(#f3edfd, #382b4a);
+}
+
+.suitemate-v3-rr-icon-tint-po {
+  color: light-dark(#9a6700, #e5c069);
+  background: light-dark(#fdf3de, #3f351f);
+}
+
+.suitemate-v3-rr-icon-tint-neutral {
+  color: light-dark(#5b6672, #aab3bd);
+  background: light-dark(#eef1f4, #2b3038);
 }
 
 .suitemate-v3-rr-details {
@@ -295,13 +279,13 @@ html.suitemate-v3-recent-records-enabled
 .suitemate-v3-rr-name {
   color: var(--text-1, light-dark(#253044, #f0f2f5));
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 17px;
 }
 
 .suitemate-v3-rr-secondary {
   color: var(--text-3, light-dark(#687386, #aab1bc));
-  font-size: 11px;
+  font-size: 11.5px;
   line-height: 15px;
 }
 
@@ -316,10 +300,10 @@ html.suitemate-v3-recent-records-enabled
   position: absolute;
   z-index: 2;
   top: 50%;
-  right: 13px;
-  max-width: 88px;
+  right: 16px;
+  max-width: 84px;
   color: var(--text-3, light-dark(#7b8493, #a8afb9));
-  font-size: 10px;
+  font-size: 10.5px;
   font-variant-numeric: tabular-nums;
   pointer-events: none;
   transform: translateY(-50%);
@@ -330,7 +314,7 @@ html.suitemate-v3-recent-records-enabled
   position: absolute;
   z-index: 3;
   top: 50%;
-  right: 9px;
+  right: 10px;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -361,16 +345,16 @@ html.suitemate-v3-recent-records-enabled
 
 .suitemate-v3-rr-action {
   display: inline-flex;
-  width: 27px;
-  height: 27px;
+  width: 28px;
+  height: 28px;
   margin: 0;
   padding: 0;
   align-items: center;
   justify-content: center;
   color: var(--text-2, light-dark(#526071, #bdc3cc));
   background: var(--field-backgroud-color, light-dark(#fff, #20242b));
-  border: 1px solid var(--field-border-color, light-dark(#d5dae1, #4b515b));
-  border-radius: var(--suitemate-radius-compact, 5px);
+  border: 1px solid var(--rr-border);
+  border-radius: 6px;
   outline: none;
   cursor: pointer;
   pointer-events: auto;
@@ -383,11 +367,17 @@ html.suitemate-v3-recent-records-enabled
   height: 13px;
 }
 
-.suitemate-v3-rr-action:hover,
-.suitemate-v3-rr-action:focus-visible {
+.suitemate-v3-rr-action:hover {
   color: var(--theme-main, #6269e7);
   background: light-dark(#f2f3ff, #303756);
-  border-color: color-mix(in srgb, var(--theme-main, #6269e7) 55%, var(--field-border-color, #d5dae1));
+  border-color: color-mix(in srgb, var(--theme-main, #6269e7) 55%, var(--rr-border));
+}
+
+.suitemate-v3-rr-action:focus-visible,
+.suitemate-v3-rr-all-button:focus-visible,
+.suitemate-v3-rr-retry:focus-visible {
+  outline: 2px solid var(--theme-main, #6269e7);
+  outline-offset: 1px;
 }
 
 .suitemate-v3-rr-action-pin.is-pinned {
@@ -400,18 +390,87 @@ html.suitemate-v3-recent-records-enabled
   fill: currentColor;
 }
 
+.suitemate-v3-rr-footer {
+  flex: none;
+  padding: 5px 8px;
+  background: var(--field-backgroud-color, light-dark(#fff, #20242b));
+  border-top: 1px solid var(--rr-border);
+}
+
+.suitemate-v3-rr-all-button {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  color: var(--link-text, light-dark(#3349a5, #aeb8ff));
+  border-radius: 6px;
+  outline: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.suitemate-v3-rr-all-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.suitemate-v3-rr-all-button:hover {
+  color: var(--theme-main, #6269e7);
+  background: var(--rr-hover);
+}
+
 .suitemate-v3-rr-message {
   display: grid;
-  min-height: 180px;
+  min-height: 160px;
   flex: 1;
+  gap: 5px;
   place-items: center;
+  align-content: center;
   padding: 24px;
   color: var(--text-3, light-dark(#6b7280, #a8afb9));
   text-align: center;
 }
 
+.suitemate-v3-rr-message strong {
+  color: var(--text-2, light-dark(#3d4756, #ccd1d9));
+  font-weight: 650;
+}
+
+.suitemate-v3-rr-message-hint {
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.suitemate-v3-rr-retry {
+  min-height: 30px;
+  margin-top: 5px;
+  padding: 5px 16px;
+  color: var(--text-2, light-dark(#3d4756, #ccd1d9));
+  background: var(--field-backgroud-color, light-dark(#fff, #20242b));
+  border: 1px solid var(--rr-border);
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+  font: 650 12px/18px var(--normal-font, "Inter", Arial, sans-serif);
+  transition: color 100ms ease, background-color 100ms ease, border-color 100ms ease;
+}
+
+.suitemate-v3-rr-retry:hover {
+  color: var(--theme-main, #6269e7);
+  background: light-dark(#f2f3ff, #303756);
+  border-color: color-mix(in srgb, var(--theme-main, #6269e7) 55%, var(--rr-border));
+}
+
 .suitemate-v3-rr-error {
   color: light-dark(#b42318, #ff9b91);
+}
+
+@media (max-width: 380px) {
+  .suitemate-v3-rr-secondary {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -419,7 +478,8 @@ html.suitemate-v3-recent-records-enabled
   .suitemate-v3-rr-row,
   .suitemate-v3-rr-date,
   .suitemate-v3-rr-row-actions,
-  .suitemate-v3-rr-action {
+  .suitemate-v3-rr-action,
+  .suitemate-v3-rr-retry {
     transition: none;
   }
 }
