@@ -39,41 +39,44 @@
   const BAILOUT_ATTRIBUTE = "data-suitemate-v3-recent-records-bailout";
   const CACHE_TTL_MS = 60_000;
   const MAX_RESPONSE_BYTES = 2_000_000;
-  const ACTIVATION_DELAY_MS = 200;
+  const ACTIVATION_THROTTLE_MS = 200;
+  const HOVER_CLOSE_DELAY_MS = 200;
+  const HOVER_RETAINED_CLASS = "suitemate-v3-rr-hover-retained";
   const GROUPS = Object.freeze(["Today", "Yesterday", "This week", "Older"]);
-  const ICON_LABELS = Object.freeze({
-    employee: "E",
-    customer: "C",
-    vendor: "V",
-    contact: "C",
-    partner: "P",
-    item: "I",
-    file: "F",
-    transaction: "T",
-    "custom-record-type": "R",
-    "custom-record": "R",
-    "custom-field": "F",
-    form: "F",
-    role: "R",
-    script: "S",
-    workflow: "W",
-    search: "Q",
-    crm: "C",
-    setup: "S",
-    record: "R"
+  const RECORD_ICONS = Object.freeze({
+    employee: "person",
+    customer: "person",
+    vendor: "person",
+    contact: "person",
+    partner: "person",
+    item: "item",
+    transaction: "transaction",
+    "custom-record-type": "table",
+    "custom-record": "table",
+    "custom-field": "gear",
+    form: "form",
+    role: "role",
+    script: "script",
+    workflow: "workflow",
+    search: "search",
+    crm: "crm",
+    setup: "gear",
+    file: "file",
+    record: "file"
   });
 
   let enabled = false;
   let disposed = false;
   let store = core.normalizeStored(undefined, location.origin);
   let scopeKey = resolveScopeKey();
-  let activationTimer = 0;
   let activationController = null;
   let fetchController = null;
   let activePanel = null;
   let waitSequence = 0;
   let storeWriteQueue = Promise.resolve();
   let settingsRevision = 0;
+  let lastActivationAt = 0;
+  let hoverCloseTimer = 0;
 
   function resolveScopeKey() {
     let sessionId = "unknown";
@@ -148,6 +151,61 @@
       && (node.matches?.(POPOVER_SELECTOR) || node.querySelector?.(POPOVER_SELECTOR))));
   }
 
+  function clearHoverClose() {
+    if (hoverCloseTimer) {
+      clearTimeout(hoverCloseTimer);
+      hoverCloseTimer = 0;
+    }
+  }
+
+  function retainPopover(popover = activePanel?.popover) {
+    clearHoverClose();
+    if (!popover?.isConnected) {
+      return;
+    }
+    popover.style.removeProperty("display");
+    popover.classList.add(HOVER_RETAINED_CLASS);
+  }
+
+  function schedulePopoverClose(popover = activePanel?.popover) {
+    clearHoverClose();
+    if (!popover?.isConnected) {
+      return;
+    }
+    hoverCloseTimer = setTimeout(() => {
+      hoverCloseTimer = 0;
+      if (!popover.isConnected || popover !== activePanel?.popover) {
+        return;
+      }
+      const trigger = document.querySelector(TRIGGER_SELECTOR);
+      if (
+        trigger?.matches(":hover")
+        || popover.matches(":hover")
+        || popover.contains(document.activeElement)
+      ) {
+        return;
+      }
+      popover.classList.remove(HOVER_RETAINED_CLASS);
+      popover.style.display = "none";
+    }, HOVER_CLOSE_DELAY_MS);
+  }
+
+  function isInsideActiveRegion(target) {
+    return target?.nodeType === Node.ELEMENT_NODE
+      && (
+        Boolean(target.closest?.(TRIGGER_SELECTOR))
+        || Boolean(activePanel?.popover?.contains(target))
+      );
+  }
+
+  function handleTriggerExit(event) {
+    const trigger = event.target?.closest?.(TRIGGER_SELECTOR);
+    if (!trigger || isInsideActiveRegion(event.relatedTarget)) {
+      return;
+    }
+    schedulePopoverClose();
+  }
+
   function createElement(tagName, className, text) {
     const element = document.createElement(tagName);
     if (className) element.className = className;
@@ -155,8 +213,81 @@
     return element;
   }
 
-  function createActionLink(label, title, href, options = {}) {
-    const link = createElement("a", "suitemate-v3-rr-action", label);
+  function createSvgIcon(name, className = "") {
+    const namespace = "http" + "://www.w3.org/2000/svg";
+    const svg = document.createElementNS(namespace, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    svg.setAttribute("aria-hidden", "true");
+    if (className) {
+      svg.setAttribute("class", className);
+    }
+    const add = (tagName, attributes) => {
+      const child = document.createElementNS(namespace, tagName);
+      for (const [attribute, value] of Object.entries(attributes)) {
+        child.setAttribute(attribute, value);
+      }
+      svg.append(child);
+    };
+    if (name === "person") {
+      add("path", { d: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" });
+      add("circle", { cx: "12", cy: "7", r: "4" });
+    } else if (name === "item") {
+      add("path", { d: "M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" });
+      add("polyline", { points: "3.27 6.96 12 12.01 20.73 6.96" });
+      add("line", { x1: "12", y1: "22", x2: "12", y2: "12" });
+    } else if (name === "transaction") {
+      add("rect", { x: "2", y: "4", width: "20", height: "16", rx: "2" });
+      add("line", { x1: "2", y1: "10", x2: "22", y2: "10" });
+    } else if (name === "table") {
+      add("rect", { x: "3", y: "4", width: "18", height: "16", rx: "2" });
+      add("line", { x1: "3", y1: "10", x2: "21", y2: "10" });
+      add("line", { x1: "9", y1: "4", x2: "9", y2: "20" });
+    } else if (name === "gear") {
+      add("circle", { cx: "12", cy: "12", r: "3" });
+      add("path", { d: "M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21h-4v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1-2.8-2.8.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3v-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1 2.8-2.8.1.1a1.7 1.7 0 0 0 1.8.3 1.7 1.7 0 0 0 1-1.5V3h4v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1 2.8 2.8-.1.1a1.7 1.7 0 0 0-.3 1.8 1.7 1.7 0 0 0 1.5 1h.1v4h-.1a1.7 1.7 0 0 0-1.3 1.1z" });
+    } else if (name === "role") {
+      add("path", { d: "M12 1l9 4v6c0 5.6-3.8 10.7-9 12-5.2-1.3-9-6.4-9-12V5l9-4z" });
+    } else if (name === "script") {
+      add("polyline", { points: "16 18 22 12 16 6" });
+      add("polyline", { points: "8 6 2 12 8 18" });
+    } else if (name === "workflow") {
+      add("circle", { cx: "6", cy: "6", r: "3" });
+      add("circle", { cx: "18", cy: "18", r: "3" });
+      add("path", { d: "M9 6h6a3 3 0 0 1 3 3v6" });
+    } else if (name === "search") {
+      add("circle", { cx: "11", cy: "11", r: "7" });
+      add("line", { x1: "21", y1: "21", x2: "16.65", y2: "16.65" });
+    } else if (name === "crm") {
+      add("path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" });
+    } else if (name === "list") {
+      for (const y of [6, 12, 18]) {
+        add("line", { x1: "8", y1: String(y), x2: "21", y2: String(y) });
+        add("line", { x1: "3", y1: String(y), x2: "3.01", y2: String(y) });
+      }
+    } else if (name === "external") {
+      add("path", { d: "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" });
+      add("polyline", { points: "15 3 21 3 21 9" });
+      add("line", { x1: "10", y1: "14", x2: "21", y2: "3" });
+    } else if (name === "edit") {
+      add("path", { d: "M12 20h9" });
+      add("path", { d: "M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" });
+    } else if (name === "star") {
+      add("polygon", { points: "12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" });
+    } else {
+      add("path", { d: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" });
+      add("polyline", { points: "14 2 14 8 20 8" });
+    }
+    return svg;
+  }
+
+  function createActionLink(iconName, title, href, options = {}) {
+    const suffix = options.className ? ` ${options.className}` : "";
+    const link = createElement("a", `suitemate-v3-rr-action${suffix}`);
     link.href = href;
     link.title = title;
     link.setAttribute("aria-label", title);
@@ -164,6 +295,7 @@
       link.target = "_blank";
       link.rel = "noopener noreferrer";
     }
+    link.append(createSvgIcon(iconName));
     return link;
   }
 
@@ -182,32 +314,41 @@
     row.dataset.recordIdentity = record.identity;
     row.setAttribute("role", "listitem");
 
-    const icon = createElement(
-      "span",
-      `suitemate-v3-rr-icon suitemate-v3-rr-icon-${record.kind}`,
-      ICON_LABELS[record.kind] ?? "R"
-    );
+    const icon = createElement("span", `suitemate-v3-rr-icon suitemate-v3-rr-icon-${record.kind}`);
+    icon.append(createSvgIcon(RECORD_ICONS[record.kind] ?? "file"));
     icon.setAttribute("aria-hidden", "true");
 
     const main = createElement("a", "suitemate-v3-rr-main");
     main.href = record.url;
+    const details = createElement("span", "suitemate-v3-rr-details");
     const name = createElement("span", "suitemate-v3-rr-name", record.name);
-    main.append(name);
+    details.append(name);
     if (record.secondary) {
-      main.append(createElement("span", "suitemate-v3-rr-secondary", record.secondary));
+      details.append(createElement("span", "suitemate-v3-rr-secondary", record.secondary));
     }
-    const date = createElement("span", "suitemate-v3-rr-date", core.displayDate(record));
-    main.append(date);
+    main.append(icon, details);
 
     const actions = createElement("div", "suitemate-v3-rr-row-actions");
-    actions.append(createActionLink("↗", `Open ${record.name} in a new tab`, record.url, { newTab: true }));
-    actions.append(createActionLink("✎", `Edit ${record.name}`, record.editUrl));
-    const pin = createElement("button", "suitemate-v3-rr-action", record.pinned ? "●" : "○");
+    actions.append(createActionLink("external", `Open ${record.name} in a new tab`, record.url, {
+      className: "suitemate-v3-rr-action-view",
+      newTab: true
+    }));
+    actions.append(createActionLink("edit", `Edit ${record.name}`, record.editUrl, {
+      className: "suitemate-v3-rr-action-edit"
+    }));
+    const pinnedClass = record.pinned ? " is-pinned" : "";
+    const pin = createElement(
+      "button",
+      `suitemate-v3-rr-action suitemate-v3-rr-action-pin${pinnedClass}`
+    );
     pin.type = "button";
     pin.title = record.pinned ? `Unpin ${record.name}` : `Pin ${record.name}`;
     pin.setAttribute("aria-label", pin.title);
     pin.setAttribute("aria-pressed", String(Boolean(record.pinned)));
-    pin.addEventListener("click", () => {
+    pin.append(createSvgIcon("star"));
+    pin.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       void updateStore((value) => core.withPinned(
         value,
         scopeKey,
@@ -217,22 +358,29 @@
       ));
     });
     actions.append(pin);
-    row.append(icon, main, actions);
+    row.append(main);
+    if (!record.pinned) {
+      row.append(createElement("span", "suitemate-v3-rr-date", core.displayDate(record)));
+    }
+    row.append(actions);
     return row;
   }
 
-  function appendGroup(container, title, records) {
+  function appendGroup(container, title, records, options = {}) {
     if (records.length === 0) {
       return;
     }
-    const heading = createElement("h3", "suitemate-v3-rr-group-title", title);
-    container.append(heading);
-    const list = createElement("div", "suitemate-v3-rr-list");
-    list.setAttribute("role", "list");
-    for (const record of records) {
-      list.append(createRecordRow(record));
+    const modifier = options.pinned ? " suitemate-v3-rr-group-title-pinned" : "";
+    const heading = createElement("div", `suitemate-v3-rr-group-title${modifier}`);
+    heading.setAttribute("role", "presentation");
+    if (options.pinned) {
+      heading.append(createSvgIcon("star", "suitemate-v3-rr-group-star"));
     }
-    container.append(list);
+    heading.append(document.createTextNode(title));
+    container.append(heading);
+    for (const record of records) {
+      container.append(createRecordRow(record));
+    }
   }
 
   function focusRows(panel) {
@@ -281,33 +429,43 @@
     panel.replaceChildren();
 
     const header = createElement("header", "suitemate-v3-rr-header");
-    const titleWrap = createElement("div", "suitemate-v3-rr-title-wrap");
-    titleWrap.append(createElement("h2", "suitemate-v3-rr-title", "Recent Records"));
+    header.append(createElement("h2", "suitemate-v3-rr-title", "Recent Records"));
     const model = core.mergeRecords(getScope(), location.origin);
     const total = model.pinned.length + model.recent.length;
     const filtered = matchingRecords(model, state.query);
     const filteredTotal = filtered.pinned.length + filtered.recent.length;
-    titleWrap.append(createElement(
-      "span",
-      "suitemate-v3-rr-count",
-      state.query ? `${filteredTotal} / ${total}` : String(total)
-    ));
-    const viewAll = createActionLink("View all", "View all recent NetSuite records", state.viewAllHref);
-    header.append(titleWrap, viewAll);
-
     const searchWrap = createElement("div", "suitemate-v3-rr-search-wrap");
+    searchWrap.append(createSvgIcon("search", "suitemate-v3-rr-search-icon"));
     const search = createElement("input", "suitemate-v3-rr-search");
-    search.type = "search";
-    search.placeholder = "Search recent records";
+    search.type = "text";
+    search.placeholder = "Search...";
     search.setAttribute("aria-label", "Search recent records");
+    search.setAttribute("autocomplete", "off");
+    search.setAttribute("spellcheck", "false");
     search.value = state.query;
     search.addEventListener("input", () => {
       state.query = search.value;
       renderActivePanel({ focusSearch: true });
     });
-    searchWrap.append(search);
+    searchWrap.append(search, createElement(
+      "span",
+      "suitemate-v3-rr-count",
+      state.query ? `${filteredTotal} / ${total}` : (total ? String(total) : "")
+    ));
+    header.append(searchWrap);
 
-    const body = createElement("div", "suitemate-v3-rr-body");
+    const allBar = createElement("div", "suitemate-v3-rr-allbar");
+    const viewAll = createElement("a", "suitemate-v3-rr-all-button");
+    viewAll.href = state.viewAllHref;
+    viewAll.title = "View all recent NetSuite records";
+    viewAll.append(
+      createSvgIcon("list"),
+      createElement("span", "", "View all recent records")
+    );
+    allBar.append(viewAll);
+
+    const body = createElement("div", "suitemate-v3-rr-list");
+    body.setAttribute("role", "list");
     if (state.status === "loading" && total === 0) {
       body.append(createElement("div", "suitemate-v3-rr-message", "Loading recent records..."));
     } else if (state.status === "error" && total === 0) {
@@ -319,13 +477,13 @@
         state.query ? "No matching records." : "No recent records yet."
       ));
     } else {
-      appendGroup(body, "Pinned", filtered.pinned);
+      appendGroup(body, "Pinned", filtered.pinned, { pinned: true });
       for (const group of GROUPS) {
         appendGroup(body, group, filtered.recent.filter((record) =>
           core.groupForTimestamp(record.timestamp || core.parseRecentDate(record.dateText)) === group));
       }
     }
-    panel.append(header, searchWrap, body);
+    panel.append(header, allBar, body);
     if (options.focusSearch) {
       search.focus();
       search.setSelectionRange(search.value.length, search.value.length);
@@ -334,7 +492,7 @@
     }
   }
 
-  function injectPanel(popover) {
+  function injectPanel(popover, options = {}) {
     if (!enabled || disposed || !popover?.isConnected) {
       return;
     }
@@ -348,12 +506,40 @@
     panel.setAttribute(PANEL_ATTRIBUTE, "panel");
     panel.setAttribute("aria-label", "Recent Records");
     panel.addEventListener("keydown", handlePanelKeydown);
+    panel.addEventListener("click", (event) => {
+      if (event.target?.closest?.("a")) {
+        clearHoverClose();
+        popover.classList.remove(HOVER_RETAINED_CLASS);
+        popover.style.display = "none";
+      }
+    });
+    popover.addEventListener("mouseenter", () => retainPopover(popover));
+    popover.addEventListener("mouseleave", (event) => {
+      if (!isInsideActiveRegion(event.relatedTarget)) {
+        schedulePopoverClose(popover);
+      }
+    });
+    popover.addEventListener("focusin", () => retainPopover(popover));
+    popover.addEventListener("focusout", (event) => {
+      if (!isInsideActiveRegion(event.relatedTarget)) {
+        schedulePopoverClose(popover);
+      }
+    });
     body.replaceChildren(panel);
     popover.setAttribute(INJECTED_ATTRIBUTE, "true");
     popover.removeAttribute(BAILOUT_ATTRIBUTE);
-    activePanel = { popover, panel, query: "", viewAllHref, status: "ready" };
+    activePanel = {
+      popover,
+      panel,
+      query: "",
+      viewAllHref,
+      status: fetchController ? "loading" : "ready"
+    };
+    retainPopover(popover);
     renderActivePanel();
-    setTimeout(() => activePanel?.panel === panel && panel.querySelector("input")?.focus(), 60);
+    if (options.focusSearch) {
+      setTimeout(() => activePanel?.panel === panel && panel.querySelector("input")?.focus(), 60);
+    }
     void refreshSnapshot();
   }
 
@@ -396,7 +582,9 @@
     if (Date.now() - scope.snapshot.fetchedAt < CACHE_TTL_MS) {
       return;
     }
-    fetchController?.abort("new-request");
+    if (fetchController) {
+      return;
+    }
     fetchController = new AbortController();
     const controller = fetchController;
     if (activePanel) {
@@ -449,40 +637,60 @@
     }
   }
 
-  function scheduleActivation() {
-    clearTimeout(activationTimer);
-    activationTimer = setTimeout(() => {
-      activationTimer = 0;
-      if (!enabled || disposed) {
+  function scheduleActivation(options = {}) {
+    if (!enabled || disposed) {
+      return;
+    }
+    scopeKey = resolveScopeKey();
+    activationController?.abort("new-activation");
+    activationController = new AbortController();
+    const controller = activationController;
+    document.documentElement.classList.add("suitemate-v3-recent-records-armed");
+    void refreshSnapshot();
+    void lifecycleApi.waitFor({
+      id: `navigation.recent-records-popover.${++waitSequence}`,
+      capability: routeApi.CAPABILITIES.RECENT_RECORDS,
+      observe: { childList: true, subtree: true },
+      relevant: isRelevantPopoverMutation,
+      timeoutMs: 5000,
+      signal: controller.signal,
+      test: findRecentPopover
+    }).then((popover) => {
+      if (popover && enabled && !controller.signal.aborted) {
+        if (popover.getAttribute(INJECTED_ATTRIBUTE) === "true") {
+          retainPopover(popover);
+          renderActivePanel();
+          if (options.focusSearch) {
+            setTimeout(() => activePanel?.popover === popover
+              && activePanel.panel.querySelector("input")?.focus(), 60);
+          }
+        } else {
+          injectPanel(popover, options);
+        }
         return;
       }
-      scopeKey = resolveScopeKey();
-      activationController?.abort("new-activation");
-      activationController = new AbortController();
-      const controller = activationController;
-      document.documentElement.classList.add("suitemate-v3-recent-records-armed");
-      void lifecycleApi.waitFor({
-        id: `navigation.recent-records-popover.${++waitSequence}`,
-        capability: routeApi.CAPABILITIES.RECENT_RECORDS,
-        observe: { childList: true, subtree: true },
-        relevant: isRelevantPopoverMutation,
-        timeoutMs: 5000,
-        signal: controller.signal,
-        test: findRecentPopover
-      }).then((popover) => {
-        if (popover && enabled && !controller.signal.aborted) {
-          injectPanel(popover);
-          return;
-        }
-        findRecentPopover()?.setAttribute(BAILOUT_ATTRIBUTE, "true");
-      });
-    }, ACTIVATION_DELAY_MS);
+      findRecentPopover()?.setAttribute(BAILOUT_ATTRIBUTE, "true");
+    });
   }
 
   function handleActivation(event) {
-    if (enabled && event.target?.closest?.(TRIGGER_SELECTOR)) {
-      scheduleActivation();
+    if (!enabled || !event.target?.closest?.(TRIGGER_SELECTOR)) {
+      return;
     }
+    if (activePanel?.popover?.isConnected) {
+      retainPopover(activePanel.popover);
+      renderActivePanel();
+      if (event.type === "focusin") {
+        setTimeout(() => activePanel?.panel?.querySelector("input")?.focus(), 60);
+      }
+      return;
+    }
+    const now = Date.now();
+    if (now - lastActivationAt < ACTIVATION_THROTTLE_MS) {
+      return;
+    }
+    lastActivationAt = now;
+    scheduleActivation({ focusSearch: event.type === "focusin" });
   }
 
   const historyWatcher = lifecycleApi.register({
@@ -520,6 +728,8 @@
     );
     document.addEventListener("mouseover", handleActivation, true);
     document.addEventListener("focusin", handleActivation, true);
+    document.addEventListener("mouseout", handleTriggerExit, true);
+    document.addEventListener("focusout", handleTriggerExit, true);
     historyWatcher.resume("feature-enabled");
   }
 
@@ -528,8 +738,7 @@
       return;
     }
     enabled = false;
-    clearTimeout(activationTimer);
-    activationTimer = 0;
+    clearHoverClose();
     activationController?.abort("feature-disabled");
     activationController = null;
     fetchController?.abort("feature-disabled");
@@ -537,6 +746,8 @@
     historyWatcher.pause("feature-disabled");
     document.removeEventListener("mouseover", handleActivation, true);
     document.removeEventListener("focusin", handleActivation, true);
+    document.removeEventListener("mouseout", handleTriggerExit, true);
+    document.removeEventListener("focusout", handleTriggerExit, true);
     document.documentElement.classList.remove(
       "suitemate-v3-recent-records-enabled",
       "suitemate-v3-recent-records-armed"
@@ -589,12 +800,14 @@
   }
 
   chrome.storage.onChanged.addListener(handleStorageChange);
-  globalThis.addEventListener("pagehide", () => {
-    disposed = true;
-    disableFeature();
-    historyWatcher.dispose("pagehide");
-    chrome.storage.onChanged.removeListener(handleStorageChange);
-  }, { once: true });
+  globalThis.addEventListener("pagehide", (event) => {
+    if (!event.persisted) {
+      disposed = true;
+      disableFeature();
+      historyWatcher.dispose("pagehide");
+      chrome.storage.onChanged.removeListener(handleStorageChange);
+    }
+  });
 
   void start();
 })();

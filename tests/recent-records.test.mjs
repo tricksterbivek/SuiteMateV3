@@ -7,6 +7,8 @@ import { runInNewContext } from "node:vm";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const source = await readFile(resolve(root, "src/recent-records/core.js"), "utf8");
+const runtimeSource = await readFile(resolve(root, "src/recent-records/runtime.js"), "utf8");
+const styleSource = await readFile(resolve(root, "src/recent-records/recent-records.css"), "utf8");
 const sandbox = { URL };
 sandbox.globalThis = sandbox;
 runInNewContext(source, sandbox);
@@ -131,6 +133,64 @@ test("parses NetSuite dates and assigns calendar groups", () => {
   assert.equal(core.groupForTimestamp(new Date(2026, 7, 5, 9).getTime(), now), "Yesterday");
   assert.equal(core.groupForTimestamp(new Date(2026, 7, 2, 9).getTime(), now), "This week");
   assert.equal(core.groupForTimestamp(new Date(2026, 6, 1, 9).getTime(), now), "Older");
+});
+
+test("treats a future time-only recent record as yesterday", () => {
+  const now = new Date(2026, 7, 6, 8, 0).getTime();
+  assert.equal(core.parseRecentDate("11:34 PM", now), new Date(2026, 7, 5, 23, 34).getTime());
+});
+
+test("keeps the runtime alive when the page enters the back-forward cache", () => {
+  assert.match(runtimeSource, /pagehide", \(event\) => \{\s*if \(!event\.persisted\)/);
+  assert.doesNotMatch(runtimeSource, /pagehide"[\s\S]*?\}, \{ once: true \}\)/);
+});
+
+test("matches the reference hover activation behavior", () => {
+  assert.match(runtimeSource, /const ACTIVATION_THROTTLE_MS = 200;/);
+  assert.doesNotMatch(runtimeSource, /ACTIVATION_DELAY_MS|activationTimer/);
+  assert.match(runtimeSource, /now - lastActivationAt < ACTIVATION_THROTTLE_MS/);
+  assert.match(runtimeSource, /void refreshSnapshot\(\);\s*void lifecycleApi\.waitFor/);
+  assert.match(runtimeSource, /if \(fetchController\) \{\s*return;\s*\}/);
+  assert.match(
+    runtimeSource,
+    /popover\.getAttribute\(INJECTED_ATTRIBUTE\) === "true"[\s\S]*?renderActivePanel\(\)/
+  );
+});
+
+test("retains the popup while the trigger or popup is active", () => {
+  assert.match(runtimeSource, /const HOVER_CLOSE_DELAY_MS = 200;/);
+  assert.match(runtimeSource, /function retainPopover/);
+  assert.match(runtimeSource, /function schedulePopoverClose/);
+  assert.match(runtimeSource, /trigger\?\.matches\(":hover"\)/);
+  assert.match(runtimeSource, /popover\.matches\(":hover"\)/);
+  assert.match(runtimeSource, /popover\.contains\(document\.activeElement\)/);
+  assert.match(runtimeSource, /popover\.addEventListener\("mouseenter"/);
+  assert.match(runtimeSource, /popover\.addEventListener\("mouseleave"/);
+  assert.match(runtimeSource, /document\.addEventListener\("mouseout", handleTriggerExit, true\)/);
+  assert.doesNotMatch(runtimeSource, /renderActivePanel\(\);\s*setTimeout\(\(\) => activePanel\?\.panel === panel/);
+  assert.match(
+    styleSource,
+    /\.suitemate-v3-rr-hover-retained \{[\s\S]*?display: flex !important;[\s\S]*?visibility: visible !important;/
+  );
+});
+
+test("renders the reference-quality Recent Records panel structure", () => {
+  for (const token of [
+    "createSvgIcon",
+    "suitemate-v3-rr-search-icon",
+    "suitemate-v3-rr-allbar",
+    "suitemate-v3-rr-group-title-pinned",
+    "suitemate-v3-rr-action-view",
+    "suitemate-v3-rr-action-edit",
+    "suitemate-v3-rr-action-pin"
+  ]) {
+    assert.match(runtimeSource, new RegExp(token));
+  }
+  assert.match(styleSource, /width: min\(480px, calc\(100vw - 24px\)\)/);
+  assert.match(styleSource, /height: min\(480px, calc\(100vh - 40px\)\)/);
+  assert.match(styleSource, /\.suitemate-v3-rr-group-title \{[\s\S]*?position: sticky;/);
+  assert.match(styleSource, /\.suitemate-v3-rr-row:hover \.suitemate-v3-rr-row-actions/);
+  assert.match(styleSource, /\.suitemate-v3-rr-action-pin\.is-pinned svg/);
 });
 
 test("the core has no DOM, Chrome storage or network authority", () => {
