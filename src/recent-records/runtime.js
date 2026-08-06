@@ -42,6 +42,7 @@
   const ACTIVATION_THROTTLE_MS = 200;
   const HOVER_CLOSE_DELAY_MS = 200;
   const HOVER_RETAINED_CLASS = "suitemate-v3-rr-hover-retained";
+  const FLOAT_CLASS = "suitemate-v3-rr-float";
   const GROUPS = Object.freeze(["Today", "Yesterday", "This week", "Older"]);
   const RECORD_ICONS = Object.freeze({
     employee: "person",
@@ -78,6 +79,7 @@
   let lastActivationAt = 0;
   let hoverCloseTimer = 0;
   let suppressActivationUntil = 0;
+  const lastPointer = { x: 0, y: 0 };
 
   function resolveScopeKey() {
     let sessionId = "unknown";
@@ -175,6 +177,60 @@
     }
     popover.classList.remove(HOVER_RETAINED_CLASS);
     popover.style.display = "none";
+    if (popover.classList.contains(FLOAT_CLASS)) {
+      popover.remove();
+      if (activePanel?.popover === popover) {
+        activePanel = null;
+      }
+    }
+  }
+
+  function bindHoverRegion(popover) {
+    popover.addEventListener("mouseenter", () => retainPopover(popover));
+    popover.addEventListener("mouseleave", (event) => {
+      if (!isInsideActiveRegion(event.relatedTarget)) {
+        schedulePopoverClose(popover);
+      }
+    });
+    popover.addEventListener("focusin", () => retainPopover(popover));
+    popover.addEventListener("focusout", (event) => {
+      if (!isInsideActiveRegion(event.relatedTarget)) {
+        schedulePopoverClose(popover);
+      }
+    });
+  }
+
+  // NetSuite unmounts its popover when the cursor clips a neighboring menu item
+  // on the way in. The panel node survives detachment, so re-seat it in a
+  // fixed-position holder anchored under the trigger and keep the same
+  // retain/close lifecycle.
+  function maybeRescuePanel() {
+    const panel = activePanel?.panel;
+    const trigger = document.querySelector(TRIGGER_SELECTOR);
+    if (!panel || panel.isConnected || !trigger) {
+      activePanel = null;
+      return;
+    }
+    const anchor = trigger.getBoundingClientRect();
+    const viewWidth = document.documentElement.clientWidth;
+    const width = Math.min(480, viewWidth - 24);
+    const left = Math.max(12, Math.min(anchor.left, viewWidth - width - 12));
+    const headingIn = lastPointer.y >= anchor.bottom - 4
+      && lastPointer.x >= left - 24
+      && lastPointer.x <= left + width + 24;
+    if (!headingIn) {
+      activePanel = null;
+      return;
+    }
+    const holder = createElement("div", FLOAT_CLASS);
+    holder.style.left = `${left}px`;
+    holder.style.top = `${anchor.bottom}px`;
+    holder.style.width = `${width}px`;
+    holder.append(panel);
+    bindHoverRegion(holder);
+    document.body.append(holder);
+    activePanel.popover = holder;
+    schedulePopoverClose(holder);
   }
 
   function schedulePopoverClose(popover = activePanel?.popover) {
@@ -184,7 +240,11 @@
     }
     hoverCloseTimer = setTimeout(() => {
       hoverCloseTimer = 0;
-      if (!popover.isConnected || popover !== activePanel?.popover) {
+      if (popover !== activePanel?.popover) {
+        return;
+      }
+      if (!popover.isConnected) {
+        maybeRescuePanel();
         return;
       }
       const trigger = document.querySelector(TRIGGER_SELECTOR);
@@ -208,6 +268,10 @@
   }
 
   function handleTriggerExit(event) {
+    if (event.type === "mouseout") {
+      lastPointer.x = event.clientX;
+      lastPointer.y = event.clientY;
+    }
     const trigger = event.target?.closest?.(TRIGGER_SELECTOR);
     if (!trigger || isInsideActiveRegion(event.relatedTarget)) {
       return;
@@ -536,18 +600,7 @@
         hidePopover(popover);
       }
     });
-    popover.addEventListener("mouseenter", () => retainPopover(popover));
-    popover.addEventListener("mouseleave", (event) => {
-      if (!isInsideActiveRegion(event.relatedTarget)) {
-        schedulePopoverClose(popover);
-      }
-    });
-    popover.addEventListener("focusin", () => retainPopover(popover));
-    popover.addEventListener("focusout", (event) => {
-      if (!isInsideActiveRegion(event.relatedTarget)) {
-        schedulePopoverClose(popover);
-      }
-    });
+    bindHoverRegion(popover);
     body.replaceChildren(panel);
     popover.setAttribute(INJECTED_ATTRIBUTE, "true");
     popover.removeAttribute(BAILOUT_ATTRIBUTE);
@@ -697,6 +750,10 @@
   }
 
   function handleActivation(event) {
+    if (event.type === "mouseover") {
+      lastPointer.x = event.clientX;
+      lastPointer.y = event.clientY;
+    }
     if (!enabled || !event.target?.closest?.(TRIGGER_SELECTOR)) {
       return;
     }
@@ -764,7 +821,7 @@
       return;
     }
     enabled = false;
-    clearHoverClose();
+    hidePopover();
     activationController?.abort("feature-disabled");
     activationController = null;
     fetchController?.abort("feature-disabled");

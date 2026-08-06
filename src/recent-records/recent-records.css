@@ -28,6 +28,17 @@ html.suitemate-v3-recent-records-enabled
   overflow: visible !important;
 }
 
+.suitemate-v3-rr-float {
+  position: fixed;
+  z-index: 99999;
+  display: flex;
+  overflow: hidden;
+  background: var(--field-backgroud-color, light-dark(#fff, #20242b));
+  border: 1px solid var(--field-border-color, light-dark(#d8dce3, #424750));
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 22%);
+}
+
 .suitemate-v3-rr-panel {
   box-sizing: border-box;
   display: flex;

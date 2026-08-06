@@ -193,6 +193,13 @@ test("renders the reference-quality Recent Records panel structure", () => {
   assert.match(styleSource, /\.suitemate-v3-rr-action-pin\.is-pinned svg/);
 });
 
+test("panel survives NetSuite unmounting its popover mid-hover", () => {
+  assert.match(runtimeSource, /function maybeRescuePanel/);
+  assert.match(runtimeSource, /if \(!popover\.isConnected\) \{\s*maybeRescuePanel\(\);\s*return;\s*\}/);
+  assert.match(runtimeSource, /const FLOAT_CLASS = "suitemate-v3-rr-float";/);
+  assert.match(styleSource, /\.suitemate-v3-rr-float \{[\s\S]*?position: fixed;/);
+});
+
 test("panel offers keyboard escape, semantic group headings and recoverable states", () => {
   assert.match(runtimeSource, /suppressActivationUntil = Date\.now\(\) \+ 350;\s*hidePopover\(\);\s*document\.querySelector\(TRIGGER_SELECTOR\)\?\.focus\(\);/);
   assert.match(runtimeSource, /createElement\("h3", `suitemate-v3-rr-group-title\$\{modifier\}`\)/);
