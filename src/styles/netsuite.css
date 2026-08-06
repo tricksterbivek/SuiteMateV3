@@ -5083,16 +5083,21 @@ html:not(.ext-f):not(.disable_radii) .uir-machine-table-container {
    not clipped by its own overflow, so the wrapper carries a duplicate of the
    shadow (and the radius, for a matching silhouette). Purely additive: where
    the wrapper exists its shadow is the visible one, where it does not (simpler
-   layouts, the fixtures) the container's own still renders — never both. */
-html:not(.ext-f) .subtabblock.uir-machine-block:has(>.uir-machine-table-container) {
+   layouts, the fixtures) the container's own still renders — never both.
+   Two nesting shapes exist: the container as a direct child (Sales Orders)
+   and behind a form (Item Fulfillments — the same subtabblock>form ancestry
+   the machine max-width rules name) — the :is(:has) names exactly those, so
+   a grandparent subtabblock around a nested machine never grows a second
+   larger shadow. */
+html:not(.ext-f) .subtabblock.uir-machine-block:is(:has(>.uir-machine-table-container), :has(>form>.uir-machine-table-container)) {
     box-shadow: 0 14px 34px rgba(15, 23, 42, 0.12), 0 3px 8px rgba(15, 23, 42, 0.07)
 }
 
-html:not(.ext-f).isDarkMode .subtabblock.uir-machine-block:has(>.uir-machine-table-container) {
+html:not(.ext-f).isDarkMode .subtabblock.uir-machine-block:is(:has(>.uir-machine-table-container), :has(>form>.uir-machine-table-container)) {
     box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5), 0 3px 8px rgba(0, 0, 0, 0.35)
 }
 
-html:not(.ext-f):not(.disable_radii) .subtabblock.uir-machine-block:has(>.uir-machine-table-container) {
+html:not(.ext-f):not(.disable_radii) .subtabblock.uir-machine-block:is(:has(>.uir-machine-table-container), :has(>form>.uir-machine-table-container)) {
     border-radius: 8px
 }
 
@@ -5100,10 +5105,32 @@ html:not(.ext-f):not(.disable_radii) .subtabblock.uir-machine-block:has(>.uir-ma
    white base — comfortably over the probe's 6/255 floor) and hover #f3f4ff,
    the pale indigo the mockup specifies. A theme change no longer re-tints
    machine rows; that trade is the mockup's, made knowingly. Dark mode keeps
-   the shared dark surfaces. */
-html:not(.ext-f) :is(.uir-machine-row, .uir-machine-totals-row) {
+   the shared dark surfaces.
+   TWO ROW SPELLINGS, ONE TREATMENT: transaction sublists render data rows as
+   uir-machine-row (e.g. Sales Orders) or uir-list-row-tr (e.g. Item
+   Fulfillments) — so-columns core's DATA_ROW_SELECTOR verbatim. Every row
+   rule in this block names both, scoped under the machine container so
+   genuine list pages (.uir-list-body et al) keep the shared 8% treatment. */
+html:not(.ext-f) .uir-machine-table-container :is(.uir-machine-row, .uir-machine-totals-row, .uir-list-row-tr) {
     --row-odd-bg-color: light-dark(#f2f5fa, var(--dark-2));
     --row-hover-bg-color: light-dark(#f3f4ff, var(--dark-3))
+}
+
+/* MACHINES STRIPE THE FIRST DATA ROW (owner-requested), inverting the shared
+   engine's evens-striped parity inside machine containers only: the odd rule
+   paints the stripe, the even rule hands evens back to the base the engine's
+   own rule took from them (the container class out-specifies it). Both `of`
+   lists and the state carve-outs are the engine's verbatim; non-data rows
+   never enter the count, and lists outside machine containers keep the
+   engine's parity untouched. */
+html:not(.ext-f) .uir-machine-table-container tr:nth-child(odd of .uir-machine-row:not(.machineButtonRow, .totalrow, .uir-machine-loading-row, .uir-machine-nodata-row, .uir-machine-button-row, .uir-machine-totals-row, .uir-loading-row, .uir-nodata-row, .uir-machine-row-last)):not(:hover, .uir-machine-row-focused, .listfocusedrow, .uir-active),
+html:not(.ext-f) .uir-machine-table-container tr:nth-child(odd of .uir-list-row-tr):not(:hover, .uir-machine-row-focused, .listfocusedrow, .uir-active) {
+    --row-bg-color: var(--row-odd-bg-color)
+}
+
+html:not(.ext-f) .uir-machine-table-container tr:nth-child(even of .uir-machine-row:not(.machineButtonRow, .totalrow, .uir-machine-loading-row, .uir-machine-nodata-row, .uir-machine-button-row, .uir-machine-totals-row, .uir-loading-row, .uir-nodata-row, .uir-machine-row-last)):not(:hover, .uir-machine-row-focused, .listfocusedrow, .uir-active),
+html:not(.ext-f) .uir-machine-table-container tr:nth-child(even of .uir-list-row-tr):not(:hover, .uir-machine-row-focused, .listfocusedrow, .uir-active) {
+    --row-bg-color: var(--row-even-bg-color)
 }
 
 /* Option 4 58px rows with hairline dividers only. td height is a MINIMUM in
@@ -5114,19 +5141,28 @@ html:not(.ext-f) :is(.uir-machine-row, .uir-machine-totals-row) {
    the plain declaration — measured live: rows collapsed to content height.
    Middle alignment is the mockup's: content centres in the row, single-line
    and wrapped alike, instead of NetSuite's top-hugging default. */
-html:not(.ext-f) .uir-machine-table .uir-machine-row>td {
+/* The :is(table)>tbody>tr shape is LOAD-BEARING, not decoration: at (0,4,4)
+   this out-cascades the list-page cells' rule
+   `.uir-list-row-tr>td.uir-list-row-cell:not(.uir-grippy)`
+   (`vertical-align: top !important`, (0,4,2)) and the V1 divider retint
+   whose deepest selector is
+   `.listtable>tbody>tr:not(…)>td` ((0,4,4), source-earlier), both of which
+   otherwise win on uir-list-row-tr sublists — measured live on an Item
+   Fulfillment. */
+html:not(.ext-f) .uir-machine-table-container :is(.uir-machine-table, .listtable)>tbody>tr:is(.uir-machine-row, .uir-list-row-tr)>td {
     height: 58px !important;
-    vertical-align: middle;
+    vertical-align: middle !important;
     padding: 0 12px !important;
     border-bottom: 1px solid light-dark(rgba(10, 19, 23, 0.08), var(--dark-3)) !important
 }
 
 /* First-row breathing room: ~12px between the 3px header rule and the first
    record's content, done as cell padding so table semantics stay intact. The
-   `of` list is the zebra's data-row definition verbatim, and the pseudo-cell
-   in the selector list keeps the sln row number tracking its own row. */
-html:not(.ext-f) .uir-machine-table tr:nth-child(1 of .uir-machine-row:not(.machineButtonRow, .totalrow, .uir-machine-loading-row, .uir-machine-nodata-row, .uir-machine-button-row, .uir-machine-totals-row, .uir-loading-row, .uir-nodata-row, .uir-machine-row-last))>td,
-html:not(.ext-f) .uir-machine-table tr:nth-child(1 of .uir-machine-row:not(.machineButtonRow, .totalrow, .uir-machine-loading-row, .uir-machine-nodata-row, .uir-machine-button-row, .uir-machine-totals-row, .uir-loading-row, .uir-nodata-row, .uir-machine-row-last))::before {
+   `of` list is the zebra's data-row definition verbatim (both row spellings),
+   and the pseudo-cell in the selector list keeps the sln row number tracking
+   its own row. */
+html:not(.ext-f) .uir-machine-table-container tr:nth-child(1 of .uir-machine-row:not(.machineButtonRow, .totalrow, .uir-machine-loading-row, .uir-machine-nodata-row, .uir-machine-button-row, .uir-machine-totals-row, .uir-loading-row, .uir-nodata-row, .uir-machine-row-last), .uir-list-row-tr)>td,
+html:not(.ext-f) .uir-machine-table-container tr:nth-child(1 of .uir-machine-row:not(.machineButtonRow, .totalrow, .uir-machine-loading-row, .uir-machine-nodata-row, .uir-machine-button-row, .uir-machine-totals-row, .uir-loading-row, .uir-nodata-row, .uir-machine-row-last), .uir-list-row-tr)::before {
     padding-top: 12px !important
 }
 
@@ -5135,30 +5171,36 @@ html:not(.ext-f) .uir-machine-table tr:nth-child(1 of .uir-machine-row:not(.mach
    the gutter's own giant :has() chain is never repeated. Background change
    carries the hover everywhere; the accent is reinforcement, never the only
    signal. An inset shadow moves no boxes — hover shifts nothing. */
-html:not(.ext-f) .uir-machine-table .uir-machine-row:hover {
+html:not(.ext-f) .uir-machine-table-container :is(.uir-machine-row, .uir-list-row-tr):hover {
     --suitemate-row-accent: inset 3px 0 0 var(--theme-main)
 }
 
 @media (prefers-reduced-motion: no-preference) {
-    html:not(.ext-f) .uir-machine-table .uir-machine-row>td,
-    html:not(.ext-f) .uir-machine-row::before {
+    html:not(.ext-f) .uir-machine-table-container :is(.uir-machine-row, .uir-list-row-tr)>td,
+    html:not(.ext-f) .uir-machine-table-container :is(.uir-machine-row, .uir-list-row-tr)::before {
         transition: background-color 140ms ease, box-shadow 140ms ease
     }
 }
 
-/* NetSuite marks numeric machine cells with align=right in the markup itself
-   (Quantity, Committed, Picked, Packed, Fulfilled, Invoiced, Back Ordered,
-   Available, prices) — alignment is native and preserved; this only adds
-   tabular figures and the mockup's medium emphasis where the markup says
-   "number". Availability alone cannot be told apart from its siblings in
-   CSS (columns are positional and personalizable), so every numeric cell
-   carries the 500 — the closest table-safe reading of the mockup. */
-html:not(.ext-f) .uir-machine-table .uir-machine-row>td[align=right] {
+/* NetSuite marks numeric machine cells in the markup itself — align=right on
+   machine rows, .listtextrt/.listtexthlrt on list-spelling rows (Quantity,
+   Committed, Picked, Packed, Fulfilled, Invoiced, Back Ordered, Available,
+   prices) — and that marking is what this rule keys on. Availability alone
+   cannot be told apart from its siblings in CSS (columns are positional and
+   personalizable), so every numeric cell carries the 500 — the closest
+   table-safe reading of the mockup.
+   CENTRED, not right-flushed (owner-requested): the mockup seats each value
+   under the middle of its header rather than on the column's right edge.
+   Author CSS outranks the align=right presentational hint and NetSuite's own
+   .listtextrt rule; tabular figures keep digit columns steady. The totals
+   card (.totallingtable) keeps its right alignment — different surface. */
+html:not(.ext-f) .uir-machine-table-container :is(.uir-machine-row, .uir-list-row-tr)>td:is([align=right], .listtextrt, .listtexthlrt) {
     font-variant-numeric: tabular-nums;
-    font-weight: 500
+    font-weight: 500;
+    text-align: center
 }
 
-html:not(.ext-f) .uir-machine-table .uir-machine-row td a:is(.dottedlink, [href]) {
+html:not(.ext-f) .uir-machine-table-container :is(.uir-machine-row, .uir-list-row-tr) td a:is(.dottedlink, [href]) {
     color: var(--theme-main) !important;
     font-weight: 600;
     /* !important: a later V1 link rule flattens the plain declaration —

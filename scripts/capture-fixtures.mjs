@@ -313,8 +313,14 @@ async function probeRowStripes(client, sessionId) {
       // group that exists: a lone-row group ahead of the machine would hand this
       // probe a row the parity check never looks at, and the forced-hover guard
       // would fail closed on a page that is entirely correct.
+      // MACHINE GROUPS STRIPE THE FIRST ROW (the container-scoped parity flip in
+      // netsuite.css); lists keep evens-striped. The flag rides each group so the
+      // assertions know which parity that group's stylesheet actually promises,
+      // and the forced-state target stays A ROW THE STRIPE PAINTS — index 0 in a
+      // machine, index 1 in a list — or the carve-out checks lose their teeth.
+      const startsStripedOf = (row) => Boolean(row.closest(".uir-machine-table-container"));
       const targetSiblings = [...groups.values()].find((siblings) => siblings.length >= 2);
-      const target = targetSiblings?.[1];
+      const target = targetSiblings?.[startsStripedOf(targetSiblings[0]) ? 0 : 1];
       const forced = [];
       for (const name of target ? STATEFUL : []) {
         target.classList.add(name);
@@ -350,6 +356,7 @@ async function probeRowStripes(client, sessionId) {
         groups: [...groups.values()].map((siblings) => ({
           base: shadeAt(siblings[0], "--row-even-bg-color"),
           stripe: shadeAt(siblings[0], "--row-odd-bg-color"),
+          startsStriped: startsStripedOf(siblings[0]),
           rows: siblings.map((row) => ({
             colour: paint(row),
             // Stateful rows stay IN the index. The rule carves them out of the
@@ -424,7 +431,7 @@ function assertStripes(label, stripes) {
   // while list rows keep the shared 8%, and each group's rows are asserted
   // against the tokens resolved at that group's own rows.
   let minDelta = Infinity;
-  for (const { base, stripe, rows } of groups) {
+  for (const { base, stripe, startsStriped, rows } of groups) {
     if (sameColour(stripe, base)) {
       throw new Error(`${label}: --row-odd-bg-color and --row-even-bg-color are both rgb(${base}) — there is no stripe to render.`);
     }
@@ -444,7 +451,9 @@ function assertStripes(label, stripes) {
         }
         continue;
       }
-      const wanted = index % 2 === 0 ? base : stripe;
+      // Machine groups start ON the stripe (the container-scoped parity flip);
+      // list groups start on the base, as the shared engine always has.
+      const wanted = (index % 2 === 0) === Boolean(startsStriped) ? stripe : base;
       if (!sameColour(row.colour, wanted)) {
         throw new Error(`${label}: data row ${index} is rgb(${row.colour}), expected rgb(${wanted}) — stripe parity is not alternating over data rows.`);
       }
