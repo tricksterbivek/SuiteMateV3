@@ -43,6 +43,7 @@
   const HOVER_CLOSE_DELAY_MS = 200;
   const HOVER_RETAINED_CLASS = "suitemate-v3-rr-hover-retained";
   const FLOAT_CLASS = "suitemate-v3-rr-float";
+  const KEY_HANDLED_FLAG = "suitemateV3RecentRecordsKeyHandled";
   const GROUPS = Object.freeze(["Today", "Yesterday", "This week", "Older"]);
   const RECORD_ICONS = Object.freeze({
     employee: "person",
@@ -526,21 +527,23 @@
   }
 
   // Document-capture keyboard support: "/" focuses the search while the panel
-  // is open, and Escape still works while the rescued float is up (NetSuite's
-  // own capture handling can starve the panel's bubble listener there).
-  // defaultPrevented guards against double handling.
+  // is open, and Escape keeps working when NetSuite's earlier-registered
+  // capture handler preventDefaults the keystroke and unmounts the popover.
+  // Double handling between this and the panel listener is deduped with a
+  // private expando flag — defaultPrevented is unusable because NetSuite sets
+  // it on Escape itself.
   function handleGlobalKeydown(event) {
-    if (event.defaultPrevented || !activePanel) {
+    if (event[KEY_HANDLED_FLAG] || !activePanel) {
       return;
     }
     if (event.key === "/" && isPanelOpen() && !isTypingTarget(event.target)) {
+      event[KEY_HANDLED_FLAG] = true;
       event.preventDefault();
       activePanel.panel.querySelector(".suitemate-v3-rr-search")?.focus();
       return;
     }
-    // No isPanelOpen() here: NetSuite's earlier-registered capture handler may
-    // have unmounted the popover on this same Escape keystroke.
     if (event.key === "Escape" && activePanel.panel?.contains(event.target)) {
+      event[KEY_HANDLED_FLAG] = true;
       event.preventDefault();
       handlePanelEscape(activePanel.panel);
     }
@@ -550,9 +553,10 @@
     const panel = event.currentTarget;
     const search = panel.querySelector(".suitemate-v3-rr-search");
     if (event.key === "Escape") {
-      if (event.defaultPrevented) {
+      if (event[KEY_HANDLED_FLAG]) {
         return;
       }
+      event[KEY_HANDLED_FLAG] = true;
       event.preventDefault();
       handlePanelEscape(panel);
       return;
