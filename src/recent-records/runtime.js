@@ -459,19 +459,45 @@
     return [...panel.querySelectorAll(".suitemate-v3-rr-main")];
   }
 
+  function handlePanelEscape(panel) {
+    const search = panel.querySelector(".suitemate-v3-rr-search");
+    if (search?.value) {
+      search.value = "";
+      activePanel.query = "";
+      renderActivePanel({ focusSearch: true });
+      return;
+    }
+    suppressActivationUntil = Date.now() + 350;
+    hidePopover();
+  }
+
+  // NetSuite's own document-capture Escape handling can starve the panel's
+  // bubble listener while the rescued float is up, so cover Escape at capture
+  // level for the float; defaultPrevented guards against double handling.
+  function handleFloatKeydown(event) {
+    const popover = activePanel?.popover;
+    if (
+      event.key !== "Escape"
+      || event.defaultPrevented
+      || !popover?.isConnected
+      || !popover.classList.contains(FLOAT_CLASS)
+      || !popover.contains(event.target)
+    ) {
+      return;
+    }
+    event.preventDefault();
+    handlePanelEscape(activePanel.panel);
+  }
+
   function handlePanelKeydown(event) {
     const panel = event.currentTarget;
     const search = panel.querySelector(".suitemate-v3-rr-search");
     if (event.key === "Escape") {
-      event.preventDefault();
-      if (search?.value) {
-        search.value = "";
-        activePanel.query = "";
-        renderActivePanel({ focusSearch: true });
+      if (event.defaultPrevented) {
         return;
       }
-      suppressActivationUntil = Date.now() + 350;
-      hidePopover();
+      event.preventDefault();
+      handlePanelEscape(panel);
       return;
     }
     const rows = focusRows(panel);
@@ -812,6 +838,7 @@
     document.addEventListener("focusin", handleActivation, true);
     document.addEventListener("mouseout", handleTriggerExit, true);
     document.addEventListener("focusout", handleTriggerExit, true);
+    document.addEventListener("keydown", handleFloatKeydown, true);
     historyWatcher.resume("feature-enabled");
   }
 
@@ -830,6 +857,7 @@
     document.removeEventListener("focusin", handleActivation, true);
     document.removeEventListener("mouseout", handleTriggerExit, true);
     document.removeEventListener("focusout", handleTriggerExit, true);
+    document.removeEventListener("keydown", handleFloatKeydown, true);
     document.documentElement.classList.remove(
       "suitemate-v3-recent-records-enabled",
       "suitemate-v3-recent-records-armed"
