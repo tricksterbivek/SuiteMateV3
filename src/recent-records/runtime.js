@@ -472,7 +472,6 @@
       }
       suppressActivationUntil = Date.now() + 350;
       hidePopover();
-      document.querySelector(TRIGGER_SELECTOR)?.focus();
       return;
     }
     const rows = focusRows(panel);
