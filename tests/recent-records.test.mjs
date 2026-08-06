@@ -211,10 +211,12 @@ test("groups records into a pinned section, date sections and a footer link", ()
 
 test("record icons carry restrained semantic tints", () => {
   assert.match(runtimeSource, /function iconTint/);
+  assert.match(runtimeSource, /function iconGlyph/);
   assert.match(runtimeSource, /suitemate-v3-rr-icon-tint-\$\{iconTint\(record\)\}/);
   for (const tint of ["transaction", "item", "entity", "po", "neutral"]) {
     assert.match(styleSource, new RegExp(`\\.suitemate-v3-rr-icon-tint-${tint} \\{`));
   }
+  assert.match(runtimeSource, /replace\(\/\^\(today\|yesterday\),\\s\*\/i, ""\)/);
 });
 
 test("slash focuses the search unless the user is already typing", () => {

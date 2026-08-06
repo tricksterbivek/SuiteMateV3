@@ -401,7 +401,20 @@
       if (name.startsWith("item receipt")) return "item";
       return "transaction";
     }
+    if (/^(customer|vendor|employee|contact|partner)$/i.test((record.secondary || "").trim())) {
+      return "entity";
+    }
     return "neutral";
+  }
+
+  function iconGlyph(record) {
+    if (iconTint(record) === "entity") {
+      return "person";
+    }
+    if ((record.name || "").toLowerCase().startsWith("item receipt")) {
+      return "file";
+    }
+    return RECORD_ICONS[record.kind] ?? "file";
   }
 
   function createRecordRow(record) {
@@ -410,7 +423,7 @@
     row.setAttribute("role", "listitem");
 
     const icon = createElement("span", `suitemate-v3-rr-icon suitemate-v3-rr-icon-tint-${iconTint(record)}`);
-    icon.append(createSvgIcon(RECORD_ICONS[record.kind] ?? "file"));
+    icon.append(createSvgIcon(iconGlyph(record)));
     icon.setAttribute("aria-hidden", "true");
 
     const main = createElement("a", "suitemate-v3-rr-main");
@@ -455,7 +468,11 @@
     actions.append(pin);
     row.append(main);
     if (!record.pinned) {
-      row.append(createElement("span", "suitemate-v3-rr-date", core.displayDate(record)));
+      row.append(createElement(
+        "span",
+        "suitemate-v3-rr-date",
+        core.displayDate(record).replace(/^(today|yesterday),\s*/i, "")
+      ));
     }
     row.append(actions);
     return row;
