@@ -905,7 +905,7 @@
     document.addEventListener("focusin", handleActivation, true);
     document.addEventListener("mouseout", handleTriggerExit, true);
     document.addEventListener("focusout", handleTriggerExit, true);
-    document.addEventListener("keydown", handleGlobalKeydown, true);
+    window.addEventListener("keydown", handleGlobalKeydown, true);
     historyWatcher.resume("feature-enabled");
   }
 
@@ -924,7 +924,7 @@
     document.removeEventListener("focusin", handleActivation, true);
     document.removeEventListener("mouseout", handleTriggerExit, true);
     document.removeEventListener("focusout", handleTriggerExit, true);
-    document.removeEventListener("keydown", handleGlobalKeydown, true);
+    window.removeEventListener("keydown", handleGlobalKeydown, true);
     document.documentElement.classList.remove(
       "suitemate-v3-recent-records-enabled",
       "suitemate-v3-recent-records-armed"

@@ -257,12 +257,13 @@ test("disabling the feature removes every document listener", () => {
     ['"focusin", handleActivation'],
     ['"mouseout", handleTriggerExit'],
     ['"focusout", handleTriggerExit'],
-    ['"keydown", handleGlobalKeydown']
   ]) {
     const suffix = pair[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     assert.match(runtimeSource, new RegExp(`document\\.addEventListener\\(${suffix}, true\\)`));
     assert.match(runtimeSource, new RegExp(`document\\.removeEventListener\\(${suffix}, true\\)`));
   }
+  assert.match(runtimeSource, /window\.addEventListener\("keydown", handleGlobalKeydown, true\)/);
+  assert.match(runtimeSource, /window\.removeEventListener\("keydown", handleGlobalKeydown, true\)/);
 });
 
 test("the core has no DOM, Chrome storage or network authority", () => {
