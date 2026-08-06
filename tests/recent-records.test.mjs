@@ -223,7 +223,8 @@ test("slash focuses the search unless the user is already typing", () => {
   assert.match(runtimeSource, /function isTypingTarget/);
   assert.match(runtimeSource, /\["INPUT", "TEXTAREA", "SELECT"\]\.includes\(target\.tagName\)/);
   assert.match(runtimeSource, /target\.isContentEditable/);
-  assert.match(runtimeSource, /event\.key === "\/" && isPanelOpen\(\) && !isTypingTarget\(event\.target\)/);
+  assert.match(runtimeSource, /function handleSlashKeydown/);
+  assert.match(runtimeSource, /document\.addEventListener\("keydown", handleSlashKeydown, true\)/);
 });
 
 test("responsive rules keep the popup inside the viewport", () => {
@@ -264,6 +265,8 @@ test("disabling the feature removes every document listener", () => {
   }
   assert.match(runtimeSource, /window\.addEventListener\("keydown", handleGlobalKeydown, true\)/);
   assert.match(runtimeSource, /window\.removeEventListener\("keydown", handleGlobalKeydown, true\)/);
+  assert.match(runtimeSource, /document\.addEventListener\("keydown", handleSlashKeydown, true\)/);
+  assert.match(runtimeSource, /document\.removeEventListener\("keydown", handleSlashKeydown, true\)/);
 });
 
 test("the core has no DOM, Chrome storage or network authority", () => {

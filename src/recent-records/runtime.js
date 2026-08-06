@@ -526,20 +526,15 @@
     );
   }
 
-  // Document-capture keyboard support: "/" focuses the search while the panel
-  // is open, and Escape keeps working when NetSuite's earlier-registered
-  // capture handler preventDefaults the keystroke and unmounts the popover.
-  // Double handling between this and the panel listener is deduped with a
-  // private expando flag — defaultPrevented is unusable because NetSuite sets
-  // it on Escape itself.
+  // Escape runs at WINDOW capture so it precedes NetSuite's document-level
+  // handlers (which preventDefault the key and unmount the popover before a
+  // later listener can clear the search). "/" deliberately stays at DOCUMENT
+  // capture: NetSuite must process it first and close its menu state, or its
+  // menubar typeahead swallows the letters typed into the search afterwards.
+  // The expando flag dedupes against the panel's own listener —
+  // defaultPrevented is unusable because NetSuite sets it on Escape itself.
   function handleGlobalKeydown(event) {
     if (event[KEY_HANDLED_FLAG] || !activePanel) {
-      return;
-    }
-    if (event.key === "/" && isPanelOpen() && !isTypingTarget(event.target)) {
-      event[KEY_HANDLED_FLAG] = true;
-      event.preventDefault();
-      activePanel.panel.querySelector(".suitemate-v3-rr-search")?.focus();
       return;
     }
     if (event.key === "Escape" && activePanel.panel?.contains(event.target)) {
@@ -547,6 +542,20 @@
       event.preventDefault();
       handlePanelEscape(activePanel.panel);
     }
+  }
+
+  function handleSlashKeydown(event) {
+    if (
+      event[KEY_HANDLED_FLAG]
+      || event.key !== "/"
+      || !isPanelOpen()
+      || isTypingTarget(event.target)
+    ) {
+      return;
+    }
+    event[KEY_HANDLED_FLAG] = true;
+    event.preventDefault();
+    activePanel.panel.querySelector(".suitemate-v3-rr-search")?.focus();
   }
 
   function handlePanelKeydown(event) {
@@ -906,6 +915,7 @@
     document.addEventListener("mouseout", handleTriggerExit, true);
     document.addEventListener("focusout", handleTriggerExit, true);
     window.addEventListener("keydown", handleGlobalKeydown, true);
+    document.addEventListener("keydown", handleSlashKeydown, true);
     historyWatcher.resume("feature-enabled");
   }
 
@@ -925,6 +935,7 @@
     document.removeEventListener("mouseout", handleTriggerExit, true);
     document.removeEventListener("focusout", handleTriggerExit, true);
     window.removeEventListener("keydown", handleGlobalKeydown, true);
+    document.removeEventListener("keydown", handleSlashKeydown, true);
     document.documentElement.classList.remove(
       "suitemate-v3-recent-records-enabled",
       "suitemate-v3-recent-records-armed"
