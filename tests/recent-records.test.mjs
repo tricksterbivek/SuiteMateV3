@@ -187,10 +187,18 @@ test("renders the reference-quality Recent Records panel structure", () => {
     assert.match(runtimeSource, new RegExp(token));
   }
   assert.match(styleSource, /width: min\(480px, calc\(100vw - 24px\)\)/);
-  assert.match(styleSource, /height: min\(480px, calc\(100vh - 40px\)\)/);
+  assert.match(styleSource, /max-height: min\(480px, calc\(100vh - 40px\)\)/);
   assert.match(styleSource, /\.suitemate-v3-rr-group-title \{[\s\S]*?position: sticky;/);
   assert.match(styleSource, /\.suitemate-v3-rr-row:hover \.suitemate-v3-rr-row-actions/);
   assert.match(styleSource, /\.suitemate-v3-rr-action-pin\.is-pinned svg/);
+});
+
+test("panel offers keyboard escape, semantic group headings and recoverable states", () => {
+  assert.match(runtimeSource, /suppressActivationUntil = Date\.now\(\) \+ 350;\s*hidePopover\(\);\s*document\.querySelector\(TRIGGER_SELECTOR\)\?\.focus\(\);/);
+  assert.match(runtimeSource, /createElement\("h3", `suitemate-v3-rr-group-title\$\{modifier\}`\)/);
+  assert.doesNotMatch(runtimeSource, /"presentation"/);
+  assert.match(runtimeSource, /suitemate-v3-rr-retry/);
+  assert.match(runtimeSource, /suitemate-v3-rr-message-hint/);
 });
 
 test("the core has no DOM, Chrome storage or network authority", () => {

@@ -32,8 +32,7 @@ html.suitemate-v3-recent-records-enabled
   box-sizing: border-box;
   display: flex;
   width: 100%;
-  height: min(480px, calc(100vh - 40px));
-  min-height: min(360px, calc(100vh - 40px));
+  max-height: min(480px, calc(100vh - 40px));
   flex-direction: column;
   overflow: hidden;
   color: var(--text-1, light-dark(#1f2937, #e5e7eb));
@@ -165,6 +164,7 @@ html.suitemate-v3-recent-records-enabled
   position: sticky;
   z-index: 4;
   top: 0;
+  margin: 0;
   display: flex;
   min-height: 27px;
   align-items: center;
@@ -361,8 +361,8 @@ html.suitemate-v3-recent-records-enabled
 
 .suitemate-v3-rr-action {
   display: inline-flex;
-  width: 27px;
-  height: 27px;
+  width: 30px;
+  height: 30px;
   margin: 0;
   padding: 0;
   align-items: center;
@@ -404,10 +404,43 @@ html.suitemate-v3-recent-records-enabled
   display: grid;
   min-height: 180px;
   flex: 1;
+  gap: 5px;
   place-items: center;
+  align-content: center;
   padding: 24px;
   color: var(--text-3, light-dark(#6b7280, #a8afb9));
   text-align: center;
+}
+
+.suitemate-v3-rr-message strong {
+  color: var(--text-2, light-dark(#3d4756, #ccd1d9));
+  font-weight: 650;
+}
+
+.suitemate-v3-rr-message-hint {
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.suitemate-v3-rr-retry {
+  min-height: 30px;
+  margin-top: 5px;
+  padding: 5px 16px;
+  color: var(--text-2, light-dark(#3d4756, #ccd1d9));
+  background: var(--field-backgroud-color, light-dark(#fff, #20242b));
+  border: 1px solid var(--field-border-color, light-dark(#d5dae1, #4b515b));
+  border-radius: var(--suitemate-radius-control, 6px);
+  outline: none;
+  cursor: pointer;
+  font: 650 12px/18px var(--normal-font, "Inter", Arial, sans-serif);
+  transition: color 100ms ease, background-color 100ms ease, border-color 100ms ease;
+}
+
+.suitemate-v3-rr-retry:hover,
+.suitemate-v3-rr-retry:focus-visible {
+  color: var(--theme-main, #6269e7);
+  background: light-dark(#f2f3ff, #303756);
+  border-color: color-mix(in srgb, var(--theme-main, #6269e7) 55%, var(--field-border-color, #d5dae1));
 }
 
 .suitemate-v3-rr-error {
@@ -419,7 +452,8 @@ html.suitemate-v3-recent-records-enabled
   .suitemate-v3-rr-row,
   .suitemate-v3-rr-date,
   .suitemate-v3-rr-row-actions,
-  .suitemate-v3-rr-action {
+  .suitemate-v3-rr-action,
+  .suitemate-v3-rr-retry {
     transition: none;
   }
 }

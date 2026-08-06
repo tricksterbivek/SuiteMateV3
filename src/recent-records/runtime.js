@@ -77,6 +77,7 @@
   let settingsRevision = 0;
   let lastActivationAt = 0;
   let hoverCloseTimer = 0;
+  let suppressActivationUntil = 0;
 
   function resolveScopeKey() {
     let sessionId = "unknown";
@@ -167,6 +168,15 @@
     popover.classList.add(HOVER_RETAINED_CLASS);
   }
 
+  function hidePopover(popover = activePanel?.popover) {
+    clearHoverClose();
+    if (!popover?.isConnected) {
+      return;
+    }
+    popover.classList.remove(HOVER_RETAINED_CLASS);
+    popover.style.display = "none";
+  }
+
   function schedulePopoverClose(popover = activePanel?.popover) {
     clearHoverClose();
     if (!popover?.isConnected) {
@@ -185,8 +195,7 @@
       ) {
         return;
       }
-      popover.classList.remove(HOVER_RETAINED_CLASS);
-      popover.style.display = "none";
+      hidePopover(popover);
     }, HOVER_CLOSE_DELAY_MS);
   }
 
@@ -371,8 +380,7 @@
       return;
     }
     const modifier = options.pinned ? " suitemate-v3-rr-group-title-pinned" : "";
-    const heading = createElement("div", `suitemate-v3-rr-group-title${modifier}`);
-    heading.setAttribute("role", "presentation");
+    const heading = createElement("h3", `suitemate-v3-rr-group-title${modifier}`);
     if (options.pinned) {
       heading.append(createSvgIcon("star", "suitemate-v3-rr-group-star"));
     }
@@ -390,11 +398,17 @@
   function handlePanelKeydown(event) {
     const panel = event.currentTarget;
     const search = panel.querySelector(".suitemate-v3-rr-search");
-    if (event.key === "Escape" && search?.value) {
+    if (event.key === "Escape") {
       event.preventDefault();
-      search.value = "";
-      activePanel.query = "";
-      renderActivePanel({ focusSearch: true });
+      if (search?.value) {
+        search.value = "";
+        activePanel.query = "";
+        renderActivePanel({ focusSearch: true });
+        return;
+      }
+      suppressActivationUntil = Date.now() + 350;
+      hidePopover();
+      document.querySelector(TRIGGER_SELECTOR)?.focus();
       return;
     }
     const rows = focusRows(panel);
@@ -469,13 +483,24 @@
     if (state.status === "loading" && total === 0) {
       body.append(createElement("div", "suitemate-v3-rr-message", "Loading recent records..."));
     } else if (state.status === "error" && total === 0) {
-      body.append(createElement("div", "suitemate-v3-rr-message suitemate-v3-rr-error", "Recent records could not be loaded."));
+      const failed = createElement("div", "suitemate-v3-rr-message");
+      failed.append(createElement("strong", "suitemate-v3-rr-error", "Recent records could not be loaded."));
+      const retry = createElement("button", "suitemate-v3-rr-retry", "Try again");
+      retry.type = "button";
+      retry.addEventListener("click", () => void refreshSnapshot());
+      failed.append(retry);
+      body.append(failed);
     } else if (filteredTotal === 0) {
-      body.append(createElement(
-        "div",
-        "suitemate-v3-rr-message",
-        state.query ? "No matching records." : "No recent records yet."
-      ));
+      const empty = createElement("div", "suitemate-v3-rr-message");
+      empty.append(
+        createElement("strong", "", state.query ? "No matching records." : "No recent records yet."),
+        createElement(
+          "span",
+          "suitemate-v3-rr-message-hint",
+          state.query ? "Try a shorter or different search." : "Records you open in NetSuite will show up here."
+        )
+      );
+      body.append(empty);
     } else {
       appendGroup(body, "Pinned", filtered.pinned, { pinned: true });
       for (const group of GROUPS) {
@@ -508,9 +533,7 @@
     panel.addEventListener("keydown", handlePanelKeydown);
     panel.addEventListener("click", (event) => {
       if (event.target?.closest?.("a")) {
-        clearHoverClose();
-        popover.classList.remove(HOVER_RETAINED_CLASS);
-        popover.style.display = "none";
+        hidePopover(popover);
       }
     });
     popover.addEventListener("mouseenter", () => retainPopover(popover));
@@ -675,6 +698,9 @@
 
   function handleActivation(event) {
     if (!enabled || !event.target?.closest?.(TRIGGER_SELECTOR)) {
+      return;
+    }
+    if (Date.now() < suppressActivationUntil) {
       return;
     }
     if (activePanel?.popover?.isConnected) {
