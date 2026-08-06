@@ -2,7 +2,11 @@
 
 ## Browser automation
 
-- For live testing, ALWAYS connect to **Browser 1** via claude-in-chrome (`select_browser` deviceId `5c485ee5-431a-48e5-bae1-1aaeafa43cf6`) — it holds the NetSuite session and the unpacked SuiteMate V3 extension. The other connected Chrome profile does not work for this project.
+- For SuiteMate development, ALWAYS use the **Playwright MCP in extension mode** (`mcp__playwright__*` tools), which attaches to the dedicated Chrome profile signed in as **tricksterbirek@gmail.com** ("Trickster bvek" — the secondary account with the r, not the main tricksterbivek one).
+- Prefer `browser_snapshot` over screenshots for reading page state.
+- NEVER navigate to `chrome://` URLs through the relay — it kills the extension connection (recover with `browser_tabs new`).
+- The pairing token lives in `~/.claude.json` → `mcpServers.playwright.env.PLAYWRIGHT_MCP_EXTENSION_TOKEN`. When the browser refreshes its token: update that value, run `/mcp` → reconnect playwright, then retry.
+- claude-in-chrome ("Browser 1") is superseded and no longer used for this project.
 
 ## Live testing records (account 6998262)
 

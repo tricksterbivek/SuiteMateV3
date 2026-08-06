@@ -16,14 +16,6 @@
         </div>
       </header>
 
-      <section class="tool-card" aria-labelledby="suiteqlToolTitle">
-        <div>
-          <strong id="suiteqlToolTitle">SuiteQL Console</strong>
-          <small id="suiteqlToolContext">Open a NetSuite tab to launch Studio.</small>
-        </div>
-        <button id="openSuiteQL" class="primary-action" type="button" data-suitemate-v3-command="popup.open-suiteql" disabled>Open SuiteQL Console</button>
-      </section>
-
       <form id="settings">
         <label class="toggle-row" for="enabled">
           <span>
@@ -39,62 +31,6 @@
           <label><input type="radio" name="mode" value="dark"> Dark</label>
           <label><input type="radio" name="mode" value="system"> System</label>
         </fieldset>
-
-        <label class="toggle-row" for="squareCorners">
-          <span>
-            <strong>Boxy UI</strong>
-            <small>Remove rounded corners</small>
-          </span>
-          <input id="squareCorners" name="squareCorners" type="checkbox">
-        </label>
-
-        <label class="toggle-row" for="showInternalIds">
-          <span>
-            <strong>Show Internal IDs</strong>
-            <small>Display record, field, sublist, column and button IDs</small>
-          </span>
-          <input id="showInternalIds" name="showInternalIds" type="checkbox">
-        </label>
-
-        <label class="toggle-row" for="salesOrderColumns">
-          <span>
-            <strong>Enable Transaction Column Personalization</strong>
-            <small>Drag to reorder Sales Order item columns in view mode</small>
-          </span>
-          <input id="salesOrderColumns" name="salesOrderColumns" type="checkbox">
-        </label>
-
-        <label class="toggle-row" for="smartTabTitles">
-          <span>
-            <strong>Smart tab titles</strong>
-            <small>Rename record tabs to "SO 4512 · Customer · Status"</small>
-          </span>
-          <input id="smartTabTitles" name="smartTabTitles" type="checkbox">
-        </label>
-
-        <label class="toggle-row" for="recentRecords">
-          <span>
-            <strong>Recent Records</strong>
-            <small>Search, group and pin records from the NetSuite header</small>
-          </span>
-          <input id="recentRecords" name="recentRecords" type="checkbox">
-        </label>
-
-        <label class="toggle-row" for="formViews">
-          <span>
-            <strong>Personal form views</strong>
-            <small>Hide fields and remember collapsed sections on Sales Orders</small>
-          </span>
-          <input id="formViews" name="formViews" type="checkbox">
-        </label>
-
-        <label class="toggle-row" for="salesOrderColumnsEdit">
-          <span>
-            <strong>Sales Order columns (Edit Mode)</strong>
-            <small>Resize, hide, reorder and filter the item sublist while editing</small>
-          </span>
-          <input id="salesOrderColumnsEdit" name="salesOrderColumnsEdit" type="checkbox">
-        </label>
 
         <section id="roleTheme" class="theme-card" aria-labelledby="roleThemeTitle">
           <div class="theme-heading">
@@ -139,29 +75,99 @@
           </div>
         </section>
 
-        <details id="settingsTransfer" class="settings-transfer">
+        <label class="toggle-row" for="salesOrderColumns">
+          <span>
+            <strong>Enable Transaction Column Personalization</strong>
+            <small>Drag to reorder Sales Order item columns in view mode</small>
+          </span>
+          <input id="salesOrderColumns" name="salesOrderColumns" type="checkbox">
+        </label>
+
+        <label class="toggle-row" for="smartTabTitles">
+          <span>
+            <strong>Smart tab titles</strong>
+            <small>Rename record tabs to "SO 4512 · Customer · Status"</small>
+          </span>
+          <input id="smartTabTitles" name="smartTabTitles" type="checkbox">
+        </label>
+
+        <label class="toggle-row" for="recentRecords">
+          <span>
+            <strong>Recent Records</strong>
+            <small>Search, group and pin records from the NetSuite header</small>
+          </span>
+          <input id="recentRecords" name="recentRecords" type="checkbox">
+        </label>
+
+        <label class="toggle-row" for="formViews">
+          <span>
+            <strong>Personal form views</strong>
+            <small>Hide fields and remember collapsed sections on Sales Orders</small>
+          </span>
+          <input id="formViews" name="formViews" type="checkbox">
+        </label>
+
+        <details id="advancedTools" class="advanced-section">
           <summary>
             <span>
-              <strong>Backup and restore</strong>
-              <small>Move settings between browser profiles</small>
+              <strong>Advanced</strong>
+              <small>SuiteQL Console, developer tools and rarely used options</small>
             </span>
           </summary>
-          <div class="settings-transfer-content">
-            <p>Export copies an encoded backup. Import validates it, then replaces all SuiteMate V3 settings.</p>
-            <label for="settingsBackupData">
-              <span>Backup data</span>
-              <textarea
-                id="settingsBackupData"
-                rows="3"
-                spellcheck="false"
-                autocomplete="off"
-                placeholder="Paste a SuiteMate V3 settings backup"
-              ></textarea>
-            </label>
-            <div class="settings-transfer-actions">
-              <button id="exportSettings" type="button" data-suitemate-v3-command="settings.export-backup">Export settings</button>
-              <button id="importSettings" class="danger-action" type="button" data-suitemate-v3-command="settings.import-backup" disabled>Import settings</button>
+          <div class="advanced-content">
+            <section class="tool-card" aria-labelledby="suiteqlToolTitle">
+              <div>
+                <strong id="suiteqlToolTitle">SuiteQL Console</strong>
+                <small id="suiteqlToolContext">Open a NetSuite tab to launch Studio.</small>
+              </div>
+              <button id="openSuiteQL" class="primary-action" type="button" data-suitemate-v3-command="popup.open-suiteql" disabled>Open SuiteQL Console</button>
+            </section>
+          <label class="toggle-row" for="showInternalIds">
+            <span>
+              <strong>Show Internal IDs</strong>
+              <small>Display record, field, sublist, column and button IDs</small>
+            </span>
+            <input id="showInternalIds" name="showInternalIds" type="checkbox">
+          </label>
+          <label class="toggle-row" for="salesOrderColumnsEdit">
+            <span>
+              <strong>Sales Order columns (Edit Mode)</strong>
+              <small>Resize, hide, reorder and filter the item sublist while editing</small>
+            </span>
+            <input id="salesOrderColumnsEdit" name="salesOrderColumnsEdit" type="checkbox">
+          </label>
+          <label class="toggle-row" for="squareCorners">
+            <span>
+              <strong>Boxy UI</strong>
+              <small>Remove rounded corners</small>
+            </span>
+            <input id="squareCorners" name="squareCorners" type="checkbox">
+          </label>
+          <details id="settingsTransfer" class="settings-transfer">
+            <summary>
+              <span>
+                <strong>Backup and restore</strong>
+                <small>Move settings between browser profiles</small>
+              </span>
+            </summary>
+            <div class="settings-transfer-content">
+              <p>Export copies an encoded backup. Import validates it, then replaces all SuiteMate V3 settings.</p>
+              <label for="settingsBackupData">
+                <span>Backup data</span>
+                <textarea
+                  id="settingsBackupData"
+                  rows="3"
+                  spellcheck="false"
+                  autocomplete="off"
+                  placeholder="Paste a SuiteMate V3 settings backup"
+                ></textarea>
+              </label>
+              <div class="settings-transfer-actions">
+                <button id="exportSettings" type="button" data-suitemate-v3-command="settings.export-backup">Export settings</button>
+                <button id="importSettings" class="danger-action" type="button" data-suitemate-v3-command="settings.import-backup" disabled>Import settings</button>
+              </div>
             </div>
+          </details>
           </div>
         </details>
 
