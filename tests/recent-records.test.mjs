@@ -223,7 +223,7 @@ test("slash focuses the search unless the user is already typing", () => {
   assert.match(runtimeSource, /function isTypingTarget/);
   assert.match(runtimeSource, /\["INPUT", "TEXTAREA", "SELECT"\]\.includes\(target\.tagName\)/);
   assert.match(runtimeSource, /target\.isContentEditable/);
-  assert.match(runtimeSource, /event\.key === "\/" && !isTypingTarget\(event\.target\)/);
+  assert.match(runtimeSource, /event\.key === "\/" && isPanelOpen\(\) && !isTypingTarget\(event\.target\)/);
 });
 
 test("responsive rules keep the popup inside the viewport", () => {
@@ -242,6 +242,8 @@ test("panel survives NetSuite unmounting its popover mid-hover", () => {
 test("panel offers keyboard escape, semantic group headings and recoverable states", () => {
   assert.match(runtimeSource, /suppressActivationUntil = Date\.now\(\) \+ 350;\s*hidePopover\(\);/);
   assert.match(runtimeSource, /function handleGlobalKeydown/);
+  assert.match(runtimeSource, /maybeRescuePanel\(\{ force: true \}\)/);
+  assert.match(runtimeSource, /event\.key === "Escape" && activePanel\.panel\?\.contains\(event\.target\)/);
   assert.match(runtimeSource, /createElement\("h3", `suitemate-v3-rr-group-title\$\{modifier\}`, title\)/);
   assert.doesNotMatch(runtimeSource, /"presentation"/);
   assert.match(runtimeSource, /suitemate-v3-rr-retry/);

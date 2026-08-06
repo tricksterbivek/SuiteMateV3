@@ -207,7 +207,7 @@
   // on the way in. The panel node survives detachment, so re-seat it in a
   // fixed-position holder anchored under the trigger and keep the same
   // retain/close lifecycle.
-  function maybeRescuePanel() {
+  function maybeRescuePanel(options = {}) {
     const panel = activePanel?.panel;
     const trigger = document.querySelector(TRIGGER_SELECTOR);
     if (!panel || panel.isConnected || !trigger) {
@@ -218,9 +218,9 @@
     const viewWidth = document.documentElement.clientWidth;
     const width = Math.min(412, viewWidth - 16);
     const left = Math.max(8, Math.min(anchor.left, viewWidth - width - 8));
-    const headingIn = lastPointer.y >= anchor.bottom - 4
+    const headingIn = options.force || (lastPointer.y >= anchor.bottom - 4
       && lastPointer.x >= left - 24
-      && lastPointer.x <= left + width + 24;
+      && lastPointer.x <= left + width + 24);
     if (!headingIn) {
       activePanel = null;
       return;
@@ -498,7 +498,14 @@
     const search = panel.querySelector(".suitemate-v3-rr-search");
     if (search?.value) {
       search.value = "";
-      activePanel.query = "";
+      if (activePanel) {
+        activePanel.query = "";
+      }
+      // NetSuite's own capture handler may have unmounted the popover on this
+      // same Escape; re-seat the panel so the clear stays visible.
+      if (activePanel && !activePanel.popover?.isConnected) {
+        maybeRescuePanel({ force: true });
+      }
       renderActivePanel({ focusSearch: true });
       return;
     }
@@ -523,20 +530,17 @@
   // own capture handling can starve the panel's bubble listener there).
   // defaultPrevented guards against double handling.
   function handleGlobalKeydown(event) {
-    if (event.defaultPrevented || !isPanelOpen()) {
+    if (event.defaultPrevented || !activePanel) {
       return;
     }
-    if (event.key === "/" && !isTypingTarget(event.target)) {
+    if (event.key === "/" && isPanelOpen() && !isTypingTarget(event.target)) {
       event.preventDefault();
       activePanel.panel.querySelector(".suitemate-v3-rr-search")?.focus();
       return;
     }
-    const popover = activePanel.popover;
-    if (
-      event.key === "Escape"
-      && popover.classList.contains(FLOAT_CLASS)
-      && popover.contains(event.target)
-    ) {
+    // No isPanelOpen() here: NetSuite's earlier-registered capture handler may
+    // have unmounted the popover on this same Escape keystroke.
+    if (event.key === "Escape" && activePanel.panel?.contains(event.target)) {
       event.preventDefault();
       handlePanelEscape(activePanel.panel);
     }
