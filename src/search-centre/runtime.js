@@ -36,18 +36,28 @@
   // ===== Native uber-search adapter =====
   // Every NetSuite-internal assumption lives between these fences; the modal
   // only sees the adapter's functions. Verified live on the 2026.1 refreshed
-  // header (release preview, uif 10.0.15): the header input sits in
-  // div[data-automation-id="GlobalSearchTextBox"]; its results render into a
-  // body-level Popover holding [data-automation-id="GlobalSearchListBox"];
-  // NetSuite keeps fetching and re-rendering that listbox even while its
-  // input is BLURRED, which is what lets the modal own focus and still ride
-  // the native machinery (one autosuggest.nl request per settled query,
-  // debounced by NetSuite itself).
+  // header (release preview, uif 10.0.15). Two data paths share the work:
+  // records and files come from OUR direct autosuggest.nl fetch (NetSuite's
+  // own endpoint, on our 150ms debounce instead of uif's 500ms — ~350ms
+  // faster per query — and carrying the full 25-row payload instead of the
+  // dropdown's 8-row display cap); "Current Page Results" (menus and field
+  // jumps) are computed client-side inside uif and never appear in that
+  // payload, so the hidden native dropdown is still ridden for exactly that
+  // group: query pushed into div[data-automation-id="GlobalSearchTextBox"]'s
+  // input, rows read back from the body-level Popover holding
+  // [data-automation-id="GlobalSearchListBox"], which keeps re-rendering
+  // even while its input is blurred.
   const NATIVE_INPUT_SELECTOR = 'div[data-automation-id="GlobalSearchTextBox"] input';
   const NATIVE_LISTBOX_SELECTOR = '[data-automation-id="GlobalSearchListBox"]';
   // The classic uber search starts matching at three characters.
   const SEARCH_MIN_QUERY_LENGTH = 3;
   const RESULTS_PATH = "/app/common/search/ubersearchresults.nl";
+  // The suggest endpoint, exactly as the native dropdown calls it (verified
+  // live: plain same-origin GET, no CSRF token, JSON body behind a lying
+  // text/html Content-Type).
+  const AUTOSUGGEST_PATH = "/app/common/autosuggest.nl";
+  const FETCH_DEBOUNCE_MS = 150;
+  const MAX_RESPONSE_BYTES = 2_000_000;
   const nativeValueSetter = Object.getOwnPropertyDescriptor(
     globalThis.HTMLInputElement?.prototype ?? {},
     "value"
@@ -81,39 +91,27 @@
     return true;
   }
 
+  // Only the pageSearch group is mirrored now (the fetch owns the rest).
   // Rows are li[role=option] wrapping a SearchItem: a main-link anchor whose
-  // visible text is "Type: Name" (with the Edit/Dash anchors NESTED inside
-  // it — invalid HTML that survives because uif builds it via DOM APIs), an
-  // additional-link that is only an edit action when NetSuite labels it so,
-  // and a show-more row whose href is the canonical full-results URL for the
-  // current query. NetSuite caps the suggest dropdown at 8 rows by design
-  // (Oracle N642700) — the mirror inherits that cap, and "View all search
-  // results" carries the rest. ponytail: if the full 25-row payload is ever
-  // wanted, fetch autosuggest.nl?cur_val=<q>&mapkey=uberautosuggest directly
-  // instead of growing this parser.
-  function parseNativeResults() {
+  // visible text is "Type: Name" (with any secondary anchors NESTED inside
+  // it — invalid HTML that survives because uif builds it via DOM APIs); an
+  // additional-link counts as an edit action only when NetSuite labels it
+  // so; field-jump rows carry no href and are opened through their native
+  // row index.
+  function parseNativePageResults() {
     const listbox = findNativeListbox();
     if (!listbox) {
       return null;
     }
     const results = [];
-    let seeAllHref = "";
-    for (const option of listbox.querySelectorAll('li[role="option"]')) {
+    for (const option of listbox.querySelectorAll('[data-automation-id="pageSearch"] li[role="option"]')) {
       const item = option.querySelector("[data-search-item-type]");
       const mainLink = option.querySelector('a[data-automation-id="main-link"]');
-      if (!item || !mainLink) {
-        continue;
-      }
-      const itemType = item.getAttribute("data-search-item-type");
-      if (itemType === "show-more") {
-        seeAllHref = core.sanitizeHref(mainLink.getAttribute("href"), location.origin);
-        continue;
-      }
-      if (itemType !== "result") {
+      if (!item || !mainLink || item.getAttribute("data-search-item-type") !== "result") {
         continue;
       }
       const additional = option.querySelector('a[data-automation-id="additional-link"]');
-      // Rows label themselves in two spans ("Customer:&nbsp;" + name); only
+      // Rows label themselves in two spans ("Menu:&nbsp;" + name); only
       // rows without them pay for the clone-minus-nested-links fallback.
       const description = mainLink.querySelector('[data-automation-id="link-description"]')?.textContent ?? "";
       const name = mainLink.querySelector('[data-automation-id="link-name"]')?.textContent ?? "";
@@ -127,7 +125,7 @@
       }
       const result = core.normalizeResult({
         text,
-        group: option.closest("[data-listbox-section]")?.getAttribute("data-automation-id") ?? "",
+        group: "pageSearch",
         href: mainLink.getAttribute("href"),
         editHref: /^edit\b/i.test(additional?.getAttribute("aria-label") ?? "")
           ? additional.getAttribute("href")
@@ -138,7 +136,7 @@
         results.push(result);
       }
     }
-    return { results, seeAllHref };
+    return results;
   }
 
   function buildResultsUrl(query) {
@@ -177,15 +175,23 @@
   let resultsObserver = null;
   let pendingTimer = 0;
   let pushFrame = 0;
+  let fetchTimer = 0;
+  let fetchController = null;
+  let fetchSequence = 0;
   let modal = null;
   const state = {
     open: false,
     query: "",
     category: "all",
+    // results is always the merge: fetched records/files first, then the
+    // mirrored current-page rows — the same order the native dropdown uses.
     results: [],
-    seeAllHref: "",
-    parsedSignature: "",
+    fetchedResults: [],
+    pageResults: [],
+    pageSignature: "",
     pending: false,
+    // "The current query got an answer" — real empty answers read as
+    // "No results found", never-answered reads as "Suggestions unavailable".
     everParsed: false,
     selectedIndex: 0,
     focusBounces: 0,
@@ -464,7 +470,7 @@
         // matches): Enter falls through to the full results page so the
         // search never dead-ends.
         closeSearchCentre({ restoreFocus: false });
-        location.assign(state.seeAllHref || buildResultsUrl(state.query));
+        location.assign(buildResultsUrl(state.query));
       }
     }
   }
@@ -537,15 +543,92 @@
     }
   }
 
+  function cancelSuggestFetch() {
+    if (fetchTimer) {
+      clearTimeout(fetchTimer);
+      fetchTimer = 0;
+    }
+    fetchController?.abort("superseded");
+    fetchController = null;
+  }
+
+  async function fetchSuggestions(query) {
+    const controller = new AbortController();
+    fetchController = controller;
+    try {
+      const url = new URL(AUTOSUGGEST_PATH, location.origin);
+      url.searchParams.set("cur_val", query);
+      url.searchParams.set("mapkey", "uberautosuggest");
+      url.searchParams.set("circid", String(++fetchSequence));
+      const response = await fetch(`${url.pathname}${url.search}`, {
+        credentials: "include",
+        signal: controller.signal
+      });
+      const responseUrl = new URL(response.url, location.origin);
+      if (
+        !response.ok
+        || responseUrl.origin !== location.origin
+        || responseUrl.pathname !== AUTOSUGGEST_PATH
+      ) {
+        throw new Error("Unexpected autosuggest response.");
+      }
+      const body = await response.text();
+      if (body.length > MAX_RESPONSE_BYTES) {
+        throw new Error("Autosuggest response exceeded the supported size.");
+      }
+      const autofill = JSON.parse(body)?.autofill;
+      if (!state.open || query !== state.query.trim()) {
+        return;
+      }
+      clearPendingTimer();
+      state.pending = false;
+      state.everParsed = true;
+      state.fetchedResults = (Array.isArray(autofill) ? autofill : [])
+        .map((entry) => core.fromAutofill(entry, location.origin))
+        .filter(Boolean);
+      commitResults();
+    } catch {
+      if (controller.signal.aborted || !state.open || query !== state.query.trim()) {
+        return;
+      }
+      // Failed fetch (offline, endpoint changed): everParsed stays false so
+      // the empty state reads "Suggestions are not available" and Enter
+      // still reaches the full results page.
+      clearPendingTimer();
+      state.pending = false;
+      render();
+    } finally {
+      if (fetchController === controller) {
+        fetchController = null;
+      }
+    }
+  }
+
+  function commitResults() {
+    state.results = [...state.fetchedResults, ...state.pageResults];
+    if (
+      state.category !== "all"
+      && core.filterByCategory(state.results, state.category).length === 0
+    ) {
+      state.category = "all";
+    }
+    state.selectedIndex = Math.min(
+      state.selectedIndex,
+      Math.max(0, filteredResults().length - 1)
+    );
+    render();
+  }
+
   function setQuery(query) {
     state.query = query;
     state.selectedIndex = 0;
     clearPendingTimer();
-    const searching = query.trim().length >= SEARCH_MIN_QUERY_LENGTH;
-    // The native push runs one frame later so the typed character paints
-    // before uif's synchronous input pipeline (heavy on SuiteApp-laden
-    // pages) gets the event. NetSuite's own trailing debounce still governs
-    // the fetch, so time-to-results is unchanged.
+    cancelSuggestFetch();
+    const trimmed = query.trim();
+    const searching = trimmed.length >= SEARCH_MIN_QUERY_LENGTH;
+    // The native ride survives only for "Current Page Results": the push
+    // runs one frame later so the typed character paints before uif's
+    // synchronous input pipeline (heavy on SuiteApp-laden pages) sees it.
     if (pushFrame) {
       cancelAnimationFrame(pushFrame);
     }
@@ -553,24 +636,29 @@
       pushFrame = 0;
       pushQueryToNative(query);
     });
-    state.pending = searching && Boolean(findNativeInput());
     if (!searching) {
       state.results = [];
-      state.seeAllHref = "";
+      state.fetchedResults = [];
+      state.pageResults = [];
+      state.pageSignature = "";
       state.everParsed = false;
       state.pending = false;
-    } else if (state.pending) {
-      // Native parity: the previous rows stay on screen while NetSuite
-      // fetches, and the new set swaps in when its listbox re-renders —
-      // clearing per keystroke made every character feel like a cold wait.
-      // If NetSuite never re-renders (offline, throttled), fall out of the
-      // pending state instead of waiting forever.
-      pendingTimer = setTimeout(() => {
-        pendingTimer = 0;
-        state.pending = false;
-        render();
-      }, PENDING_TIMEOUT_MS);
+      render();
+      return;
     }
+    // Previous rows stay on screen while the fetch runs (native-dropdown
+    // behaviour); the timeout is the fail-out for a request that never
+    // answers.
+    state.pending = true;
+    fetchTimer = setTimeout(() => {
+      fetchTimer = 0;
+      void fetchSuggestions(trimmed);
+    }, FETCH_DEBOUNCE_MS);
+    pendingTimer = setTimeout(() => {
+      pendingTimer = 0;
+      state.pending = false;
+      render();
+    }, PENDING_TIMEOUT_MS);
     render();
   }
 
@@ -585,30 +673,19 @@
     if (findNativeInput()?.value.trim() !== state.query.trim()) {
       return;
     }
-    const parsed = parseNativeResults();
+    const parsed = parseNativePageResults();
     if (parsed === null) {
       return;
     }
-    clearPendingTimer();
-    state.pending = false;
     const signature = JSON.stringify(parsed);
-    if (state.everParsed && signature === state.parsedSignature) {
+    if (signature === state.pageSignature) {
       // Identical listbox re-render — nothing to redraw. Skipping keeps
       // busy pages from rebuilding the modal for no visible change.
       return;
     }
-    state.parsedSignature = signature;
-    state.results = parsed.results;
-    state.seeAllHref = parsed.seeAllHref;
-    state.everParsed = true;
-    if (core.filterByCategory(parsed.results, state.category).length === 0) {
-      state.category = "all";
-    }
-    state.selectedIndex = Math.min(
-      state.selectedIndex,
-      Math.max(0, filteredResults().length - 1)
-    );
-    render();
+    state.pageSignature = signature;
+    state.pageResults = parsed;
+    commitResults();
   }
 
   // Selection moves must not rebuild the list: replaceChildren() destroyed
@@ -804,7 +881,7 @@
       modal.input.removeAttribute("aria-activedescendant");
     }
     renderPreview(selected);
-    modal.allLink.href = state.seeAllHref || buildResultsUrl(state.query);
+    modal.allLink.href = buildResultsUrl(state.query);
     if (options.revealSelection) {
       list.querySelector(".is-selected")?.scrollIntoView({ block: "nearest" });
     }
@@ -823,7 +900,12 @@
     state.opener = options.opener ?? document.activeElement ?? nativeInput;
     state.category = "all";
     state.focusBounces = 0;
-    state.parsedSignature = "";
+    state.results = [];
+    state.fetchedResults = [];
+    state.pageResults = [];
+    state.pageSignature = "";
+    state.pending = false;
+    state.everParsed = false;
     document.documentElement.classList.add(OPEN_CLASS);
     stampNativePopover();
     document.body.append(modal.overlay);
@@ -881,6 +963,7 @@
     state.navigating = false;
     suppressOpenUntil = Date.now() + REOPEN_SUPPRESS_MS;
     clearPendingTimer();
+    cancelSuggestFetch();
     if (pushFrame) {
       cancelAnimationFrame(pushFrame);
       pushFrame = 0;

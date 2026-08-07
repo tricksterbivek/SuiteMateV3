@@ -88,6 +88,28 @@
     });
   }
 
+  // A direct autosuggest.nl row: { sname, key, descr, dashurl, bedit }.
+  // descr is the same type label the native dropdown prefixes; bedit gates
+  // the edit action exactly as the dropdown renders it (key plus e=T).
+  function fromAutofill(entry, origin) {
+    const sname = cleanText(entry?.sname, 200);
+    const descr = cleanText(entry?.descr, 80);
+    let editHref = "";
+    if (entry?.bedit === "T") {
+      try {
+        const url = new URL(String(entry?.key ?? ""), origin);
+        url.searchParams.set("e", "T");
+        editHref = `${url.pathname}${url.search}`;
+      } catch {}
+    }
+    return normalizeResult({
+      text: descr ? `${descr}: ${sname}` : sname,
+      group: "globalSearch",
+      href: entry?.key,
+      editHref
+    }, origin);
+  }
+
   function countByCategory(results) {
     const counts = { all: results.length, records: 0, files: 0, navigation: 0 };
     for (const result of results) {
@@ -108,6 +130,7 @@
     categorize,
     sanitizeHref,
     normalizeResult,
+    fromAutofill,
     countByCategory,
     filterByCategory
   });

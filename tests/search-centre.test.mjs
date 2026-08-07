@@ -131,6 +131,37 @@ test("accepts hrefless current-page rows through their native index as navigatio
   assert.equal(core.normalizeResult({ text: "Field: Sales Channel", href: "", nativeIndex: "" }, origin), null);
 });
 
+test("maps direct autosuggest entries into results with permission-gated edit", () => {
+  const result = core.fromAutofill({
+    sname: "Carryover Item For Sale",
+    key: "/app/common/item/item.nl?id=10631",
+    descr: "Non-inventory Item",
+    dashurl: "",
+    bedit: "T"
+  }, origin);
+  assert.equal(result.title, "Carryover Item For Sale");
+  assert.equal(result.typeText, "Non-inventory Item");
+  assert.equal(result.category, "records");
+  assert.equal(result.href, "/app/common/item/item.nl?id=10631");
+  assert.equal(result.editHref, "/app/common/item/item.nl?id=10631&e=T");
+
+  const file = core.fromAutofill({
+    sname: "a.pdf",
+    key: "/app/common/media/mediaitem.nl?id=5",
+    descr: "PDF File",
+    bedit: "F"
+  }, origin);
+  assert.equal(file.category, "files");
+  assert.equal(file.editHref, "");
+
+  const bare = core.fromAutofill({ sname: "Just a name", key: "/app/x.nl" }, origin);
+  assert.equal(bare.typeText, "");
+  assert.equal(bare.category, "records");
+
+  assert.equal(core.fromAutofill({ sname: "x", key: "https://evil.example.com/a", bedit: "T" }, origin), null);
+  assert.equal(core.fromAutofill({ sname: "", key: "/app/x.nl" }, origin), null);
+});
+
 test("counts and filters by category with all as the identity", () => {
   const results = [
     core.normalizeResult({ text: "Customer: Acme", group: "globalSearch", href: "/a.nl" }, origin),

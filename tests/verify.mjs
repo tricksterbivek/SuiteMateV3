@@ -389,6 +389,21 @@ assert.match(
   /Uber_NAMEtype", "KEYWORDSTARTSWITH"/,
   "The full-results fallback URL lost its live-verified parameter set"
 );
+assert.match(
+  searchCentreRuntimeSource,
+  /\/app\/common\/autosuggest\.nl/,
+  "The direct suggest fetch no longer targets NetSuite's own autosuggest endpoint"
+);
+assert.match(
+  searchCentreRuntimeSource,
+  /mapkey", "uberautosuggest"/,
+  "The direct suggest fetch lost its live-verified parameter set"
+);
+assert.match(
+  searchCentreRuntimeSource,
+  /credentials: "include"/,
+  "The direct suggest fetch would run without the NetSuite session"
+);
 const searchCentreStyleSource = await readFile(resolve(root, "src/search-centre/search-centre.css"), "utf8");
 assert.match(
   searchCentreStyleSource,
