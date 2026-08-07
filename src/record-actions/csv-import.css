@@ -1,111 +1,192 @@
-html:not(.ext-f) .suitemate-v3-csv-utils-cell {
+html:not(.ext-f) .suitemate-v3-tools-cell {
     position: relative;
     z-index: 20;
-    padding-left: 6px !important;
+    padding-left: 8px !important;
     vertical-align: top
 }
 
-html:not(.ext-f) .suitemate-v3-csv-utils-menu,
-html:not(.ext-f) .suitemate-v3-csv-utils-dropdown {
+html:not(.ext-f) .suitemate-v3-tools-menu,
+html:not(.ext-f) .suitemate-v3-tools-dropdown,
+html:not(.ext-f) .suitemate-v3-tools-children {
     margin: 0 !important;
     padding: 0 !important;
     list-style: none
 }
 
-html:not(.ext-f) .suitemate-v3-csv-utils-parent {
-    position: relative;
+html:not(.ext-f) .suitemate-v3-tools-root,
+html:not(.ext-f) .suitemate-v3-tools-category,
+html:not(.ext-f) .suitemate-v3-tools-action {
     height: auto !important;
     list-style: none
 }
 
-html:not(.ext-f) .suitemate-v3-csv-utils-trigger {
+html:not(.ext-f) .suitemate-v3-tools-category {
+    display: block !important
+}
+
+html:not(.ext-f) .suitemate-v3-tools-root {
+    position: relative
+}
+
+html:not(.ext-f) .suitemate-v3-tools-trigger {
     display: inline-flex;
-    align-items: center;
-    box-sizing: border-box;
     min-height: 30px;
+    box-sizing: border-box;
+    align-items: center;
     gap: 7px;
-    padding: 0 11px;
-    border: 1px solid color-mix(in srgb, var(--theme-main) 38%, var(--field-border-color));
+    padding: 0 7px;
+    border: 0;
     border-radius: var(--suitemate-radius-compact, 4px);
-    background: linear-gradient(to bottom, var(--theme-secondary-light-light), var(--theme-secondary-light));
-    box-shadow: 0 1px 2px rgb(0 0 0 / .12);
-    color: light-dark(var(--theme-main-dark), var(--dark-text-1)) !important;
-    font-family: var(--normal-font);
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 28px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--text-1) !important;
+    cursor: pointer;
+    font: 600 13px/30px var(--normal-font);
     text-decoration: none !important;
     white-space: nowrap;
-    transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease
+    transition: background-color .14s ease, color .14s ease
 }
 
-html:not(.ext-f) .suitemate-v3-csv-utils-trigger::after {
-    content: "▼";
-    font-size: 9px;
-    line-height: 1;
-    translate: 0 1px
-}
-
-html:not(.ext-f) .suitemate-v3-csv-utils-trigger:hover {
-    border-color: var(--theme-main);
-    background: var(--theme-secondary-light-light);
-    box-shadow: 0 1px 3px rgb(0 0 0 / .2);
+html:not(.ext-f) .suitemate-v3-tools-trigger:hover,
+html:not(.ext-f) .suitemate-v3-tools-root[data-open=true]>.suitemate-v3-tools-trigger {
+    background: light-dark(#eef2f8, var(--dark-3));
     color: light-dark(var(--theme-main-dark), var(--dark-text-0)) !important
 }
 
-html:not(.ext-f) .suitemate-v3-csv-utils-trigger:focus-visible,
-html:not(.ext-f) .suitemate-v3-csv-utils-dropdown a:focus-visible {
+html:not(.ext-f) .suitemate-v3-tools-trigger:focus-visible,
+html:not(.ext-f) .suitemate-v3-tools-category-trigger:focus-visible,
+html:not(.ext-f) .suitemate-v3-tools-action>a:focus-visible {
     outline: 2px solid var(--theme-main);
     outline-offset: 2px
 }
 
-html:not(.ext-f) .suitemate-v3-csv-utils-trigger:active {
-    box-shadow: inset 0 1px 2px rgb(0 0 0 / .18);
-    translate: 0 1px
+html:not(.ext-f) .suitemate-v3-tools-icon {
+    display: inline-grid;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    place-items: center;
+    color: var(--text-2);
+    font: 600 14px/1 var(--normal-font)
 }
 
-html:not(.ext-f) .suitemate-v3-csv-utils-dropdown {
-    display: none !important;
+html:not(.ext-f) .suitemate-v3-tools-logo {
+    border-radius: 3px;
+    background: #111827;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700
+}
+
+html:not(.ext-f) .suitemate-v3-tools-label {
+    min-width: 0;
+    flex: 1;
+    text-align: left
+}
+
+html:not(.ext-f) .suitemate-v3-tools-chevron {
+    color: var(--text-2);
+    font-size: 11px;
+    transition: rotate .14s ease
+}
+
+html:not(.ext-f) .suitemate-v3-tools-dropdown[hidden],
+html:not(.ext-f) .suitemate-v3-tools-children[hidden] {
+    display: none !important
+}
+
+html:not(.ext-f) .suitemate-v3-tools-dropdown {
     position: absolute !important;
-    top: calc(100% + 4px);
+    top: calc(100% + 5px);
     left: 0;
     z-index: 100000;
+    display: block !important;
+    width: 288px;
+    max-width: calc(100vw - 16px);
+    max-height: min(560px, calc(100vh - 24px));
     box-sizing: border-box;
-    min-width: 156px;
     padding: 6px !important;
-    overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--theme-main) 24%, var(--field-border-color));
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 1px solid light-dark(#d8dee8, var(--field-border-color));
     border-radius: var(--suitemate-radius-overlay, 8px);
     background: light-dark(#fff, var(--dark-3)) !important;
-    box-shadow: 0 10px 28px rgb(0 0 0 / .18)
+    box-shadow: 0 12px 30px rgb(15 23 42 / .18), 0 3px 8px rgb(15 23 42 / .08)
 }
 
-html:not(.ext-f) .suitemate-v3-csv-utils-parent[data-open=true]>.suitemate-v3-csv-utils-dropdown {
-    display: block !important
+html:not(.ext-f) .suitemate-v3-tools-dropdown[data-align=end] {
+    right: 0;
+    left: auto
 }
 
-html:not(.ext-f) .suitemate-v3-csv-utils-option {
-    height: auto !important;
-    list-style: none
+html:not(.ext-f) .suitemate-v3-tools-dropdown {
+    scrollbar-color: light-dark(#aeb7c5, #657080) transparent;
+    scrollbar-width: thin
 }
 
-html:not(.ext-f) .suitemate-v3-csv-utils-option>a {
-    display: block;
-    min-height: 22px;
-    padding: 7px 10px;
-    border-radius: var(--suitemate-radius-compact, 4px);
-    background: rgba(0, 0, 0, 0) !important;
+html:not(.ext-f) .suitemate-v3-tools-category-trigger,
+html:not(.ext-f) .suitemate-v3-tools-action>a {
+    display: flex;
+    width: 100%;
+    min-height: 38px;
+    box-sizing: border-box;
+    align-items: center;
+    gap: 10px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: var(--suitemate-radius-compact, 5px);
+    background: transparent !important;
     color: var(--text-1) !important;
-    font-family: var(--normal-font);
-    font-size: 13px;
-    font-weight: 500;
-    line-height: 22px;
+    cursor: pointer;
+    font: 500 13px/1.3 var(--normal-font);
     text-decoration: none !important;
-    white-space: nowrap
+    white-space: nowrap;
+    transition: background-color .14s ease, color .14s ease
 }
 
-html:not(.ext-f) .suitemate-v3-csv-utils-option>a:hover,
-html:not(.ext-f) .suitemate-v3-csv-utils-option>a:focus {
+html:not(.ext-f) .suitemate-v3-tools-category-trigger {
+    font-weight: 600
+}
+
+html:not(.ext-f) .suitemate-v3-tools-category-trigger:hover,
+html:not(.ext-f) .suitemate-v3-tools-action>a:hover,
+html:not(.ext-f) .suitemate-v3-tools-action>a:focus {
     background: var(--theme-secondary-light) !important;
-    color: light-dark(var(--theme-main-dark), var(--dark-0)) !important
+    color: light-dark(var(--theme-main-dark), var(--dark-text-0)) !important
+}
+
+html:not(.ext-f) .suitemate-v3-tools-category[data-open=true]>.suitemate-v3-tools-category-trigger {
+    background: light-dark(#f3f5f9, var(--dark-2)) !important
+}
+
+html:not(.ext-f) .suitemate-v3-tools-category[data-open=true]>.suitemate-v3-tools-category-trigger .suitemate-v3-tools-chevron {
+    rotate: 90deg
+}
+
+html:not(.ext-f) .suitemate-v3-tools-children {
+    margin: 2px 0 5px 20px !important;
+    padding: 2px 0 2px 8px !important;
+    border-left: 1px solid light-dark(#d9e0eb, var(--field-border-color))
+}
+
+html:not(.ext-f) .suitemate-v3-tools-children .suitemate-v3-tools-action>a {
+    min-height: 36px;
+    padding-right: 8px;
+    padding-left: 8px
+}
+
+html:not(.ext-f) .suitemate-v3-tools-record-action {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid light-dark(#e5e9f0, var(--field-border-color))
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html:not(.ext-f) .suitemate-v3-tools-trigger,
+    html:not(.ext-f) .suitemate-v3-tools-chevron,
+    html:not(.ext-f) .suitemate-v3-tools-category-trigger,
+    html:not(.ext-f) .suitemate-v3-tools-action>a {
+        transition: none
+    }
 }

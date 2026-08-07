@@ -572,6 +572,7 @@ test("CSV Utils rejects stale installation and routes Import, Export and Templat
       injectedAction = node;
     }
   };
+  const documentListeners = {};
   const document = {
     documentElement: { dataset: {} },
     activeElement: null,
@@ -579,7 +580,7 @@ test("CSV Utils rejects stale installation and routes Import, Export and Templat
       if (selector === "#main_form") {
         return mainFormReady ? {} : null;
       }
-      if (selector === '[data-suitemate-v3-action="csv-utils-toolbar"]') {
+      if (selector === '[data-suitemate-v3-action="record-tools-toolbar"]') {
         return injectedAction;
       }
       return null;
@@ -622,6 +623,33 @@ test("CSV Utils rejects stale installation and routes Import, Export and Templat
           return candidate === this
             || this.children.some((child) => child.contains?.(candidate));
         },
+        descendants() {
+          return this.children.flatMap((child) => [child, ...(child.descendants?.() ?? [])]);
+        },
+        querySelectorAll(selector) {
+          if (selector === '[role="menuitem"]') {
+            return this.descendants().filter(
+              (child) => child.attributes?.role === "menuitem"
+            );
+          }
+          return [];
+        },
+        querySelector(selector) {
+          return this.querySelectorAll(selector)[0] ?? null;
+        },
+        closest(selector) {
+          let current = this;
+          while (current) {
+            if (
+              (selector === '[role="menuitem"]' && current.attributes?.role === "menuitem")
+              || (selector === "[data-suitemate-v3-command]" && current.dataset?.suitemateV3Command)
+            ) {
+              return current;
+            }
+            current = current.parent;
+          }
+          return null;
+        },
         focus() {
           document.activeElement = this;
         },
@@ -633,6 +661,14 @@ test("CSV Utils rejects stale installation and routes Import, Export and Templat
         }
       };
       return element;
+    },
+    addEventListener(type, listener) {
+      documentListeners[type] = listener;
+    },
+    removeEventListener(type, listener) {
+      if (documentListeners[type] === listener) {
+        delete documentListeners[type];
+      }
     }
   };
   const storageListeners = [];
@@ -708,8 +744,8 @@ test("CSV Utils rejects stale installation and routes Import, Export and Templat
   recordTypeResponse = Promise.resolve("salesorder");
   lifecycle.handle.resume("settings-enabled");
   await lifecycle.lastRun;
-  assert.equal(injectedAction?.dataset.suitemateV3Action, "csv-utils-toolbar");
-  assert.equal(injectedAction?.className, "suitemate-v3-csv-utils-cell");
+  assert.equal(injectedAction?.dataset.suitemateV3Action, "record-tools-toolbar");
+  assert.equal(injectedAction?.className, "suitemate-v3-tools-cell");
   const createdElements = [];
   const collectElements = (element) => {
     createdElements.push(element);
@@ -725,32 +761,81 @@ test("CSV Utils rejects stale installation and routes Import, Export and Templat
   const templateLink = createdElements.find(
     (element) => element.dataset?.suitemateV3Action === "csv-utils-template"
   );
-  const trigger = createdElements.find(
+  const exportViewLink = createdElements.find(
+    (element) => element.dataset?.suitemateV3Action === "csv-utils-export-view"
+  );
+  const toolsTrigger = createdElements.find(
+    (element) => element.dataset?.suitemateV3Action === "tools-trigger"
+  );
+  const csvTrigger = createdElements.find(
     (element) => element.dataset?.suitemateV3Action === "csv-utils-trigger"
   );
-  const parentItem = createdElements.find(
+  const toolsItem = createdElements.find(
+    (element) => element.className === "ns-menuitem suitemate-v3-tools-root"
+  );
+  const csvParent = createdElements.find(
     (element) => element.className === "ns-menuitem suitemate-v3-csv-utils-parent"
+      || element.className.includes("suitemate-v3-csv-utils-parent")
   );
   assert.equal(importLink?.dataset.suitemateV3Command, "record.csv-import");
   assert.equal(exportLink?.dataset.suitemateV3Command, "record.csv-export");
   assert.equal(templateLink?.dataset.suitemateV3Command, "record.csv-template");
-  assert.equal(trigger?.textContent, "CSV Utils");
-  assert.equal(parentItem?.listeners.pointerenter, undefined, "Hover must not open CSV Utils");
-  assert.equal(parentItem?.listeners.pointerleave, undefined, "Hover must not close CSV Utils");
-  assert.equal(parentItem?.dataset.open, "false");
+  assert.equal(exportViewLink?.dataset.suitemateV3Command, "record.csv-export-view");
+  assert.equal(toolsTrigger?.attributes["aria-label"], "SuiteMate Tools");
+  assert.equal(csvTrigger?.children.some((child) => child.textContent === "CSV Utils"), true);
+  assert.equal(csvParent?.listeners.pointerenter, undefined, "Hover must not open CSV Utils");
+  assert.equal(csvParent?.listeners.pointerleave, undefined, "Hover must not close CSV Utils");
+  assert.equal(toolsItem?.dataset.open, "false");
+  assert.equal(csvParent?.dataset.open, "false");
 
   let triggerPrevented = false;
-  trigger.listeners.click({
+  toolsTrigger.listeners.click({
     preventDefault() {
       triggerPrevented = true;
     }
   });
   assert.equal(triggerPrevented, true);
-  assert.equal(parentItem?.dataset.open, "true");
-  assert.equal(trigger?.attributes["aria-expanded"], "true");
-  trigger.listeners.click({ preventDefault() {} });
-  assert.equal(parentItem?.dataset.open, "false");
-  assert.equal(trigger?.attributes["aria-expanded"], "false");
+  assert.equal(toolsItem?.dataset.open, "true");
+  assert.equal(toolsTrigger?.attributes["aria-expanded"], "true");
+  csvTrigger.listeners.click({ preventDefault() {} });
+  assert.equal(csvParent?.dataset.open, "true");
+  assert.equal(csvTrigger?.attributes["aria-expanded"], "true");
+  csvTrigger.listeners.click({ preventDefault() {} });
+  assert.equal(csvParent?.dataset.open, "false");
+  toolsTrigger.listeners.click({ preventDefault() {} });
+  assert.equal(toolsItem?.dataset.open, "false");
+  assert.equal(toolsTrigger?.attributes["aria-expanded"], "false");
+
+  let keyPrevented = false;
+  injectedAction.listeners.keydown({
+    key: "ArrowDown",
+    target: toolsTrigger,
+    preventDefault() { keyPrevented = true; },
+    stopPropagation() {}
+  });
+  assert.equal(keyPrevented, true);
+  assert.equal(toolsItem.dataset.open, "true");
+  assert.equal(document.activeElement, csvTrigger);
+  injectedAction.listeners.keydown({
+    key: "ArrowRight",
+    target: csvTrigger,
+    preventDefault() {},
+    stopPropagation() {}
+  });
+  assert.equal(csvParent.dataset.open, "true");
+  injectedAction.listeners.keydown({
+    key: "Escape",
+    target: csvTrigger,
+    preventDefault() {},
+    stopPropagation() {}
+  });
+  assert.equal(toolsItem.dataset.open, "false");
+  assert.equal(document.activeElement, toolsTrigger);
+
+  toolsTrigger.listeners.click({ preventDefault() {} });
+  assert.equal(toolsItem.dataset.open, "true");
+  documentListeners.pointerdown({ target: {} });
+  assert.equal(toolsItem.dataset.open, "false", "Outside pointer input must close Tools");
 
   let prevented = false;
   importLink.listeners.click({
@@ -760,31 +845,34 @@ test("CSV Utils rejects stale installation and routes Import, Export and Templat
   });
   assert.equal(prevented, false, "An authorized CSV Import click must retain native navigation");
   prevented = false;
-  let stopped = false;
   exportLink.listeners.click({
     preventDefault() {
       prevented = true;
-    },
-    stopPropagation() {
-      stopped = true;
     }
   });
   assert.equal(prevented, true, "CSV Export must not navigate away from the record");
-  assert.equal(stopped, true);
   assert.deepEqual(exportInvocations, ["export"]);
   prevented = false;
-  stopped = false;
   templateLink.listeners.click({
     preventDefault() {
       prevented = true;
-    },
-    stopPropagation() {
-      stopped = true;
     }
   });
   assert.equal(prevented, true, "CSV Template must not navigate away from the record");
-  assert.equal(stopped, true);
   assert.deepEqual(exportInvocations, ["export", "template"]);
+  prevented = false;
+  exportViewLink.listeners.click({
+    preventDefault() {
+      prevented = true;
+    }
+  });
+  assert.equal(prevented, true, "Export Current View must not navigate away from the record");
+  assert.deepEqual(exportInvocations, ["export", "template", "exportView"]);
+
+  toolsTrigger.listeners.click({ preventDefault() {} });
+  csvTrigger.listeners.click({ preventDefault() {} });
+  injectedAction.listeners.click({ target: exportLink });
+  assert.equal(toolsItem.dataset.open, "false", "Selecting an action must close Tools");
 
   const installedLink = importLink;
   storageListeners[0](

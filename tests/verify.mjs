@@ -610,18 +610,19 @@ assert.equal(
   "customrecord_fixture"
 );
 const csvImportSource = await readFile(resolve(root, "src/record-actions/csv-import.js"), "utf8");
-assert.match(csvImportSource, /className = "suitemate-v3-csv-utils-cell"/, "CSV Utils is not emitted as one toolbar menu");
-assert.match(csvImportSource, /textContent = "CSV Utils"/, "The CSV Utils parent label is missing");
+assert.match(csvImportSource, /className = "suitemate-v3-tools-cell"/, "SuiteMate Tools is not emitted as one toolbar menu");
+assert.match(csvImportSource, /createLabel\("Tools"\)/, "The SuiteMate Tools trigger label is missing");
+assert.match(csvImportSource, /createLabel\("CSV Utils"\)/, "The CSV Utils parent label is missing");
 assert.match(csvImportSource, /"csv-utils-export"/, "CSV Utils does not expose Export");
 assert.match(csvImportSource, /"csv-utils-import"/, "CSV Utils does not expose Import");
 assert.match(csvImportSource, /"csv-utils-template"/, "CSV Utils does not expose Template");
-assert.match(csvImportSource, /className = "ns-menuitem suitemate-v3-csv-utils-option"/, "CSV Utils does not use native NetSuite menu items");
+assert.match(csvImportSource, /suitemate-v3-tools-action suitemate-v3-csv-utils-option/, "CSV Utils does not use the shared Tools action rows");
 assert.match(csvImportSource, /applyMetadata\(link, commandId/, "CSV Utils children do not use shared command metadata");
 assert.match(csvImportSource, /createScope\(commandApi\.SURFACES\.RECORD/, "CSV Utils does not use a record command scope");
 assert.match(csvImportSource, /commandScope\.invoke\(/, "CSV Import bypasses click-time command authority");
 assert.match(csvImportSource, /csvExport\.runtime\.v3/, "CSV Utils is not connected to the isolated CSV Export runtime");
 assert.match(csvImportSource, /\.uir-buttons-top\.uir-header-buttons/, "The top record toolbar target is missing");
-assert.match(csvImportSource, /actionsCell\.after\(createToolbarMenu\(href\)\)/, "CSV Utils is not inserted immediately after Actions");
+assert.match(csvImportSource, /actionsCell\.after\(createToolbarMenu\(href, showExportView\)\)/, "SuiteMate Tools is not inserted immediately after Actions");
 assert.match(csvImportSource, /data-suitemate-v3-action/, "CSV Utils injection is not idempotent");
 assert.match(csvImportSource, /lifecycleApi\.register/, "CSV Utils bypasses the shared observer lifecycle");
 assert.match(csvImportSource, /COMMANDS\.RECORD_GET_TYPE/, "CSV Import bypasses the typed NetSuite bridge");
@@ -633,9 +634,11 @@ const csvImportStyles = await readFile(resolve(root, "src/record-actions/csv-imp
 assert.match(csvImportStyles, /--theme-secondary-light/, "CSV Utils does not use the active SuiteMate theme");
 assert.match(csvImportStyles, /--suitemate-radius-overlay/, "CSV Utils does not use the global overlay radius");
 assert.match(csvImportStyles, /:focus-visible/, "CSV Utils lacks a keyboard focus state");
-assert.match(csvImportStyles, /\[data-open=true\]>.suitemate-v3-csv-utils-dropdown/, "CSV Utils does not expose its explicit open state");
-assert.doesNotMatch(csvImportStyles, /:hover>.suitemate-v3-csv-utils-dropdown/, "CSV Utils still opens on hover");
-assert.doesNotMatch(csvImportStyles, /:focus-within>.suitemate-v3-csv-utils-dropdown/, "CSV Utils still opens on focus without activation");
+assert.match(csvImportStyles, /suitemate-v3-tools-dropdown\[hidden\]/, "SuiteMate Tools does not expose its explicit open state");
+assert.match(csvImportStyles, /suitemate-v3-tools-category\[data-open=true\]/, "CSV Utils does not expose its explicit expanded state");
+assert.match(csvImportStyles, /suitemate-v3-tools-category\s*\{\s*display: block !important/, "CSV Utils does not override NetSuite's flyout layout");
+assert.doesNotMatch(csvImportStyles, /:hover>\.suitemate-v3-tools-dropdown/, "SuiteMate Tools still opens on hover");
+assert.doesNotMatch(csvImportStyles, /:focus-within>\.suitemate-v3-tools-dropdown/, "SuiteMate Tools still opens on focus without activation");
 assert.doesNotMatch(csvImportSource, /addEventListener\("pointer(?:enter|leave)"/, "CSV Utils still binds hover-open listeners");
 
 const recordTrailSource = await readFile(resolve(root, "src/record-actions/record-trail.js"), "utf8");
@@ -647,6 +650,9 @@ assert.match(recordTrailDataAdapterSource, /PreviousTransactionLink/, "Record Tr
 assert.match(recordTrailDataAdapterSource, /NextTransactionLink/, "Record Trail does not query direct target transactions");
 assert.match(recordTrailSource, /overlay\.showModal\?\.\(\)/, "Record Trail does not open through the native dialog top layer");
 assert.match(recordTrailSource, /lifecycleApi\.register/, "Record Trail bypasses the shared observer lifecycle");
+assert.match(recordTrailSource, /TOOLS_MENU_SELECTOR/, "Record Trail does not target the shared SuiteMate Tools menu");
+assert.match(recordTrailSource, /toolsMenu\.append\(createToolbarAction\(\)\)/, "Record Trail is not nested inside SuiteMate Tools");
+assert.doesNotMatch(recordTrailSource, /actionsCell\.after\(/, "Record Trail still emits a standalone toolbar control");
 assert.match(recordTrailSource, /controller\?\.abort\("refreshed"\)/, "Record Trail refresh does not cancel stale work");
 assert.match(recordTrailSource, /noopener noreferrer/, "Record Trail links can retain opener access");
 assert.doesNotMatch(recordTrailSource, /postMessage|innerHTML/, "Record Trail uses an unsafe page bridge or HTML rendering");

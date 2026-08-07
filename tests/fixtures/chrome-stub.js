@@ -118,6 +118,21 @@
       return bridgeResponse(message, { recordType: "salesorder" });
     }
 
+    if (message.command === "record.getTrail") {
+      return bridgeResponse(message, {
+        current: {
+          id: "1",
+          type: "SalesOrd",
+          typeName: "Sales Order",
+          tranId: "SO10428",
+          tranDate: "13/07/2026",
+          status: "Pending Fulfillment"
+        },
+        sources: [],
+        targets: []
+      });
+    }
+
     if (message.command === "record.exportCsv") {
       document.documentElement.dataset.csvExportMessageCount = String(
         Number(document.documentElement.dataset.csvExportMessageCount ?? 0) + 1
