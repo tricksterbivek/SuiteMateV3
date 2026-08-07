@@ -425,6 +425,37 @@ test("main-world template downloads the same headers without record rows", async
   );
 });
 
+test("template probes each populated sublist column once instead of sweeping every line", async () => {
+  const textReads = {};
+  const base = createRecord({ lineCount: 40 });
+  const recordRef = {
+    ...base,
+    getSublistText(args) {
+      textReads[args.fieldId] = (textReads[args.fieldId] ?? 0) + 1;
+      return base.getSublistText(args);
+    }
+  };
+  const { sandbox } = createMainWorldHarness({ recordRef });
+  const core = sandbox.SuiteMateV3CsvExportCore;
+  const result = new Promise((resolveResult) => {
+    sandbox.addEventListener(core.RESULT_EVENT, (event) => resolveResult(event.detail), {
+      once: true
+    });
+  });
+  sandbox.dispatchEvent(new FakeCustomEvent(core.REQUEST_EVENT, {
+    detail: { requestId: "csv-template-654321", mode: "template" }
+  }));
+  const detail = await result;
+  assert.equal(detail.ok, true);
+  assert.equal(detail.mode, "template");
+  // A populated column ends its probe at line 0; the full export would have
+  // read all 40 lines of each. (The harness's Line ID column throws for
+  // every text read — the genuinely-empty-column worst case — and stays
+  // dropped from the headers exactly as the export drops it.)
+  assert.equal(textReads.account, 1);
+  assert.equal(textReads.memo, 1);
+});
+
 test("golden quality cases reject internal fields, raw fallbacks, HTML controls, and multiline output", async () => {
   assert.equal(qualityFixture.version, 2);
   for (const fixture of qualityFixture.cases) {

@@ -88,8 +88,12 @@
     if (!link) {
       return;
     }
-    const label = mode === "template" ? "Template" : "Export";
-    link.textContent = busy
+    const label = mode === "template" ? "Download Template" : "Export Record";
+    // Swap only the label span: the Tools menu rows are icon+label pairs,
+    // and writing link.textContent flattened both into the busy text — the
+    // action came back from a download as a bare, renamed string.
+    const labelNode = link.querySelector?.(".suitemate-v3-tools-label") ?? link;
+    labelNode.textContent = busy
       ? mode === "template" ? "Preparing..." : "Exporting..."
       : label;
     link.setAttribute("aria-busy", busy ? "true" : "false");

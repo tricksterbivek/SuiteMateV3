@@ -394,6 +394,52 @@
     });
   }
 
+  function isPopulatedSublistColumn(recordRef, sublistId, field, lineCount) {
+    const fieldId = field.valueMode === "identifier"
+      ? field.sourceFieldId || field.fieldId
+      : field.fieldId;
+    for (let line = 0; line < lineCount; line += 1) {
+      const cell = field.valueMode === "identifier"
+        ? safeSublistIdentifierValue(recordRef, sublistId, fieldId, line)
+        : safeSublistTextValue(recordRef, sublistId, fieldId, line);
+      if (cell.trim() !== "") {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function buildTemplateMatrix(recordRef, bodyFields, sublistId, lineCount, sublistFields) {
+    // The template ships only the header row, so instead of paying the full
+    // export's every-cell sweep (202 lines × 70 columns measured as the
+    // owner's "long time"), each sublist column is probed only until its
+    // FIRST populated line — the same cell reads the export performs, so
+    // the surviving headers are IDENTICAL, but a populated column costs one
+    // value probe plus one text read instead of lineCount of each. Only a
+    // genuinely empty column still scans every line, and its value-empty
+    // cells short-circuit before any text read. Body columns already carry
+    // their single-row value.
+    const fields = sublistId
+      ? [
+        ...bodyFields,
+        { label: "Line ID", fieldId: "line", scope: sublistId },
+        ...sublistFields
+      ]
+      : bodyFields;
+    const headers = core.makeUniqueHeaders(fields);
+    const kept = [];
+    fields.forEach((field, index) => {
+      const populated = field.alwaysInclude
+        || (Object.prototype.hasOwnProperty.call(field, "value")
+          ? String(field.value ?? "").trim() !== ""
+          : isPopulatedSublistColumn(recordRef, sublistId, field, lineCount));
+      if (populated) {
+        kept.push(headers[index]);
+      }
+    });
+    return { rows: [kept], dataRowCount: 0, columnCount: kept.length };
+  }
+
   async function buildCsvMatrix(recordRef, bodyFields, sublistId, lineCount, sublistFields) {
     const fields = sublistId
       ? [
@@ -519,13 +565,15 @@
       ...formFields.col,
       ...addNativeSublistFields(recordRef, sublistId, formFields.col)
     ]);
-    const matrix = await buildCsvMatrix(
-      recordRef,
-      bodyFields,
-      sublistId,
-      lineCount,
-      sublistFields
-    );
+    const matrix = mode === "template"
+      ? buildTemplateMatrix(recordRef, bodyFields, sublistId, lineCount, sublistFields)
+      : await buildCsvMatrix(
+        recordRef,
+        bodyFields,
+        sublistId,
+        lineCount,
+        sublistFields
+      );
     if (matrix.columnCount === 0) {
       const error = new Error("No exportable fields were found on this record.");
       error.code = "NO_EXPORTABLE_FIELDS";
@@ -536,10 +584,8 @@
     const filename = mode === "template"
       ? core.createTemplateFilename(recordFilename)
       : recordFilename;
-    const downloadRows = mode === "template"
-      ? [matrix.rows[0]]
-      : matrix.rows;
-    downloadCsv(core.serializeCsv(downloadRows), filename, {
+    // The template matrix is already header-only; the export ships every row.
+    downloadCsv(core.serializeCsv(matrix.rows), filename, {
       bom: mode !== "template"
     });
     return Object.freeze({

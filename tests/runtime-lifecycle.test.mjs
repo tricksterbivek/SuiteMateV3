@@ -911,20 +911,30 @@ test("CSV Utils Export and Template invoke the typed bridge and report their dow
   );
   const storageListeners = [];
   const toastCalls = [];
+  // Icon+label rows like the live Tools menu. The links deliberately start
+  // WITHOUT a textContent property: the old setBusy flattened the whole row
+  // by assigning link.textContent, so the property appearing is the
+  // regression.
+  const exportLabel = { textContent: "Export Record" };
   const exportLink = {
-    textContent: "Export",
     attributes: {},
     style: {},
     setAttribute(name, value) {
       this.attributes[name] = String(value);
+    },
+    querySelector(selector) {
+      return selector === ".suitemate-v3-tools-label" ? exportLabel : null;
     }
   };
+  const templateLabel = { textContent: "Download Template" };
   const templateLink = {
-    textContent: "Template",
     attributes: {},
     style: {},
     setAttribute(name, value) {
       this.attributes[name] = String(value);
+    },
+    querySelector(selector) {
+      return selector === ".suitemate-v3-tools-label" ? templateLabel : null;
     }
   };
   const document = {
@@ -1039,7 +1049,8 @@ test("CSV Utils Export and Template invoke the typed bridge and report their dow
   const pendingCommand = exportRuntime.invoke();
   await flushTasks();
   assert.equal(typeof resolveDelayedExport, "function");
-  assert.equal(exportLink.textContent, "Exporting...");
+  assert.equal(exportLabel.textContent, "Exporting...");
+  assert.equal(exportLink.textContent, undefined, "Busy state flattened the icon+label row");
   assert.equal(exportLink.attributes["aria-busy"], "true");
   assert.equal(toastCalls.length, 1);
   assert.equal(
@@ -1056,7 +1067,8 @@ test("CSV Utils Export and Template invoke the typed bridge and report their dow
   assert.equal(sentMessages.length, 1);
   assert.equal(sentMessages[0].command, "record.exportCsv");
   assert.deepEqual(plain(sentMessages[0].payload), { mode: "export" });
-  assert.equal(exportLink.textContent, "Export");
+  assert.equal(exportLabel.textContent, "Export Record");
+  assert.equal(exportLink.textContent, undefined, "Completion flattened the icon+label row");
   assert.equal(exportLink.attributes["aria-busy"], "false");
   assert.equal(toastCalls.length, 2);
   assert.equal(toastCalls[0].dismissed, true);
@@ -1066,7 +1078,8 @@ test("CSV Utils Export and Template invoke the typed bridge and report their dow
   assert.equal(templateResult.ok, true);
   assert.equal(sentMessages.length, 2);
   assert.deepEqual(plain(sentMessages[1].payload), { mode: "template" });
-  assert.equal(templateLink.textContent, "Template");
+  assert.equal(templateLabel.textContent, "Download Template");
+  assert.equal(templateLink.textContent, undefined, "Completion flattened the icon+label row");
   assert.equal(templateLink.attributes["aria-busy"], "false");
   assert.equal(toastCalls.length, 4);
   assert.equal(toastCalls[2].message, "Preparing CSV template...");
