@@ -178,6 +178,7 @@
     everParsed: false,
     selectedIndex: 0,
     focusBounces: 0,
+    navigating: false,
     opener: null
   };
 
@@ -291,7 +292,9 @@
     input.setAttribute("autocomplete", "off");
     input.setAttribute("spellcheck", "false");
     input.addEventListener("input", () => {
-      setQuery(input.value);
+      if (!state.navigating) {
+        setQuery(input.value);
+      }
     });
     const tail = createElement("div", "suitemate-v3-sc-search-tail");
     const kbd = createElement("kbd", "suitemate-v3-sc-kbd", shortcutDisplay());
@@ -368,10 +371,26 @@
       createElement("span", "", "View all search results"),
       createSvgIcon("external")
     );
-    allLink.addEventListener("click", () => closeSearchCentre({ restoreFocus: false }));
+    allLink.addEventListener("click", (event) => {
+      if (navigatesInPlace(event)) {
+        showNavigating("Opening all search results…");
+      }
+    });
     footer.append(navigateHint, openHint, closeHint, allLink);
 
-    dialog.append(header, body, footer);
+    // Navigation veil: record pages can take seconds to answer, and a modal
+    // that simply vanishes on click reads as a freeze. The veil holds the
+    // dialog with an immediate "Opening …" status until the new page's
+    // unload sweeps everything away; Escape still bails out underneath it.
+    const veil = createElement("div", "suitemate-v3-sc-veil");
+    veil.hidden = true;
+    veil.setAttribute("role", "status");
+    veil.setAttribute("aria-live", "polite");
+    veil.append(createElement("div", "suitemate-v3-sc-spinner"));
+    const veilLabel = createElement("span", "suitemate-v3-sc-veil-label");
+    veil.append(veilLabel);
+    veil.append(createElement("span", "suitemate-v3-sc-veil-hint", "Press Esc to dismiss"));
+    dialog.append(header, body, footer, veil);
     overlay.append(dialog);
 
     overlay.addEventListener("mousedown", (event) => {
@@ -390,8 +409,26 @@
       resultsLabel,
       list,
       preview,
-      allLink
+      allLink,
+      veil,
+      veilLabel
     };
+  }
+
+  function showNavigating(label) {
+    state.navigating = true;
+    modal.veilLabel.textContent = label;
+    modal.veil.hidden = false;
+  }
+
+  // Modified clicks open a new tab — THIS page never navigates, so a veil
+  // would sit there "Opening…" forever.
+  function navigatesInPlace(event) {
+    return event.button === 0
+      && !event.metaKey
+      && !event.ctrlKey
+      && !event.shiftKey
+      && !event.altKey;
   }
 
   function focusableElements() {
@@ -404,6 +441,10 @@
       event.preventDefault();
       event.stopPropagation();
       closeSearchCentre();
+      return;
+    }
+    if (state.navigating) {
+      event.preventDefault();
       return;
     }
     if (event.key === "Tab") {
@@ -442,15 +483,18 @@
         // No suggestions (Auto Suggest preference off, timeout, or zero
         // matches): Enter falls through to the full results page so the
         // search never dead-ends.
-        closeSearchCentre({ restoreFocus: false });
+        showNavigating("Opening all search results…");
         location.assign(state.seeAllHref || buildResultsUrl(state.query));
       }
     }
   }
 
   function openResult(result) {
+    if (state.navigating) {
+      return;
+    }
     if (result?.href) {
-      closeSearchCentre({ restoreFocus: false });
+      showNavigating(`Opening ${result.title}…`);
       location.assign(result.href);
       return;
     }
@@ -566,7 +610,11 @@
     const open = createElement(result.href ? "a" : "button", "suitemate-v3-sc-open-action");
     if (result.href) {
       open.href = result.href;
-      open.addEventListener("click", () => closeSearchCentre({ restoreFocus: false }));
+      open.addEventListener("click", (event) => {
+        if (navigatesInPlace(event)) {
+          showNavigating(`Opening ${result.title}…`);
+        }
+      });
     } else {
       open.type = "button";
       open.addEventListener("click", () => openResult(result));
@@ -577,7 +625,11 @@
       const edit = createElement("a", "suitemate-v3-sc-edit-action");
       edit.href = result.editHref;
       edit.append(createElement("span", "", "Edit"), createSvgIcon("edit"));
-      edit.addEventListener("click", () => closeSearchCentre({ restoreFocus: false }));
+      edit.addEventListener("click", (event) => {
+        if (navigatesInPlace(event)) {
+          showNavigating(`Opening ${result.title} to edit…`);
+        }
+      });
       actions.append(edit);
     }
     preview.append(actions);
@@ -683,6 +735,8 @@
     state.opener = options.opener ?? document.activeElement ?? nativeInput;
     state.category = "all";
     state.focusBounces = 0;
+    state.navigating = false;
+    modal.veil.hidden = true;
     document.documentElement.classList.add(OPEN_CLASS);
     document.body.append(modal.overlay);
     resultsObserver = new MutationObserver((records) => {
@@ -717,6 +771,10 @@
       return;
     }
     state.open = false;
+    state.navigating = false;
+    if (modal) {
+      modal.veil.hidden = true;
+    }
     suppressOpenUntil = Date.now() + REOPEN_SUPPRESS_MS;
     clearPendingTimer();
     resultsObserver?.disconnect();
