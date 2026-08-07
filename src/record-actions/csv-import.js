@@ -393,6 +393,16 @@
     ) {
       return false;
     }
+    // DOM-READY GATE (the house pattern form-views/so-columns/tab-title use):
+    // this runtime is document_start and #main_form plus the Actions cell
+    // stream in BEFORE NetSuite's trailing hidden inputs (#baserecordtype,
+    // #subtype). Installing mid-stream resolved the record type from page
+    // furniture and froze the wrong import link forever — measured live as
+    // recordsubtype=customrecord on an Item Cross Reference record.
+    await lifecycleApi.whenDomReady();
+    if (signal.aborted || !isCurrent()) {
+      return false;
+    }
 
     globalScope.document.querySelectorAll(LEGACY_ACTION_SELECTOR)
       .forEach((item) => item.remove());

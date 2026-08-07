@@ -9,13 +9,18 @@
       "BUDGETEXCHANGERATE",
       "ACCOUNT",
       "CONSOLIDATEDEXCHANGERATE",
+      "CURRENCYRATE",
       "EXPENSECATEGORY",
       "ITEMCOLLECTION",
       "ITEMCOLLECTIONITEMMAP"
     ]),
     ACTIVITY: Object.freeze(["CALENDAREVENT", "PHONECALL", "TASK"]),
+    CLASSIFICATION: Object.freeze(["CLASSIFICATION", "DEPARTMENT", "LOCATION", "MERCHANDISEHIERARCHYNODE"]),
     COMMUNICATION: Object.freeze(["MESSAGE", "NOTE"]),
+    CUSTOMIZATION: Object.freeze(["CUSTOMLIST"]),
     EMPLOYEE: Object.freeze(["EMPLOYEE", "EXPENSEREPORT", "IMPORTEDEMPLOYEEEXPENSE", "TIMEBILL"]),
+    RULESETUP: Object.freeze(["GAINLOSSACCTMAPPING"]),
+    WEBSITE: Object.freeze(["SITECATEGORY"]),
     ITEM: Object.freeze([
       "ASSEMBLYITEM",
       "DESCRIPTIONITEM",
@@ -45,10 +50,12 @@
       "CUSTOMER",
       "CONTACT",
       "CUSTOMERSUBSIDIARYRELATIONSHIP",
+      "ENTITYGROUP",
       "LEAD",
       "PARTNER",
       "JOB",
       "PROSPECT",
+      "SALESCHANNEL",
       "VENDORSUBSIDIARYRELATIONSHIP",
       "VENDOR"
     ]),
@@ -58,9 +65,14 @@
       "BOMREVISION",
       "INBOUNDSHIPMENT",
       "ITEMLOCATIONCONFIGURATION",
+      "ITEMPROCESSFAMILY",
+      "ITEMPROCESSGROUP",
       "ITEMREVISION",
       "MANUFACTURINGCOSTTEMPLATE",
-      "MANUFACTURINGROUTING"
+      "MANUFACTURINGROUTING",
+      "PICKDECOMPOSITION",
+      "PICKSTRATEGY",
+      "ZONE"
     ]),
     SUPPORT: Object.freeze(["SOLUTION", "SUPPORTCASE", "TOPIC"]),
     // The static map is a fast path, not an authority: a type resolved here
@@ -122,6 +134,13 @@
     const subtype = normalizeImportValue(recordSubtype);
     if (!subtype) {
       return null;
+    }
+    if (subtype.startsWith("CUSTOMRECORD_CSEG")) {
+      // Custom segment values import under Classification, not Custom
+      // Records (Oracle, "CSV Import and Custom Segments") — and this
+      // short-circuit runs before the live probe, so misrouting here could
+      // never self-correct.
+      return "CLASSIFICATION";
     }
     if (subtype.startsWith("CUSTOMRECORD")) {
       return "CUSTOMRECORD";

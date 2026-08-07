@@ -41,11 +41,12 @@
     if (!normalizedRecordType) {
       return null;
     }
-    // ID-numbered custom record types (no script id) are spelled
-    // customrecordNNN by N/currentRecord but CUSTOMRECORD_NNN in the Import
-    // Assistant's option values — measured live; the unpatched spelling
-    // never matched, so those records silently failed to prime.
-    normalizedRecordType = normalizedRecordType.replace(/^customrecord(\d+)$/, "customrecord_$1");
+    normalizedRecordType = IMPORT_TYPE_ALIASES[normalizedRecordType] ?? normalizedRecordType;
+    // Custom record types pass through verbatim: the Import Assistant's
+    // option values are the uppercased script id in every observed and
+    // documented case (Oracle "Custom Record IDs"; a 652-option live read
+    // found zero CUSTOMRECORD<digits> values needing respelling), so any
+    // string surgery here can only corrupt a legitimate id.
     if (!ITEM_BASE_TYPE_PATTERN.test(normalizedRecordType)) {
       return normalizedRecordType;
     }
@@ -60,15 +61,49 @@
     return documentRef?.querySelector?.(selector)?.value;
   }
 
+  // Page artifacts, not record types: custom record pages carry the literal
+  // "custrecordentry" (the .nl script name) in #main_form's type input, and
+  // their nlFieldHelp links name the base "customrecord". Neither can ever
+  // match an Import Assistant subtype option — the assistant's priming does
+  // exact value comparison against concrete option values, so these tokens
+  // can only produce a broken link (measured live: the field-help token
+  // shadowed customrecord_sps_cxref). Returning null lets the caller fall
+  // through to the main-world record-type read. Defence-in-depth beneath the
+  // DOM-ready gate in csv-import.js, which removes the mid-stream window
+  // where these artifacts were the only thing rendered.
+  const GENERIC_DOCUMENT_TYPES = Object.freeze(["customrecord", "custrecordentry", "dual"]);
+
+  // Record pages whose #type token differs from the Import Assistant's
+  // subtype vocabulary (live-verified): the Class page reports "class" but
+  // the assistant's option is CLASSIFICATION; Custom List reports "custlist"
+  // against CUSTOMLIST. Same record, two spellings — the alias keeps one
+  // derivation site.
+  const IMPORT_TYPE_ALIASES = Object.freeze({
+    class: "classification",
+    custlist: "customlist"
+  });
+
+  function specificRecordType(value) {
+    const recordType = normalizeRecordType(value);
+    return recordType && !GENERIC_DOCUMENT_TYPES.includes(recordType) ? recordType : null;
+  }
+
   function readFieldHelpRecordType(documentRef) {
     const fieldHelp = documentRef?.querySelector?.(
       '[data-nsps-type="label"] > a[onclick^="return nlFieldHelp("], a[onclick^="return nlFieldHelp("]'
     );
     const onclick = fieldHelp?.getAttribute?.("onclick") ?? "";
     const quotedArguments = [...onclick.matchAll(/(['"])(.*?)\1/g)].map((match) => match[2]);
-    return normalizeRecordType(quotedArguments[2]);
+    return specificRecordType(quotedArguments[2]);
   }
 
+  // Every signal below is an undocumented NetSuite internal with no contract
+  // (Oracle: "SuiteScript does not support direct access to the NetSuite UI
+  // through the DOM"), including the main-world nlapiGetRecordType fallback —
+  // which itself just reads #baserecordtype from this same form, so it can
+  // never rescue a read that fails here. #type is the .nl page basename
+  // (salesord, custjob, custrecordentry…), which only OCCASIONALLY coincides
+  // with a record type — hence the aliases and the generic-token denylist.
   function resolveRecordTypeFromDocument(documentRef, pathname = "") {
     const directSelectors = [
       "#baserecordtype",
@@ -79,20 +114,20 @@
     ];
 
     for (const selector of directSelectors) {
-      const recordType = normalizeRecordType(readElementValue(documentRef, selector));
+      const recordType = specificRecordType(readElementValue(documentRef, selector));
       if (recordType) {
         return recordType;
       }
     }
 
     if (pathname === "/app/common/search/search.nl") {
-      const recordType = normalizeRecordType(readElementValue(documentRef, "#rectype"));
+      const recordType = specificRecordType(readElementValue(documentRef, "#rectype"));
       if (recordType) {
         return recordType;
       }
 
       const searchType = String(readElementValue(documentRef, "#searchtype") ?? "").trim();
-      return normalizeRecordType(SEARCH_TYPE_MAP[searchType] ?? searchType);
+      return specificRecordType(SEARCH_TYPE_MAP[searchType] ?? searchType);
     }
 
     return readFieldHelpRecordType(documentRef);
