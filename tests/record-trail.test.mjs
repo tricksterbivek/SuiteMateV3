@@ -285,6 +285,12 @@ function createDom() {
       if (selector.includes('[data-suitemate-v3-action="record-trail"]')) {
         return this.dataset.suitemateV3Action === "record-trail";
       }
+      if (selector.includes('[data-suitemate-v3-menu="tools-actions"]')) {
+        return this.dataset.suitemateV3Menu === "tools-actions";
+      }
+      if (selector.includes('[data-suitemate-v3-action="tools-trigger"]')) {
+        return this.dataset.suitemateV3Action === "tools-trigger";
+      }
       return false;
     }
   }
@@ -298,15 +304,24 @@ function createDom() {
   const nativeMenu = new Element("ul");
   const nativeItem = new Element("li");
   const nativeLink = new Element("a");
+  const toolsCell = new Element("td");
+  const toolsTrigger = new Element("button");
+  const toolsMenu = new Element("ul");
   nativeLink.href = "#";
   nativeLink.textContent = "Actions";
   actionsCell.className = "uir-button-menu";
+  toolsCell.dataset.suitemateV3Action = "record-tools-toolbar";
+  toolsTrigger.dataset.suitemateV3Action = "tools-trigger";
+  toolsTrigger.textContent = "Tools";
+  toolsMenu.dataset.suitemateV3Menu = "tools-actions";
+  toolsMenu.setAttribute("role", "menu");
   toolbar.className = "uir-buttons-top uir-header-buttons";
   mainForm.id = "main_form";
   nativeItem.append(nativeLink);
   nativeMenu.append(nativeItem);
   actionsCell.append(nativeMenu);
-  row.append(actionsCell);
+  toolsCell.append(toolsTrigger, toolsMenu);
+  row.append(actionsCell, toolsCell);
   toolbar.append(row);
   mainForm.append(toolbar);
   body.append(mainForm);
@@ -332,6 +347,12 @@ function createDom() {
       if (selector.includes('[data-suitemate-v3-action="record-trail"]')) {
         return elements.filter((element) => element.dataset.suitemateV3Action === "record-trail");
       }
+      if (selector.includes('[data-suitemate-v3-menu="tools-actions"]')) {
+        return elements.filter((element) => element.dataset.suitemateV3Menu === "tools-actions");
+      }
+      if (selector.includes('[data-suitemate-v3-action="tools-trigger"]')) {
+        return elements.filter((element) => element.dataset.suitemateV3Action === "tools-trigger");
+      }
       if (selector.includes('[data-suitemate-v3-ui="record-trail"]')) {
         return elements.filter((element) => element.dataset.suitemateV3Ui === "record-trail");
       }
@@ -344,11 +365,11 @@ function createDom() {
       return this.select(selector);
     }
   };
-  return { document, actionsCell };
+  return { document, actionsCell, toolsMenu, toolsTrigger };
 }
 
 test("Record Trail installs once, renders safely, cancels stale refreshes and restores focus", async () => {
-  const { document } = createDom();
+  const { document, toolsMenu, toolsTrigger } = createDom();
   const lifecycle = createLifecycleStub();
   const storageListeners = [];
   const pagehideListeners = [];
@@ -475,11 +496,14 @@ test("Record Trail installs once, renders safely, cancels stale refreshes and re
 
   const action = document.querySelector('[data-suitemate-v3-action="record-trail"]');
   assert.ok(action);
+  assert.equal(action.parent, toolsMenu, "Record Trail must live inside SuiteMate Tools");
+  assert.equal(action.className.includes("suitemate-v3-tools-record-action"), true);
   await lifecycle.run();
   assert.equal(document.querySelectorAll('[data-suitemate-v3-action="record-trail"]').length, 1);
 
   const trigger = action.querySelector("a");
   assert.equal(trigger.dataset.suitemateV3Command, "record.show-trail");
+  assert.equal(trigger.attributes.role, "menuitem");
   trigger.emit("click");
   await flushTasks();
 
@@ -520,7 +544,7 @@ test("Record Trail installs once, renders safely, cancels stale refreshes and re
   const close = overlay.descendants().find((element) => element.attributes["aria-label"] === "Close Record Trail");
   close.emit("click");
   assert.equal(document.querySelector('[data-suitemate-v3-ui="record-trail"]'), null);
-  assert.equal(document.activeElement, trigger);
+  assert.equal(document.activeElement, toolsTrigger);
 
   storageListeners[0]({
     suiteMateV3Style: { newValue: { enabled: false } }

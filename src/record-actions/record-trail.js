@@ -31,8 +31,9 @@
 
   const ACTION_SELECTOR = '[data-suitemate-v3-action="record-trail"]';
   const OVERLAY_SELECTOR = '[data-suitemate-v3-ui="record-trail"]';
+  const TOOLS_MENU_SELECTOR = '[data-suitemate-v3-menu="tools-actions"]';
+  const TOOLS_TRIGGER_SELECTOR = '[data-suitemate-v3-action="tools-trigger"]';
   const TOP_TOOLBAR_SELECTOR = ".uir-buttons-top.uir-header-buttons";
-  const ACTIONS_CELL_SELECTOR = `${TOP_TOOLBAR_SELECTOR} td.uir-button-menu`;
   const recordTrailCommand = commandApi.IDS.RECORD_SHOW_TRAIL;
   let currentSettings = null;
   let settingsRevision = 0;
@@ -54,12 +55,6 @@
   commandScope.register(recordTrailCommand, {
     run: ({ payload }) => openRecordTrail(payload?.trigger ?? null)
   });
-
-  function findActionsCell() {
-    return [...globalScope.document.querySelectorAll(ACTIONS_CELL_SELECTOR)]
-      .find((cell) => cell.querySelector(":scope > .ns-menu > .ns-menuitem > a")
-        ?.textContent?.trim() === "Actions") ?? null;
-  }
 
   function notify(message, type) {
     globalScope.SuiteMateV3Notifications?.showToast?.(message, { type });
@@ -317,23 +312,30 @@
   }
 
   function createToolbarAction() {
-    const cell = globalScope.document.createElement("td");
-    const menu = globalScope.document.createElement("ul");
     const item = globalScope.document.createElement("li");
     const link = globalScope.document.createElement("a");
-    cell.className = "suitemate-v3-record-trail-cell";
-    cell.dataset.suitemateV3Action = "record-trail";
-    menu.className = "ns-menu suitemate-v3-record-trail-menu";
-    item.className = "ns-menuitem";
+    const icon = globalScope.document.createElement("span");
+    const label = globalScope.document.createElement("span");
+    item.className = "ns-menuitem suitemate-v3-tools-action suitemate-v3-tools-record-action";
+    item.dataset.suitemateV3Action = "record-trail";
+    item.setAttribute("role", "none");
     link.href = "#";
-    link.setAttribute("role", "button");
+    link.setAttribute("role", "menuitem");
     link.setAttribute("aria-haspopup", "dialog");
-    commandApi.applyMetadata(link, recordTrailCommand, { setLabel: true });
+    commandApi.applyMetadata(link, recordTrailCommand);
+    icon.className = "suitemate-v3-tools-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "⌁";
+    label.className = "suitemate-v3-tools-label";
+    label.textContent = "Record Trail";
+    link.append(icon, label);
     link.addEventListener("click", (event) => {
       event.preventDefault();
+      const returnFocus = globalScope.document.querySelector(TOOLS_TRIGGER_SELECTOR) ?? link;
+      returnFocus.focus?.();
       const result = commandScope.invoke(
         recordTrailCommand,
-        { trigger: link },
+        { trigger: returnFocus },
         { source: commandApi.SOURCES.LINK }
       );
       if (!result.ok) {
@@ -341,9 +343,7 @@
       }
     });
     item.append(link);
-    menu.append(item);
-    cell.append(menu);
-    return cell;
+    return item;
   }
 
   function installRecordTrail({ signal, isCurrent }) {
@@ -359,11 +359,11 @@
     if (existing) {
       return true;
     }
-    const actionsCell = findActionsCell();
-    if (!actionsCell || !actionsCell.isConnected) {
+    const toolsMenu = globalScope.document.querySelector(TOOLS_MENU_SELECTOR);
+    if (!toolsMenu || !toolsMenu.isConnected) {
       return false;
     }
-    actionsCell.after(createToolbarAction());
+    toolsMenu.append(createToolbarAction());
     return true;
   }
 
@@ -371,9 +371,9 @@
     if (node?.nodeType !== Node.ELEMENT_NODE) {
       return false;
     }
-    return node.matches?.(`#main_form, ${TOP_TOOLBAR_SELECTOR}, ${ACTIONS_CELL_SELECTOR}, ${ACTION_SELECTOR}`)
+    return node.matches?.(`#main_form, ${TOP_TOOLBAR_SELECTOR}, ${TOOLS_MENU_SELECTOR}, ${ACTION_SELECTOR}`)
       || Boolean(node.querySelector?.(
-        `#main_form, ${TOP_TOOLBAR_SELECTOR}, ${ACTIONS_CELL_SELECTOR}, ${ACTION_SELECTOR}`
+        `#main_form, ${TOP_TOOLBAR_SELECTOR}, ${TOOLS_MENU_SELECTOR}, ${ACTION_SELECTOR}`
       ));
   }
 
