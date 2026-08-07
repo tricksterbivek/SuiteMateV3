@@ -160,15 +160,18 @@
             fallbackUrl: "/app/accounting/transactions/vendorbillmanager.nl?type=apprv&whence="
           })])
         }),
-        Object.freeze({ id: "purchcon", label: "Purchase Contract", entry: "purchcon", listType: "PurchCon", newTask: "EDIT_TRAN_PURCHCON", listTask: "LIST_TRAN_PURCHCON" }),
+        // treeOnly: both records sit behind off-by-default Enable Features
+        // toggles (Purchase Contracts + its Purchase Orders prerequisite;
+        // Inbound Shipment Management), so without the account's tree a
+        // static entry would mostly be a dead link into a disabled feature —
+        // they render only when the live tree confirms them. Inbound
+        // Shipment is its own record family (dedicated pages under
+        // transactions/shipping/, task ids without the TRAN_ prefix).
+        Object.freeze({ id: "purchcon", label: "Purchase Contract", entry: "purchcon", listType: "PurchCon", treeOnly: true, newTask: "EDIT_TRAN_PURCHCON", listTask: "LIST_TRAN_PURCHCON" }),
         Object.freeze({
           id: "inboundshipment",
           label: "Inbound Shipment",
-          // Its own record family, not a Transaction_TYPE: dedicated pages
-          // under transactions/shipping/ and task ids without the TRAN_
-          // prefix (account-harvested), so both URLs are explicit.
-          newUrl: "/app/accounting/transactions/shipping/inboundshipment/inboundshipment.nl?whence=",
-          listUrl: "/app/accounting/transactions/shipping/inboundshipment/inboundshipments.nl?whence=",
+          treeOnly: true,
           newTask: "EDIT_INBOUNDSHIPMENT",
           listTask: "LIST_INBOUNDSHIPMENT"
         })
@@ -272,7 +275,7 @@
   // hides its action, and every present task contributes the account's own
   // URL. Returns null when nothing survives — the caller hides the type.
   function transactionActions(type, index = null) {
-    if (!type) {
+    if (!type || (type.treeOnly && !index)) {
       return null;
     }
     const listPage = type.listPage ?? "transactionlist";
@@ -289,7 +292,7 @@
       : /^[A-Za-z]+$/.test(type.listType ?? "") && /^[a-z]+$/.test(listPage)
         ? `${TRANSACTION_ENTRY_PREFIX}${listPage}.nl?Transaction_TYPE=${type.listType}`
         : "";
-    if (!staticNew && !staticList) {
+    if (!index && !staticNew && !staticList) {
       return null;
     }
     const actions = [];

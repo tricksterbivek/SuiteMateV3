@@ -224,15 +224,23 @@ test("ships the fixed Transaction Menu with canonical NetSuite routes", () => {
     journalActions[1].url,
     "/app/accounting/transactions/accountingtransactionlist.nl?Transaction_TYPE=Journal"
   );
-  const purchaseContractActions = core.transactionActions(types[6]);
+  // Feature-gated, off-by-default families are tree-only: without the
+  // account's tree a static entry would mostly be a dead link.
+  assert.equal(core.transactionActions(types[6], null), null);
+  assert.equal(core.transactionActions(types[7], null), null);
+  const gatedIndex = new Map([
+    ["EDIT_TRAN_PURCHCON", "/app/accounting/transactions/purchcon.nl?whence="],
+    ["LIST_TRAN_PURCHCON", "/app/accounting/transactions/transactionlist.nl?Transaction_TYPE=PurchCon&whence="],
+    ["EDIT_INBOUNDSHIPMENT", "/app/accounting/transactions/shipping/inboundshipment/inboundshipment.nl?whence="],
+    ["LIST_INBOUNDSHIPMENT", "/app/accounting/transactions/shipping/inboundshipment/inboundshipments.nl?whence="]
+  ]);
   assert.equal(
-    purchaseContractActions[1].url,
-    "/app/accounting/transactions/transactionlist.nl?Transaction_TYPE=PurchCon"
+    core.transactionActions(types[6], gatedIndex)[1].url,
+    "/app/accounting/transactions/transactionlist.nl?Transaction_TYPE=PurchCon&whence="
   );
-  // Inbound Shipment is its own record family — explicit account-harvested
-  // URLs, no Transaction_TYPE.
-  const inboundActions = core.transactionActions(types[7]);
-  assert.deepEqual(plain(inboundActions.map((action) => action.url)), [
+  // Inbound Shipment is its own record family — dedicated shipping/ pages,
+  // no Transaction_TYPE (account-harvested).
+  assert.deepEqual(plain(core.transactionActions(types[7], gatedIndex).map((action) => action.url)), [
     "/app/accounting/transactions/shipping/inboundshipment/inboundshipment.nl?whence=",
     "/app/accounting/transactions/shipping/inboundshipment/inboundshipments.nl?whence="
   ]);
@@ -244,15 +252,15 @@ test("ships the fixed Transaction Menu with canonical NetSuite routes", () => {
     assert.equal(actions.some((action) => action.label.startsWith("New ")), false);
   }
   for (const type of types) {
+    if (type.treeOnly) {
+      continue;
+    }
     const actions = core.transactionActions(type);
     const listAction = actions.find((action) => action.label === `${type.label} List`);
-    assert.match(listAction.url, /^\/app\/accounting\/transactions\//);
-    if (!type.listUrl) {
-      assert.match(listAction.url, /\?Transaction_TYPE=[A-Za-z]+$/);
-    }
+    assert.match(listAction.url, /^\/app\/accounting\/transactions\/[a-z]+\.nl\?Transaction_TYPE=[A-Za-z]+$/);
     if (!type.noNew) {
       assert.equal(actions[0].label, `New ${type.label}`);
-      assert.match(actions[0].url, /^\/app\/accounting\/transactions\/[a-z/]+\.nl\?whence=$/);
+      assert.match(actions[0].url, /^\/app\/accounting\/transactions\/[a-z]+\.nl\?whence=$/);
     }
   }
   assert.equal(core.transactionActions({ entry: "bad path", listType: "bad type!" }), null);
