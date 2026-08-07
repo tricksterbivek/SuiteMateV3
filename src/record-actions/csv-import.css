@@ -1,8 +1,11 @@
+/* Middle-aligned like NetSuite's own toolbar cells: with vertical-align top
+   the control floated 6px above the native buttons' shared centre line —
+   measured live against #edit and the Actions link. */
 html:not(.ext-f) .suitemate-v3-tools-cell {
     position: relative;
     z-index: 20;
     padding-left: 8px !important;
-    vertical-align: top
+    vertical-align: middle
 }
 
 html:not(.ext-f) .suitemate-v3-tools-menu,
@@ -28,20 +31,25 @@ html:not(.ext-f) .suitemate-v3-tools-root {
     position: relative
 }
 
+/* The Main-theme border is what makes the control read as SuiteMate's
+   (owner-requested): full-strength var(--theme-main), re-tinted by role
+   themes with no further rules. 26px matches the native toolbar buttons
+   exactly (#edit measures 26), so the bordered box shares their height and
+   centre line instead of reading as an outsider. */
 html:not(.ext-f) .suitemate-v3-tools-trigger {
     display: inline-flex;
-    min-height: 30px;
+    min-height: 26px;
     box-sizing: border-box;
     align-items: center;
     gap: 7px;
-    padding: 0 7px;
-    border: 0;
+    padding: 0 9px;
+    border: 1px solid var(--theme-main);
     border-radius: var(--suitemate-radius-compact, 4px);
     background: transparent;
     box-shadow: none;
     color: var(--text-1) !important;
     cursor: pointer;
-    font: 600 13px/30px var(--normal-font);
+    font: 600 13px/24px var(--normal-font);
     text-decoration: none !important;
     white-space: nowrap;
     transition: background-color .14s ease, color .14s ease

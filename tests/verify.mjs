@@ -634,6 +634,7 @@ const csvImportStyles = await readFile(resolve(root, "src/record-actions/csv-imp
 assert.match(csvImportStyles, /--theme-secondary-light/, "CSV Utils does not use the active SuiteMate theme");
 assert.match(csvImportStyles, /--suitemate-radius-overlay/, "CSV Utils does not use the global overlay radius");
 assert.match(csvImportStyles, /:focus-visible/, "CSV Utils lacks a keyboard focus state");
+assert.match(csvImportStyles, /suitemate-v3-tools-trigger \{[^}]*border: 1px solid var\(--theme-main\)/, "The Tools trigger has lost its Main-theme border");
 assert.match(csvImportStyles, /suitemate-v3-tools-dropdown\[hidden\]/, "SuiteMate Tools does not expose its explicit open state");
 assert.match(csvImportStyles, /suitemate-v3-tools-category\[data-open=true\]/, "CSV Utils does not expose its explicit expanded state");
 assert.match(csvImportStyles, /suitemate-v3-tools-category\s*\{\s*display: block !important/, "CSV Utils does not override NetSuite's flyout layout");
