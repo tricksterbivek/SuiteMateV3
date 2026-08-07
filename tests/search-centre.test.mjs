@@ -28,21 +28,32 @@ test("exports one frozen Search Centre core with the five fixed categories", () 
   ]);
 });
 
-test("categorizes uber type labels: files and navigation closed sets, customer and transaction vocabularies, records as the unbucketed rest", () => {
+test("categorizes label fallbacks: files and navigation closed sets, records as the rest", () => {
   assert.equal(core.categorize("PDF File"), "files");
   assert.equal(core.categorize("Excel File"), "files");
   assert.equal(core.categorize("Menu"), "navigation");
   assert.equal(core.categorize("Page"), "navigation");
-  assert.equal(core.categorize("Customer"), "customers");
-  assert.equal(core.categorize("Lead"), "customers");
-  assert.equal(core.categorize("Prospect"), "customers");
-  assert.equal(core.categorize("Sales Order"), "transactions");
-  assert.equal(core.categorize("Invoice"), "transactions");
-  assert.equal(core.categorize("Journal Entry"), "transactions");
-  assert.equal(core.categorize("Item Fulfillment"), "transactions");
   assert.equal(core.categorize("Non-inventory Item"), "records");
-  assert.equal(core.categorize("Employee"), "records");
+  assert.equal(core.categorize("Customer"), "records");
   assert.equal(core.categorize(""), "records");
+});
+
+test("buckets by the rename-proof URL path, never the display label", () => {
+  const at = (key, descr) => core.fromAutofill({ sname: "X", key, descr, bedit: "F" }, origin).category;
+  assert.equal(at("/app/accounting/transactions/transaction.nl?id=1042239", "Sales Order"), "transactions");
+  // The AP family's display names ("Bill", "Bill Credit", "Bill Payment")
+  // diverge from their record ids — the path still buckets them.
+  assert.equal(at("/app/accounting/transactions/transaction.nl?id=9", "Bill"), "transactions");
+  assert.equal(at("/app/common/entity/custjob.nl?id=4370", "Customer"), "customers");
+  assert.equal(at("/app/common/entity/custjob.nl?id=9001", "Lead"), "customers");
+  assert.equal(at("/app/common/entity/custjob.nl?id=9002", "Membre"), "customers");
+  assert.equal(at("/app/common/media/mediaitem.nl?id=5", "PDF File"), "files");
+  assert.equal(at("/app/common/entity/vendor.nl?id=1", "Vendor"), "records");
+  assert.equal(at("/app/common/entity/contact.nl?id=16779", "Contact"), "records");
+  // A Payment ITEM shares the "Payment" label with the payment transaction;
+  // the item path keeps it out of Transactions.
+  assert.equal(at("/app/common/item/item.nl?id=7", "Payment"), "records");
+  assert.equal(at("/app/common/custom/custrecordentry.nl?rectype=12&id=3", "Bank Details"), "records");
 });
 
 test("keeps only same-origin https hrefs, stored as paths", () => {
@@ -172,7 +183,7 @@ test("maps direct autosuggest entries into results with permission-gated edit", 
 
 test("counts and filters by category with all as the identity", () => {
   const results = [
-    core.normalizeResult({ text: "Customer: Acme", group: "globalSearch", href: "/a.nl" }, origin),
+    core.normalizeResult({ text: "Customer: Acme", group: "globalSearch", href: "/app/common/entity/custjob.nl?id=1" }, origin),
     core.normalizeResult({ text: "PDF File: a.pdf", group: "globalSearch", href: "/b.nl" }, origin),
     core.normalizeResult({ text: "Menu: Lists > Items", group: "pageSearch", href: "/c.nl" }, origin)
   ];

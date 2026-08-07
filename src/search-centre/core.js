@@ -10,40 +10,40 @@
   ]);
 
   // Uber rows self-describe as "Type: Name" ("Non-inventory Item: …",
-  // "PDF File: …", "Menu: …"). Files are a closed vocabulary; navigation is
-  // primarily decided by the listbox group (pageSearch) with the "Menu"/
-  // "Page" prefixes as a fallback. Customers and transactions match the
-  // type label normalized to bare letters, which makes display forms
-  // ("Sales Order") and record ids (SALESORDER) the same word; every other
-  // record type (items, vendors, employees…) stays category "records" —
-  // reachable under All, with no rail bucket of its own.
+  // "PDF File: …", "Menu: …"), but the type label is renameable per account
+  // and localized per language — matching on it silently fails the moment an
+  // administrator renames a record or runs NetSuite in French. The result's
+  // URL is the rename-proof key (live-verified per family): transactions all
+  // live under /app/accounting/transactions/, the whole customer family —
+  // Customer, Lead, Prospect, Job are ONE record split by Stage — under
+  // custjob.nl, files under mediaitem.nl. It also disarms the label
+  // collision where an item type's short display name reads the same as a
+  // money-in transaction's: their paths differ. The label stays display-only
+  // (the type chip), plus
+  // a fallback for files/navigation rows with unrecognized paths. Everything
+  // else (items, vendors, employees, custom records…) stays category
+  // "records" — reachable under All, with no rail bucket of its own.
+  const TRANSACTION_PATH_PREFIX = "/app/accounting/transactions/";
+  const CUSTOMER_ENTITY_PATH = "/app/common/entity/custjob.nl";
+  const FILE_PATH = "/app/common/media/mediaitem.nl";
   const FILE_TYPE_PATTERN = /\b(?:file|folder|document|attachment)\b/i;
   const NAVIGATION_TYPE_PATTERN = /^(?:menu|page)$/i;
-  const CUSTOMER_TYPE_LABELS = new Set(["CUSTOMER", "LEAD", "PROSPECT", "JOB", "PROJECT"]);
-  // The transaction vocabulary the live import-assistant reconciliation
-  // produced, letters-only. Short display forms ("Bill", "Journal" and the
-  // like) are deliberately absent until verified — an unmatched transaction
-  // falls to All, a mismatched item would lie.
-  const TRANSACTION_TYPE_LABELS = new Set([
-    "ADVINTERCOMPANYJOURNALENTRY", "BINTRANSFER", "BINWORKSHEET", "CASHREFUND",
-    "CASHSALE", "CHECK", "CREDITCARDCHARGE", "CREDITCARDREFUND", "CREDITMEMO",
-    "CUSTOMERDEPOSIT", "CUSTOMERPAYMENT", "CUSTOMERREFUND", "DEPOSITAPPLICATION",
-    "ESTIMATE", "INTERCOMPANYJOURNALENTRY", "INVENTORYADJUSTMENT",
-    "INVENTORYCOSTREVALUATION", "INVENTORYTRANSFER", "INVOICE", "ITEMDEMANDPLAN",
-    "ITEMFULFILLMENT", "ITEMRECEIPT", "ITEMSUPPLYPLAN", "JOURNALENTRY",
-    "OPPORTUNITY", "ORDERRESERVATION", "PURCHASECONTRACT", "PURCHASEORDER",
-    "PURCHASEREQUISITION", "QUOTE", "RETURNAUTHORIZATION", "SALESORDER",
-    "STATEMENTCHARGE", "STATISTICALJOURNALENTRY", "TRANSACTION", "TRANSFERORDER",
-    "VENDORBILL", "VENDORCREDIT", "VENDORPAYMENT", "VENDORPREPAYMENT",
-    "VENDORRETURNAUTHORIZATION", "WORKORDER"
-  ]);
 
   function cleanText(value, maxLength = 300) {
     return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, maxLength);
   }
 
-  function normalizeTypeLabel(value) {
-    return cleanText(value, 120).toUpperCase().replace(/[^A-Z]/g, "");
+  function categorizeHref(href) {
+    if (href.startsWith(TRANSACTION_PATH_PREFIX)) {
+      return "transactions";
+    }
+    if (href.startsWith(CUSTOMER_ENTITY_PATH)) {
+      return "customers";
+    }
+    if (href.startsWith(FILE_PATH)) {
+      return "files";
+    }
+    return "";
   }
 
   function categorize(typeText) {
@@ -53,13 +53,6 @@
     }
     if (NAVIGATION_TYPE_PATTERN.test(value)) {
       return "navigation";
-    }
-    const label = normalizeTypeLabel(value);
-    if (CUSTOMER_TYPE_LABELS.has(label)) {
-      return "customers";
-    }
-    if (TRANSACTION_TYPE_LABELS.has(label)) {
-      return "transactions";
     }
     return "records";
   }
@@ -115,7 +108,7 @@
       title,
       typeText,
       secondary,
-      category: navigation ? "navigation" : categorize(typeText),
+      category: navigation ? "navigation" : categorizeHref(href) || categorize(typeText),
       href,
       editHref: sanitizeHref(raw?.editHref, origin),
       nativeIndex
