@@ -337,6 +337,70 @@ assert.equal(
   "Escape"
 );
 
+// ===== Search Centre =====
+// The adapter constants mirror live-verified NetSuite internals (refreshed
+// header, uif 10.0.15): stable automation ids, the controlled-input write
+// path, and the canonical full-results URL. If one of these pins breaks,
+// re-verify against a live account before "fixing" a selector.
+assert.equal(commandApi.IDS.SEARCH_OPEN_CENTRE, "search.open-centre");
+assert.equal(commandApi.SURFACES.SEARCH, "search");
+assert.equal(commandApi.getShortcut(commandApi.IDS.SEARCH_OPEN_CENTRE).canonical, "Mod+Shift+K");
+assert.equal(commandApi.get(commandApi.IDS.SEARCH_OPEN_CENTRE).allowInEditable, true);
+assert.equal(routeApi.CAPABILITIES.SEARCH_CENTRE, "search-centre");
+assert.equal(
+  routeApi.supports(
+    routeApi.CAPABILITIES.SEARCH_CENTRE,
+    routeApi.createPageContext("https://1234567.app.netsuite.com/app/common/entity/custjob.nl?id=4370")
+  ),
+  true
+);
+assert.equal(
+  routeApi.supports(
+    routeApi.CAPABILITIES.SEARCH_CENTRE,
+    routeApi.createPageContext("https://1234567.app.netsuite.com/app/login/secure/enterpriselogin.nl")
+  ),
+  false
+);
+assert.equal(
+  routeApi.supports(
+    routeApi.CAPABILITIES.SEARCH_CENTRE,
+    routeApi.createPageContext("https://1234567.app.netsuite.com/app/center/card.nl", { isTopFrame: false })
+  ),
+  false
+);
+const searchCentreRuntimeSource = await readFile(resolve(root, "src/search-centre/runtime.js"), "utf8");
+assert.match(
+  searchCentreRuntimeSource,
+  /div\[data-automation-id="GlobalSearchTextBox"\] input/,
+  "The Search Centre no longer targets the refreshed header's stable search input"
+);
+assert.match(
+  searchCentreRuntimeSource,
+  /\[data-automation-id="GlobalSearchListBox"\]/,
+  "The Search Centre no longer reads the native uber listbox"
+);
+assert.match(
+  searchCentreRuntimeSource,
+  /getOwnPropertyDescriptor\([\s\S]{0,80}HTMLInputElement[\s\S]{0,60}"value"[\s\S]{0,20}\)\?\.set/,
+  "Queries are written without the controlled-input prototype setter NetSuite requires"
+);
+assert.match(
+  searchCentreRuntimeSource,
+  /Uber_NAMEtype", "KEYWORDSTARTSWITH"/,
+  "The full-results fallback URL lost its live-verified parameter set"
+);
+const searchCentreStyleSource = await readFile(resolve(root, "src/search-centre/search-centre.css"), "utf8");
+assert.match(
+  searchCentreStyleSource,
+  /html\.suitemate-v3-sc-open[\s\S]{0,120}Popover"\]:has\(\[data-automation-id="GlobalSearchListBox"\]\)[\s\S]{0,40}display: none !important/,
+  "The native popover is no longer hidden while the Search Centre is open"
+);
+assert.match(
+  searchCentreStyleSource,
+  /prefers-reduced-motion/,
+  "Search Centre motion is not gated on reduced-motion"
+);
+
 const bridgeSource = await readFile(resolve(root, "src/shared/bridge.js"), "utf8");
 assert.match(bridgeSource, /utilityApi\.utf8ByteLength\(serialized\)/, "The bridge bypasses the shared UTF-8 byte counter");
 assert.match(bridgeSource, /routeApi\?\.isAllowedSender/, "The typed bridge bypasses the route registry");

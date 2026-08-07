@@ -35,82 +35,120 @@
 
   // ===== Native uber-search adapter =====
   // Every NetSuite-internal assumption lives between these fences; the modal
-  // above it only sees the adapter's five functions. Selectors verified live
-  // on 2026.2 classic UI (release preview) — see the pins in tests/verify.mjs.
-  const NATIVE_INPUT_SELECTOR = "#_searchstring";
-  const NATIVE_DROPDOWN_SELECTOR = 'div[id^="menu_searchstring"], #ns-header-menu-search, .ns-menu-search';
-  const SEARCH_MIN_QUERY_LENGTH = 2;
+  // only sees the adapter's functions. Verified live on the 2026.1 refreshed
+  // header (release preview, uif 10.0.15): the header input sits in
+  // div[data-automation-id="GlobalSearchTextBox"]; its results render into a
+  // body-level Popover holding [data-automation-id="GlobalSearchListBox"];
+  // NetSuite keeps fetching and re-rendering that listbox even while its
+  // input is BLURRED, which is what lets the modal own focus and still ride
+  // the native machinery (one autosuggest.nl request per settled query,
+  // debounced by NetSuite itself).
+  const NATIVE_INPUT_SELECTOR = 'div[data-automation-id="GlobalSearchTextBox"] input';
+  const NATIVE_LISTBOX_SELECTOR = '[data-automation-id="GlobalSearchListBox"]';
+  // The classic uber search starts matching at three characters.
+  const SEARCH_MIN_QUERY_LENGTH = 3;
   const RESULTS_PATH = "/app/common/search/ubersearchresults.nl";
+  const nativeValueSetter = Object.getOwnPropertyDescriptor(
+    globalThis.HTMLInputElement?.prototype ?? {},
+    "value"
+  )?.set;
 
   function findNativeInput() {
     return document.querySelector(NATIVE_INPUT_SELECTOR);
   }
 
-  function findNativeDropdown() {
-    return document.querySelector(NATIVE_DROPDOWN_SELECTOR);
+  function findNativeListbox() {
+    return document.querySelector(NATIVE_LISTBOX_SELECTOR);
   }
 
-  // Feed the modal's query through NetSuite's own machinery: write the native
-  // input and let its listeners debounce, fetch and render as usual.
   function pushQueryToNative(query) {
     const input = findNativeInput();
-    if (!input) {
+    if (!input || !nativeValueSetter) {
       return false;
     }
-    input.value = query;
+    // The uif TextBox is a controlled component: the prototype setter plus a
+    // bubbled input event is the combination its listeners accept (a plain
+    // .value write is swallowed). The keyup nudge matches real typing;
+    // measured live as the pair that makes NetSuite fetch while unfocused.
+    nativeValueSetter.call(input, query);
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: "a" }));
     return true;
   }
 
+  // Rows are li[role=option] wrapping a SearchItem: a main-link anchor whose
+  // visible text is "Type: Name" (with the Edit anchor NESTED inside it), an
+  // additional-link that is only an edit action when NetSuite labels it so —
+  // that label is the permission signal — and a show-more row whose href is
+  // the canonical full-results URL for the current query.
   function parseNativeResults() {
-    const dropdown = findNativeDropdown();
-    if (!dropdown) {
+    const listbox = findNativeListbox();
+    if (!listbox) {
       return null;
     }
-    const rows = [];
-    for (const anchor of dropdown.querySelectorAll("a[href]")) {
-      const href = anchor.getAttribute("href") ?? "";
-      if (!href || href.startsWith("#")) {
+    const results = [];
+    let seeAllHref = "";
+    for (const option of listbox.querySelectorAll('li[role="option"]')) {
+      const item = option.querySelector("[data-search-item-type]");
+      const mainLink = option.querySelector('a[data-automation-id="main-link"]');
+      if (!item || !mainLink) {
         continue;
       }
+      const itemType = item.getAttribute("data-search-item-type");
+      if (itemType === "show-more") {
+        seeAllHref = core.sanitizeHref(mainLink.getAttribute("href"), location.origin);
+        continue;
+      }
+      if (itemType !== "result") {
+        continue;
+      }
+      const additional = option.querySelector('a[data-automation-id="additional-link"]');
+      const clone = mainLink.cloneNode(true);
+      for (const nested of clone.querySelectorAll('a[data-automation-id="additional-link"]')) {
+        nested.remove();
+      }
       const result = core.normalizeResult({
-        title: anchor.textContent,
-        typeText: anchor.getAttribute("data-type") ?? "",
-        secondary: "",
-        href
+        text: clone.textContent,
+        group: option.closest("[data-listbox-section]")?.getAttribute("data-automation-id") ?? "",
+        href: mainLink.getAttribute("href"),
+        editHref: /^edit\b/i.test(additional?.getAttribute("aria-label") ?? "")
+          ? additional.getAttribute("href")
+          : ""
       }, location.origin);
       if (result) {
-        rows.push(result);
+        results.push(result);
       }
     }
-    return rows;
+    return { results, seeAllHref };
   }
 
-  function nativeSeeAllHref() {
-    const query = state.query.trim();
+  function buildResultsUrl(query) {
     try {
       const url = new URL(RESULTS_PATH, location.origin);
       url.searchParams.set("quicksearch", "T");
       url.searchParams.set("searchtype", "Uber");
-      url.searchParams.set("Uber_NAMEtext", query);
+      url.searchParams.set("frame", "be");
+      url.searchParams.set("Uber_NAMEtype", "KEYWORDSTARTSWITH");
+      url.searchParams.set("Uber_NAME", query.trim());
       return `${url.pathname}${url.search}`;
     } catch {
       return RESULTS_PATH;
     }
   }
 
-  function hideNativeDropdown() {
-    findNativeDropdown()?.style.setProperty("display", "none", "important");
-  }
-
-  function unhideNativeDropdown() {
-    findNativeDropdown()?.style.removeProperty("display");
+  // Escape does not close the native popover, a body click does (both
+  // measured); without this the popover would pop back into view the moment
+  // the modal's hide class lifts.
+  function dismissNativeDropdown() {
+    if (findNativeListbox()) {
+      document.body.click();
+    }
   }
   // ===== End of native adapter =====
 
   const OPEN_CLASS = "suitemate-v3-sc-open";
   const REOPEN_SUPPRESS_MS = 400;
+  const PENDING_TIMEOUT_MS = 5000;
   const svgNamespace = "http" + "://www.w3.org/2000/svg";
 
   let enabled = false;
@@ -118,12 +156,14 @@
   let settingsRevision = 0;
   let suppressOpenUntil = 0;
   let resultsObserver = null;
+  let pendingTimer = 0;
   let modal = null;
   const state = {
     open: false,
     query: "",
     category: "all",
     results: [],
+    seeAllHref: "",
     pending: false,
     everParsed: false,
     selectedIndex: 0,
@@ -251,8 +291,8 @@
     clear.setAttribute("aria-label", "Clear search");
     clear.append(createSvgIcon("close"));
     clear.addEventListener("click", () => {
-      setQuery("");
       input.value = "";
+      setQuery("");
       input.focus();
     });
     tail.append(kbd, clear);
@@ -396,20 +436,31 @@
     location.assign(result.href);
   }
 
+  function clearPendingTimer() {
+    if (pendingTimer) {
+      clearTimeout(pendingTimer);
+      pendingTimer = 0;
+    }
+  }
+
   function setQuery(query) {
     state.query = query;
     state.selectedIndex = 0;
-    const trimmed = query.trim();
-    if (trimmed.length >= SEARCH_MIN_QUERY_LENGTH) {
-      // Old rows must never masquerade as answers for the new query.
-      state.pending = pushQueryToNative(query);
-      state.results = [];
-      state.everParsed = false;
-    } else {
-      pushQueryToNative(query);
-      state.pending = false;
-      state.results = [];
-      state.everParsed = false;
+    // Old rows must never masquerade as answers for the new query.
+    state.results = [];
+    state.seeAllHref = "";
+    state.everParsed = false;
+    clearPendingTimer();
+    const searching = query.trim().length >= SEARCH_MIN_QUERY_LENGTH;
+    state.pending = pushQueryToNative(query) && searching;
+    if (state.pending) {
+      // If NetSuite never re-renders (offline, throttled), fall out of the
+      // skeleton into the empty state instead of shimmering forever.
+      pendingTimer = setTimeout(() => {
+        pendingTimer = 0;
+        state.pending = false;
+        render();
+      }, PENDING_TIMEOUT_MS);
     }
     render();
   }
@@ -422,11 +473,12 @@
     if (parsed === null) {
       return;
     }
-    hideNativeDropdown();
-    state.results = parsed;
+    clearPendingTimer();
+    state.results = parsed.results;
+    state.seeAllHref = parsed.seeAllHref;
     state.pending = false;
     state.everParsed = true;
-    if (core.filterByCategory(parsed, state.category).length === 0) {
+    if (core.filterByCategory(parsed.results, state.category).length === 0) {
       state.category = "all";
     }
     state.selectedIndex = Math.min(
@@ -571,7 +623,7 @@
       modal.input.removeAttribute("aria-activedescendant");
     }
     renderPreview(selected);
-    modal.allLink.href = nativeSeeAllHref();
+    modal.allLink.href = state.seeAllHref || buildResultsUrl(state.query);
     if (options.revealSelection) {
       list.querySelector(".is-selected")?.scrollIntoView({ block: "nearest" });
     }
@@ -588,31 +640,22 @@
     modal ??= buildModal();
     state.open = true;
     state.opener = options.opener ?? document.activeElement ?? nativeInput;
-    state.query = options.query ?? nativeInput.value ?? "";
     state.category = "all";
-    state.results = [];
-    state.pending = false;
-    state.everParsed = false;
-    state.selectedIndex = 0;
-    modal.input.value = state.query;
     document.documentElement.classList.add(OPEN_CLASS);
     document.body.append(modal.overlay);
-    hideNativeDropdown();
     resultsObserver = new MutationObserver((records) => {
       // The modal's own re-renders land in this observer too; reacting to
       // them would render forever. Only NetSuite-side mutations count.
       if (records.every((record) => modal.overlay.contains(record.target))) {
         return;
       }
-      hideNativeDropdown();
       syncResultsFromNative();
     });
     resultsObserver.observe(document.body, { childList: true, subtree: true });
-    if (state.query.trim().length >= SEARCH_MIN_QUERY_LENGTH) {
-      state.pending = pushQueryToNative(state.query);
-      syncResultsFromNative();
-    }
-    render();
+    const query = options.query ?? nativeInput.value ?? "";
+    modal.input.value = query;
+    setQuery(query);
+    syncResultsFromNative();
     modal.input.focus();
     modal.input.setSelectionRange(modal.input.value.length, modal.input.value.length);
   }
@@ -623,11 +666,12 @@
     }
     state.open = false;
     suppressOpenUntil = Date.now() + REOPEN_SUPPRESS_MS;
+    clearPendingTimer();
     resultsObserver?.disconnect();
     resultsObserver = null;
+    dismissNativeDropdown();
     modal?.overlay.remove();
     document.documentElement.classList.remove(OPEN_CLASS);
-    unhideNativeDropdown();
     if (options.restoreFocus !== false) {
       const target = state.opener?.isConnected ? state.opener : findNativeInput();
       target?.focus?.();

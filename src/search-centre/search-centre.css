@@ -6,6 +6,13 @@ html.suitemate-v3-sc-open {
   overflow: hidden !important;
 }
 
+/* The native uber-search popover keeps rendering results (the modal reads
+   them from it) but must never be visible while the centre is open. */
+html.suitemate-v3-sc-open
+  div[data-widget="Popover"]:has([data-automation-id="GlobalSearchListBox"]) {
+  display: none !important;
+}
+
 .suitemate-v3-sc-overlay {
   --sc-border: light-dark(#e4e7ec, #3a404a);
   --sc-border-soft: light-dark(#eef0f4, #2e333c);

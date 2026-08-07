@@ -8,11 +8,12 @@
     Object.freeze({ id: "navigation", label: "Navigation" })
   ]);
 
-  // Uber-search rows label themselves with a type string ("Customer",
-  // "Excel File", "Page"...). Files and navigation are the closed sets;
-  // everything else is a record — the safe default for unknown labels.
+  // Uber rows self-describe as "Type: Name" ("Non-inventory Item: …",
+  // "PDF File: …", "Menu: …"). Files are a closed vocabulary; navigation is
+  // primarily decided by the listbox group (pageSearch) with the "Menu"/
+  // "Page" prefixes as a fallback; everything else is a record.
   const FILE_TYPE_PATTERN = /\b(?:file|folder|document|attachment)\b/i;
-  const NAVIGATION_TYPE_PATTERN = /^(?:page|menu|portlet|dashboard|center|tab|category|task link|action)\b/i;
+  const NAVIGATION_TYPE_PATTERN = /^(?:menu|page)$/i;
 
   function cleanText(value, maxLength = 300) {
     return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, maxLength);
@@ -47,18 +48,35 @@
     }
   }
 
+  // raw: { text, group, href, editHref } — text is the row's visible
+  // "Type: Name" string, group the listbox section that carried it
+  // ("globalSearch" | "pageSearch"). Menu names arrive as full
+  // "A > B > C" paths; the leaf becomes the title, the trail the secondary.
   function normalizeResult(raw, origin) {
     const href = sanitizeHref(raw?.href, origin);
-    const title = cleanText(raw?.title, 200);
-    if (!href || !title) {
+    const text = cleanText(raw?.text, 300);
+    if (!href || !text) {
       return null;
     }
-    const typeText = cleanText(raw?.typeText, 80);
+    const colon = text.indexOf(": ");
+    const typeText = colon > 0 ? text.slice(0, colon) : "";
+    const name = colon > 0 ? text.slice(colon + 2) : text;
+    const navigation = raw?.group === "pageSearch" || NAVIGATION_TYPE_PATTERN.test(typeText);
+    let title = name;
+    let secondary = "";
+    if (navigation && name.includes(" > ")) {
+      const segments = name.split(" > ").map((segment) => segment.trim()).filter(Boolean);
+      title = segments.pop() ?? name;
+      secondary = segments.join(" > ");
+    }
+    if (!title) {
+      return null;
+    }
     return Object.freeze({
       title,
       typeText,
-      secondary: cleanText(raw?.secondary, 200),
-      category: categorize(typeText),
+      secondary,
+      category: navigation ? "navigation" : categorize(typeText),
       href,
       editHref: sanitizeHref(raw?.editHref, origin)
     });
