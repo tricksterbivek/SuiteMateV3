@@ -7,10 +7,14 @@ html.suitemate-v3-sc-open {
 }
 
 /* The native uber-search popover keeps rendering results (the modal reads
-   them from it) but must never be visible while the centre is open. */
+   them from it) but must never be visible while the centre is open. Hidden
+   with opacity, NOT display: the widget writes its own measured geometry
+   inline, and a zero rect could break its positioning pass. Verified live:
+   under opacity-hide the autosuggest XHR still fires and rows populate. */
 html.suitemate-v3-sc-open
   div[data-widget="Popover"]:has([data-automation-id="GlobalSearchListBox"]) {
-  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 .suitemate-v3-sc-overlay {

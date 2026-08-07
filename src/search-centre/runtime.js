@@ -77,10 +77,15 @@
   }
 
   // Rows are li[role=option] wrapping a SearchItem: a main-link anchor whose
-  // visible text is "Type: Name" (with the Edit anchor NESTED inside it), an
-  // additional-link that is only an edit action when NetSuite labels it so —
-  // that label is the permission signal — and a show-more row whose href is
-  // the canonical full-results URL for the current query.
+  // visible text is "Type: Name" (with the Edit/Dash anchors NESTED inside
+  // it — invalid HTML that survives because uif builds it via DOM APIs), an
+  // additional-link that is only an edit action when NetSuite labels it so,
+  // and a show-more row whose href is the canonical full-results URL for the
+  // current query. NetSuite caps the suggest dropdown at 8 rows by design
+  // (Oracle N642700) — the mirror inherits that cap, and "View all search
+  // results" carries the rest. ponytail: if the full 25-row payload is ever
+  // wanted, fetch autosuggest.nl?cur_val=<q>&mapkey=uberautosuggest directly
+  // instead of growing this parser.
   function parseNativeResults() {
     const listbox = findNativeListbox();
     if (!listbox) {
@@ -103,12 +108,16 @@
         continue;
       }
       const additional = option.querySelector('a[data-automation-id="additional-link"]');
+      // Rows label themselves in two spans ("Customer:&nbsp;" + name); the
+      // clone-minus-nested-links text is the fallback for rows without them.
+      const description = mainLink.querySelector('[data-automation-id="link-description"]')?.textContent ?? "";
+      const name = mainLink.querySelector('[data-automation-id="link-name"]')?.textContent ?? "";
       const clone = mainLink.cloneNode(true);
       for (const nested of clone.querySelectorAll('a[data-automation-id="additional-link"]')) {
         nested.remove();
       }
       const result = core.normalizeResult({
-        text: clone.textContent,
+        text: description || name ? `${description}${name}` : clone.textContent,
         group: option.closest("[data-listbox-section]")?.getAttribute("data-automation-id") ?? "",
         href: mainLink.getAttribute("href"),
         editHref: /^edit\b/i.test(additional?.getAttribute("aria-label") ?? "")
@@ -424,7 +433,16 @@
     }
     if (event.key === "Enter" && event.target === modal.input) {
       event.preventDefault();
-      openResult(selectedResult());
+      const result = selectedResult();
+      if (result) {
+        openResult(result);
+      } else if (state.query.trim().length >= SEARCH_MIN_QUERY_LENGTH) {
+        // No suggestions (Auto Suggest preference off, timeout, or zero
+        // matches): Enter falls through to the full results page so the
+        // search never dead-ends.
+        closeSearchCentre({ restoreFocus: false });
+        location.assign(state.seeAllHref || buildResultsUrl(state.query));
+      }
     }
   }
 
@@ -576,10 +594,17 @@
     } else if (state.pending && !state.everParsed) {
       list.append(renderSkeletons());
     } else if (visible.length === 0) {
-      list.append(renderMessage(
-        `No results found for “${trimmedQuery}”`,
-        "Try a shorter phrase or a record number."
-      ));
+      // everParsed distinguishes a real empty answer from NetSuite never
+      // rendering at all (Auto Suggest preference off, or the timeout).
+      list.append(state.everParsed
+        ? renderMessage(
+          `No results found for “${trimmedQuery}”`,
+          "Try a different phrase, or press Enter to open all search results."
+        )
+        : renderMessage(
+          "Suggestions are not available",
+          "Press Enter to open all search results."
+        ));
     } else {
       for (const [index, result] of visible.entries()) {
         const row = createElement("div", "suitemate-v3-sc-row");
