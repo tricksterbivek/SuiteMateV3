@@ -167,6 +167,7 @@
   let suppressOpenUntil = 0;
   let resultsObserver = null;
   let pendingTimer = 0;
+  let pushFrame = 0;
   let modal = null;
   const state = {
     open: false,
@@ -174,6 +175,7 @@
     category: "all",
     results: [],
     seeAllHref: "",
+    parsedSignature: "",
     pending: false,
     everParsed: false,
     selectedIndex: 0,
@@ -531,7 +533,18 @@
     state.selectedIndex = 0;
     clearPendingTimer();
     const searching = query.trim().length >= SEARCH_MIN_QUERY_LENGTH;
-    state.pending = pushQueryToNative(query) && searching;
+    // The native push runs one frame later so the typed character paints
+    // before uif's synchronous input pipeline (heavy on SuiteApp-laden
+    // pages) gets the event. NetSuite's own trailing debounce still governs
+    // the fetch, so time-to-results is unchanged.
+    if (pushFrame) {
+      cancelAnimationFrame(pushFrame);
+    }
+    pushFrame = requestAnimationFrame(() => {
+      pushFrame = 0;
+      pushQueryToNative(query);
+    });
+    state.pending = searching && Boolean(findNativeInput());
     if (!searching) {
       state.results = [];
       state.seeAllHref = "";
@@ -561,9 +574,16 @@
       return;
     }
     clearPendingTimer();
+    state.pending = false;
+    const signature = JSON.stringify(parsed);
+    if (state.everParsed && signature === state.parsedSignature) {
+      // Identical listbox re-render — nothing to redraw. Skipping keeps
+      // busy pages from rebuilding the modal for no visible change.
+      return;
+    }
+    state.parsedSignature = signature;
     state.results = parsed.results;
     state.seeAllHref = parsed.seeAllHref;
-    state.pending = false;
     state.everParsed = true;
     if (core.filterByCategory(parsed.results, state.category).length === 0) {
       state.category = "all";
@@ -763,33 +783,49 @@
     state.opener = options.opener ?? document.activeElement ?? nativeInput;
     state.category = "all";
     state.focusBounces = 0;
+    state.parsedSignature = "";
     document.documentElement.classList.add(OPEN_CLASS);
     document.body.append(modal.overlay);
     resultsObserver = new MutationObserver((records) => {
-      // The modal's own re-renders land in this observer too; reacting to
-      // them would render forever. Only NetSuite-side mutations count.
-      if (records.every((record) => modal.overlay.contains(record.target))) {
-        return;
+      // Busy pages (SuiteApps, refreshing portlets) mutate the body
+      // constantly; only the native popover's own re-renders are search
+      // signal. Anything else — including the modal's own renders — would
+      // rebuild the modal mid-keystroke for nothing.
+      const popover = findNativeListbox()?.closest('[data-widget="Popover"]');
+      const relevant = popover
+        ? records.some((record) => popover.contains(record.target))
+        : records.some((record) => [...record.addedNodes].some((node) =>
+          node.nodeType === Node.ELEMENT_NODE
+          && (node.matches?.('[data-widget="Popover"]') || node.querySelector?.(NATIVE_LISTBOX_SELECTOR))));
+      if (relevant) {
+        syncResultsFromNative();
       }
-      syncResultsFromNative();
     });
     resultsObserver.observe(document.body, { childList: true, subtree: true });
     const query = options.query ?? nativeInput.value ?? "";
     modal.input.value = query;
     setQuery(query);
     syncResultsFromNative();
-    // NetSuite's TextBox re-asserts focus into its own input after the
-    // triggering event finishes; the deferred grab (the same 60ms the
-    // Recent Records panel uses) runs after uif's focus pass and wins.
-    const grabFocus = () => {
-      if (!state.open) {
-        return;
-      }
-      modal.input.focus();
-      modal.input.setSelectionRange(modal.input.value.length, modal.input.value.length);
-    };
-    grabFocus();
-    setTimeout(grabFocus, 60);
+    grabModalFocus();
+    setTimeout(grabModalFocus, 60);
+  }
+
+  // NetSuite's TextBox re-asserts focus into its own input after the
+  // triggering event finishes; the deferred grab (the same 60ms the Recent
+  // Records panel uses) runs after uif's focus pass and wins. Keystrokes
+  // that landed in the native box during the steal window are the user's
+  // query — adopt them instead of dropping them.
+  function grabModalFocus() {
+    if (!state.open || !modal) {
+      return;
+    }
+    const nativeInput = findNativeInput();
+    if (nativeInput && document.activeElement === nativeInput && nativeInput.value !== state.query) {
+      modal.input.value = nativeInput.value;
+      setQuery(nativeInput.value);
+    }
+    modal.input.focus();
+    modal.input.setSelectionRange(modal.input.value.length, modal.input.value.length);
   }
 
   function closeSearchCentre(options = {}) {
@@ -800,6 +836,10 @@
     state.navigating = false;
     suppressOpenUntil = Date.now() + REOPEN_SUPPRESS_MS;
     clearPendingTimer();
+    if (pushFrame) {
+      cancelAnimationFrame(pushFrame);
+      pushFrame = 0;
+    }
     resultsObserver?.disconnect();
     resultsObserver = null;
     dismissNativeDropdown();
@@ -834,11 +874,7 @@
       // this into a focus tug-of-war.
       if (event.type === "focusin" && state.focusBounces < 10) {
         state.focusBounces += 1;
-        setTimeout(() => {
-          if (state.open) {
-            modal?.input.focus();
-          }
-        }, 0);
+        setTimeout(grabModalFocus, 0);
       }
       return;
     }
