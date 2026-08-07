@@ -17,23 +17,31 @@ function plain(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-test("exports one frozen Search Centre core with the four fixed categories", () => {
+test("exports one frozen Search Centre core with the five fixed categories", () => {
   assert.equal(Object.isFrozen(core), true);
   assert.deepEqual(plain(core.CATEGORIES.map((category) => category.id)), [
     "all",
-    "records",
+    "customers",
+    "transactions",
     "files",
     "navigation"
   ]);
 });
 
-test("categorizes uber type labels: files closed set, navigation prefixes, records default", () => {
+test("categorizes uber type labels: files and navigation closed sets, customer and transaction vocabularies, records as the unbucketed rest", () => {
   assert.equal(core.categorize("PDF File"), "files");
   assert.equal(core.categorize("Excel File"), "files");
   assert.equal(core.categorize("Menu"), "navigation");
   assert.equal(core.categorize("Page"), "navigation");
+  assert.equal(core.categorize("Customer"), "customers");
+  assert.equal(core.categorize("Lead"), "customers");
+  assert.equal(core.categorize("Prospect"), "customers");
+  assert.equal(core.categorize("Sales Order"), "transactions");
+  assert.equal(core.categorize("Invoice"), "transactions");
+  assert.equal(core.categorize("Journal Entry"), "transactions");
+  assert.equal(core.categorize("Item Fulfillment"), "transactions");
   assert.equal(core.categorize("Non-inventory Item"), "records");
-  assert.equal(core.categorize("Customer"), "records");
+  assert.equal(core.categorize("Employee"), "records");
   assert.equal(core.categorize(""), "records");
 });
 
@@ -168,7 +176,10 @@ test("counts and filters by category with all as the identity", () => {
     core.normalizeResult({ text: "PDF File: a.pdf", group: "globalSearch", href: "/b.nl" }, origin),
     core.normalizeResult({ text: "Menu: Lists > Items", group: "pageSearch", href: "/c.nl" }, origin)
   ];
-  assert.deepEqual(plain(core.countByCategory(results)), { all: 3, records: 1, files: 1, navigation: 1 });
+  assert.deepEqual(
+    plain(core.countByCategory(results)),
+    { all: 3, customers: 1, transactions: 0, files: 1, navigation: 1 }
+  );
   assert.equal(core.filterByCategory(results, "all").length, 3);
   assert.deepEqual(core.filterByCategory(results, "files").map((result) => result.title), ["a.pdf"]);
   assert.deepEqual(core.filterByCategory(results, "navigation").map((result) => result.title), ["Items"]);

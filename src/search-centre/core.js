@@ -3,7 +3,8 @@
 
   const CATEGORIES = Object.freeze([
     Object.freeze({ id: "all", label: "All" }),
-    Object.freeze({ id: "records", label: "Records" }),
+    Object.freeze({ id: "customers", label: "Customers" }),
+    Object.freeze({ id: "transactions", label: "Transactions" }),
     Object.freeze({ id: "files", label: "Files" }),
     Object.freeze({ id: "navigation", label: "Navigation" })
   ]);
@@ -11,12 +12,38 @@
   // Uber rows self-describe as "Type: Name" ("Non-inventory Item: …",
   // "PDF File: …", "Menu: …"). Files are a closed vocabulary; navigation is
   // primarily decided by the listbox group (pageSearch) with the "Menu"/
-  // "Page" prefixes as a fallback; everything else is a record.
+  // "Page" prefixes as a fallback. Customers and transactions match the
+  // type label normalized to bare letters, which makes display forms
+  // ("Sales Order") and record ids (SALESORDER) the same word; every other
+  // record type (items, vendors, employees…) stays category "records" —
+  // reachable under All, with no rail bucket of its own.
   const FILE_TYPE_PATTERN = /\b(?:file|folder|document|attachment)\b/i;
   const NAVIGATION_TYPE_PATTERN = /^(?:menu|page)$/i;
+  const CUSTOMER_TYPE_LABELS = new Set(["CUSTOMER", "LEAD", "PROSPECT", "JOB", "PROJECT"]);
+  // The transaction vocabulary the live import-assistant reconciliation
+  // produced, letters-only. Short display forms ("Bill", "Journal" and the
+  // like) are deliberately absent until verified — an unmatched transaction
+  // falls to All, a mismatched item would lie.
+  const TRANSACTION_TYPE_LABELS = new Set([
+    "ADVINTERCOMPANYJOURNALENTRY", "BINTRANSFER", "BINWORKSHEET", "CASHREFUND",
+    "CASHSALE", "CHECK", "CREDITCARDCHARGE", "CREDITCARDREFUND", "CREDITMEMO",
+    "CUSTOMERDEPOSIT", "CUSTOMERPAYMENT", "CUSTOMERREFUND", "DEPOSITAPPLICATION",
+    "ESTIMATE", "INTERCOMPANYJOURNALENTRY", "INVENTORYADJUSTMENT",
+    "INVENTORYCOSTREVALUATION", "INVENTORYTRANSFER", "INVOICE", "ITEMDEMANDPLAN",
+    "ITEMFULFILLMENT", "ITEMRECEIPT", "ITEMSUPPLYPLAN", "JOURNALENTRY",
+    "OPPORTUNITY", "ORDERRESERVATION", "PURCHASECONTRACT", "PURCHASEORDER",
+    "PURCHASEREQUISITION", "QUOTE", "RETURNAUTHORIZATION", "SALESORDER",
+    "STATEMENTCHARGE", "STATISTICALJOURNALENTRY", "TRANSACTION", "TRANSFERORDER",
+    "VENDORBILL", "VENDORCREDIT", "VENDORPAYMENT", "VENDORPREPAYMENT",
+    "VENDORRETURNAUTHORIZATION", "WORKORDER"
+  ]);
 
   function cleanText(value, maxLength = 300) {
     return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, maxLength);
+  }
+
+  function normalizeTypeLabel(value) {
+    return cleanText(value, 120).toUpperCase().replace(/[^A-Z]/g, "");
   }
 
   function categorize(typeText) {
@@ -26,6 +53,13 @@
     }
     if (NAVIGATION_TYPE_PATTERN.test(value)) {
       return "navigation";
+    }
+    const label = normalizeTypeLabel(value);
+    if (CUSTOMER_TYPE_LABELS.has(label)) {
+      return "customers";
+    }
+    if (TRANSACTION_TYPE_LABELS.has(label)) {
+      return "transactions";
     }
     return "records";
   }
@@ -111,9 +145,17 @@
   }
 
   function countByCategory(results) {
-    const counts = { all: results.length, records: 0, files: 0, navigation: 0 };
+    const counts = { all: results.length };
+    for (const category of CATEGORIES) {
+      if (category.id !== "all") {
+        counts[category.id] = 0;
+      }
+    }
     for (const result of results) {
-      counts[result.category] += 1;
+      // "records" (the unbucketed rest) counts toward All only.
+      if (result.category in counts) {
+        counts[result.category] += 1;
+      }
     }
     return counts;
   }

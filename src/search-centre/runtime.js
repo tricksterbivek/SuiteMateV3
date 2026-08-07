@@ -228,6 +228,9 @@
     if (name === "search") {
       add("circle", { cx: "11", cy: "11", r: "7" });
       add("line", { x1: "21", y1: "21", x2: "16.65", y2: "16.65" });
+    } else if (name === "person") {
+      add("path", { d: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" });
+      add("circle", { cx: "12", cy: "7", r: "4" });
     } else if (name === "close") {
       add("line", { x1: "18", y1: "6", x2: "6", y2: "18" });
       add("line", { x1: "6", y1: "6", x2: "18", y2: "18" });
@@ -257,7 +260,9 @@
 
   const CATEGORY_ICONS = Object.freeze({
     all: "search",
-    records: "record",
+    customers: "person",
+    transactions: "record",
+    records: "file",
     files: "file",
     navigation: "list"
   });
