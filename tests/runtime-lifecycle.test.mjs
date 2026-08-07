@@ -70,6 +70,7 @@ function createLifecycleStub() {
   }
 
   const api = {
+    whenDomReady: async () => true,
     register(config) {
       registration = config;
       controller = new AbortController();
@@ -1191,7 +1192,7 @@ test("Import Assistant does not write a subtype after its sourced option wait fa
 
   assert.deepEqual(
     JSON.parse(JSON.stringify(sentValues)),
-    [{ charencoding: "UTF-8", recordtype: "TRANSACTION" }]
+    [{ recordtype: "TRANSACTION" }]
   );
   assert.equal(documentElement.dataset.suitemateV3ImportContext, "unavailable");
 });

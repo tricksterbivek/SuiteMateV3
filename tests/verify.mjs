@@ -252,7 +252,7 @@ for (const file of extensionSources) {
   const source = await readFile(resolve(root, file), "utf8");
   const sourceWithoutApprovedLinks = source.replaceAll("https://suitesense.vercel.app/", "");
   const sourceWithoutNetSuitePaymentRecords = sourceWithoutApprovedLinks.replace(
-    /PAYMENTINSTRUMENTS|PAYMENTCARDTOKEN|PAYMENTCARD|PAYMENTITEM|CUSTOMERPAYMENT|VENDORPAYMENT/g,
+    /PAYMENTINSTRUMENTS|PAYMENTCARDTOKEN|PAYMENTCARD|PAYMENTITEM|CUSTOMERPAYMENT|VENDORPREPAYMENT|VENDORPAYMENT/g,
     ""
   );
   assert.equal(/https?:\/\//.test(sourceWithoutApprovedLinks), false, `${file} contains an unapproved remote dependency`);
@@ -571,6 +571,46 @@ assert.equal(recordActionsCore.deriveImportSubtype("salesorder", "sale"), "sales
 assert.equal(recordActionsCore.deriveImportSubtype("noninventoryitem", "Sale"), "noninventorysaleitem");
 assert.equal(recordActionsCore.deriveImportSubtype("otherchargeitem", "purchase"), "otherchargepurchaseitem");
 assert.equal(recordActionsCore.deriveImportSubtype("serviceitem", "resale"), "serviceresaleitem");
+// Custom record types pass through VERBATIM: assistant option values are the
+// uppercased script id in every documented and live-observed case, so any
+// respelling can only corrupt a legitimate id (a system-generated
+// customrecord100 keeps its documented no-underscore form).
+assert.equal(recordActionsCore.deriveImportSubtype("customrecord100", ""), "customrecord100");
+assert.equal(recordActionsCore.deriveImportSubtype("customrecord_sas_approvalrule", ""), "customrecord_sas_approvalrule");
+// Document reads must never surface page furniture as a record type: custom
+// record pages carry "custrecordentry" in the form's type input and the
+// generic "customrecord" in their field-help links — both shadowed the real
+// script id (measured live) because a non-null document result blocks the
+// authoritative N/currentRecord fallback.
+{
+  const stubDocument = (values, fieldHelpArgs) => ({
+    querySelector(selector) {
+      if (Object.prototype.hasOwnProperty.call(values, selector)) {
+        return { value: values[selector] };
+      }
+      if (fieldHelpArgs && selector.includes("nlFieldHelp")) {
+        return { getAttribute: () => `return nlFieldHelp(${fieldHelpArgs.map((argument) => `'${argument}'`).join(", ")});` };
+      }
+      return null;
+    }
+  });
+  assert.equal(
+    recordActionsCore.resolveRecordTypeFromDocument(stubDocument({ "#baserecordtype": "customrecord_sps_cxref" })),
+    "customrecord_sps_cxref"
+  );
+  assert.equal(
+    recordActionsCore.resolveRecordTypeFromDocument(stubDocument({ "#main_form > #type": "custrecordentry" })),
+    null
+  );
+  assert.equal(
+    recordActionsCore.resolveRecordTypeFromDocument(stubDocument({}, ["Field Help", "recordid", "customrecord", "NA"])),
+    null
+  );
+  assert.equal(
+    recordActionsCore.resolveRecordTypeFromDocument(stubDocument({}, ["Field Help", "memo", "salesorder", "NA"])),
+    "salesorder"
+  );
+}
 assert.equal(
   recordActionsCore.createCsvImportUrl("salesorder", "https://123456.app.netsuite.com"),
   "/app/setup/assistants/nsimport/importassistant.nl?recordsubtype=salesorder"
@@ -625,6 +665,7 @@ assert.match(csvImportSource, /\.uir-buttons-top\.uir-header-buttons/, "The top 
 assert.match(csvImportSource, /actionsCell\.after\(createToolbarMenu\(href, showExportView\)\)/, "SuiteMate Tools is not inserted immediately after Actions");
 assert.match(csvImportSource, /data-suitemate-v3-action/, "CSV Utils injection is not idempotent");
 assert.match(csvImportSource, /lifecycleApi\.register/, "CSV Utils bypasses the shared observer lifecycle");
+assert.match(csvImportSource, /await lifecycleApi\.whenDomReady\(\);/, "CSV Utils installs mid-stream and can freeze a wrong import link");
 assert.match(csvImportSource, /COMMANDS\.RECORD_GET_TYPE/, "CSV Import bypasses the typed NetSuite bridge");
 assert.match(csvImportSource, /signal\.aborted \|\| !isCurrent\(\)/, "CSV Import does not reject stale asynchronous installation");
 assert.doesNotMatch(csvImportSource, /new MutationObserver/, "CSV Utils retains direct observer ownership");
@@ -733,7 +774,27 @@ assert.equal(importAssistantCore.resolveStaticCategory("salesorder"), "TRANSACTI
 assert.equal(importAssistantCore.resolveStaticCategory("noninventorysaleitem"), "ITEM");
 assert.equal(importAssistantCore.resolveStaticCategory("customrecord_example"), "CUSTOMRECORD");
 assert.equal(importAssistantCore.resolveStaticCategory("customtransaction_example"), "TRANSACTION");
-assert.equal(importAssistantCore.resolveStaticCategory("currencyrate"), null);
+// Reconciled against a live assistant: these real record types were missing
+// from the static map and fell to the slow category probe on every open.
+assert.equal(importAssistantCore.resolveStaticCategory("itemfulfillment"), "TRANSACTION");
+assert.equal(importAssistantCore.resolveStaticCategory("itemreceipt"), "TRANSACTION");
+assert.equal(importAssistantCore.resolveStaticCategory("workorder"), "TRANSACTION");
+assert.equal(importAssistantCore.resolveStaticCategory("customerdeposit"), "TRANSACTION");
+assert.equal(importAssistantCore.resolveStaticCategory("inboundshipment"), "SUPPLYCHAIN");
+assert.equal(importAssistantCore.resolveStaticCategory("customrecord_4599"), "CUSTOMRECORD");
+// Custom segment values import under Classification (Oracle), and the
+// CUSTOMRECORD short-circuit skips the live probe — misrouting here can
+// never self-correct.
+assert.equal(importAssistantCore.resolveStaticCategory("customrecord_cseg_channel"), "CLASSIFICATION");
+// Live-verified vocabulary fixes: Class pages report "class" and Custom List
+// pages "custlist", but the assistant's options are CLASSIFICATION and
+// CUSTOMLIST — the derivation aliases carry the assistant's spelling, and
+// the categories resolve statically. CURRENCYRATE is importable (Accounting).
+assert.equal(recordActionsCore.deriveImportSubtype("class", ""), "classification");
+assert.equal(recordActionsCore.deriveImportSubtype("custlist", ""), "customlist");
+assert.equal(importAssistantCore.resolveStaticCategory("classification"), "CLASSIFICATION");
+assert.equal(importAssistantCore.resolveStaticCategory("customlist"), "CUSTOMIZATION");
+assert.equal(importAssistantCore.resolveStaticCategory("currencyrate"), "ACCOUNTING");
 assert.deepEqual(
   JSON.parse(JSON.stringify(importAssistantCore.parseOptionsData('[{"value":"TRANSACTION","text":"Transactions"}]'))),
   [{ value: "TRANSACTION", text: "Transactions" }]
@@ -750,7 +811,10 @@ assert.deepEqual(
 const importAssistantUrl = "https://123456.app.netsuite.com/app/setup/assistants/nsimport/importassistant.nl?recordsubtype=salesorder";
 const importContextSource = await readFile(resolve(root, "src/import-assistant/context-runtime.js"), "utf8");
 const dataAdapterSource = await readFile(resolve(root, "src/netsuite/data-adapter.js"), "utf8");
-assert.match(importContextSource, /charencoding: "UTF-8"/, "CSV Import does not default to UTF-8");
+// Encoding belongs to the user's FILE: forcing UTF-8 overrode the account
+// default (measured live replacing windows-1252) and silently mojibaked
+// imports the unassisted assistant handled correctly.
+assert.doesNotMatch(importContextSource, /charencoding: "UTF-8"/, "CSV Import priming must not override the account's character encoding");
 assert.match(importContextSource, /waitForSubtypeSource/, "Dependent CSV Import subtype sourcing is not handled");
 assert.match(importContextSource, /lifecycleApi\.waitFor/, "Import Assistant waits bypass the shared observer lifecycle");
 assert.match(importContextSource, /COMMANDS\.IMPORT_ASSISTANT_SET_VALUES/, "Import Assistant bypasses the typed NetSuite bridge");

@@ -9,13 +9,18 @@
       "BUDGETEXCHANGERATE",
       "ACCOUNT",
       "CONSOLIDATEDEXCHANGERATE",
+      "CURRENCYRATE",
       "EXPENSECATEGORY",
       "ITEMCOLLECTION",
       "ITEMCOLLECTIONITEMMAP"
     ]),
     ACTIVITY: Object.freeze(["CALENDAREVENT", "PHONECALL", "TASK"]),
+    CLASSIFICATION: Object.freeze(["CLASSIFICATION", "DEPARTMENT", "LOCATION", "MERCHANDISEHIERARCHYNODE"]),
     COMMUNICATION: Object.freeze(["MESSAGE", "NOTE"]),
+    CUSTOMIZATION: Object.freeze(["CUSTOMLIST"]),
     EMPLOYEE: Object.freeze(["EMPLOYEE", "EXPENSEREPORT", "IMPORTEDEMPLOYEEEXPENSE", "TIMEBILL"]),
+    RULESETUP: Object.freeze(["GAINLOSSACCTMAPPING"]),
+    WEBSITE: Object.freeze(["SITECATEGORY"]),
     ITEM: Object.freeze([
       "ASSEMBLYITEM",
       "DESCRIPTIONITEM",
@@ -45,20 +50,49 @@
       "CUSTOMER",
       "CONTACT",
       "CUSTOMERSUBSIDIARYRELATIONSHIP",
+      "ENTITYGROUP",
       "LEAD",
       "PARTNER",
       "JOB",
       "PROSPECT",
+      "SALESCHANNEL",
       "VENDORSUBSIDIARYRELATIONSHIP",
       "VENDOR"
     ]),
-    SUPPLYCHAIN: Object.freeze(["BIN", "ITEMREVISION", "MANUFACTURINGCOSTTEMPLATE", "MANUFACTURINGROUTING"]),
+    SUPPLYCHAIN: Object.freeze([
+      "BIN",
+      "BOM",
+      "BOMREVISION",
+      "INBOUNDSHIPMENT",
+      "ITEMLOCATIONCONFIGURATION",
+      "ITEMPROCESSFAMILY",
+      "ITEMPROCESSGROUP",
+      "ITEMREVISION",
+      "MANUFACTURINGCOSTTEMPLATE",
+      "MANUFACTURINGROUTING",
+      "PICKDECOMPOSITION",
+      "PICKSTRATEGY",
+      "ZONE"
+    ]),
     SUPPORT: Object.freeze(["SOLUTION", "SUPPORTCASE", "TOPIC"]),
+    // The static map is a fast path, not an authority: a type resolved here
+    // primes instantly, anything unknown falls back to the live category
+    // probe, and a type an account does not actually expose simply reports
+    // unavailable when its option never appears. The transaction set below
+    // was reconciled against a live assistant's own list — the previous set
+    // was missing a dozen real record types (Item Fulfillment/Receipt, Work
+    // Order, Customer Deposit/Refund…), which sent every one of them down
+    // the slow multi-request probe.
     TRANSACTION: Object.freeze([
       "ADVINTERCOMPANYJOURNALENTRY",
+      "BINTRANSFER",
+      "BINWORKSHEET",
+      "CASHREFUND",
       "CASHSALE",
       "CHECK",
+      "CUSTOMERDEPOSIT",
       "CUSTOMERPAYMENT",
+      "CUSTOMERREFUND",
       "CREDITCARDCHARGE",
       "CREDITCARDREFUND",
       "CREDITMEMO",
@@ -68,18 +102,26 @@
       "INVENTORYTRANSFER",
       "INVOICE",
       "ITEMDEMANDPLAN",
+      "ITEMFULFILLMENT",
+      "ITEMRECEIPT",
       "ITEMSUPPLYPLAN",
       "JOURNALENTRY",
       "OPPORTUNITY",
+      "ORDERRESERVATION",
+      "PURCHASECONTRACT",
       "PURCHASEORDER",
+      "PURCHASEREQUISITION",
       "ESTIMATE",
       "RETURNAUTHORIZATION",
       "SALESORDER",
+      "STATISTICALJOURNALENTRY",
       "TRANSFERORDER",
       "VENDORBILL",
       "VENDORCREDIT",
       "VENDORPAYMENT",
-      "VENDORRETURNAUTHORIZATION"
+      "VENDORPREPAYMENT",
+      "VENDORRETURNAUTHORIZATION",
+      "WORKORDER"
     ])
   });
 
@@ -92,6 +134,13 @@
     const subtype = normalizeImportValue(recordSubtype);
     if (!subtype) {
       return null;
+    }
+    if (subtype.startsWith("CUSTOMRECORD_CSEG")) {
+      // Custom segment values import under Classification, not Custom
+      // Records (Oracle, "CSV Import and Custom Segments") — and this
+      // short-circuit runs before the live probe, so misrouting here could
+      // never self-correct.
+      return "CLASSIFICATION";
     }
     if (subtype.startsWith("CUSTOMRECORD")) {
       return "CUSTOMRECORD";

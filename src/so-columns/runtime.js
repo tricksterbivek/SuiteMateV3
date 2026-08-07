@@ -36,6 +36,9 @@
   const CONTAINER_SELECTOR = ".uir-machine-table-container";
   const OWNED_SELECTOR = `[${core.DATA_ATTRIBUTE}]`;
   const RELEVANT_SELECTOR = `${TABLE_SELECTOR}, ${core.HEADER_ROW_SELECTOR}`;
+  // One personalisation mode at a time, page-wide (shared with form-views).
+  const MODE_EVENT = "suitemate:v3:personalize-mode";
+  const MODE_FEATURE = "so-columns";
   let settingsRevision = 0;
   let scopeKey = null;
   let nativeLabels = null;
@@ -707,6 +710,7 @@
       chip.type = "button";
       chip.setAttribute(core.DATA_ATTRIBUTE, "hidden-chip");
       chip.title = "Show this column again";
+      chip.setAttribute("aria-label", `Restore ${label}`);
       chip.textContent = `${label} ✕`;
       chip.addEventListener("click", () => {
         setColumnHidden(document.querySelector(TABLE_SELECTOR), label, false);
@@ -808,6 +812,46 @@
   }
 
   // ===== Personalize mode and controls =====
+  function ensureHeaderAffordances(table) {
+    const labels = core.readHeaderLabels(table);
+    for (const cell of headerCells(table)) {
+      if (cell.querySelector(`[${core.DATA_ATTRIBUTE}="drag-handle"], [${core.DATA_ATTRIBUTE}="hide-column"]`)) {
+        continue;
+      }
+      const label = cellLabel(cell);
+      const seat = cell.querySelector(".listheader") ?? cell;
+      if (isMovable(labels, label)) {
+        const handle = document.createElement("span");
+        handle.setAttribute(core.DATA_ATTRIBUTE, "drag-handle");
+        handle.setAttribute("role", "img");
+        handle.setAttribute("aria-label", "Drag to reorder");
+        handle.title = "Drag to reorder";
+        handle.textContent = "⠿";
+        seat.prepend(handle);
+      }
+      if (label) {
+        const minus = document.createElement("button");
+        minus.type = "button";
+        minus.setAttribute(core.DATA_ATTRIBUTE, "hide-column");
+        minus.setAttribute("aria-label", "Hide column");
+        minus.title = "Hide column";
+        minus.textContent = "−";
+        minus.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setColumnHidden(document.querySelector(TABLE_SELECTOR), label, true);
+        });
+        seat.appendChild(minus);
+      }
+    }
+  }
+
+  function removeHeaderAffordances() {
+    document.querySelectorAll(
+      `[${core.DATA_ATTRIBUTE}="drag-handle"], [${core.DATA_ATTRIBUTE}="hide-column"]`
+    ).forEach((node) => node.remove());
+  }
+
   function enterPersonalize(table) {
     if (personalizing || !table) {
       return;
@@ -816,6 +860,8 @@
     if (labels.length < 2) {
       return;
     }
+    // Announce first: any other personalisation mode stands down.
+    document.dispatchEvent(new CustomEvent(MODE_EVENT, { detail: { feature: MODE_FEATURE } }));
     personalizing = true;
     activeTable = table;
     headerCells(table).forEach((cell) => cell.classList.remove("suitemate-v3-so-columns-resize-edge"));
@@ -825,6 +871,7 @@
         cell.draggable = true;
       }
     }
+    ensureHeaderAffordances(table);
     table.addEventListener("dragstart", handleDragStart);
     table.addEventListener("dragover", handleDragOver);
     table.addEventListener("dragleave", handleDragLeave);
@@ -837,6 +884,7 @@
     clearDragState();
     personalizing = false;
     activeTable = null;
+    removeHeaderAffordances();
     if (!table) {
       return;
     }
@@ -857,6 +905,7 @@
       return;
     }
     controlButtons.personalize.hidden = personalizing;
+    controlButtons.title.hidden = !personalizing;
     controlButtons.hint.hidden = !personalizing;
     controlButtons.done.hidden = !personalizing;
     controlButtons.reset.hidden = !personalizing;
@@ -894,7 +943,7 @@
       core.applyWidths(table, null);
       saveOrder(null, "Column layout reset.");
       renderViewChip();
-      exitPersonalize();
+      // Stay in the mode: Reset restores the defaults, Done is the exit.
     } catch {}
     updateControls();
   }
@@ -917,10 +966,14 @@
     const controls = document.createElement("div");
     controls.className = core.CLASSES.controls;
     controls.setAttribute(core.DATA_ATTRIBUTE, "controls");
-    const personalize = createButton("Personalize", "personalize", handlePersonalizeClick);
+    const personalize = createButton("Personalize columns", "personalize", handlePersonalizeClick);
+    const title = document.createElement("span");
+    title.setAttribute(core.DATA_ATTRIBUTE, "mode-title");
+    title.textContent = "Personalizing columns";
+    title.hidden = true;
     const hint = document.createElement("span");
     hint.setAttribute(core.DATA_ATTRIBUTE, "mode-hint");
-    hint.textContent = "Personalizing — drag column headers to reorder. Click Done to finish.";
+    hint.textContent = "Drag column headers to reorder, or select the minus icon to hide.";
     hint.hidden = true;
     const hiddenChips = document.createElement("span");
     hiddenChips.setAttribute(core.DATA_ATTRIBUTE, "hidden-chips");
@@ -932,16 +985,30 @@
     viewChip.hidden = true;
     viewChip.addEventListener("click", clearViewState);
     const done = createButton("Done", "done", handleDoneClick);
-    const reset = createButton("Reset", "reset", handleResetClick);
+    const reset = createButton("Reset columns", "reset", handleResetClick);
     // Actions before the chip list: the chips are unbounded and wrap onto
     // extra rows, so Done/Reset must sit on the first row to stay reachable.
-    controls.append(personalize, viewChip, hint, done, reset, hiddenChips);
-    controlButtons = { controls, personalize, hint, hiddenChips, viewChip, done, reset };
+    controls.append(personalize, viewChip, title, hint, done, reset, hiddenChips);
+    controlButtons = { controls, personalize, title, hint, hiddenChips, viewChip, done, reset };
     (table.closest(CONTAINER_SELECTOR) ?? table).before(controls);
     updateControls();
   }
 
   // ===== Lifecycle and settings wiring =====
+  let modeListener = null;
+  function watchOtherModes() {
+    if (modeListener) {
+      return;
+    }
+    modeListener = (event) => {
+      if (event.detail?.feature !== MODE_FEATURE && personalizing) {
+        exitPersonalize();
+        updateControls();
+      }
+    };
+    document.addEventListener(MODE_EVENT, modeListener);
+  }
+
   async function installSoColumns({ signal, isCurrent }) {
     try {
       if (signal.aborted || !isCurrent()) {
@@ -963,6 +1030,7 @@
       nativeLabels = core.captureNativeOrder(table);
       scopeKey = resolveScopeKey();
       ensureControls(table);
+      watchOtherModes();
       if (!table.hasAttribute(core.SORTABLE_ATTRIBUTE)) {
         table.setAttribute(core.SORTABLE_ATTRIBUTE, "");
         table.addEventListener("pointermove", handleResizeHover);
@@ -1037,6 +1105,10 @@
         core.applyOrder(table, nativeLabels);
       }
     } catch {}
+    if (modeListener) {
+      document.removeEventListener(MODE_EVENT, modeListener);
+      modeListener = null;
+    }
     document.querySelectorAll(OWNED_SELECTOR).forEach((node) => node.remove());
     controlButtons = null;
     nativeLabels = null;

@@ -182,7 +182,12 @@
 
     const currentCategory = readFieldValue("recordtype");
     const currentSubtype = readFieldValue("recordsubtype");
-    const firstValues = { charencoding: "UTF-8" };
+    // Only the record-type selects are primed. Character encoding belongs to
+    // the user's FILE, not the record type: this used to force UTF-8 over
+    // the account default (measured live overriding windows-1252 — Excel's
+    // default), silently mojibaking imports the unassisted assistant would
+    // have handled correctly.
+    const firstValues = {};
     const categoryChanged = Boolean(category && category !== currentCategory);
     if (categoryChanged) {
       firstValues.recordtype = category;
@@ -190,7 +195,10 @@
       firstValues.recordsubtype = requestedSubtype;
     }
 
-    if (!await setImportValues(firstValues, signal) || signal.aborted || !isCurrent()) {
+    if (
+      Object.keys(firstValues).length
+      && (!await setImportValues(firstValues, signal) || signal.aborted || !isCurrent())
+    ) {
       if (!signal.aborted && isCurrent()) {
         root.dataset.suitemateV3ImportContext = "failed";
       }
