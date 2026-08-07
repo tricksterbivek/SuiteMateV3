@@ -576,67 +576,69 @@ html.suitemate-v3-sc-open
   }
 }
 
-/* ===== Navigation veil ===== */
+/* ===== Navigating (after a result is opened) ===== */
 
-.suitemate-v3-sc-veil {
+/* The dialog stays up and becomes the loading surface until NetSuite's page
+   replaces it — closing instantly made slow loads read as a freeze. */
+.suitemate-v3-sc-navigating {
   position: absolute;
   z-index: 5;
   inset: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 12px;
-  align-items: center;
-  justify-content: center;
-  background: color-mix(in srgb, var(--field-backgroud-color, light-dark(#fff, #20242b)) 90%, transparent);
-  border-radius: inherit;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .suitemate-v3-sc-veil {
-    animation: suitemate-v3-sc-veil-in 120ms ease-out;
-  }
-
-  @keyframes suitemate-v3-sc-veil-in {
-    from {
-      opacity: 0;
-    }
-  }
-}
-
-.suitemate-v3-sc-spinner {
-  width: 24px;
-  height: 24px;
-  border: 2.5px solid var(--sc-border);
-  border-top-color: var(--theme-main, #6269e7);
-  border-radius: 50%;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .suitemate-v3-sc-spinner {
-    animation: suitemate-v3-sc-spin 700ms linear infinite;
-  }
-
-  @keyframes suitemate-v3-sc-spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-}
-
-.suitemate-v3-sc-veil-label {
-  max-width: 70%;
-  overflow: hidden;
-  color: var(--text-1, light-dark(#253044, #f0f2f5));
-  font-size: 13.5px;
-  font-weight: 600;
+  place-content: center;
+  justify-items: center;
+  padding: 24px;
+  background: var(--field-backgroud-color, light-dark(#fff, #20242b));
   text-align: center;
+}
+
+.suitemate-v3-sc-navigating-title {
+  max-width: min(420px, 80vw);
+  overflow: hidden;
+  color: var(--text-1, light-dark(#1c2536, #f0f2f5));
+  font: 650 15px/21px var(--normal-font, "Inter", Arial, sans-serif);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.suitemate-v3-sc-veil-hint {
-  color: var(--text-3, light-dark(#7b8493, #a8afb9));
+.suitemate-v3-sc-navigating-hint {
+  color: var(--text-3, light-dark(#6b7280, #a8afb9));
   font-size: 11px;
+  line-height: 15px;
+}
+
+.suitemate-v3-sc-progress {
+  width: min(260px, 60vw);
+  height: 3px;
+  overflow: hidden;
+  background: light-dark(#eef0f4, #2b3038);
+  border-radius: 999px;
+}
+
+.suitemate-v3-sc-progress::before {
+  display: block;
+  width: 40%;
+  height: 100%;
+  background: var(--theme-main, #6269e7);
+  border-radius: inherit;
+  content: "";
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .suitemate-v3-sc-progress::before {
+    animation: suitemate-v3-sc-progress 1.1s ease-in-out infinite;
+  }
+
+  @keyframes suitemate-v3-sc-progress {
+    from {
+      transform: translateX(-100%);
+    }
+
+    to {
+      transform: translateX(350%);
+    }
+  }
 }
 
 /* ===== Responsive ===== */

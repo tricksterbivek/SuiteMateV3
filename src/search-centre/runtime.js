@@ -292,9 +292,7 @@
     input.setAttribute("autocomplete", "off");
     input.setAttribute("spellcheck", "false");
     input.addEventListener("input", () => {
-      if (!state.navigating) {
-        setQuery(input.value);
-      }
+      setQuery(input.value);
     });
     const tail = createElement("div", "suitemate-v3-sc-search-tail");
     const kbd = createElement("kbd", "suitemate-v3-sc-kbd", shortcutDisplay());
@@ -371,26 +369,11 @@
       createElement("span", "", "View all search results"),
       createSvgIcon("external")
     );
-    allLink.addEventListener("click", (event) => {
-      if (navigatesInPlace(event)) {
-        showNavigating("Opening all search results…");
-      }
-    });
+    allLink.addEventListener("click", () =>
+      enterNavigatingState(null, "Opening all search results…"));
     footer.append(navigateHint, openHint, closeHint, allLink);
 
-    // Navigation veil: record pages can take seconds to answer, and a modal
-    // that simply vanishes on click reads as a freeze. The veil holds the
-    // dialog with an immediate "Opening …" status until the new page's
-    // unload sweeps everything away; Escape still bails out underneath it.
-    const veil = createElement("div", "suitemate-v3-sc-veil");
-    veil.hidden = true;
-    veil.setAttribute("role", "status");
-    veil.setAttribute("aria-live", "polite");
-    veil.append(createElement("div", "suitemate-v3-sc-spinner"));
-    const veilLabel = createElement("span", "suitemate-v3-sc-veil-label");
-    veil.append(veilLabel);
-    veil.append(createElement("span", "suitemate-v3-sc-veil-hint", "Press Esc to dismiss"));
-    dialog.append(header, body, footer, veil);
+    dialog.append(header, body, footer);
     overlay.append(dialog);
 
     overlay.addEventListener("mousedown", (event) => {
@@ -409,26 +392,8 @@
       resultsLabel,
       list,
       preview,
-      allLink,
-      veil,
-      veilLabel
+      allLink
     };
-  }
-
-  function showNavigating(label) {
-    state.navigating = true;
-    modal.veilLabel.textContent = label;
-    modal.veil.hidden = false;
-  }
-
-  // Modified clicks open a new tab — THIS page never navigates, so a veil
-  // would sit there "Opening…" forever.
-  function navigatesInPlace(event) {
-    return event.button === 0
-      && !event.metaKey
-      && !event.ctrlKey
-      && !event.shiftKey
-      && !event.altKey;
   }
 
   function focusableElements() {
@@ -444,6 +409,7 @@
       return;
     }
     if (state.navigating) {
+      // The loading surface owns the dialog: only Escape acts.
       event.preventDefault();
       return;
     }
@@ -483,10 +449,40 @@
         // No suggestions (Auto Suggest preference off, timeout, or zero
         // matches): Enter falls through to the full results page so the
         // search never dead-ends.
-        showNavigating("Opening all search results…");
+        closeSearchCentre({ restoreFocus: false });
         location.assign(state.seeAllHref || buildResultsUrl(state.query));
       }
     }
+  }
+
+  // The dialog stays visible as the loading surface until NetSuite's next
+  // page replaces it — closing instantly left the stale page on screen with
+  // zero feedback, which read as a freeze on slow loads. Escape (or a
+  // backdrop click) still dismisses the overlay; the navigation itself is
+  // the browser's and continues untouched either way.
+  function enterNavigatingState(result, label) {
+    if (!modal || state.navigating) {
+      return;
+    }
+    state.navigating = true;
+    const cover = createElement("div", "suitemate-v3-sc-navigating");
+    cover.setAttribute("role", "status");
+    cover.setAttribute("aria-live", "polite");
+    const icon = createElement(
+      "span",
+      `suitemate-v3-sc-row-icon suitemate-v3-sc-tint-${result?.category ?? "navigation"}`
+    );
+    icon.setAttribute("aria-hidden", "true");
+    icon.append(createSvgIcon(CATEGORY_ICONS[result?.category] ?? "search"));
+    cover.append(
+      icon,
+      createElement("strong", "suitemate-v3-sc-navigating-title", label),
+      createElement("div", "suitemate-v3-sc-progress"),
+      createElement("span", "suitemate-v3-sc-navigating-hint", "NetSuite is loading — press Esc to dismiss")
+    );
+    modal.dialog.setAttribute("aria-busy", "true");
+    modal.dialog.append(cover);
+    modal.navigatingCover = cover;
   }
 
   function openResult(result) {
@@ -494,14 +490,15 @@
       return;
     }
     if (result?.href) {
-      showNavigating(`Opening ${result.title}…`);
+      enterNavigatingState(result, `Opening ${result.title}…`);
       location.assign(result.href);
       return;
     }
     if (result?.nativeIndex) {
       // Hrefless current-page rows (field jumps) only navigate through
       // NetSuite's own click handler — click the hidden native row first,
-      // which also unmounts the popover, then fold the modal away.
+      // which also unmounts the popover, then fold the modal away. Same-page
+      // jumps are instant, so no loading surface here.
       findNativeListbox()
         ?.querySelector(`li[data-index="${CSS.escape(result.nativeIndex)}"] a[data-automation-id="main-link"]`)
         ?.click();
@@ -610,11 +607,7 @@
     const open = createElement(result.href ? "a" : "button", "suitemate-v3-sc-open-action");
     if (result.href) {
       open.href = result.href;
-      open.addEventListener("click", (event) => {
-        if (navigatesInPlace(event)) {
-          showNavigating(`Opening ${result.title}…`);
-        }
-      });
+      open.addEventListener("click", () => enterNavigatingState(result, `Opening ${result.title}…`));
     } else {
       open.type = "button";
       open.addEventListener("click", () => openResult(result));
@@ -625,11 +618,7 @@
       const edit = createElement("a", "suitemate-v3-sc-edit-action");
       edit.href = result.editHref;
       edit.append(createElement("span", "", "Edit"), createSvgIcon("edit"));
-      edit.addEventListener("click", (event) => {
-        if (navigatesInPlace(event)) {
-          showNavigating(`Opening ${result.title} to edit…`);
-        }
-      });
+      edit.addEventListener("click", () => enterNavigatingState(result, `Editing ${result.title}…`));
       actions.append(edit);
     }
     preview.append(actions);
@@ -735,8 +724,6 @@
     state.opener = options.opener ?? document.activeElement ?? nativeInput;
     state.category = "all";
     state.focusBounces = 0;
-    state.navigating = false;
-    modal.veil.hidden = true;
     document.documentElement.classList.add(OPEN_CLASS);
     document.body.append(modal.overlay);
     resultsObserver = new MutationObserver((records) => {
@@ -772,14 +759,16 @@
     }
     state.open = false;
     state.navigating = false;
-    if (modal) {
-      modal.veil.hidden = true;
-    }
     suppressOpenUntil = Date.now() + REOPEN_SUPPRESS_MS;
     clearPendingTimer();
     resultsObserver?.disconnect();
     resultsObserver = null;
     dismissNativeDropdown();
+    if (modal) {
+      modal.navigatingCover?.remove();
+      modal.navigatingCover = null;
+      modal.dialog.removeAttribute("aria-busy");
+    }
     modal?.overlay.remove();
     document.documentElement.classList.remove(OPEN_CLASS);
     if (options.restoreFocus !== false) {
