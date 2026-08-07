@@ -52,13 +52,35 @@
       "VENDORSUBSIDIARYRELATIONSHIP",
       "VENDOR"
     ]),
-    SUPPLYCHAIN: Object.freeze(["BIN", "ITEMREVISION", "MANUFACTURINGCOSTTEMPLATE", "MANUFACTURINGROUTING"]),
+    SUPPLYCHAIN: Object.freeze([
+      "BIN",
+      "BOM",
+      "BOMREVISION",
+      "INBOUNDSHIPMENT",
+      "ITEMLOCATIONCONFIGURATION",
+      "ITEMREVISION",
+      "MANUFACTURINGCOSTTEMPLATE",
+      "MANUFACTURINGROUTING"
+    ]),
     SUPPORT: Object.freeze(["SOLUTION", "SUPPORTCASE", "TOPIC"]),
+    // The static map is a fast path, not an authority: a type resolved here
+    // primes instantly, anything unknown falls back to the live category
+    // probe, and a type an account does not actually expose simply reports
+    // unavailable when its option never appears. The transaction set below
+    // was reconciled against a live assistant's own list — the previous set
+    // was missing a dozen real record types (Item Fulfillment/Receipt, Work
+    // Order, Customer Deposit/Refund…), which sent every one of them down
+    // the slow multi-request probe.
     TRANSACTION: Object.freeze([
       "ADVINTERCOMPANYJOURNALENTRY",
+      "BINTRANSFER",
+      "BINWORKSHEET",
+      "CASHREFUND",
       "CASHSALE",
       "CHECK",
+      "CUSTOMERDEPOSIT",
       "CUSTOMERPAYMENT",
+      "CUSTOMERREFUND",
       "CREDITCARDCHARGE",
       "CREDITCARDREFUND",
       "CREDITMEMO",
@@ -68,18 +90,26 @@
       "INVENTORYTRANSFER",
       "INVOICE",
       "ITEMDEMANDPLAN",
+      "ITEMFULFILLMENT",
+      "ITEMRECEIPT",
       "ITEMSUPPLYPLAN",
       "JOURNALENTRY",
       "OPPORTUNITY",
+      "ORDERRESERVATION",
+      "PURCHASECONTRACT",
       "PURCHASEORDER",
+      "PURCHASEREQUISITION",
       "ESTIMATE",
       "RETURNAUTHORIZATION",
       "SALESORDER",
+      "STATISTICALJOURNALENTRY",
       "TRANSFERORDER",
       "VENDORBILL",
       "VENDORCREDIT",
       "VENDORPAYMENT",
-      "VENDORRETURNAUTHORIZATION"
+      "VENDORPREPAYMENT",
+      "VENDORRETURNAUTHORIZATION",
+      "WORKORDER"
     ])
   });
 

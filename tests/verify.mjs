@@ -252,7 +252,7 @@ for (const file of extensionSources) {
   const source = await readFile(resolve(root, file), "utf8");
   const sourceWithoutApprovedLinks = source.replaceAll("https://suitesense.vercel.app/", "");
   const sourceWithoutNetSuitePaymentRecords = sourceWithoutApprovedLinks.replace(
-    /PAYMENTINSTRUMENTS|PAYMENTCARDTOKEN|PAYMENTCARD|PAYMENTITEM|CUSTOMERPAYMENT|VENDORPAYMENT/g,
+    /PAYMENTINSTRUMENTS|PAYMENTCARDTOKEN|PAYMENTCARD|PAYMENTITEM|CUSTOMERPAYMENT|VENDORPREPAYMENT|VENDORPAYMENT/g,
     ""
   );
   assert.equal(/https?:\/\//.test(sourceWithoutApprovedLinks), false, `${file} contains an unapproved remote dependency`);
@@ -571,6 +571,11 @@ assert.equal(recordActionsCore.deriveImportSubtype("salesorder", "sale"), "sales
 assert.equal(recordActionsCore.deriveImportSubtype("noninventoryitem", "Sale"), "noninventorysaleitem");
 assert.equal(recordActionsCore.deriveImportSubtype("otherchargeitem", "purchase"), "otherchargepurchaseitem");
 assert.equal(recordActionsCore.deriveImportSubtype("serviceitem", "resale"), "serviceresaleitem");
+// ID-numbered custom records: currentRecord spells them customrecordNNN, the
+// Import Assistant's options spell them CUSTOMRECORD_NNN — the derivation
+// carries the assistant's spelling. Script-id customs pass through untouched.
+assert.equal(recordActionsCore.deriveImportSubtype("customrecord4599", ""), "customrecord_4599");
+assert.equal(recordActionsCore.deriveImportSubtype("customrecord_sas_approvalrule", ""), "customrecord_sas_approvalrule");
 assert.equal(
   recordActionsCore.createCsvImportUrl("salesorder", "https://123456.app.netsuite.com"),
   "/app/setup/assistants/nsimport/importassistant.nl?recordsubtype=salesorder"
@@ -733,6 +738,14 @@ assert.equal(importAssistantCore.resolveStaticCategory("salesorder"), "TRANSACTI
 assert.equal(importAssistantCore.resolveStaticCategory("noninventorysaleitem"), "ITEM");
 assert.equal(importAssistantCore.resolveStaticCategory("customrecord_example"), "CUSTOMRECORD");
 assert.equal(importAssistantCore.resolveStaticCategory("customtransaction_example"), "TRANSACTION");
+// Reconciled against a live assistant: these real record types were missing
+// from the static map and fell to the slow category probe on every open.
+assert.equal(importAssistantCore.resolveStaticCategory("itemfulfillment"), "TRANSACTION");
+assert.equal(importAssistantCore.resolveStaticCategory("itemreceipt"), "TRANSACTION");
+assert.equal(importAssistantCore.resolveStaticCategory("workorder"), "TRANSACTION");
+assert.equal(importAssistantCore.resolveStaticCategory("customerdeposit"), "TRANSACTION");
+assert.equal(importAssistantCore.resolveStaticCategory("inboundshipment"), "SUPPLYCHAIN");
+assert.equal(importAssistantCore.resolveStaticCategory("customrecord_4599"), "CUSTOMRECORD");
 assert.equal(importAssistantCore.resolveStaticCategory("currencyrate"), null);
 assert.deepEqual(
   JSON.parse(JSON.stringify(importAssistantCore.parseOptionsData('[{"value":"TRANSACTION","text":"Transactions"}]'))),

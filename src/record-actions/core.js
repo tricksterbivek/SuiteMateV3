@@ -37,10 +37,15 @@
   }
 
   function deriveImportSubtype(recordType, itemSubtype) {
-    const normalizedRecordType = normalizeRecordType(recordType);
+    let normalizedRecordType = normalizeRecordType(recordType);
     if (!normalizedRecordType) {
       return null;
     }
+    // ID-numbered custom record types (no script id) are spelled
+    // customrecordNNN by N/currentRecord but CUSTOMRECORD_NNN in the Import
+    // Assistant's option values — measured live; the unpatched spelling
+    // never matched, so those records silently failed to prime.
+    normalizedRecordType = normalizedRecordType.replace(/^customrecord(\d+)$/, "customrecord_$1");
     if (!ITEM_BASE_TYPE_PATTERN.test(normalizedRecordType)) {
       return normalizedRecordType;
     }
