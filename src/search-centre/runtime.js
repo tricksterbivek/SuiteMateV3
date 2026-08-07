@@ -66,13 +66,18 @@
     if (!input || !nativeValueSetter) {
       return false;
     }
+    if (input.value === query) {
+      // The setter bypasses uif's value tracker, so re-writing an identical
+      // value would still fire its onChange and restart the 500ms debounce
+      // for nothing (worst on open, where the seed equals the native value).
+      return true;
+    }
     // The uif TextBox is a controlled component: the prototype setter plus a
     // bubbled input event is the combination its listeners accept (a plain
-    // .value write is swallowed). The keyup nudge matches real typing;
-    // measured live as the pair that makes NetSuite fetch while unfocused.
+    // .value write is swallowed). The input event ALONE arms the 500ms
+    // trailing debounce — measured identical to real typing (Δ~500ms).
     nativeValueSetter.call(input, query);
     input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: "a" }));
     return true;
   }
 
@@ -108,16 +113,20 @@
         continue;
       }
       const additional = option.querySelector('a[data-automation-id="additional-link"]');
-      // Rows label themselves in two spans ("Customer:&nbsp;" + name); the
-      // clone-minus-nested-links text is the fallback for rows without them.
+      // Rows label themselves in two spans ("Customer:&nbsp;" + name); only
+      // rows without them pay for the clone-minus-nested-links fallback.
       const description = mainLink.querySelector('[data-automation-id="link-description"]')?.textContent ?? "";
       const name = mainLink.querySelector('[data-automation-id="link-name"]')?.textContent ?? "";
-      const clone = mainLink.cloneNode(true);
-      for (const nested of clone.querySelectorAll('a[data-automation-id="additional-link"]')) {
-        nested.remove();
+      let text = `${description}${name}`;
+      if (!text) {
+        const clone = mainLink.cloneNode(true);
+        for (const nested of clone.querySelectorAll('a[data-automation-id="additional-link"]')) {
+          nested.remove();
+        }
+        text = clone.textContent;
       }
       const result = core.normalizeResult({
-        text: description || name ? `${description}${name}` : clone.textContent,
+        text,
         group: option.closest("[data-listbox-section]")?.getAttribute("data-automation-id") ?? "",
         href: mainLink.getAttribute("href"),
         editHref: /^edit\b/i.test(additional?.getAttribute("aria-label") ?? "")
@@ -442,7 +451,7 @@
       event.preventDefault();
       const direction = event.key === "ArrowDown" ? 1 : -1;
       state.selectedIndex = (state.selectedIndex + direction + total) % total;
-      render({ revealSelection: true });
+      renderSelection({ revealSelection: true });
       return;
     }
     if (event.key === "Enter" && event.target === modal.input) {
@@ -569,6 +578,13 @@
     if (!state.open || state.query.trim().length < SEARCH_MIN_QUERY_LENGTH) {
       return;
     }
+    // The listbox must belong to the query the modal is showing: during the
+    // focus-steal window the native input runs its own search for whatever
+    // it briefly held, and adopting that render flip-flopped the list with
+    // results that didn't match the visible query.
+    if (findNativeInput()?.value.trim() !== state.query.trim()) {
+      return;
+    }
     const parsed = parseNativeResults();
     if (parsed === null) {
       return;
@@ -593,6 +609,30 @@
       Math.max(0, filteredResults().length - 1)
     );
     render();
+  }
+
+  // Selection moves must not rebuild the list: replaceChildren() destroyed
+  // the hovered row mid-hover (restarting its background transition — a
+  // visible flicker) and made held arrow keys rebuild per repeat.
+  function renderSelection(options = {}) {
+    if (!modal) {
+      return;
+    }
+    const rows = [...modal.list.querySelectorAll(".suitemate-v3-sc-row")];
+    for (const [index, row] of rows.entries()) {
+      row.classList.toggle("is-selected", index === state.selectedIndex);
+      row.setAttribute("aria-selected", String(index === state.selectedIndex));
+    }
+    const selected = selectedResult();
+    if (selected) {
+      modal.input.setAttribute("aria-activedescendant", `suitemate-v3-sc-option-${state.selectedIndex}`);
+    } else {
+      modal.input.removeAttribute("aria-activedescendant");
+    }
+    renderPreview(selected);
+    if (options.revealSelection) {
+      modal.list.querySelector(".is-selected")?.scrollIntoView({ block: "nearest" });
+    }
   }
 
   function renderMessage(title, hint) {
@@ -738,7 +778,7 @@
         row.addEventListener("click", (event) => {
           state.selectedIndex = index;
           if (!isPlainActivation(event)) {
-            render();
+            renderSelection();
             return;
           }
           if (result.href) {
@@ -750,7 +790,7 @@
         row.addEventListener("mouseenter", () => {
           if (state.selectedIndex !== index) {
             state.selectedIndex = index;
-            render();
+            renderSelection();
           }
         });
         list.append(row);
@@ -820,7 +860,11 @@
       return;
     }
     const nativeInput = findNativeInput();
-    if (nativeInput && document.activeElement === nativeInput && nativeInput.value !== state.query) {
+    // Adopt on value divergence alone — waiting for activeElement missed
+    // steals that ended before this tick. The pushFrame guard keeps a
+    // just-typed modal query (push still in flight) from being clobbered
+    // by the older native value.
+    if (nativeInput && !pushFrame && nativeInput.value !== state.query) {
       modal.input.value = nativeInput.value;
       setQuery(nativeInput.value);
     }

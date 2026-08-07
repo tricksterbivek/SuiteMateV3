@@ -10,9 +10,12 @@ html.suitemate-v3-sc-open {
    them from it) but must never be visible while the centre is open. Hidden
    with opacity, NOT display: the widget writes its own measured geometry
    inline, and a zero rect could break its positioning pass. Verified live:
-   under opacity-hide the autosuggest XHR still fires and rows populate. */
+   under opacity-hide the autosuggest XHR still fires and rows populate.
+   Flat attribute match (the popover is a direct body child carrying
+   data-system-search="window", live-verified) — a :has() here was
+   re-evaluated on every style recalc of NetSuite's ever-mutating pages. */
 html.suitemate-v3-sc-open
-  div[data-widget="Popover"]:has([data-automation-id="GlobalSearchListBox"]) {
+  body > div[data-widget="Popover"][data-system-search="window"] {
   opacity: 0 !important;
   pointer-events: none !important;
 }

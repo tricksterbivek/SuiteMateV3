@@ -392,8 +392,8 @@ assert.match(
 const searchCentreStyleSource = await readFile(resolve(root, "src/search-centre/search-centre.css"), "utf8");
 assert.match(
   searchCentreStyleSource,
-  /html\.suitemate-v3-sc-open[\s\S]{0,120}Popover"\]:has\(\[data-automation-id="GlobalSearchListBox"\]\)[\s\S]{0,40}opacity: 0 !important;\n\s*pointer-events: none !important/,
-  "The native popover must stay opacity-hidden (never display:none — its widget measures its own geometry) while the Search Centre is open"
+  /html\.suitemate-v3-sc-open[\s\S]{0,120}body > div\[data-widget="Popover"\]\[data-system-search="window"\][\s\S]{0,40}opacity: 0 !important;\n\s*pointer-events: none !important/,
+  "The native popover must stay opacity-hidden (never display:none — its widget measures its own geometry; flat selector, never :has()) while the Search Centre is open"
 );
 assert.match(
   searchCentreStyleSource,
