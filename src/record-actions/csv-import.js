@@ -219,7 +219,7 @@
       "□"
     );
     const exportViewOption = createChildItem(
-      "Export Current View",
+      "Export Table View",
       csvExportViewCommand,
       "#",
       "csv-utils-export-view",

@@ -872,7 +872,7 @@ test("CSV Utils rejects stale installation and routes Import, Export and Templat
       prevented = true;
     }
   });
-  assert.equal(prevented, true, "Export Current View must not navigate away from the record");
+  assert.equal(prevented, true, "Export Table View must not navigate away from the record");
   assert.deepEqual(exportInvocations, ["export", "template", "exportView"]);
 
   toolsTrigger.listeners.click({ preventDefault() {} });
