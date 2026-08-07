@@ -145,8 +145,11 @@
     Object.freeze({
       group: "Inventory",
       types: Object.freeze([
-        Object.freeze({ id: "itemship", label: "Item Fulfillment", entry: "itemship", listType: "ItemShip" }),
-        Object.freeze({ id: "itemrcpt", label: "Item Receipt", entry: "itemrcpt", listType: "ItemRcpt" }),
+        // Fulfillments and receipts are transform-only records — created from
+        // a Sales/Purchase Order, never standalone — so a "New" entry form
+        // would land on an error page (Nadmin-verified).
+        Object.freeze({ id: "itemship", label: "Item Fulfillment", entry: "itemship", listType: "ItemShip", noNew: true }),
+        Object.freeze({ id: "itemrcpt", label: "Item Receipt", entry: "itemrcpt", listType: "ItemRcpt", noNew: true }),
         Object.freeze({ id: "workord", label: "Work Order", entry: "workord", listType: "WorkOrd" })
       ])
     }),
@@ -174,20 +177,24 @@
     ) {
       return null;
     }
-    const actions = [
-      Object.freeze({
+    const actions = [];
+    if (!type.noNew) {
+      actions.push(Object.freeze({
         label: `New ${type.label}`,
-        url: `${TRANSACTION_ENTRY_PREFIX}${type.entry}.nl?whence=`
-      }),
-      Object.freeze({
-        label: `${type.label} List`,
-        url: `${TRANSACTION_ENTRY_PREFIX}${listPage}.nl?Transaction_TYPE=${type.listType}`
-      })
-    ];
+        url: `${TRANSACTION_ENTRY_PREFIX}${type.entry}.nl?whence=`,
+        icon: "external"
+      }));
+    }
+    actions.push(Object.freeze({
+      label: `${type.label} List`,
+      url: `${TRANSACTION_ENTRY_PREFIX}${listPage}.nl?Transaction_TYPE=${type.listType}`,
+      icon: "list"
+    }));
     if (type.approve) {
       actions.push(Object.freeze({
         label: type.approve.label,
-        url: `${TRANSACTION_ENTRY_PREFIX}${type.approve.page}.nl?whence=`
+        url: `${TRANSACTION_ENTRY_PREFIX}${type.approve.page}.nl?whence=`,
+        icon: "edit"
       }));
     }
     return Object.freeze(actions);

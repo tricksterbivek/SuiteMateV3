@@ -866,7 +866,6 @@
       return;
     }
     const actions = createElement("div", "suitemate-v3-sc-preview-actions");
-    const ACTION_ICONS = ["external", "list", "edit"];
     for (const [index, action] of typeActions.entries()) {
       const anchor = createElement(
         "a",
@@ -875,7 +874,7 @@
       anchor.href = action.url;
       anchor.append(
         createElement("span", "", action.label),
-        createSvgIcon(ACTION_ICONS[index] ?? "external")
+        createSvgIcon(action.icon)
       );
       anchor.addEventListener("click", (event) => {
         if (isPlainActivation(event)) {

@@ -202,9 +202,9 @@ test("ships the fixed Transaction Menu with canonical NetSuite routes", () => {
   // manager pages are approval screens, never lists (the original bug).
   const salesOrderActions = core.transactionActions(types[0]);
   assert.deepEqual(plain(salesOrderActions), [
-    { label: "New Sales Order", url: "/app/accounting/transactions/salesord.nl?whence=" },
-    { label: "Sales Order List", url: "/app/accounting/transactions/transactionlist.nl?Transaction_TYPE=SalesOrd" },
-    { label: "Approve Sales Orders", url: "/app/accounting/transactions/salesordermanager.nl?whence=" }
+    { label: "New Sales Order", url: "/app/accounting/transactions/salesord.nl?whence=", icon: "external" },
+    { label: "Sales Order List", url: "/app/accounting/transactions/transactionlist.nl?Transaction_TYPE=SalesOrd", icon: "list" },
+    { label: "Approve Sales Orders", url: "/app/accounting/transactions/salesordermanager.nl?whence=", icon: "edit" }
   ]);
   const purchaseOrderActions = core.transactionActions(types[4]);
   assert.equal(
@@ -216,15 +216,24 @@ test("ships the fixed Transaction Menu with canonical NetSuite routes", () => {
     journalActions[1].url,
     "/app/accounting/transactions/accountingtransactionlist.nl?Transaction_TYPE=Journal"
   );
+  // Transform-only records (created from an order, never standalone) must
+  // not offer a New entry form.
+  for (const transformOnly of [types[6], types[7]]) {
+    const actions = core.transactionActions(transformOnly);
+    assert.equal(actions[0].label, `${transformOnly.label} List`);
+    assert.equal(actions.some((action) => action.label.startsWith("New ")), false);
+  }
   for (const type of types) {
     const actions = core.transactionActions(type);
-    assert.equal(actions[0].label, `New ${type.label}`);
-    assert.match(actions[0].url, /^\/app\/accounting\/transactions\/[a-z]+\.nl\?whence=$/);
-    assert.equal(actions[1].label, `${type.label} List`);
+    const listAction = actions.find((action) => action.label === `${type.label} List`);
     assert.match(
-      actions[1].url,
+      listAction.url,
       /^\/app\/accounting\/transactions\/[a-z]+\.nl\?Transaction_TYPE=[A-Za-z]+$/
     );
+    if (!type.noNew) {
+      assert.equal(actions[0].label, `New ${type.label}`);
+      assert.match(actions[0].url, /^\/app\/accounting\/transactions\/[a-z]+\.nl\?whence=$/);
+    }
   }
   assert.equal(core.transactionActions({ entry: "bad path", listType: "X" }), null);
 });
