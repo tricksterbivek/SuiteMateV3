@@ -159,6 +159,18 @@
             label: "Approve Bills",
             fallbackUrl: "/app/accounting/transactions/vendorbillmanager.nl?type=apprv&whence="
           })])
+        }),
+        Object.freeze({ id: "purchcon", label: "Purchase Contract", entry: "purchcon", listType: "PurchCon", newTask: "EDIT_TRAN_PURCHCON", listTask: "LIST_TRAN_PURCHCON" }),
+        Object.freeze({
+          id: "inboundshipment",
+          label: "Inbound Shipment",
+          // Its own record family, not a Transaction_TYPE: dedicated pages
+          // under transactions/shipping/ and task ids without the TRAN_
+          // prefix (account-harvested), so both URLs are explicit.
+          newUrl: "/app/accounting/transactions/shipping/inboundshipment/inboundshipment.nl?whence=",
+          listUrl: "/app/accounting/transactions/shipping/inboundshipment/inboundshipments.nl?whence=",
+          newTask: "EDIT_INBOUNDSHIPMENT",
+          listTask: "LIST_INBOUNDSHIPMENT"
         })
       ])
     }),
@@ -260,26 +272,36 @@
   // hides its action, and every present task contributes the account's own
   // URL. Returns null when nothing survives — the caller hides the type.
   function transactionActions(type, index = null) {
-    const listPage = type?.listPage ?? "transactionlist";
-    if (
-      !/^[a-z]+$/.test(type?.entry ?? "")
-      || !/^[A-Za-z]+$/.test(type?.listType ?? "")
-      || !/^[a-z]+$/.test(listPage)
-    ) {
+    if (!type) {
+      return null;
+    }
+    const listPage = type.listPage ?? "transactionlist";
+    // Static fallbacks: explicit URLs win (record families outside the
+    // Transaction_TYPE vocabulary, like Inbound Shipment); otherwise built
+    // from the validated entry/list tokens.
+    const staticNew = typeof type.newUrl === "string"
+      ? type.newUrl
+      : /^[a-z]+$/.test(type.entry ?? "")
+        ? `${TRANSACTION_ENTRY_PREFIX}${type.entry}.nl?whence=`
+        : "";
+    const staticList = typeof type.listUrl === "string"
+      ? type.listUrl
+      : /^[A-Za-z]+$/.test(type.listType ?? "") && /^[a-z]+$/.test(listPage)
+        ? `${TRANSACTION_ENTRY_PREFIX}${listPage}.nl?Transaction_TYPE=${type.listType}`
+        : "";
+    if (!staticNew && !staticList) {
       return null;
     }
     const actions = [];
     if (!type.noNew) {
-      const url = index
-        ? index.get(type.newTask) ?? ""
-        : `${TRANSACTION_ENTRY_PREFIX}${type.entry}.nl?whence=`;
+      const url = index ? index.get(type.newTask) ?? "" : staticNew;
       if (url) {
         actions.push(Object.freeze({ label: `New ${type.label}`, url, icon: "external" }));
       }
     }
     const listUrl = index && type.listTask
       ? index.get(type.listTask) ?? ""
-      : `${TRANSACTION_ENTRY_PREFIX}${listPage}.nl?Transaction_TYPE=${type.listType}`;
+      : staticList;
     if (listUrl) {
       actions.push(Object.freeze({ label: `${type.label} List`, url: listUrl, icon: "list" }));
     }
