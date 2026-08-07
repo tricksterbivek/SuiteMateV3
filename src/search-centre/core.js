@@ -107,63 +107,94 @@
     });
   }
 
-  // Quick Access → Transaction Menu: the curated two-level browser. entry is
-  // NetSuite's canonical transaction entry basename (account-agnostic, same
-  // family as the salesord.nl path this codebase already gates on).
-  // Lists live on the shared transactionlist.nl page filtered by the
-  // Transaction_TYPE token (user-verified for SalesOrd and PurchOrd) —
-  // finance types route to accountingtransactionlist.nl instead
-  // (user-verified for Journal). The *manager pages are NOT lists: they are
-  // the approval/processing screens (salesordermanager.nl renders "Approve
-  // Sales Orders", live-verified — shipping it as the List action was the
-  // original bug), so they surface as explicit approve actions only where
-  // verified.
+  // Quick Access → Transaction Menu: the curated two-level browser, resolved
+  // against the account's own navigation tree when available ("intersect,
+  // don't replace"). Each type declares NetSuite TASK ids — the documented
+  // resolveTaskLink vocabulary (EDIT_TRAN_SALESORD, LIST_TRAN_SALESORD,
+  // TRAN_SALESORDAPPRV…), live-harvested from NLNavMenuData.nl — which are
+  // stable across renames, languages and accounts. With a task index the
+  // tree decides: URLs come from the account's own menu and a task the role
+  // lacks hides its action (that is NetSuite's permission answer). Without
+  // one, the static fallbacks below reproduce the live-verified MCo menu, so
+  // a failed fetch degrades to a working menu, never an empty one. The
+  // *manager pages are NOT lists: they are approval/processing screens
+  // (salesordermanager.nl?type=apprv renders "Approve Sales Orders" —
+  // shipping one as the List action was the original bug).
   const TRANSACTION_ENTRY_PREFIX = "/app/accounting/transactions/";
   const TRANSACTION_MENU = Object.freeze([
     Object.freeze({
       group: "Sales",
       types: Object.freeze([
-        // Approve pages harvested from a live account's own menu tree
-        // (NLNavMenuData.nl): the uniform shape is <recordword>manager.nl
-        // ?type=apprv, with FULL-WORD basenames (vendorbillmanager, not
-        // vendbillmanager) — never derivable from the entry basename.
-        // Absent by the same evidence: Approve Purchase Orders (no native
-        // page — SuiteApp-only) and Approve Journal Entries (menu entry
-        // only exists when journal approval routing is enabled).
         Object.freeze({
           id: "salesord",
           label: "Sales Order",
           entry: "salesord",
           listType: "SalesOrd",
-          approve: Object.freeze({ page: "salesordermanager", label: "Approve Sales Orders" })
+          newTask: "EDIT_TRAN_SALESORD",
+          listTask: "LIST_TRAN_SALESORD",
+          extras: Object.freeze([Object.freeze({
+            task: "TRAN_SALESORDAPPRV",
+            label: "Approve Sales Orders",
+            fallbackUrl: "/app/accounting/transactions/salesordermanager.nl?type=apprv&whence="
+          })])
         }),
-        Object.freeze({ id: "custinvc", label: "Invoice", entry: "custinvc", listType: "CustInvc" }),
-        Object.freeze({ id: "custcred", label: "Credit Memo", entry: "custcred", listType: "CustCred" }),
-        Object.freeze({ id: "custdep", label: "Customer Deposit", entry: "custdep", listType: "CustDep" })
+        Object.freeze({ id: "custinvc", label: "Invoice", entry: "custinvc", listType: "CustInvc", newTask: "EDIT_TRAN_CUSTINVC", listTask: "LIST_TRAN_CUSTINVC" }),
+        Object.freeze({ id: "custcred", label: "Credit Memo", entry: "custcred", listType: "CustCred", newTask: "EDIT_TRAN_CUSTCRED", listTask: "LIST_TRAN_CUSTCRED" }),
+        Object.freeze({ id: "custdep", label: "Customer Deposit", entry: "custdep", listType: "CustDep", newTask: "EDIT_TRAN_CUSTDEP", listTask: "LIST_TRAN_CUSTDEP" })
       ])
     }),
     Object.freeze({
       group: "Purchasing",
       types: Object.freeze([
-        Object.freeze({ id: "purchord", label: "Purchase Order", entry: "purchord", listType: "PurchOrd" }),
+        Object.freeze({ id: "purchord", label: "Purchase Order", entry: "purchord", listType: "PurchOrd", newTask: "EDIT_TRAN_PURCHORD", listTask: "LIST_TRAN_PURCHORD" }),
         Object.freeze({
           id: "vendbill",
           label: "Vendor Bill",
           entry: "vendbill",
           listType: "VendBill",
-          approve: Object.freeze({ page: "vendorbillmanager", label: "Approve Bills" })
+          newTask: "EDIT_TRAN_VENDBILL",
+          listTask: "LIST_TRAN_VENDBILL",
+          extras: Object.freeze([Object.freeze({
+            task: "TRAN_VENDBILLAPPRV",
+            label: "Approve Bills",
+            fallbackUrl: "/app/accounting/transactions/vendorbillmanager.nl?type=apprv&whence="
+          })])
         })
       ])
     }),
     Object.freeze({
       group: "Inventory",
       types: Object.freeze([
-        // Fulfillments and receipts are transform-only records — created from
-        // a Sales/Purchase Order, never standalone — so a "New" entry form
-        // would land on an error page (Nadmin-verified).
-        Object.freeze({ id: "itemship", label: "Item Fulfillment", entry: "itemship", listType: "ItemShip", noNew: true }),
-        Object.freeze({ id: "itemrcpt", label: "Item Receipt", entry: "itemrcpt", listType: "ItemRcpt", noNew: true }),
-        Object.freeze({ id: "workord", label: "Work Order", entry: "workord", listType: "WorkOrd" })
+        // Fulfillments and receipts are transform-only records — no
+        // EDIT_TRAN_* task exists for them (harvested-verified), so no New
+        // action; their real conveniences are the bulk process pages. Their
+        // list task ids likewise never appear in menus, so the static list
+        // URL stays unconditional.
+        Object.freeze({
+          id: "itemship",
+          label: "Item Fulfillment",
+          entry: "itemship",
+          listType: "ItemShip",
+          noNew: true,
+          extras: Object.freeze([Object.freeze({
+            task: "TRAN_SALESORDFULFILL",
+            label: "Fulfill Orders",
+            fallbackUrl: "/app/accounting/transactions/salesordermanager.nl?type=fulfill&whence="
+          })])
+        }),
+        Object.freeze({
+          id: "itemrcpt",
+          label: "Item Receipt",
+          entry: "itemrcpt",
+          listType: "ItemRcpt",
+          noNew: true,
+          extras: Object.freeze([Object.freeze({
+            task: "TRAN_PURCHORDRECEIVE",
+            label: "Receive Orders",
+            fallbackUrl: "/app/accounting/transactions/purchordermanager.nl?type=receive&whence="
+          })])
+        }),
+        Object.freeze({ id: "workord", label: "Work Order", entry: "workord", listType: "WorkOrd", newTask: "EDIT_TRAN_WORKORD", listTask: "LIST_TRAN_WORKORD" })
       ])
     }),
     Object.freeze({
@@ -174,43 +205,91 @@
           label: "Journal Entry",
           entry: "journal",
           listType: "Journal",
-          listPage: "accountingtransactionlist"
+          listPage: "accountingtransactionlist",
+          newTask: "EDIT_TRAN_JOURNAL",
+          listTask: "LIST_TRAN_JOURNAL"
         })
       ])
     })
   ]);
 
-  function transactionActions(type) {
+  const TRANSACTION_TASK_IDS = Object.freeze([...new Set(
+    TRANSACTION_MENU.flatMap((group) => group.types.flatMap((type) => [
+      type.newTask,
+      type.listTask,
+      ...(type.extras ?? []).map((extra) => extra.task)
+    ])).filter(Boolean)
+  )]);
+
+  // The account's navigation tree (NLNavMenuData.nl JSON) → Map of task id
+  // to same-origin path, for exactly the ids the menu declares. Defensive by
+  // construction: unknown shapes walk to nothing, hostile URLs sanitize to
+  // nothing.
+  function buildTaskIndex(value, wantedIds, origin) {
+    const wanted = new Set(wantedIds);
+    const index = new Map();
+    const walk = (node) => {
+      if (!node || typeof node !== "object") {
+        return;
+      }
+      if (Array.isArray(node)) {
+        for (const child of node) {
+          walk(child);
+        }
+        return;
+      }
+      const id = String(node.id ?? "");
+      if (wanted.has(id) && !index.has(id)) {
+        const url = sanitizeHref(node.url, origin);
+        if (url) {
+          index.set(id, url);
+        }
+      }
+      for (const child of Object.values(node)) {
+        if (child && typeof child === "object") {
+          walk(child);
+        }
+      }
+    };
+    walk(value);
+    return index;
+  }
+
+  // index === null → static fallbacks (the live-verified MCo menu). With an
+  // index, the tree is the authority: a declared task the role's menu lacks
+  // hides its action, and every present task contributes the account's own
+  // URL. Returns null when nothing survives — the caller hides the type.
+  function transactionActions(type, index = null) {
     const listPage = type?.listPage ?? "transactionlist";
     if (
       !/^[a-z]+$/.test(type?.entry ?? "")
       || !/^[A-Za-z]+$/.test(type?.listType ?? "")
       || !/^[a-z]+$/.test(listPage)
-      || (type.approve && !/^[a-z]+$/.test(type.approve.page ?? ""))
     ) {
       return null;
     }
     const actions = [];
     if (!type.noNew) {
-      actions.push(Object.freeze({
-        label: `New ${type.label}`,
-        url: `${TRANSACTION_ENTRY_PREFIX}${type.entry}.nl?whence=`,
-        icon: "external"
-      }));
+      const url = index
+        ? index.get(type.newTask) ?? ""
+        : `${TRANSACTION_ENTRY_PREFIX}${type.entry}.nl?whence=`;
+      if (url) {
+        actions.push(Object.freeze({ label: `New ${type.label}`, url, icon: "external" }));
+      }
     }
-    actions.push(Object.freeze({
-      label: `${type.label} List`,
-      url: `${TRANSACTION_ENTRY_PREFIX}${listPage}.nl?Transaction_TYPE=${type.listType}`,
-      icon: "list"
-    }));
-    if (type.approve) {
-      actions.push(Object.freeze({
-        label: type.approve.label,
-        url: `${TRANSACTION_ENTRY_PREFIX}${type.approve.page}.nl?type=apprv&whence=`,
-        icon: "edit"
-      }));
+    const listUrl = index && type.listTask
+      ? index.get(type.listTask) ?? ""
+      : `${TRANSACTION_ENTRY_PREFIX}${listPage}.nl?Transaction_TYPE=${type.listType}`;
+    if (listUrl) {
+      actions.push(Object.freeze({ label: `${type.label} List`, url: listUrl, icon: "list" }));
     }
-    return Object.freeze(actions);
+    for (const extra of type.extras ?? []) {
+      const url = index ? index.get(extra.task) ?? "" : extra.fallbackUrl ?? "";
+      if (url) {
+        actions.push(Object.freeze({ label: extra.label, url, icon: "edit" }));
+      }
+    }
+    return actions.length ? Object.freeze(actions) : null;
   }
 
   // A direct autosuggest.nl row: { sname, key, descr, dashurl, bedit }.
@@ -259,6 +338,8 @@
   global.SuiteMateV3SearchCentreCore = Object.freeze({
     CATEGORIES,
     TRANSACTION_MENU,
+    TRANSACTION_TASK_IDS,
+    buildTaskIndex,
     transactionActions,
     cleanText,
     categorize,

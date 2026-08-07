@@ -244,6 +244,60 @@ test("ships the fixed Transaction Menu with canonical NetSuite routes", () => {
   assert.equal(core.transactionActions({ entry: "bad path", listType: "X" }), null);
 });
 
+test("builds a sanitized task index and resolves the menu role-accurately against it", () => {
+  const tree = [{
+    type: "TAB",
+    submenu: [
+      {
+        id: "EDIT_TRAN_SALESORD",
+        url: "/app/accounting/transactions/salesord.nl?whence=",
+        submenu: [
+          { id: "LIST_TRAN_SALESORD", url: "/app/accounting/transactions/transactionlist.nl?Transaction_TYPE=SalesOrd&whence=" }
+        ]
+      },
+      { id: "TRAN_SALESORDAPPRV", url: "https://evil.example.com/x" },
+      { id: "EDIT_TRAN_CUSTINVC", url: "/app/accounting/transactions/custinvc.nl?whence=" },
+      { id: "UNRELATED_TASK", url: "/app/x.nl" }
+    ]
+  }];
+  const index = core.buildTaskIndex(tree, core.TRANSACTION_TASK_IDS, origin);
+  assert.equal(index.get("EDIT_TRAN_SALESORD"), "/app/accounting/transactions/salesord.nl?whence=");
+  assert.equal(
+    index.get("LIST_TRAN_SALESORD"),
+    "/app/accounting/transactions/transactionlist.nl?Transaction_TYPE=SalesOrd&whence="
+  );
+  assert.equal(index.has("TRAN_SALESORDAPPRV"), false, "hostile URL survived sanitization");
+  assert.equal(index.has("UNRELATED_TASK"), false, "undeclared task indexed");
+  assert.equal(core.buildTaskIndex("garbage", core.TRANSACTION_TASK_IDS, origin).size, 0);
+  assert.equal(core.TRANSACTION_TASK_IDS.length, 20);
+  assert.equal(core.TRANSACTION_TASK_IDS.includes("TRAN_SALESORDAPPRV"), true);
+
+  const types = core.TRANSACTION_MENU.flatMap((group) => group.types);
+  // Approve hidden (its only tree URL was hostile → treated as absent).
+  assert.deepEqual(
+    plain(core.transactionActions(types[0], index).map((action) => action.label)),
+    ["New Sales Order", "Sales Order List"]
+  );
+  // Declared list task missing from the tree → List dropped for this role.
+  assert.deepEqual(
+    plain(core.transactionActions(types[1], index).map((action) => action.label)),
+    ["New Invoice"]
+  );
+  // Type entirely absent from the tree → hidden.
+  assert.equal(core.transactionActions(types[2], index), null);
+  // Transform-only types keep their static list (their list task never
+  // exists as a menu node); tree-gated extras hide when absent.
+  assert.deepEqual(
+    plain(core.transactionActions(types[6], index).map((action) => action.label)),
+    ["Item Fulfillment List"]
+  );
+  // No index at all → the full static menu, extras included.
+  assert.deepEqual(
+    plain(core.transactionActions(types[6], null).map((action) => action.label)),
+    ["Item Fulfillment List", "Fulfill Orders"]
+  );
+});
+
 test("counts and filters by category with all as the identity", () => {
   const results = [
     core.normalizeResult({ text: "Customer: Acme", group: "globalSearch", href: "/app/common/entity/custjob.nl?id=1" }, origin),

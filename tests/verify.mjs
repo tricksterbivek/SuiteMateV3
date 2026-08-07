@@ -404,6 +404,16 @@ assert.match(
   /credentials: "include"/,
   "The direct suggest fetch would run without the NetSuite session"
 );
+assert.match(
+  searchCentreRuntimeSource,
+  /\/app\/center\/NLNavMenuData\.nl/,
+  "The Transaction Menu no longer reads the account's own navigation tree"
+);
+assert.match(
+  searchCentreRuntimeSource,
+  /core\.buildTaskIndex\(/,
+  "The navigation tree is consumed without the sanitizing task indexer"
+);
 const searchCentreStyleSource = await readFile(resolve(root, "src/search-centre/search-centre.css"), "utf8");
 assert.match(
   searchCentreStyleSource,
