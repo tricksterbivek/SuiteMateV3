@@ -49,6 +49,7 @@ assert.deepEqual(globalThemeContentScript.css, [
   "src/so-columns/so-columns.css",
   "src/form-views/form-views.css",
   "src/recent-records/recent-records.css",
+  "src/search-centre/search-centre.css",
   "src/edit-grid/edit-grid.css"
 ]);
 assert.deepEqual(globalThemeContentScript.js, [
@@ -65,6 +66,7 @@ assert.deepEqual(globalThemeContentScript.js, [
   "src/tab-title/core.js",
   "src/form-views/core.js",
   "src/recent-records/core.js",
+  "src/search-centre/core.js",
   "src/edit-grid/core.js",
   "src/runtime/theme-runtime.js",
   "src/runtime/notification-runtime.js",
@@ -77,6 +79,7 @@ assert.deepEqual(globalThemeContentScript.js, [
   "src/tab-title/runtime.js",
   "src/form-views/runtime.js",
   "src/recent-records/runtime.js",
+  "src/search-centre/runtime.js",
   "src/edit-grid/runtime.js"
 ]);
 assert.equal(
@@ -169,6 +172,11 @@ assert.match(
   /for="recentRecords"[\s\S]*?>Recent Records<[\s\S]*?id="recentRecords"[^>]*type="checkbox"/,
   "The Recent Records popup checkbox is missing"
 );
+assert.match(
+  popupHtml,
+  /for="searchCentre"[\s\S]*?>Search Centre<[\s\S]*?id="searchCentre"[^>]*type="checkbox"/,
+  "The Search Centre popup checkbox is missing"
+);
 for (const match of popupHtml.matchAll(/(?:src|href)="([^"]+)"/g)) {
   const reference = match[1];
   if (!reference.startsWith("#")) {
@@ -233,6 +241,9 @@ const extensionSources = [
   "src/recent-records/core.js",
   "src/recent-records/runtime.js",
   "src/recent-records/recent-records.css",
+  "src/search-centre/core.js",
+  "src/search-centre/runtime.js",
+  "src/search-centre/search-centre.css",
   "src/edit-grid/core.js",
   "src/edit-grid/runtime.js",
   "src/edit-grid/edit-grid.css",
@@ -1288,7 +1299,7 @@ assert.doesNotMatch(settingsSource, /function normalizeHexColor|function utf8Byt
 const settingsSandbox = makeSandbox({}, utilitySource, settingsSource);
 const settingsApi = settingsSandbox.SuiteMateV3Settings;
 assert.equal(settingsApi.THEME_PREVIEW_MESSAGE, "SUITEMATE_V3_PREVIEW_ROLE_THEME");
-assert.equal(settingsApi.SCHEMA_VERSION, 8);
+assert.equal(settingsApi.SCHEMA_VERSION, 9);
 assert.equal(settingsApi.DEFAULTS.schemaVersion, settingsApi.SCHEMA_VERSION);
 assert.equal(settingsApi.DEFAULTS.font, "poppins");
 assert.equal(settingsApi.DEFAULTS.squareCorners, false);
@@ -1298,10 +1309,11 @@ assert.equal(settingsApi.DEFAULTS.smartTabTitles, false);
 assert.equal(settingsApi.DEFAULTS.formViews, false);
 assert.equal(settingsApi.DEFAULTS.salesOrderColumnsEdit, false);
 assert.equal(settingsApi.DEFAULTS.recentRecords, false);
+assert.equal(settingsApi.DEFAULTS.searchCentre, false);
 assert.deepEqual(
   JSON.parse(JSON.stringify(settingsApi.validateForStorage({ mode: "dark" }))),
   {
-    schemaVersion: 8,
+    schemaVersion: 9,
     enabled: true,
     mode: "dark",
     font: "poppins",
@@ -1312,6 +1324,7 @@ assert.deepEqual(
     formViews: false,
     salesOrderColumnsEdit: false,
     recentRecords: false,
+    searchCentre: false,
     roleThemes: {}
   }
 );

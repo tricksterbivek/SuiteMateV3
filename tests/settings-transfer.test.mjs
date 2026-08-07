@@ -107,6 +107,7 @@ test("imports a canonical schema 1 backup through the current settings migration
     formViews: false,
     salesOrderColumnsEdit: false,
     recentRecords: false,
+    searchCentre: false,
     roleThemes: legacySettings.roleThemes
   });
 });
@@ -146,6 +147,7 @@ test("imports a canonical schema 2 backup through the current settings migration
     formViews: false,
     salesOrderColumnsEdit: false,
     recentRecords: false,
+    searchCentre: false,
     roleThemes: legacySettings.roleThemes
   });
 });
@@ -279,6 +281,7 @@ test("parses hand-built schema 3 through 6 backups through the legacy branch", (
     formViews: false,
     salesOrderColumnsEdit: false,
     recentRecords: false,
+    searchCentre: false,
     roleThemes: {}
   });
 
@@ -320,6 +323,7 @@ test("parses hand-built schema 3 through 6 backups through the legacy branch", (
     formViews: true,
     salesOrderColumnsEdit: false,
     recentRecords: false,
+    searchCentre: false,
     roleThemes: {}
   });
 
@@ -332,6 +336,27 @@ test("parses hand-built schema 3 through 6 backups through the legacy branch", (
   assert.equal(parsed6.settings.schemaVersion, settings.SCHEMA_VERSION);
   assert.equal(parsed6.settings.salesOrderColumnsEdit, true);
   assert.equal(parsed6.settings.recentRecords, false);
+
+  const v7 = {
+    ...v6,
+    schemaVersion: 7,
+    recentRecords: true
+  };
+  const parsed7 = transfer.parse(encodeEnvelope(envelope(7, v7)));
+  assert.equal(parsed7.settings.schemaVersion, settings.SCHEMA_VERSION);
+  assert.equal(parsed7.settings.recentRecords, true);
+  assert.equal(parsed7.settings.font, "poppins");
+  assert.equal(parsed7.settings.searchCentre, false);
+
+  const v8 = {
+    ...v7,
+    schemaVersion: 8,
+    font: "satoshi"
+  };
+  const parsed8 = transfer.parse(encodeEnvelope(envelope(8, v8)));
+  assert.equal(parsed8.settings.schemaVersion, settings.SCHEMA_VERSION);
+  assert.equal(parsed8.settings.font, "satoshi");
+  assert.equal(parsed8.settings.searchCentre, false);
 
   expectCode(
     () => transfer.parse(encodeEnvelope(envelope(4, { ...v4, junk: true }))),

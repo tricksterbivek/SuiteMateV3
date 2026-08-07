@@ -12,6 +12,7 @@
   const SURFACES = Object.freeze({
     POPUP: "popup",
     RECORD: "record",
+    SEARCH: "search",
     SUITEQL: "suiteql"
   });
 
@@ -46,6 +47,7 @@
     RECORD_CSV_TEMPLATE: "record.csv-template",
     RECORD_CSV_EXPORT_VIEW: "record.csv-export-view",
     RECORD_SHOW_TRAIL: "record.show-trail",
+    SEARCH_OPEN_CENTRE: "search.open-centre",
     SUITEQL_EXECUTE: "suiteql.execute",
     SUITEQL_ABORT: "suiteql.abort",
     SUITEQL_TOGGLE_PAGED: "suiteql.toggle-paged",
@@ -375,6 +377,16 @@
       surface: SURFACES.RECORD,
       capability: routeApi?.CAPABILITIES?.RECORD_TRAIL ?? "record-trail",
       requiresSettingsEnabled: true
+    },
+    {
+      id: IDS.SEARCH_OPEN_CENTRE,
+      label: "Search Centre",
+      description: "Open the Search Centre over NetSuite global search",
+      surface: SURFACES.SEARCH,
+      capability: routeApi?.CAPABILITIES?.SEARCH_CENTRE ?? "search-centre",
+      // Mod+K is off the table: Chrome reserves Ctrl/Cmd+K for the omnibox.
+      shortcut: "Mod+Shift+K",
+      allowInEditable: true
     },
     {
       id: IDS.SUITEQL_EXECUTE,

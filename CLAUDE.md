@@ -8,12 +8,11 @@
 - The pairing token lives in `~/.claude.json` → `mcpServers.playwright.env.PLAYWRIGHT_MCP_EXTENSION_TOKEN`. When the browser refreshes its token: update that value, run `/mcp` → reconnect playwright, then retry.
 - claude-in-chrome ("Browser 1") is superseded and no longer used for this project.
 
-## Live testing records (account 6998262)
+## Live testing environment (account 9845683-rp)
 
-- Every live validation runs on BOTH records, always:
-  - `salesord.nl?id=16342809` — locked small test record (10 rows). Safety checks before interacting: "Has Order Issue" checked, Pending Approval status, Memo "Testing- Do not Process".
-  - `salesord.nl?id=16365465` — large order (203 rows × 70 columns, segment-paged in Edit Mode). This is the scale/performance record; a change that only passed on the small record is NOT validated.
-- Never save either record. Forbidden verbs: Approve, Reject, Bill, Fulfill, Email, Print, Delete, Make Copy.
+- ALL live testing and validation runs in the NetSuite **release-preview account 9845683-rp** (owner-directed, 2026-08-07). Entry URL: https://9845683-rp.app.netsuite.com/app/center/card.nl?sc=-29&whence=
+- Do NOT test in 6998262 (MCoBeauty production) anymore; its locked validation records (`salesord.nl?id=16342809` / `16365465`) are superseded along with the venue. Never mix the two tenants in one testing flow.
+- Read-only discipline still applies to business records unless the owner explicitly directs otherwise: never Save, Approve, Reject, Bill, Fulfill, Email, Print, Delete, or Make Copy.
 
 ## Parked features (do NOT resume unless explicitly asked)
 

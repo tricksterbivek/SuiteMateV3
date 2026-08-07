@@ -110,7 +110,9 @@
       3: ["enabled", "mode", "squareCorners", "showInternalIds", "salesOrderColumns", "roleThemes"],
       4: ["enabled", "mode", "squareCorners", "showInternalIds", "salesOrderColumns", "smartTabTitles", "roleThemes"],
       5: ["enabled", "mode", "squareCorners", "showInternalIds", "salesOrderColumns", "smartTabTitles", "formViews", "roleThemes"],
-      6: ["enabled", "mode", "squareCorners", "showInternalIds", "salesOrderColumns", "smartTabTitles", "formViews", "salesOrderColumnsEdit", "roleThemes"]
+      6: ["enabled", "mode", "squareCorners", "showInternalIds", "salesOrderColumns", "smartTabTitles", "formViews", "salesOrderColumnsEdit", "roleThemes"],
+      7: ["enabled", "mode", "squareCorners", "showInternalIds", "salesOrderColumns", "smartTabTitles", "formViews", "salesOrderColumnsEdit", "recentRecords", "roleThemes"],
+      8: ["enabled", "mode", "font", "squareCorners", "showInternalIds", "salesOrderColumns", "smartTabTitles", "formViews", "salesOrderColumnsEdit", "recentRecords", "roleThemes"]
     };
     const legacyFields = legacySchemaFields[declaredSchemaVersion];
     if (
