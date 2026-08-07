@@ -58,6 +58,11 @@
   const AUTOSUGGEST_PATH = "/app/common/autosuggest.nl";
   const FETCH_DEBOUNCE_MS = 150;
   const MAX_RESPONSE_BYTES = 2_000_000;
+  // The account's full navigation tree — the page itself polls this endpoint
+  // every ~30s; one cached read makes the Transaction Menu role-accurate.
+  const MENU_DATA_PATH = "/app/center/NLNavMenuData.nl";
+  const MENU_CACHE_KEY = "suiteMateV3SearchCentreMenu";
+  const MENU_CACHE_TTL_MS = 3_600_000;
   const nativeValueSetter = Object.getOwnPropertyDescriptor(
     globalThis.HTMLInputElement?.prototype ?? {},
     "value"
@@ -178,6 +183,8 @@
   let fetchTimer = 0;
   let fetchController = null;
   let fetchSequence = 0;
+  let menuIndex = null;
+  let menuFetchPromise = null;
   let modal = null;
   const state = {
     open: false,
@@ -196,6 +203,8 @@
     selectedIndex: 0,
     focusBounces: 0,
     navigating: false,
+    transactionMenu: false,
+    transactionTypeIndex: 0,
     opener: null
   };
 
@@ -252,6 +261,10 @@
     } else if (name === "edit") {
       add("path", { d: "M12 20h9" });
       add("path", { d: "M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" });
+    } else if (name === "bolt") {
+      add("polygon", { points: "13 2 3 14 12 14 11 22 21 10 12 10 13 2" });
+    } else if (name === "chevron") {
+      add("polyline", { points: "9 18 15 12 9 6" });
     } else {
       add("circle", { cx: "12", cy: "12", r: "9" });
     }
@@ -265,6 +278,85 @@
     files: "file",
     navigation: "list"
   });
+
+  const allTransactionTypes = core.TRANSACTION_MENU.flatMap((group) =>
+    group.types.map((type) => Object.freeze({ ...type, group: group.group })));
+
+  // With a menu index the account's own tree decides which types (and which
+  // of their actions) exist for this role; without one, everything static.
+  function visibleTransactionTypes() {
+    return allTransactionTypes.filter((type) => core.transactionActions(type, menuIndex));
+  }
+
+  // Same scope the Recent Records store uses: menus are per-host AND
+  // per-role, and the session id changes with the role.
+  function menuScopeKey() {
+    let sessionId = "unknown";
+    try {
+      const script = document.querySelector(
+        'script[src^="/javascript/sessionstatus/session_status_init.jsp?"]'
+      );
+      const value = script
+        ? new URL(script.src, location.origin).searchParams.get("id")
+        : "";
+      if (value?.trim()) {
+        sessionId = value.trim().slice(0, 300);
+      }
+    } catch {}
+    return `${location.hostname.toLowerCase()}|${sessionId}`;
+  }
+
+  async function loadMenuIndex() {
+    try {
+      const scope = menuScopeKey();
+      const stored = (await chrome.storage.local.get(MENU_CACHE_KEY))[MENU_CACHE_KEY];
+      const cached = stored?.[scope];
+      if (cached && Date.now() - cached.fetchedAt < MENU_CACHE_TTL_MS) {
+        menuIndex = new Map(Object.entries(cached.tasks ?? {}));
+      } else {
+        const response = await fetch(MENU_DATA_PATH, { credentials: "include" });
+        const responseUrl = new URL(response.url, location.origin);
+        if (
+          !response.ok
+          || responseUrl.origin !== location.origin
+          || responseUrl.pathname !== MENU_DATA_PATH
+        ) {
+          throw new Error("Unexpected menu response.");
+        }
+        const body = await response.text();
+        if (body.length > MAX_RESPONSE_BYTES) {
+          throw new Error("Menu response exceeded the supported size.");
+        }
+        menuIndex = core.buildTaskIndex(
+          JSON.parse(body),
+          core.TRANSACTION_TASK_IDS,
+          location.origin
+        );
+        await chrome.storage.local.set({
+          [MENU_CACHE_KEY]: {
+            ...(stored ?? {}),
+            [scope]: { fetchedAt: Date.now(), tasks: Object.fromEntries(menuIndex) }
+          }
+        });
+      }
+    } catch {
+      // Static fallbacks take over — a working menu, never an empty one.
+      menuIndex = null;
+    }
+    if (state.open && state.transactionMenu) {
+      state.transactionTypeIndex = 0;
+      render();
+    }
+  }
+
+  function ensureMenuIndex() {
+    if (menuIndex || menuFetchPromise) {
+      return;
+    }
+    menuFetchPromise = loadMenuIndex().finally(() => {
+      menuFetchPromise = null;
+    });
+  }
 
   function shortcutDisplay() {
     return commandApi.getShortcut(
@@ -353,6 +445,7 @@
         if (filter.disabled) {
           return;
         }
+        state.transactionMenu = false;
         state.category = category.id;
         state.selectedIndex = 0;
         render();
@@ -360,6 +453,25 @@
       filterButtons[category.id] = { filter, count };
       rail.append(filter);
     }
+    rail.append(createElement("div", "suitemate-v3-sc-rail-divider"));
+    rail.append(createElement("h3", "suitemate-v3-sc-rail-heading", "Quick access"));
+    const transactionMenuButton = createElement("button", "suitemate-v3-sc-filter suitemate-v3-sc-quick");
+    transactionMenuButton.type = "button";
+    const quickIcon = createElement("span", "suitemate-v3-sc-quick-icon");
+    quickIcon.setAttribute("aria-hidden", "true");
+    quickIcon.append(createSvgIcon("bolt"));
+    transactionMenuButton.append(
+      quickIcon,
+      createElement("span", "suitemate-v3-sc-filter-label", "Transaction Menu"),
+      createSvgIcon("chevron", "suitemate-v3-sc-chevron")
+    );
+    transactionMenuButton.addEventListener("click", () => {
+      state.transactionMenu = true;
+      state.transactionTypeIndex = 0;
+      ensureMenuIndex();
+      render();
+    });
+    rail.append(transactionMenuButton);
 
     const results = createElement("div", "suitemate-v3-sc-results");
     const resultsLabel = createElement("h2", "suitemate-v3-sc-results-label", "Top results");
@@ -413,6 +525,7 @@
       dialog,
       input,
       filterButtons,
+      transactionMenuButton,
       resultsLabel,
       list,
       preview,
@@ -454,18 +567,35 @@
       return;
     }
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      if (state.transactionMenu) {
+        const total = visibleTransactionTypes().length;
+        if (total === 0) {
+          return;
+        }
+        state.transactionTypeIndex = (state.transactionTypeIndex + direction + total) % total;
+        renderTransactionSelection({ revealSelection: true });
+        return;
+      }
       const total = filteredResults().length;
       if (total === 0) {
         return;
       }
-      event.preventDefault();
-      const direction = event.key === "ArrowDown" ? 1 : -1;
       state.selectedIndex = (state.selectedIndex + direction + total) % total;
       renderSelection({ revealSelection: true });
       return;
     }
     if (event.key === "Enter" && event.target === modal.input) {
       event.preventDefault();
+      if (state.transactionMenu) {
+        const type = visibleTransactionTypes()[state.transactionTypeIndex];
+        const typeActions = type ? core.transactionActions(type, menuIndex) : null;
+        if (typeActions) {
+          transactionNavigate(typeActions[0].url, `Opening ${typeActions[0].label}…`);
+        }
+        return;
+      }
       const result = selectedResult();
       if (result) {
         openResult(result);
@@ -626,6 +756,8 @@
   function setQuery(query) {
     state.query = query;
     state.selectedIndex = 0;
+    // Typing is search intent: leave the transaction browser.
+    state.transactionMenu = false;
     clearPendingTimer();
     cancelSuggestFetch();
     const trimmed = query.trim();
@@ -790,6 +922,133 @@
     preview.append(actions);
   }
 
+  // ===== Transaction Menu (Quick Access) =====
+
+  function transactionNavigate(url, label) {
+    enterNavigatingState(null, label);
+    location.assign(url);
+  }
+
+  function renderTransactionPanel() {
+    const type = visibleTransactionTypes()[state.transactionTypeIndex];
+    const preview = modal.preview;
+    preview.replaceChildren();
+    if (!type) {
+      preview.hidden = true;
+      return;
+    }
+    preview.hidden = false;
+    preview.append(createElement("span", "suitemate-v3-sc-chip", type.group));
+    const icon = createElement(
+      "span",
+      "suitemate-v3-sc-row-icon suitemate-v3-sc-tint-records suitemate-v3-sc-panel-icon"
+    );
+    icon.setAttribute("aria-hidden", "true");
+    icon.append(createSvgIcon("record"));
+    preview.append(icon);
+    preview.append(createElement("h3", "suitemate-v3-sc-preview-title", type.label));
+    preview.append(createElement("p", "suitemate-v3-sc-preview-meta", "Choose what you want to do"));
+    const typeActions = core.transactionActions(type, menuIndex);
+    if (!typeActions) {
+      return;
+    }
+    const actions = createElement("div", "suitemate-v3-sc-preview-actions");
+    for (const [index, action] of typeActions.entries()) {
+      const anchor = createElement(
+        "a",
+        index === 0 ? "suitemate-v3-sc-open-action" : "suitemate-v3-sc-edit-action"
+      );
+      anchor.href = action.url;
+      anchor.append(
+        createElement("span", "", action.label),
+        createSvgIcon(action.icon)
+      );
+      anchor.addEventListener("click", (event) => {
+        if (isPlainActivation(event)) {
+          enterNavigatingState(null, `Opening ${action.label}…`);
+        }
+      });
+      actions.append(anchor);
+    }
+    preview.append(actions);
+  }
+
+  function renderTransactionSelection(options = {}) {
+    const rows = [...modal.list.querySelectorAll(".suitemate-v3-sc-type-row")];
+    for (const [index, row] of rows.entries()) {
+      row.classList.toggle("is-selected", index === state.transactionTypeIndex);
+    }
+    renderTransactionPanel();
+    if (options.revealSelection) {
+      modal.list.querySelector(".suitemate-v3-sc-type-row.is-selected")
+        ?.scrollIntoView({ block: "nearest" });
+    }
+  }
+
+  function renderTransactionBrowser() {
+    const list = modal.list;
+    list.replaceChildren();
+    modal.resultsLabel.hidden = false;
+    modal.resultsLabel.textContent = "Transactions";
+    modal.input.removeAttribute("aria-activedescendant");
+    const visible = visibleTransactionTypes();
+    state.transactionTypeIndex = Math.min(
+      state.transactionTypeIndex,
+      Math.max(0, visible.length - 1)
+    );
+    if (visible.length === 0) {
+      // Role-accurate emptiness (Employee Center and friends): the tree has
+      // none of the declared tasks for this role.
+      modal.resultsLabel.hidden = true;
+      list.append(renderMessage(
+        "Transactions are not available",
+        "Your NetSuite role does not include these transaction pages."
+      ));
+      renderTransactionPanel();
+      modal.allLink.href = buildResultsUrl(state.query);
+      return;
+    }
+    let index = 0;
+    for (const group of core.TRANSACTION_MENU) {
+      const groupTypes = group.types.filter((type) => visible.some((entry) => entry.id === type.id));
+      if (groupTypes.length === 0) {
+        continue;
+      }
+      list.append(createElement("h3", "suitemate-v3-sc-results-label", group.group));
+      for (const type of groupTypes) {
+        const rowIndex = index;
+        const row = createElement("button", "suitemate-v3-sc-row suitemate-v3-sc-type-row");
+        row.type = "button";
+        if (rowIndex === state.transactionTypeIndex) {
+          row.classList.add("is-selected");
+        }
+        const icon = createElement(
+          "span",
+          "suitemate-v3-sc-row-icon suitemate-v3-sc-tint-records"
+        );
+        icon.setAttribute("aria-hidden", "true");
+        icon.append(createSvgIcon("record"));
+        const text = createElement("div", "suitemate-v3-sc-row-text");
+        text.append(createElement("span", "suitemate-v3-sc-row-title", type.label));
+        row.append(icon, text, createSvgIcon("chevron", "suitemate-v3-sc-chevron"));
+        row.addEventListener("click", () => {
+          state.transactionTypeIndex = rowIndex;
+          renderTransactionSelection();
+        });
+        row.addEventListener("mouseenter", () => {
+          if (state.transactionTypeIndex !== rowIndex) {
+            state.transactionTypeIndex = rowIndex;
+            renderTransactionSelection();
+          }
+        });
+        list.append(row);
+        index += 1;
+      }
+    }
+    renderTransactionPanel();
+    modal.allLink.href = buildResultsUrl(state.query);
+  }
+
   function render(options = {}) {
     if (!modal || !state.open) {
       return;
@@ -800,8 +1059,17 @@
       const value = counts[category.id];
       count.textContent = state.everParsed && value > 0 ? String(value) : "";
       filter.disabled = category.id !== "all" && state.everParsed && value === 0;
-      filter.setAttribute("aria-selected", String(state.category === category.id));
+      filter.setAttribute(
+        "aria-selected",
+        String(!state.transactionMenu && state.category === category.id)
+      );
     }
+    modal.transactionMenuButton.classList.toggle("is-active", state.transactionMenu);
+    if (state.transactionMenu) {
+      renderTransactionBrowser();
+      return;
+    }
+    modal.resultsLabel.textContent = "Top results";
 
     const visible = filteredResults();
     const trimmedQuery = state.query.trim();
@@ -904,6 +1172,8 @@
     state.opener = options.opener ?? document.activeElement ?? nativeInput;
     state.category = "all";
     state.focusBounces = 0;
+    state.transactionMenu = false;
+    state.transactionTypeIndex = 0;
     state.results = [];
     state.fetchedResults = [];
     state.pageResults = [];
@@ -930,6 +1200,7 @@
     });
     resultsObserver.observe(document.body, { childList: true, subtree: true });
     const query = options.query ?? nativeInput.value ?? "";
+    ensureMenuIndex();
     modal.input.value = query;
     setQuery(query);
     syncResultsFromNative();

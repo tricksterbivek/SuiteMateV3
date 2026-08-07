@@ -178,6 +178,148 @@ test("maps direct autosuggest entries into results with permission-gated edit", 
   assert.equal(core.fromAutofill({ sname: "", key: "/app/x.nl" }, origin), null);
 });
 
+test("ships the fixed Transaction Menu with canonical NetSuite routes", () => {
+  assert.deepEqual(
+    plain(core.TRANSACTION_MENU.map((group) => group.group)),
+    ["Sales", "Purchasing", "Inventory", "Finance"]
+  );
+  const types = core.TRANSACTION_MENU.flatMap((group) => group.types);
+  assert.deepEqual(plain(types.map((type) => type.label)), [
+    "Sales Order",
+    "Invoice",
+    "Credit Memo",
+    "Customer Deposit",
+    "Purchase Order",
+    "Vendor Bill",
+    "Purchase Contract",
+    "Inbound Shipment",
+    "Item Fulfillment",
+    "Item Receipt",
+    "Work Order",
+    "Journal Entry"
+  ]);
+  assert.equal(new Set(types.map((type) => type.id)).size, types.length, "duplicate type ids");
+
+  // Lists filter the shared transactionlist page by Transaction_TYPE; the
+  // manager pages are approval screens, never lists (the original bug).
+  const salesOrderActions = core.transactionActions(types[0]);
+  assert.deepEqual(plain(salesOrderActions), [
+    { label: "New Sales Order", url: "/app/accounting/transactions/salesord.nl?whence=", icon: "external" },
+    { label: "Sales Order List", url: "/app/accounting/transactions/transactionlist.nl?Transaction_TYPE=SalesOrd", icon: "list" },
+    { label: "Approve Sales Orders", url: "/app/accounting/transactions/salesordermanager.nl?type=apprv&whence=", icon: "edit" }
+  ]);
+  const vendorBillActions = core.transactionActions(types[5]);
+  assert.deepEqual(plain(vendorBillActions[2]), {
+    label: "Approve Bills",
+    url: "/app/accounting/transactions/vendorbillmanager.nl?type=apprv&whence=",
+    icon: "edit"
+  });
+  const purchaseOrderActions = core.transactionActions(types[4]);
+  assert.equal(
+    purchaseOrderActions[1].url,
+    "/app/accounting/transactions/transactionlist.nl?Transaction_TYPE=PurchOrd"
+  );
+  const journalActions = core.transactionActions(types[11]);
+  assert.equal(
+    journalActions[1].url,
+    "/app/accounting/transactions/accountingtransactionlist.nl?Transaction_TYPE=Journal"
+  );
+  // Feature-gated, off-by-default families are tree-only: without the
+  // account's tree a static entry would mostly be a dead link.
+  assert.equal(core.transactionActions(types[6], null), null);
+  assert.equal(core.transactionActions(types[7], null), null);
+  const gatedIndex = new Map([
+    ["EDIT_TRAN_PURCHCON", "/app/accounting/transactions/purchcon.nl?whence="],
+    ["LIST_TRAN_PURCHCON", "/app/accounting/transactions/transactionlist.nl?Transaction_TYPE=PurchCon&whence="],
+    ["EDIT_INBOUNDSHIPMENT", "/app/accounting/transactions/shipping/inboundshipment/inboundshipment.nl?whence="],
+    ["LIST_INBOUNDSHIPMENT", "/app/accounting/transactions/shipping/inboundshipment/inboundshipments.nl?whence="]
+  ]);
+  assert.equal(
+    core.transactionActions(types[6], gatedIndex)[1].url,
+    "/app/accounting/transactions/transactionlist.nl?Transaction_TYPE=PurchCon&whence="
+  );
+  // Inbound Shipment is its own record family — dedicated shipping/ pages,
+  // no Transaction_TYPE (account-harvested).
+  assert.deepEqual(plain(core.transactionActions(types[7], gatedIndex).map((action) => action.url)), [
+    "/app/accounting/transactions/shipping/inboundshipment/inboundshipment.nl?whence=",
+    "/app/accounting/transactions/shipping/inboundshipment/inboundshipments.nl?whence="
+  ]);
+  // Transform-only records (created from an order, never standalone) must
+  // not offer a New entry form.
+  for (const transformOnly of [types[8], types[9]]) {
+    const actions = core.transactionActions(transformOnly);
+    assert.equal(actions[0].label, `${transformOnly.label} List`);
+    assert.equal(actions.some((action) => action.label.startsWith("New ")), false);
+  }
+  for (const type of types) {
+    if (type.treeOnly) {
+      continue;
+    }
+    const actions = core.transactionActions(type);
+    const listAction = actions.find((action) => action.label === `${type.label} List`);
+    assert.match(listAction.url, /^\/app\/accounting\/transactions\/[a-z]+\.nl\?Transaction_TYPE=[A-Za-z]+$/);
+    if (!type.noNew) {
+      assert.equal(actions[0].label, `New ${type.label}`);
+      assert.match(actions[0].url, /^\/app\/accounting\/transactions\/[a-z]+\.nl\?whence=$/);
+    }
+  }
+  assert.equal(core.transactionActions({ entry: "bad path", listType: "bad type!" }), null);
+});
+
+test("builds a sanitized task index and resolves the menu role-accurately against it", () => {
+  const tree = [{
+    type: "TAB",
+    submenu: [
+      {
+        id: "EDIT_TRAN_SALESORD",
+        url: "/app/accounting/transactions/salesord.nl?whence=",
+        submenu: [
+          { id: "LIST_TRAN_SALESORD", url: "/app/accounting/transactions/transactionlist.nl?Transaction_TYPE=SalesOrd&whence=" }
+        ]
+      },
+      { id: "TRAN_SALESORDAPPRV", url: "https://evil.example.com/x" },
+      { id: "EDIT_TRAN_CUSTINVC", url: "/app/accounting/transactions/custinvc.nl?whence=" },
+      { id: "UNRELATED_TASK", url: "/app/x.nl" }
+    ]
+  }];
+  const index = core.buildTaskIndex(tree, core.TRANSACTION_TASK_IDS, origin);
+  assert.equal(index.get("EDIT_TRAN_SALESORD"), "/app/accounting/transactions/salesord.nl?whence=");
+  assert.equal(
+    index.get("LIST_TRAN_SALESORD"),
+    "/app/accounting/transactions/transactionlist.nl?Transaction_TYPE=SalesOrd&whence="
+  );
+  assert.equal(index.has("TRAN_SALESORDAPPRV"), false, "hostile URL survived sanitization");
+  assert.equal(index.has("UNRELATED_TASK"), false, "undeclared task indexed");
+  assert.equal(core.buildTaskIndex("garbage", core.TRANSACTION_TASK_IDS, origin).size, 0);
+  assert.equal(core.TRANSACTION_TASK_IDS.length, 24);
+  assert.equal(core.TRANSACTION_TASK_IDS.includes("TRAN_SALESORDAPPRV"), true);
+
+  const types = core.TRANSACTION_MENU.flatMap((group) => group.types);
+  // Approve hidden (its only tree URL was hostile → treated as absent).
+  assert.deepEqual(
+    plain(core.transactionActions(types[0], index).map((action) => action.label)),
+    ["New Sales Order", "Sales Order List"]
+  );
+  // Declared list task missing from the tree → List dropped for this role.
+  assert.deepEqual(
+    plain(core.transactionActions(types[1], index).map((action) => action.label)),
+    ["New Invoice"]
+  );
+  // Type entirely absent from the tree → hidden.
+  assert.equal(core.transactionActions(types[2], index), null);
+  // Transform-only types keep their static list (their list task never
+  // exists as a menu node); tree-gated extras hide when absent.
+  assert.deepEqual(
+    plain(core.transactionActions(types[8], index).map((action) => action.label)),
+    ["Item Fulfillment List"]
+  );
+  // No index at all → the full static menu, extras included.
+  assert.deepEqual(
+    plain(core.transactionActions(types[8], null).map((action) => action.label)),
+    ["Item Fulfillment List", "Fulfill Orders"]
+  );
+});
+
 test("counts and filters by category with all as the identity", () => {
   const results = [
     core.normalizeResult({ text: "Customer: Acme", group: "globalSearch", href: "/app/common/entity/custjob.nl?id=1" }, origin),
