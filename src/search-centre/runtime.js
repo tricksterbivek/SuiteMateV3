@@ -122,7 +122,8 @@
         href: mainLink.getAttribute("href"),
         editHref: /^edit\b/i.test(additional?.getAttribute("aria-label") ?? "")
           ? additional.getAttribute("href")
-          : ""
+          : "",
+        nativeIndex: option.getAttribute("data-index") ?? ""
       }, location.origin);
       if (result) {
         results.push(result);
@@ -262,7 +263,7 @@
       return "Open file";
     }
     if (result.category === "navigation") {
-      return "Open page";
+      return result.href ? "Open page" : "Show on page";
     }
     return "Open record";
   }
@@ -447,11 +448,20 @@
   }
 
   function openResult(result) {
-    if (!result?.href) {
+    if (result?.href) {
+      closeSearchCentre({ restoreFocus: false });
+      location.assign(result.href);
       return;
     }
-    closeSearchCentre({ restoreFocus: false });
-    location.assign(result.href);
+    if (result?.nativeIndex) {
+      // Hrefless current-page rows (field jumps) only navigate through
+      // NetSuite's own click handler — click the hidden native row first,
+      // which also unmounts the popover, then fold the modal away.
+      findNativeListbox()
+        ?.querySelector(`li[data-index="${CSS.escape(result.nativeIndex)}"] a[data-automation-id="main-link"]`)
+        ?.click();
+      closeSearchCentre({ restoreFocus: false });
+    }
   }
 
   function clearPendingTimer() {
@@ -552,10 +562,15 @@
       preview.append(createElement("p", "suitemate-v3-sc-preview-meta", result.secondary));
     }
     const actions = createElement("div", "suitemate-v3-sc-preview-actions");
-    const open = createElement("a", "suitemate-v3-sc-open-action");
-    open.href = result.href;
+    const open = createElement(result.href ? "a" : "button", "suitemate-v3-sc-open-action");
+    if (result.href) {
+      open.href = result.href;
+      open.addEventListener("click", () => closeSearchCentre({ restoreFocus: false }));
+    } else {
+      open.type = "button";
+      open.addEventListener("click", () => openResult(result));
+    }
     open.append(createElement("span", "", primaryActionLabel(result)), createSvgIcon("external"));
-    open.addEventListener("click", () => closeSearchCentre({ restoreFocus: false }));
     actions.append(open);
     if (result.editHref) {
       const edit = createElement("a", "suitemate-v3-sc-edit-action");
@@ -681,8 +696,18 @@
     modal.input.value = query;
     setQuery(query);
     syncResultsFromNative();
-    modal.input.focus();
-    modal.input.setSelectionRange(modal.input.value.length, modal.input.value.length);
+    // NetSuite's TextBox re-asserts focus into its own input after the
+    // triggering event finishes; the deferred grab (the same 60ms the
+    // Recent Records panel uses) runs after uif's focus pass and wins.
+    const grabFocus = () => {
+      if (!state.open) {
+        return;
+      }
+      modal.input.focus();
+      modal.input.setSelectionRange(modal.input.value.length, modal.input.value.length);
+    };
+    grabFocus();
+    setTimeout(grabFocus, 60);
   }
 
   function closeSearchCentre(options = {}) {

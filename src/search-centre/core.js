@@ -48,20 +48,25 @@
     }
   }
 
-  // raw: { text, group, href, editHref } — text is the row's visible
-  // "Type: Name" string, group the listbox section that carried it
-  // ("globalSearch" | "pageSearch"). Menu names arrive as full
-  // "A > B > C" paths; the leaf becomes the title, the trail the secondary.
+  // raw: { text, group, href, editHref, nativeIndex } — text is the row's
+  // visible "Type: Name" string, group the listbox section that carried it
+  // ("globalSearch" | "pageSearch"). Menu names arrive as full "A > B > C"
+  // paths; the leaf becomes the title, the trail the secondary. Current-page
+  // field rows carry no href at all — NetSuite navigates them with its own
+  // click handler — so a native row index is an accepted substitute.
   function normalizeResult(raw, origin) {
     const href = sanitizeHref(raw?.href, origin);
+    const nativeIndex = cleanText(raw?.nativeIndex, 12);
     const text = cleanText(raw?.text, 300);
-    if (!href || !text) {
+    if ((!href && !nativeIndex) || !text) {
       return null;
     }
     const colon = text.indexOf(": ");
     const typeText = colon > 0 ? text.slice(0, colon) : "";
     const name = colon > 0 ? text.slice(colon + 2) : text;
-    const navigation = raw?.group === "pageSearch" || NAVIGATION_TYPE_PATTERN.test(typeText);
+    const navigation = raw?.group === "pageSearch"
+      || NAVIGATION_TYPE_PATTERN.test(typeText)
+      || !href;
     let title = name;
     let secondary = "";
     if (navigation && name.includes(" > ")) {
@@ -78,7 +83,8 @@
       secondary,
       category: navigation ? "navigation" : categorize(typeText),
       href,
-      editHref: sanitizeHref(raw?.editHref, origin)
+      editHref: sanitizeHref(raw?.editHref, origin),
+      nativeIndex
     });
   }
 

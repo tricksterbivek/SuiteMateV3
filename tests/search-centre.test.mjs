@@ -115,6 +115,22 @@ test("rejects rows without a usable href or title", () => {
   assert.equal(core.normalizeResult({ text: "  ", href: "/app/x.nl", editHref: "" }, origin), null);
 });
 
+test("accepts hrefless current-page rows through their native index as navigation", () => {
+  const field = core.normalizeResult({
+    text: "Field: Sales Channel",
+    group: "pageSearch",
+    href: "",
+    editHref: "",
+    nativeIndex: "12"
+  }, origin);
+  assert.equal(field.category, "navigation");
+  assert.equal(field.title, "Sales Channel");
+  assert.equal(field.typeText, "Field");
+  assert.equal(field.href, "");
+  assert.equal(field.nativeIndex, "12");
+  assert.equal(core.normalizeResult({ text: "Field: Sales Channel", href: "", nativeIndex: "" }, origin), null);
+});
+
 test("counts and filters by category with all as the identity", () => {
   const results = [
     core.normalizeResult({ text: "Customer: Acme", group: "globalSearch", href: "/a.nl" }, origin),
