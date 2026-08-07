@@ -204,8 +204,14 @@ test("ships the fixed Transaction Menu with canonical NetSuite routes", () => {
   assert.deepEqual(plain(salesOrderActions), [
     { label: "New Sales Order", url: "/app/accounting/transactions/salesord.nl?whence=", icon: "external" },
     { label: "Sales Order List", url: "/app/accounting/transactions/transactionlist.nl?Transaction_TYPE=SalesOrd", icon: "list" },
-    { label: "Approve Sales Orders", url: "/app/accounting/transactions/salesordermanager.nl?whence=", icon: "edit" }
+    { label: "Approve Sales Orders", url: "/app/accounting/transactions/salesordermanager.nl?type=apprv&whence=", icon: "edit" }
   ]);
+  const vendorBillActions = core.transactionActions(types[5]);
+  assert.deepEqual(plain(vendorBillActions[2]), {
+    label: "Approve Bills",
+    url: "/app/accounting/transactions/vendorbillmanager.nl?type=apprv&whence=",
+    icon: "edit"
+  });
   const purchaseOrderActions = core.transactionActions(types[4]);
   assert.equal(
     purchaseOrderActions[1].url,

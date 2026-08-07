@@ -123,6 +123,13 @@
     Object.freeze({
       group: "Sales",
       types: Object.freeze([
+        // Approve pages harvested from a live account's own menu tree
+        // (NLNavMenuData.nl): the uniform shape is <recordword>manager.nl
+        // ?type=apprv, with FULL-WORD basenames (vendorbillmanager, not
+        // vendbillmanager) — never derivable from the entry basename.
+        // Absent by the same evidence: Approve Purchase Orders (no native
+        // page — SuiteApp-only) and Approve Journal Entries (menu entry
+        // only exists when journal approval routing is enabled).
         Object.freeze({
           id: "salesord",
           label: "Sales Order",
@@ -139,7 +146,13 @@
       group: "Purchasing",
       types: Object.freeze([
         Object.freeze({ id: "purchord", label: "Purchase Order", entry: "purchord", listType: "PurchOrd" }),
-        Object.freeze({ id: "vendbill", label: "Vendor Bill", entry: "vendbill", listType: "VendBill" })
+        Object.freeze({
+          id: "vendbill",
+          label: "Vendor Bill",
+          entry: "vendbill",
+          listType: "VendBill",
+          approve: Object.freeze({ page: "vendorbillmanager", label: "Approve Bills" })
+        })
       ])
     }),
     Object.freeze({
@@ -193,7 +206,7 @@
     if (type.approve) {
       actions.push(Object.freeze({
         label: type.approve.label,
-        url: `${TRANSACTION_ENTRY_PREFIX}${type.approve.page}.nl?whence=`,
+        url: `${TRANSACTION_ENTRY_PREFIX}${type.approve.page}.nl?type=apprv&whence=`,
         icon: "edit"
       }));
     }
