@@ -369,8 +369,11 @@
       createElement("span", "", "View all search results"),
       createSvgIcon("external")
     );
-    allLink.addEventListener("click", () =>
-      enterNavigatingState(null, "Opening all search results…"));
+    allLink.addEventListener("click", (event) => {
+      if (isPlainActivation(event)) {
+        enterNavigatingState(null, "Opening all search results…");
+      }
+    });
     footer.append(navigateHint, openHint, closeHint, allLink);
 
     dialog.append(header, body, footer);
@@ -485,6 +488,16 @@
     modal.navigatingCover = cover;
   }
 
+  // Modified clicks (new tab, window) belong to the browser: no loading
+  // surface, the modal stays where it is.
+  function isPlainActivation(event) {
+    return event.button === 0
+      && !event.metaKey
+      && !event.ctrlKey
+      && !event.shiftKey
+      && !event.altKey;
+  }
+
   function openResult(result) {
     if (state.navigating) {
       return;
@@ -516,16 +529,20 @@
   function setQuery(query) {
     state.query = query;
     state.selectedIndex = 0;
-    // Old rows must never masquerade as answers for the new query.
-    state.results = [];
-    state.seeAllHref = "";
-    state.everParsed = false;
     clearPendingTimer();
     const searching = query.trim().length >= SEARCH_MIN_QUERY_LENGTH;
     state.pending = pushQueryToNative(query) && searching;
-    if (state.pending) {
+    if (!searching) {
+      state.results = [];
+      state.seeAllHref = "";
+      state.everParsed = false;
+      state.pending = false;
+    } else if (state.pending) {
+      // Native parity: the previous rows stay on screen while NetSuite
+      // fetches, and the new set swaps in when its listbox re-renders —
+      // clearing per keystroke made every character feel like a cold wait.
       // If NetSuite never re-renders (offline, throttled), fall out of the
-      // skeleton into the empty state instead of shimmering forever.
+      // pending state instead of waiting forever.
       pendingTimer = setTimeout(() => {
         pendingTimer = 0;
         state.pending = false;
@@ -607,7 +624,11 @@
     const open = createElement(result.href ? "a" : "button", "suitemate-v3-sc-open-action");
     if (result.href) {
       open.href = result.href;
-      open.addEventListener("click", () => enterNavigatingState(result, `Opening ${result.title}…`));
+      open.addEventListener("click", (event) => {
+        if (isPlainActivation(event)) {
+          enterNavigatingState(result, `Opening ${result.title}…`);
+        }
+      });
     } else {
       open.type = "button";
       open.addEventListener("click", () => openResult(result));
@@ -618,7 +639,11 @@
       const edit = createElement("a", "suitemate-v3-sc-edit-action");
       edit.href = result.editHref;
       edit.append(createElement("span", "", "Edit"), createSvgIcon("edit"));
-      edit.addEventListener("click", () => enterNavigatingState(result, `Editing ${result.title}…`));
+      edit.addEventListener("click", (event) => {
+        if (isPlainActivation(event)) {
+          enterNavigatingState(result, `Editing ${result.title}…`);
+        }
+      });
       actions.append(edit);
     }
     preview.append(actions);
@@ -648,7 +673,7 @@
         "Search NetSuite",
         "Records, files and navigation — results appear as you type."
       ));
-    } else if (state.pending && !state.everParsed) {
+    } else if (state.pending && visible.length === 0) {
       list.append(renderSkeletons());
     } else if (visible.length === 0) {
       // everParsed distinguishes a real empty answer from NetSuite never
@@ -664,7 +689,14 @@
         ));
     } else {
       for (const [index, result] of visible.entries()) {
-        const row = createElement("div", "suitemate-v3-sc-row");
+        // One click opens, exactly like the native dropdown: rows with hrefs
+        // are real anchors carrying NetSuite's own URLs, so the browser (and
+        // middle/modified clicks) handle navigation natively; hover keeps
+        // the preview in sync, so nothing needs a selection click first.
+        const row = createElement(result.href ? "a" : "div", "suitemate-v3-sc-row");
+        if (result.href) {
+          row.href = result.href;
+        }
         row.id = `suitemate-v3-sc-option-${index}`;
         row.setAttribute("role", "option");
         row.setAttribute("aria-selected", String(index === state.selectedIndex));
@@ -683,11 +715,18 @@
           text.append(createElement("span", "suitemate-v3-sc-row-secondary", secondary));
         }
         row.append(icon, text);
-        row.addEventListener("click", () => {
+        row.addEventListener("click", (event) => {
           state.selectedIndex = index;
-          render();
+          if (!isPlainActivation(event)) {
+            render();
+            return;
+          }
+          if (result.href) {
+            enterNavigatingState(result, `Opening ${result.title}…`);
+          } else {
+            openResult(result);
+          }
         });
-        row.addEventListener("dblclick", () => openResult(result));
         row.addEventListener("mouseenter", () => {
           if (state.selectedIndex !== index) {
             state.selectedIndex = index;
