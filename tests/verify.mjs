@@ -1225,7 +1225,7 @@ const settingsApi = settingsSandbox.SuiteMateV3Settings;
 assert.equal(settingsApi.THEME_PREVIEW_MESSAGE, "SUITEMATE_V3_PREVIEW_ROLE_THEME");
 assert.equal(settingsApi.SCHEMA_VERSION, 8);
 assert.equal(settingsApi.DEFAULTS.schemaVersion, settingsApi.SCHEMA_VERSION);
-assert.equal(settingsApi.DEFAULTS.font, "default");
+assert.equal(settingsApi.DEFAULTS.font, "poppins");
 assert.equal(settingsApi.DEFAULTS.squareCorners, false);
 assert.equal(settingsApi.DEFAULTS.showInternalIds, false);
 assert.equal(settingsApi.DEFAULTS.salesOrderColumns, false);
@@ -1239,7 +1239,7 @@ assert.deepEqual(
     schemaVersion: 8,
     enabled: true,
     mode: "dark",
-    font: "default",
+    font: "poppins",
     squareCorners: false,
     showInternalIds: false,
     salesOrderColumns: false,
@@ -1260,7 +1260,8 @@ assert.equal(settingsApi.normalize({ showInternalIds: true }).showInternalIds, t
 // declared in the manifest sheets, whose relative url() resolves against the
 // page — the live failure mode that shaped this design.
 assert.equal(settingsApi.normalize({ font: "poppins" }).font, "poppins");
-assert.equal(settingsApi.normalize({ font: "not-a-font" }).font, "default");
+assert.equal(settingsApi.normalize({ font: "not-a-font" }).font, "poppins");
+assert.equal(settingsApi.normalize({ font: "default" }).font, "default");
 const fontIds = Object.keys(settingsApi.FONTS);
 assert.equal(fontIds[0], "default", "The system default is not the registry's first entry");
 assert.equal(fontIds.length, 11, "The font registry no longer lists the ten selectable fonts plus the default");

@@ -96,7 +96,7 @@ test("migrates legacy appearance and role themes without changing their meaning"
     schemaVersion: 8,
     enabled: false,
     mode: "dark",
-    font: "default",
+    font: "poppins",
     squareCorners: true,
     showInternalIds: false,
     salesOrderColumns: false,
@@ -133,7 +133,7 @@ test("migrates schema 1 settings and preserves an explicit Internal IDs preferen
     schemaVersion: 8,
     enabled: true,
     mode: "dark",
-    font: "default",
+    font: "poppins",
     squareCorners: false,
     showInternalIds: true,
     salesOrderColumns: false,
@@ -163,7 +163,7 @@ test("migrates schema 2 settings and preserves an explicit column personalizatio
     schemaVersion: 8,
     enabled: true,
     mode: "dark",
-    font: "default",
+    font: "poppins",
     squareCorners: false,
     showInternalIds: true,
     salesOrderColumns: true,
@@ -194,7 +194,7 @@ test("repairs invalid declared settings while preserving valid role data", () =>
     schemaVersion: 8,
     enabled: true,
     mode: "light",
-    font: "default",
+    font: "poppins",
     squareCorners: false,
     showInternalIds: false,
     salesOrderColumns: false,
@@ -235,7 +235,7 @@ test("reads legacy settings in memory without producing migration writes", async
     schemaVersion: 8,
     enabled: false,
     mode: "system",
-    font: "default",
+    font: "poppins",
     squareCorners: true,
     showInternalIds: false,
     salesOrderColumns: false,
@@ -290,7 +290,7 @@ test("validateForStorage normalizes and enforces the same limit without writing"
     schemaVersion: 8,
     enabled: true,
     mode: "dark",
-    font: "default",
+    font: "poppins",
     squareCorners: false,
     showInternalIds: false,
     salesOrderColumns: false,
@@ -426,16 +426,17 @@ test("migrates schema 7 to 8 by adding the font preference", () => {
   };
   const migrated = api.normalize(v7);
   assert.equal(migrated.schemaVersion, 8);
-  assert.equal(migrated.font, "default");
+  assert.equal(migrated.font, "poppins");
   assert.equal(migrated.recentRecords, true);
 
   // The registry is the only source of valid ids; anything else — junk,
   // prototype keys, casing drift — falls back to the default.
   assert.equal(api.normalize({ font: "poppins" }).font, "poppins");
   assert.equal(api.normalize({ font: "plus-jakarta-sans" }).font, "plus-jakarta-sans");
-  assert.equal(api.normalize({ font: "Comic Sans" }).font, "default");
-  assert.equal(api.normalize({ font: "__proto__" }).font, "default");
-  assert.equal(api.normalize({ font: "Poppins" }).font, "default");
+  assert.equal(api.normalize({ font: "Comic Sans" }).font, "poppins");
+  assert.equal(api.normalize({ font: "__proto__" }).font, "poppins");
+  assert.equal(api.normalize({ font: "Poppins" }).font, "poppins");
+  assert.equal(api.normalize({ font: "default" }).font, "default");
 
   assert.equal(Object.isFrozen(api.FONTS), true);
   assert.equal(api.FONTS.default, null);

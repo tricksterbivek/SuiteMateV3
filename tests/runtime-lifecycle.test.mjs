@@ -158,6 +158,11 @@ test("theme ignores a stale settings read after a newer storage update", async (
       readyState: "complete",
       referrer: "",
       querySelector: () => null,
+      // The Poppins default routes applySettings through ensureFontFaces on
+      // every load, so the theme document now needs the face-injection shape.
+      getElementById: () => null,
+      createElement: () => ({ id: "", textContent: "" }),
+      head: { append() {} },
       addEventListener() {}
     },
     matchMedia() {
@@ -166,7 +171,8 @@ test("theme ignores a stale settings read after a newer storage update", async (
     addEventListener() {},
     chrome: {
       runtime: {
-        onMessage: { addListener() {} }
+        onMessage: { addListener() {} },
+        getURL: (path) => `chrome-extension://fixture/${path}`
       },
       storage: {
         sync: {

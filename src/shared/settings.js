@@ -77,7 +77,10 @@
     schemaVersion: SCHEMA_VERSION,
     enabled: true,
     mode: "light",
-    font: "default",
+    // Poppins ships as the out-of-box look (owner-directed); "default" stays
+    // a selectable id meaning the system stack, and an explicitly stored
+    // choice — including "default" — is always preserved as stored.
+    font: "poppins",
     squareCorners: false,
     showInternalIds: false,
     salesOrderColumns: false,
