@@ -17,6 +17,7 @@
     SUITEQL_BRIDGE: "suiteql-bridge",
     SUITEQL_LAUNCH: "suiteql-launch",
     RECENT_RECORDS: "recent-records",
+    SEARCH_CENTRE: "search-centre",
     FORM_VIEWS: "form-views",
     TRANSACTION_COLUMN_PERSONALIZATION_EDIT: "transaction-column-personalization-edit"
   });
@@ -252,6 +253,7 @@
       case CAPABILITIES.INTERNAL_IDS:
         return Boolean(context.path);
       case CAPABILITIES.RECENT_RECORDS:
+      case CAPABILITIES.SEARCH_CENTRE:
         return context.isTopFrame
           && Boolean(context.path)
           && context.routeId !== ROUTE_IDS.LOGIN;

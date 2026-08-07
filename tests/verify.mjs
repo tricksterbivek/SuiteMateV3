@@ -49,6 +49,7 @@ assert.deepEqual(globalThemeContentScript.css, [
   "src/so-columns/so-columns.css",
   "src/form-views/form-views.css",
   "src/recent-records/recent-records.css",
+  "src/search-centre/search-centre.css",
   "src/edit-grid/edit-grid.css"
 ]);
 assert.deepEqual(globalThemeContentScript.js, [
@@ -65,6 +66,7 @@ assert.deepEqual(globalThemeContentScript.js, [
   "src/tab-title/core.js",
   "src/form-views/core.js",
   "src/recent-records/core.js",
+  "src/search-centre/core.js",
   "src/edit-grid/core.js",
   "src/runtime/theme-runtime.js",
   "src/runtime/notification-runtime.js",
@@ -77,6 +79,7 @@ assert.deepEqual(globalThemeContentScript.js, [
   "src/tab-title/runtime.js",
   "src/form-views/runtime.js",
   "src/recent-records/runtime.js",
+  "src/search-centre/runtime.js",
   "src/edit-grid/runtime.js"
 ]);
 assert.equal(
@@ -169,6 +172,11 @@ assert.match(
   /for="recentRecords"[\s\S]*?>Recent Records<[\s\S]*?id="recentRecords"[^>]*type="checkbox"/,
   "The Recent Records popup checkbox is missing"
 );
+assert.match(
+  popupHtml,
+  /for="searchCentre"[\s\S]*?>Search Centre<[\s\S]*?id="searchCentre"[^>]*type="checkbox"/,
+  "The Search Centre popup checkbox is missing"
+);
 for (const match of popupHtml.matchAll(/(?:src|href)="([^"]+)"/g)) {
   const reference = match[1];
   if (!reference.startsWith("#")) {
@@ -233,6 +241,9 @@ const extensionSources = [
   "src/recent-records/core.js",
   "src/recent-records/runtime.js",
   "src/recent-records/recent-records.css",
+  "src/search-centre/core.js",
+  "src/search-centre/runtime.js",
+  "src/search-centre/search-centre.css",
   "src/edit-grid/core.js",
   "src/edit-grid/runtime.js",
   "src/edit-grid/edit-grid.css",
@@ -324,6 +335,90 @@ assert.equal(
 assert.equal(
   commandApi.getShortcut(commandApi.IDS.SUITEQL_ABORT).editor,
   "Escape"
+);
+
+// ===== Search Centre =====
+// The adapter constants mirror live-verified NetSuite internals (refreshed
+// header, uif 10.0.15): stable automation ids, the controlled-input write
+// path, and the canonical full-results URL. If one of these pins breaks,
+// re-verify against a live account before "fixing" a selector.
+assert.equal(commandApi.IDS.SEARCH_OPEN_CENTRE, "search.open-centre");
+assert.equal(commandApi.SURFACES.SEARCH, "search");
+assert.equal(commandApi.getShortcut(commandApi.IDS.SEARCH_OPEN_CENTRE).canonical, "Mod+Shift+K");
+assert.equal(commandApi.get(commandApi.IDS.SEARCH_OPEN_CENTRE).allowInEditable, true);
+assert.equal(routeApi.CAPABILITIES.SEARCH_CENTRE, "search-centre");
+assert.equal(
+  routeApi.supports(
+    routeApi.CAPABILITIES.SEARCH_CENTRE,
+    routeApi.createPageContext("https://1234567.app.netsuite.com/app/common/entity/custjob.nl?id=4370")
+  ),
+  true
+);
+assert.equal(
+  routeApi.supports(
+    routeApi.CAPABILITIES.SEARCH_CENTRE,
+    routeApi.createPageContext("https://1234567.app.netsuite.com/app/login/secure/enterpriselogin.nl")
+  ),
+  false
+);
+assert.equal(
+  routeApi.supports(
+    routeApi.CAPABILITIES.SEARCH_CENTRE,
+    routeApi.createPageContext("https://1234567.app.netsuite.com/app/center/card.nl", { isTopFrame: false })
+  ),
+  false
+);
+const searchCentreRuntimeSource = await readFile(resolve(root, "src/search-centre/runtime.js"), "utf8");
+assert.match(
+  searchCentreRuntimeSource,
+  /div\[data-automation-id="GlobalSearchTextBox"\] input/,
+  "The Search Centre no longer targets the refreshed header's stable search input"
+);
+assert.match(
+  searchCentreRuntimeSource,
+  /\[data-automation-id="GlobalSearchListBox"\]/,
+  "The Search Centre no longer reads the native uber listbox"
+);
+assert.match(
+  searchCentreRuntimeSource,
+  /getOwnPropertyDescriptor\([\s\S]{0,80}HTMLInputElement[\s\S]{0,60}"value"[\s\S]{0,20}\)\?\.set/,
+  "Queries are written without the controlled-input prototype setter NetSuite requires"
+);
+assert.match(
+  searchCentreRuntimeSource,
+  /Uber_NAMEtype", "KEYWORDSTARTSWITH"/,
+  "The full-results fallback URL lost its live-verified parameter set"
+);
+assert.match(
+  searchCentreRuntimeSource,
+  /\/app\/common\/autosuggest\.nl/,
+  "The direct suggest fetch no longer targets NetSuite's own autosuggest endpoint"
+);
+assert.match(
+  searchCentreRuntimeSource,
+  /mapkey", "uberautosuggest"/,
+  "The direct suggest fetch lost its live-verified parameter set"
+);
+assert.match(
+  searchCentreRuntimeSource,
+  /credentials: "include"/,
+  "The direct suggest fetch would run without the NetSuite session"
+);
+const searchCentreStyleSource = await readFile(resolve(root, "src/search-centre/search-centre.css"), "utf8");
+assert.match(
+  searchCentreStyleSource,
+  /html\.suitemate-v3-sc-open[\s\S]{0,120}body > div\[data-widget="Popover"\]\[data-system-search="window"\],\nhtml\.suitemate-v3-sc-open \.suitemate-v3-sc-native-popover \{\n  opacity: 0 !important;\n  pointer-events: none !important/,
+  "The native popover must stay opacity-hidden (never display:none — its widget measures its own geometry) via BOTH flat selectors: the attribute match and the runtime-stamped fallback class"
+);
+assert.match(
+  searchCentreRuntimeSource,
+  /classList\.add\("suitemate-v3-sc-native-popover"\)/,
+  "The runtime no longer stamps the fallback hide class on the native popover"
+);
+assert.match(
+  searchCentreStyleSource,
+  /prefers-reduced-motion/,
+  "Search Centre motion is not gated on reduced-motion"
 );
 
 const bridgeSource = await readFile(resolve(root, "src/shared/bridge.js"), "utf8");
@@ -1288,7 +1383,7 @@ assert.doesNotMatch(settingsSource, /function normalizeHexColor|function utf8Byt
 const settingsSandbox = makeSandbox({}, utilitySource, settingsSource);
 const settingsApi = settingsSandbox.SuiteMateV3Settings;
 assert.equal(settingsApi.THEME_PREVIEW_MESSAGE, "SUITEMATE_V3_PREVIEW_ROLE_THEME");
-assert.equal(settingsApi.SCHEMA_VERSION, 8);
+assert.equal(settingsApi.SCHEMA_VERSION, 9);
 assert.equal(settingsApi.DEFAULTS.schemaVersion, settingsApi.SCHEMA_VERSION);
 assert.equal(settingsApi.DEFAULTS.font, "poppins");
 assert.equal(settingsApi.DEFAULTS.squareCorners, false);
@@ -1298,10 +1393,11 @@ assert.equal(settingsApi.DEFAULTS.smartTabTitles, false);
 assert.equal(settingsApi.DEFAULTS.formViews, false);
 assert.equal(settingsApi.DEFAULTS.salesOrderColumnsEdit, false);
 assert.equal(settingsApi.DEFAULTS.recentRecords, false);
+assert.equal(settingsApi.DEFAULTS.searchCentre, false);
 assert.deepEqual(
   JSON.parse(JSON.stringify(settingsApi.validateForStorage({ mode: "dark" }))),
   {
-    schemaVersion: 8,
+    schemaVersion: 9,
     enabled: true,
     mode: "dark",
     font: "poppins",
@@ -1312,6 +1408,7 @@ assert.deepEqual(
     formViews: false,
     salesOrderColumnsEdit: false,
     recentRecords: false,
+    searchCentre: false,
     roleThemes: {}
   }
 );
