@@ -196,6 +196,8 @@
     selectedIndex: 0,
     focusBounces: 0,
     navigating: false,
+    transactionMenu: false,
+    transactionTypeIndex: 0,
     opener: null
   };
 
@@ -252,6 +254,10 @@
     } else if (name === "edit") {
       add("path", { d: "M12 20h9" });
       add("path", { d: "M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" });
+    } else if (name === "bolt") {
+      add("polygon", { points: "13 2 3 14 12 14 11 22 21 10 12 10 13 2" });
+    } else if (name === "chevron") {
+      add("polyline", { points: "9 18 15 12 9 6" });
     } else {
       add("circle", { cx: "12", cy: "12", r: "9" });
     }
@@ -265,6 +271,9 @@
     files: "file",
     navigation: "list"
   });
+
+  const flatTransactionTypes = core.TRANSACTION_MENU.flatMap((group) =>
+    group.types.map((type) => Object.freeze({ ...type, group: group.group })));
 
   function shortcutDisplay() {
     return commandApi.getShortcut(
@@ -353,6 +362,7 @@
         if (filter.disabled) {
           return;
         }
+        state.transactionMenu = false;
         state.category = category.id;
         state.selectedIndex = 0;
         render();
@@ -360,6 +370,24 @@
       filterButtons[category.id] = { filter, count };
       rail.append(filter);
     }
+    rail.append(createElement("div", "suitemate-v3-sc-rail-divider"));
+    rail.append(createElement("h3", "suitemate-v3-sc-rail-heading", "Quick access"));
+    const transactionMenuButton = createElement("button", "suitemate-v3-sc-filter suitemate-v3-sc-quick");
+    transactionMenuButton.type = "button";
+    const quickIcon = createElement("span", "suitemate-v3-sc-quick-icon");
+    quickIcon.setAttribute("aria-hidden", "true");
+    quickIcon.append(createSvgIcon("bolt"));
+    transactionMenuButton.append(
+      quickIcon,
+      createElement("span", "suitemate-v3-sc-filter-label", "Transaction Menu"),
+      createSvgIcon("chevron", "suitemate-v3-sc-chevron")
+    );
+    transactionMenuButton.addEventListener("click", () => {
+      state.transactionMenu = true;
+      state.transactionTypeIndex = 0;
+      render();
+    });
+    rail.append(transactionMenuButton);
 
     const results = createElement("div", "suitemate-v3-sc-results");
     const resultsLabel = createElement("h2", "suitemate-v3-sc-results-label", "Top results");
@@ -413,6 +441,7 @@
       dialog,
       input,
       filterButtons,
+      transactionMenuButton,
       resultsLabel,
       list,
       preview,
@@ -454,18 +483,32 @@
       return;
     }
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      if (state.transactionMenu) {
+        const total = flatTransactionTypes.length;
+        state.transactionTypeIndex = (state.transactionTypeIndex + direction + total) % total;
+        renderTransactionSelection({ revealSelection: true });
+        return;
+      }
       const total = filteredResults().length;
       if (total === 0) {
         return;
       }
-      event.preventDefault();
-      const direction = event.key === "ArrowDown" ? 1 : -1;
       state.selectedIndex = (state.selectedIndex + direction + total) % total;
       renderSelection({ revealSelection: true });
       return;
     }
     if (event.key === "Enter" && event.target === modal.input) {
       event.preventDefault();
+      if (state.transactionMenu) {
+        const type = flatTransactionTypes[state.transactionTypeIndex];
+        const urls = type ? core.transactionUrls(type) : null;
+        if (urls) {
+          transactionNavigate(urls.newUrl, `Opening new ${type.label}…`);
+        }
+        return;
+      }
       const result = selectedResult();
       if (result) {
         openResult(result);
@@ -626,6 +669,8 @@
   function setQuery(query) {
     state.query = query;
     state.selectedIndex = 0;
+    // Typing is search intent: leave the transaction browser.
+    state.transactionMenu = false;
     clearPendingTimer();
     cancelSuggestFetch();
     const trimmed = query.trim();
@@ -790,6 +835,112 @@
     preview.append(actions);
   }
 
+  // ===== Transaction Menu (Quick Access) =====
+
+  function transactionNavigate(url, label) {
+    enterNavigatingState(null, label);
+    location.assign(url);
+  }
+
+  function renderTransactionPanel() {
+    const type = flatTransactionTypes[state.transactionTypeIndex];
+    const preview = modal.preview;
+    preview.replaceChildren();
+    if (!type) {
+      preview.hidden = true;
+      return;
+    }
+    preview.hidden = false;
+    preview.append(createElement("span", "suitemate-v3-sc-chip", type.group));
+    const icon = createElement(
+      "span",
+      "suitemate-v3-sc-row-icon suitemate-v3-sc-tint-records suitemate-v3-sc-panel-icon"
+    );
+    icon.setAttribute("aria-hidden", "true");
+    icon.append(createSvgIcon("record"));
+    preview.append(icon);
+    preview.append(createElement("h3", "suitemate-v3-sc-preview-title", type.label));
+    preview.append(createElement("p", "suitemate-v3-sc-preview-meta", "Choose what you want to do"));
+    const urls = core.transactionUrls(type);
+    if (!urls) {
+      return;
+    }
+    const actions = createElement("div", "suitemate-v3-sc-preview-actions");
+    const create = createElement("a", "suitemate-v3-sc-open-action");
+    create.href = urls.newUrl;
+    create.append(createElement("span", "", `New ${type.label}`), createSvgIcon("external"));
+    create.addEventListener("click", (event) => {
+      if (isPlainActivation(event)) {
+        enterNavigatingState(null, `Opening new ${type.label}…`);
+      }
+    });
+    const listAction = createElement("a", "suitemate-v3-sc-edit-action");
+    listAction.href = urls.listUrl;
+    listAction.append(createElement("span", "", `${type.label} List`), createSvgIcon("list"));
+    listAction.addEventListener("click", (event) => {
+      if (isPlainActivation(event)) {
+        enterNavigatingState(null, `Opening ${type.label} list…`);
+      }
+    });
+    actions.append(create, listAction);
+    preview.append(actions);
+  }
+
+  function renderTransactionSelection(options = {}) {
+    const rows = [...modal.list.querySelectorAll(".suitemate-v3-sc-type-row")];
+    for (const [index, row] of rows.entries()) {
+      row.classList.toggle("is-selected", index === state.transactionTypeIndex);
+    }
+    renderTransactionPanel();
+    if (options.revealSelection) {
+      modal.list.querySelector(".suitemate-v3-sc-type-row.is-selected")
+        ?.scrollIntoView({ block: "nearest" });
+    }
+  }
+
+  function renderTransactionBrowser() {
+    const list = modal.list;
+    list.replaceChildren();
+    modal.resultsLabel.hidden = false;
+    modal.resultsLabel.textContent = "Transactions";
+    modal.input.removeAttribute("aria-activedescendant");
+    let index = 0;
+    for (const group of core.TRANSACTION_MENU) {
+      list.append(createElement("h3", "suitemate-v3-sc-results-label", group.group));
+      for (const type of group.types) {
+        const rowIndex = index;
+        const row = createElement("button", "suitemate-v3-sc-row suitemate-v3-sc-type-row");
+        row.type = "button";
+        if (rowIndex === state.transactionTypeIndex) {
+          row.classList.add("is-selected");
+        }
+        const icon = createElement(
+          "span",
+          "suitemate-v3-sc-row-icon suitemate-v3-sc-tint-records"
+        );
+        icon.setAttribute("aria-hidden", "true");
+        icon.append(createSvgIcon("record"));
+        const text = createElement("div", "suitemate-v3-sc-row-text");
+        text.append(createElement("span", "suitemate-v3-sc-row-title", type.label));
+        row.append(icon, text, createSvgIcon("chevron", "suitemate-v3-sc-chevron"));
+        row.addEventListener("click", () => {
+          state.transactionTypeIndex = rowIndex;
+          renderTransactionSelection();
+        });
+        row.addEventListener("mouseenter", () => {
+          if (state.transactionTypeIndex !== rowIndex) {
+            state.transactionTypeIndex = rowIndex;
+            renderTransactionSelection();
+          }
+        });
+        list.append(row);
+        index += 1;
+      }
+    }
+    renderTransactionPanel();
+    modal.allLink.href = buildResultsUrl(state.query);
+  }
+
   function render(options = {}) {
     if (!modal || !state.open) {
       return;
@@ -800,8 +951,17 @@
       const value = counts[category.id];
       count.textContent = state.everParsed && value > 0 ? String(value) : "";
       filter.disabled = category.id !== "all" && state.everParsed && value === 0;
-      filter.setAttribute("aria-selected", String(state.category === category.id));
+      filter.setAttribute(
+        "aria-selected",
+        String(!state.transactionMenu && state.category === category.id)
+      );
     }
+    modal.transactionMenuButton.classList.toggle("is-active", state.transactionMenu);
+    if (state.transactionMenu) {
+      renderTransactionBrowser();
+      return;
+    }
+    modal.resultsLabel.textContent = "Top results";
 
     const visible = filteredResults();
     const trimmedQuery = state.query.trim();
@@ -904,6 +1064,8 @@
     state.opener = options.opener ?? document.activeElement ?? nativeInput;
     state.category = "all";
     state.focusBounces = 0;
+    state.transactionMenu = false;
+    state.transactionTypeIndex = 0;
     state.results = [];
     state.fetchedResults = [];
     state.pageResults = [];

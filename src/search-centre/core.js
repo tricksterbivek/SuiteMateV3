@@ -107,6 +107,55 @@
     });
   }
 
+  // Quick Access → Transaction Menu: the curated two-level browser. entry is
+  // NetSuite's canonical transaction entry basename (account-agnostic, same
+  // family as the salesord.nl path this codebase already gates on); manager
+  // is the type's list page. Manager names are irregular (salesord →
+  // salesordermanager), so they are spelled out per type, never derived.
+  const TRANSACTION_ENTRY_PREFIX = "/app/accounting/transactions/";
+  const TRANSACTION_MENU = Object.freeze([
+    Object.freeze({
+      group: "Sales",
+      types: Object.freeze([
+        Object.freeze({ id: "salesord", label: "Sales Order", entry: "salesord", manager: "salesordermanager" }),
+        Object.freeze({ id: "custinvc", label: "Invoice", entry: "custinvc", manager: "custinvcmanager" }),
+        Object.freeze({ id: "custcred", label: "Credit Memo", entry: "custcred", manager: "custcredmanager" }),
+        Object.freeze({ id: "custdep", label: "Customer Deposit", entry: "custdep", manager: "custdepmanager" })
+      ])
+    }),
+    Object.freeze({
+      group: "Purchasing",
+      types: Object.freeze([
+        Object.freeze({ id: "purchord", label: "Purchase Order", entry: "purchord", manager: "purchordmanager" }),
+        Object.freeze({ id: "vendbill", label: "Vendor Bill", entry: "vendbill", manager: "vendbillmanager" })
+      ])
+    }),
+    Object.freeze({
+      group: "Inventory",
+      types: Object.freeze([
+        Object.freeze({ id: "itemship", label: "Item Fulfillment", entry: "itemship", manager: "itemshipmanager" }),
+        Object.freeze({ id: "itemrcpt", label: "Item Receipt", entry: "itemrcpt", manager: "itemrcptmanager" }),
+        Object.freeze({ id: "workord", label: "Work Order", entry: "workord", manager: "workordmanager" })
+      ])
+    }),
+    Object.freeze({
+      group: "Finance",
+      types: Object.freeze([
+        Object.freeze({ id: "journal", label: "Journal Entry", entry: "journal", manager: "journalmanager" })
+      ])
+    })
+  ]);
+
+  function transactionUrls(type) {
+    if (!/^[a-z]+$/.test(type?.entry ?? "") || !/^[a-z]+$/.test(type?.manager ?? "")) {
+      return null;
+    }
+    return Object.freeze({
+      newUrl: `${TRANSACTION_ENTRY_PREFIX}${type.entry}.nl?whence=`,
+      listUrl: `${TRANSACTION_ENTRY_PREFIX}${type.manager}.nl?whence=`
+    });
+  }
+
   // A direct autosuggest.nl row: { sname, key, descr, dashurl, bedit }.
   // descr is the same type label the native dropdown prefixes; bedit gates
   // the edit action exactly as the dropdown renders it (key plus e=T).
@@ -152,6 +201,8 @@
 
   global.SuiteMateV3SearchCentreCore = Object.freeze({
     CATEGORIES,
+    TRANSACTION_MENU,
+    transactionUrls,
     cleanText,
     categorize,
     sanitizeHref,

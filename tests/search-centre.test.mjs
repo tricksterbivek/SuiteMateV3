@@ -178,6 +178,39 @@ test("maps direct autosuggest entries into results with permission-gated edit", 
   assert.equal(core.fromAutofill({ sname: "", key: "/app/x.nl" }, origin), null);
 });
 
+test("ships the fixed Transaction Menu with canonical NetSuite routes", () => {
+  assert.deepEqual(
+    plain(core.TRANSACTION_MENU.map((group) => group.group)),
+    ["Sales", "Purchasing", "Inventory", "Finance"]
+  );
+  const types = core.TRANSACTION_MENU.flatMap((group) => group.types);
+  assert.deepEqual(plain(types.map((type) => type.label)), [
+    "Sales Order",
+    "Invoice",
+    "Credit Memo",
+    "Customer Deposit",
+    "Purchase Order",
+    "Vendor Bill",
+    "Item Fulfillment",
+    "Item Receipt",
+    "Work Order",
+    "Journal Entry"
+  ]);
+  assert.equal(new Set(types.map((type) => type.id)).size, types.length, "duplicate type ids");
+
+  const salesOrder = types[0];
+  assert.deepEqual(plain(core.transactionUrls(salesOrder)), {
+    newUrl: "/app/accounting/transactions/salesord.nl?whence=",
+    listUrl: "/app/accounting/transactions/salesordermanager.nl?whence="
+  });
+  for (const type of types) {
+    const urls = core.transactionUrls(type);
+    assert.match(urls.newUrl, /^\/app\/accounting\/transactions\/[a-z]+\.nl\?whence=$/);
+    assert.match(urls.listUrl, /^\/app\/accounting\/transactions\/[a-z]+\.nl\?whence=$/);
+  }
+  assert.equal(core.transactionUrls({ entry: "bad path", manager: "x" }), null);
+});
+
 test("counts and filters by category with all as the identity", () => {
   const results = [
     core.normalizeResult({ text: "Customer: Acme", group: "globalSearch", href: "/app/common/entity/custjob.nl?id=1" }, origin),
