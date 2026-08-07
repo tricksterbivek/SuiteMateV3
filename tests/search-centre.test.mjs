@@ -198,17 +198,35 @@ test("ships the fixed Transaction Menu with canonical NetSuite routes", () => {
   ]);
   assert.equal(new Set(types.map((type) => type.id)).size, types.length, "duplicate type ids");
 
-  const salesOrder = types[0];
-  assert.deepEqual(plain(core.transactionUrls(salesOrder)), {
-    newUrl: "/app/accounting/transactions/salesord.nl?whence=",
-    listUrl: "/app/accounting/transactions/salesordermanager.nl?whence="
-  });
+  // Lists filter the shared transactionlist page by Transaction_TYPE; the
+  // manager pages are approval screens, never lists (the original bug).
+  const salesOrderActions = core.transactionActions(types[0]);
+  assert.deepEqual(plain(salesOrderActions), [
+    { label: "New Sales Order", url: "/app/accounting/transactions/salesord.nl?whence=" },
+    { label: "Sales Order List", url: "/app/accounting/transactions/transactionlist.nl?Transaction_TYPE=SalesOrd" },
+    { label: "Approve Sales Orders", url: "/app/accounting/transactions/salesordermanager.nl?whence=" }
+  ]);
+  const purchaseOrderActions = core.transactionActions(types[4]);
+  assert.equal(
+    purchaseOrderActions[1].url,
+    "/app/accounting/transactions/transactionlist.nl?Transaction_TYPE=PurchOrd"
+  );
+  const journalActions = core.transactionActions(types[9]);
+  assert.equal(
+    journalActions[1].url,
+    "/app/accounting/transactions/accountingtransactionlist.nl?Transaction_TYPE=Journal"
+  );
   for (const type of types) {
-    const urls = core.transactionUrls(type);
-    assert.match(urls.newUrl, /^\/app\/accounting\/transactions\/[a-z]+\.nl\?whence=$/);
-    assert.match(urls.listUrl, /^\/app\/accounting\/transactions\/[a-z]+\.nl\?whence=$/);
+    const actions = core.transactionActions(type);
+    assert.equal(actions[0].label, `New ${type.label}`);
+    assert.match(actions[0].url, /^\/app\/accounting\/transactions\/[a-z]+\.nl\?whence=$/);
+    assert.equal(actions[1].label, `${type.label} List`);
+    assert.match(
+      actions[1].url,
+      /^\/app\/accounting\/transactions\/[a-z]+\.nl\?Transaction_TYPE=[A-Za-z]+$/
+    );
   }
-  assert.equal(core.transactionUrls({ entry: "bad path", manager: "x" }), null);
+  assert.equal(core.transactionActions({ entry: "bad path", listType: "X" }), null);
 });
 
 test("counts and filters by category with all as the identity", () => {

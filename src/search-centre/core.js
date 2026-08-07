@@ -109,51 +109,88 @@
 
   // Quick Access → Transaction Menu: the curated two-level browser. entry is
   // NetSuite's canonical transaction entry basename (account-agnostic, same
-  // family as the salesord.nl path this codebase already gates on); manager
-  // is the type's list page. Manager names are irregular (salesord →
-  // salesordermanager), so they are spelled out per type, never derived.
+  // family as the salesord.nl path this codebase already gates on).
+  // Lists live on the shared transactionlist.nl page filtered by the
+  // Transaction_TYPE token (user-verified for SalesOrd and PurchOrd) —
+  // finance types route to accountingtransactionlist.nl instead
+  // (user-verified for Journal). The *manager pages are NOT lists: they are
+  // the approval/processing screens (salesordermanager.nl renders "Approve
+  // Sales Orders", live-verified — shipping it as the List action was the
+  // original bug), so they surface as explicit approve actions only where
+  // verified.
   const TRANSACTION_ENTRY_PREFIX = "/app/accounting/transactions/";
   const TRANSACTION_MENU = Object.freeze([
     Object.freeze({
       group: "Sales",
       types: Object.freeze([
-        Object.freeze({ id: "salesord", label: "Sales Order", entry: "salesord", manager: "salesordermanager" }),
-        Object.freeze({ id: "custinvc", label: "Invoice", entry: "custinvc", manager: "custinvcmanager" }),
-        Object.freeze({ id: "custcred", label: "Credit Memo", entry: "custcred", manager: "custcredmanager" }),
-        Object.freeze({ id: "custdep", label: "Customer Deposit", entry: "custdep", manager: "custdepmanager" })
+        Object.freeze({
+          id: "salesord",
+          label: "Sales Order",
+          entry: "salesord",
+          listType: "SalesOrd",
+          approve: Object.freeze({ page: "salesordermanager", label: "Approve Sales Orders" })
+        }),
+        Object.freeze({ id: "custinvc", label: "Invoice", entry: "custinvc", listType: "CustInvc" }),
+        Object.freeze({ id: "custcred", label: "Credit Memo", entry: "custcred", listType: "CustCred" }),
+        Object.freeze({ id: "custdep", label: "Customer Deposit", entry: "custdep", listType: "CustDep" })
       ])
     }),
     Object.freeze({
       group: "Purchasing",
       types: Object.freeze([
-        Object.freeze({ id: "purchord", label: "Purchase Order", entry: "purchord", manager: "purchordmanager" }),
-        Object.freeze({ id: "vendbill", label: "Vendor Bill", entry: "vendbill", manager: "vendbillmanager" })
+        Object.freeze({ id: "purchord", label: "Purchase Order", entry: "purchord", listType: "PurchOrd" }),
+        Object.freeze({ id: "vendbill", label: "Vendor Bill", entry: "vendbill", listType: "VendBill" })
       ])
     }),
     Object.freeze({
       group: "Inventory",
       types: Object.freeze([
-        Object.freeze({ id: "itemship", label: "Item Fulfillment", entry: "itemship", manager: "itemshipmanager" }),
-        Object.freeze({ id: "itemrcpt", label: "Item Receipt", entry: "itemrcpt", manager: "itemrcptmanager" }),
-        Object.freeze({ id: "workord", label: "Work Order", entry: "workord", manager: "workordmanager" })
+        Object.freeze({ id: "itemship", label: "Item Fulfillment", entry: "itemship", listType: "ItemShip" }),
+        Object.freeze({ id: "itemrcpt", label: "Item Receipt", entry: "itemrcpt", listType: "ItemRcpt" }),
+        Object.freeze({ id: "workord", label: "Work Order", entry: "workord", listType: "WorkOrd" })
       ])
     }),
     Object.freeze({
       group: "Finance",
       types: Object.freeze([
-        Object.freeze({ id: "journal", label: "Journal Entry", entry: "journal", manager: "journalmanager" })
+        Object.freeze({
+          id: "journal",
+          label: "Journal Entry",
+          entry: "journal",
+          listType: "Journal",
+          listPage: "accountingtransactionlist"
+        })
       ])
     })
   ]);
 
-  function transactionUrls(type) {
-    if (!/^[a-z]+$/.test(type?.entry ?? "") || !/^[a-z]+$/.test(type?.manager ?? "")) {
+  function transactionActions(type) {
+    const listPage = type?.listPage ?? "transactionlist";
+    if (
+      !/^[a-z]+$/.test(type?.entry ?? "")
+      || !/^[A-Za-z]+$/.test(type?.listType ?? "")
+      || !/^[a-z]+$/.test(listPage)
+      || (type.approve && !/^[a-z]+$/.test(type.approve.page ?? ""))
+    ) {
       return null;
     }
-    return Object.freeze({
-      newUrl: `${TRANSACTION_ENTRY_PREFIX}${type.entry}.nl?whence=`,
-      listUrl: `${TRANSACTION_ENTRY_PREFIX}${type.manager}.nl?whence=`
-    });
+    const actions = [
+      Object.freeze({
+        label: `New ${type.label}`,
+        url: `${TRANSACTION_ENTRY_PREFIX}${type.entry}.nl?whence=`
+      }),
+      Object.freeze({
+        label: `${type.label} List`,
+        url: `${TRANSACTION_ENTRY_PREFIX}${listPage}.nl?Transaction_TYPE=${type.listType}`
+      })
+    ];
+    if (type.approve) {
+      actions.push(Object.freeze({
+        label: type.approve.label,
+        url: `${TRANSACTION_ENTRY_PREFIX}${type.approve.page}.nl?whence=`
+      }));
+    }
+    return Object.freeze(actions);
   }
 
   // A direct autosuggest.nl row: { sname, key, descr, dashurl, bedit }.
@@ -202,7 +239,7 @@
   global.SuiteMateV3SearchCentreCore = Object.freeze({
     CATEGORIES,
     TRANSACTION_MENU,
-    transactionUrls,
+    transactionActions,
     cleanText,
     categorize,
     sanitizeHref,

@@ -503,9 +503,9 @@
       event.preventDefault();
       if (state.transactionMenu) {
         const type = flatTransactionTypes[state.transactionTypeIndex];
-        const urls = type ? core.transactionUrls(type) : null;
-        if (urls) {
-          transactionNavigate(urls.newUrl, `Opening new ${type.label}…`);
+        const typeActions = type ? core.transactionActions(type) : null;
+        if (typeActions) {
+          transactionNavigate(typeActions[0].url, `Opening ${typeActions[0].label}…`);
         }
         return;
       }
@@ -861,28 +861,29 @@
     preview.append(icon);
     preview.append(createElement("h3", "suitemate-v3-sc-preview-title", type.label));
     preview.append(createElement("p", "suitemate-v3-sc-preview-meta", "Choose what you want to do"));
-    const urls = core.transactionUrls(type);
-    if (!urls) {
+    const typeActions = core.transactionActions(type);
+    if (!typeActions) {
       return;
     }
     const actions = createElement("div", "suitemate-v3-sc-preview-actions");
-    const create = createElement("a", "suitemate-v3-sc-open-action");
-    create.href = urls.newUrl;
-    create.append(createElement("span", "", `New ${type.label}`), createSvgIcon("external"));
-    create.addEventListener("click", (event) => {
-      if (isPlainActivation(event)) {
-        enterNavigatingState(null, `Opening new ${type.label}…`);
-      }
-    });
-    const listAction = createElement("a", "suitemate-v3-sc-edit-action");
-    listAction.href = urls.listUrl;
-    listAction.append(createElement("span", "", `${type.label} List`), createSvgIcon("list"));
-    listAction.addEventListener("click", (event) => {
-      if (isPlainActivation(event)) {
-        enterNavigatingState(null, `Opening ${type.label} list…`);
-      }
-    });
-    actions.append(create, listAction);
+    const ACTION_ICONS = ["external", "list", "edit"];
+    for (const [index, action] of typeActions.entries()) {
+      const anchor = createElement(
+        "a",
+        index === 0 ? "suitemate-v3-sc-open-action" : "suitemate-v3-sc-edit-action"
+      );
+      anchor.href = action.url;
+      anchor.append(
+        createElement("span", "", action.label),
+        createSvgIcon(ACTION_ICONS[index] ?? "external")
+      );
+      anchor.addEventListener("click", (event) => {
+        if (isPlainActivation(event)) {
+          enterNavigatingState(null, `Opening ${action.label}…`);
+        }
+      });
+      actions.append(anchor);
+    }
     preview.append(actions);
   }
 
