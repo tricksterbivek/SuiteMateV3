@@ -35,6 +35,10 @@
   const GHOST_CLASS = "suitemate-v3-form-views-ghost-field";
   const COLLAPSIBLE_TITLE_SELECTOR = "td.fgroup_title.uir-field-group--collapsible[role=\"button\"]";
   const OWNED_SELECTOR = `[${core.DATA_ATTRIBUTE}]`;
+  // One personalisation mode at a time, page-wide: every personalisation
+  // feature dispatches this on entry and stands down when another enters.
+  const MODE_EVENT = "suitemate:v3:personalize-mode";
+  const MODE_FEATURE = "form-views";
   let settingsRevision = 0;
   let scopeKey = null;
   let personalizing = false;
@@ -83,18 +87,14 @@
 
   // ===== Visibility application =====
   function applyVisibility() {
+    // Hidden fields leave the layout in BOTH states (the Option 1 design:
+    // no ghost placeholders while personalising — the toolbar chips are the
+    // restore path). The ghost class is only ever cleaned up now.
     const wrappers = fieldWrappers();
-    if (personalizing) {
-      core.applyFieldVisibility(wrappers, new Set());
-      for (const wrapper of wrappers) {
-        wrapper.classList.toggle(GHOST_CLASS, hiddenFields.has(core.fieldKey(wrapper)));
-      }
-    } else {
-      for (const wrapper of wrappers) {
-        wrapper.classList.remove(GHOST_CLASS);
-      }
-      core.applyFieldVisibility(wrappers, hiddenFields);
+    for (const wrapper of wrappers) {
+      wrapper.classList.remove(GHOST_CLASS);
     }
+    core.applyFieldVisibility(wrappers, hiddenFields);
     renderChips();
   }
 
@@ -205,6 +205,19 @@
     document.addEventListener("click", collapseListener, true);
   }
 
+  let modeListener = null;
+  function watchOtherModes() {
+    if (modeListener) {
+      return;
+    }
+    modeListener = (event) => {
+      if (event.detail?.feature !== MODE_FEATURE && personalizing) {
+        exitPersonalize();
+      }
+    };
+    document.addEventListener(MODE_EVENT, modeListener);
+  }
+
   // ===== Personalize Form mode =====
   function ensureAffordances() {
     for (const wrapper of fieldWrappers()) {
@@ -214,8 +227,11 @@
       }
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = "⊖";
-      button.title = "Hide or show this field";
+      button.textContent = "−";
+      // Hide-only: a hidden field leaves the layout with its minus, and the
+      // toolbar chip is the restore path.
+      button.title = "Hide field";
+      button.setAttribute("aria-label", "Hide field");
       button.setAttribute(core.DATA_ATTRIBUTE, "hide-toggle");
       button.addEventListener("click", (event) => {
         event.preventDefault();
@@ -224,11 +240,7 @@
         if (!key) {
           return;
         }
-        if (hiddenFields.has(key)) {
-          hiddenFields.delete(key);
-        } else {
-          hiddenFields.add(key);
-        }
+        hiddenFields.add(key);
         applyVisibility();
         saveHiddenFields();
       });
@@ -258,6 +270,7 @@
       chip.type = "button";
       chip.setAttribute(core.DATA_ATTRIBUTE, "hidden-chip");
       chip.title = "Show this field again";
+      chip.setAttribute("aria-label", `Restore ${labels.get(key) ?? key}`);
       chip.textContent = `${labels.get(key) ?? key} ✕`;
       chip.addEventListener("click", () => {
         hiddenFields.delete(key);
@@ -274,6 +287,7 @@
       return;
     }
     controlButtons.personalize.hidden = personalizing;
+    controlButtons.title.hidden = !personalizing;
     controlButtons.hint.hidden = !personalizing;
     controlButtons.done.hidden = !personalizing;
     controlButtons.reset.hidden = !personalizing;
@@ -285,6 +299,9 @@
     if (personalizing) {
       return;
     }
+    // Announce first: any other personalisation mode stands down before this
+    // one takes the page.
+    document.dispatchEvent(new CustomEvent(MODE_EVENT, { detail: { feature: MODE_FEATURE } }));
     personalizing = true;
     ensureAffordances();
     applyVisibility();
@@ -327,7 +344,7 @@
           showToast("Form view could not be reset.", "warning");
         }
       });
-      exitPersonalize();
+      // Stay in the mode: Reset restores the defaults, Done is the exit.
     } catch {}
     updateControls();
   }
@@ -354,7 +371,7 @@
     const controls = document.createElement("div");
     controls.className = "suitemate-v3-form-views-controls";
     controls.setAttribute(core.DATA_ATTRIBUTE, "controls");
-    const personalize = createButton("Personalize Form", "personalize", () => {
+    const personalize = createButton("Personalize form", "personalize", () => {
       try {
         enterPersonalize();
       } catch {
@@ -362,21 +379,25 @@
       }
       updateControls();
     });
+    const title = document.createElement("span");
+    title.setAttribute(core.DATA_ATTRIBUTE, "mode-title");
+    title.textContent = "Personalizing form";
+    title.hidden = true;
     const hint = document.createElement("span");
     hint.setAttribute(core.DATA_ATTRIBUTE, "mode-hint");
-    hint.textContent = "Personalizing — use ⊖ on a field to hide it. Click Done to finish.";
+    hint.textContent = "Select the minus icon beside a field to hide it.";
     hint.hidden = true;
     const done = createButton("Done", "done", () => {
       exitPersonalize();
       updateControls();
     });
-    const reset = createButton("Reset", "reset", handleReset);
+    const reset = createButton("Reset form", "reset", handleReset);
     const chips = document.createElement("span");
     chips.setAttribute(core.DATA_ATTRIBUTE, "hidden-chips");
     chips.hidden = true;
     // Actions before the unbounded chip list (Milestone 22 lesson).
-    controls.append(personalize, hint, done, reset, chips);
-    controlButtons = { controls, personalize, hint, done, reset, chips };
+    controls.append(personalize, title, hint, done, reset, chips);
+    controlButtons = { controls, personalize, title, hint, done, reset, chips };
     mainForm.before(controls);
     updateControls();
   }
@@ -397,6 +418,7 @@
       scopeKey = resolveScopeKey();
       ensureControls();
       watchCollapses();
+      watchOtherModes();
       const stored = await chrome.storage.sync.get(core.STORAGE_KEY);
       if (signal.aborted || !isCurrent()) {
         return false;
@@ -420,6 +442,10 @@
       if (collapseListener) {
         document.removeEventListener("click", collapseListener, true);
         collapseListener = null;
+      }
+      if (modeListener) {
+        document.removeEventListener(MODE_EVENT, modeListener);
+        modeListener = null;
       }
     } catch {}
     document.querySelectorAll(OWNED_SELECTOR).forEach((node) => node.remove());
