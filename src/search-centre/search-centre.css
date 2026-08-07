@@ -322,15 +322,9 @@ html.suitemate-v3-sc-open .suitemate-v3-sc-native-popover {
   background: light-dark(#f3edfd, #382b4a);
 }
 
-.suitemate-v3-sc-tint-transactions {
+.suitemate-v3-sc-tint-records {
   color: light-dark(#4e62c5, #a4b1f2);
   background: light-dark(#edf0ff, #2b3454);
-}
-
-/* The unbucketed rest (items, vendors, employees…) — All-only rows. */
-.suitemate-v3-sc-tint-records {
-  color: light-dark(#9a6700, #e5c069);
-  background: light-dark(#fdf3de, #3f351f);
 }
 
 .suitemate-v3-sc-tint-files {

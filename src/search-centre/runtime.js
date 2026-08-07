@@ -261,8 +261,7 @@
   const CATEGORY_ICONS = Object.freeze({
     all: "search",
     customers: "person",
-    transactions: "record",
-    records: "file",
+    records: "record",
     files: "file",
     navigation: "list"
   });

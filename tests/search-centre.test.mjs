@@ -22,7 +22,7 @@ test("exports one frozen Search Centre core with the five fixed categories", () 
   assert.deepEqual(plain(core.CATEGORIES.map((category) => category.id)), [
     "all",
     "customers",
-    "transactions",
+    "records",
     "files",
     "navigation"
   ]);
@@ -40,19 +40,16 @@ test("categorizes label fallbacks: files and navigation closed sets, records as 
 
 test("buckets by the rename-proof URL path, never the display label", () => {
   const at = (key, descr) => core.fromAutofill({ sname: "X", key, descr, bedit: "F" }, origin).category;
-  assert.equal(at("/app/accounting/transactions/transaction.nl?id=1042239", "Sales Order"), "transactions");
-  // The AP family's display names ("Bill", "Bill Credit", "Bill Payment")
-  // diverge from their record ids — the path still buckets them.
-  assert.equal(at("/app/accounting/transactions/transaction.nl?id=9", "Bill"), "transactions");
   assert.equal(at("/app/common/entity/custjob.nl?id=4370", "Customer"), "customers");
   assert.equal(at("/app/common/entity/custjob.nl?id=9001", "Lead"), "customers");
   assert.equal(at("/app/common/entity/custjob.nl?id=9002", "Membre"), "customers");
   assert.equal(at("/app/common/media/mediaitem.nl?id=5", "PDF File"), "files");
+  // Records is everything else: transactions, items, vendors, custom records.
+  assert.equal(at("/app/accounting/transactions/transaction.nl?id=1042239", "Sales Order"), "records");
+  assert.equal(at("/app/accounting/transactions/transaction.nl?id=9", "Bill"), "records");
+  assert.equal(at("/app/common/item/item.nl?id=7", "Payment"), "records");
   assert.equal(at("/app/common/entity/vendor.nl?id=1", "Vendor"), "records");
   assert.equal(at("/app/common/entity/contact.nl?id=16779", "Contact"), "records");
-  // A Payment ITEM shares the "Payment" label with the payment transaction;
-  // the item path keeps it out of Transactions.
-  assert.equal(at("/app/common/item/item.nl?id=7", "Payment"), "records");
   assert.equal(at("/app/common/custom/custrecordentry.nl?rectype=12&id=3", "Bank Details"), "records");
 });
 
@@ -189,7 +186,7 @@ test("counts and filters by category with all as the identity", () => {
   ];
   assert.deepEqual(
     plain(core.countByCategory(results)),
-    { all: 3, customers: 1, transactions: 0, files: 1, navigation: 1 }
+    { all: 3, customers: 1, records: 0, files: 1, navigation: 1 }
   );
   assert.equal(core.filterByCategory(results, "all").length, 3);
   assert.deepEqual(core.filterByCategory(results, "files").map((result) => result.title), ["a.pdf"]);

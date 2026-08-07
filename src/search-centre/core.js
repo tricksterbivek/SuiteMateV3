@@ -4,7 +4,7 @@
   const CATEGORIES = Object.freeze([
     Object.freeze({ id: "all", label: "All" }),
     Object.freeze({ id: "customers", label: "Customers" }),
-    Object.freeze({ id: "transactions", label: "Transactions" }),
+    Object.freeze({ id: "records", label: "Records" }),
     Object.freeze({ id: "files", label: "Files" }),
     Object.freeze({ id: "navigation", label: "Navigation" })
   ]);
@@ -13,17 +13,12 @@
   // "PDF File: …", "Menu: …"), but the type label is renameable per account
   // and localized per language — matching on it silently fails the moment an
   // administrator renames a record or runs NetSuite in French. The result's
-  // URL is the rename-proof key (live-verified per family): transactions all
-  // live under /app/accounting/transactions/, the whole customer family —
-  // Customer, Lead, Prospect, Job are ONE record split by Stage — under
-  // custjob.nl, files under mediaitem.nl. It also disarms the label
-  // collision where an item type's short display name reads the same as a
-  // money-in transaction's: their paths differ. The label stays display-only
-  // (the type chip), plus
-  // a fallback for files/navigation rows with unrecognized paths. Everything
-  // else (items, vendors, employees, custom records…) stays category
-  // "records" — reachable under All, with no rail bucket of its own.
-  const TRANSACTION_PATH_PREFIX = "/app/accounting/transactions/";
+  // URL is the rename-proof key (live-verified per family): the whole
+  // customer family — Customer, Lead, Prospect, Job are ONE record split by
+  // Stage — lives under custjob.nl, files under mediaitem.nl. The label
+  // stays display-only (the type chip), plus a fallback for files and
+  // navigation rows with unrecognized paths. Everything else — transactions,
+  // items, vendors, employees, custom records — is a Record.
   const CUSTOMER_ENTITY_PATH = "/app/common/entity/custjob.nl";
   const FILE_PATH = "/app/common/media/mediaitem.nl";
   const FILE_TYPE_PATTERN = /\b(?:file|folder|document|attachment)\b/i;
@@ -34,9 +29,6 @@
   }
 
   function categorizeHref(href) {
-    if (href.startsWith(TRANSACTION_PATH_PREFIX)) {
-      return "transactions";
-    }
     if (href.startsWith(CUSTOMER_ENTITY_PATH)) {
       return "customers";
     }
@@ -145,7 +137,6 @@
       }
     }
     for (const result of results) {
-      // "records" (the unbucketed rest) counts toward All only.
       if (result.category in counts) {
         counts[result.category] += 1;
       }
