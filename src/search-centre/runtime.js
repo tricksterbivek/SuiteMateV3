@@ -177,6 +177,7 @@
     pending: false,
     everParsed: false,
     selectedIndex: 0,
+    focusBounces: 0,
     opener: null
   };
 
@@ -681,6 +682,7 @@
     state.open = true;
     state.opener = options.opener ?? document.activeElement ?? nativeInput;
     state.category = "all";
+    state.focusBounces = 0;
     document.documentElement.classList.add(OPEN_CLASS);
     document.body.append(modal.overlay);
     resultsObserver = new MutationObserver((records) => {
@@ -732,11 +734,26 @@
   // Focusing or typing in the native box routes into the centre; the native
   // dropdown never gets a chance to unfold while the feature is on.
   function handleNativeIntent(event) {
-    if (!enabled || state.open) {
+    if (!enabled) {
       return;
     }
     const target = event.target;
     if (target?.nodeType !== Node.ELEMENT_NODE || !target.matches?.(NATIVE_INPUT_SELECTOR)) {
+      return;
+    }
+    if (state.open) {
+      // uif re-asserts focus into its own input well after the events that
+      // opened the centre (measured: past the 60ms grab). Bounce it back on
+      // the next tick — bounded so a pathological widget can never turn
+      // this into a focus tug-of-war.
+      if (event.type === "focusin" && state.focusBounces < 10) {
+        state.focusBounces += 1;
+        setTimeout(() => {
+          if (state.open) {
+            modal?.input.focus();
+          }
+        }, 0);
+      }
       return;
     }
     openSearchCentre({ opener: target, query: target.value });
