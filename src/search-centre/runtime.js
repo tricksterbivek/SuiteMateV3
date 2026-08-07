@@ -825,13 +825,14 @@
     state.focusBounces = 0;
     state.parsedSignature = "";
     document.documentElement.classList.add(OPEN_CLASS);
+    stampNativePopover();
     document.body.append(modal.overlay);
     resultsObserver = new MutationObserver((records) => {
       // Busy pages (SuiteApps, refreshing portlets) mutate the body
       // constantly; only the native popover's own re-renders are search
       // signal. Anything else — including the modal's own renders — would
       // rebuild the modal mid-keystroke for nothing.
-      const popover = findNativeListbox()?.closest('[data-widget="Popover"]');
+      const popover = stampNativePopover();
       const relevant = popover
         ? records.some((record) => popover.contains(record.target))
         : records.some((record) => [...record.addedNodes].some((node) =>
@@ -923,6 +924,16 @@
       return;
     }
     openSearchCentre({ opener: target, query: target.value });
+  }
+
+  // Belt for the CSS hide: the data-system-search attribute selector could
+  // silently stop matching if Oracle drops it; this class derives from the
+  // same listbox anchor the parser depends on, so both would break loudly
+  // together instead of the popover quietly reappearing.
+  function stampNativePopover() {
+    const popover = findNativeListbox()?.closest('[data-widget="Popover"]');
+    popover?.classList.add("suitemate-v3-sc-native-popover");
+    return popover;
   }
 
   const commandScope = commandApi.createScope(commandApi.SURFACES.SEARCH, {

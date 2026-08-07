@@ -15,7 +15,8 @@ html.suitemate-v3-sc-open {
    data-system-search="window", live-verified) — a :has() here was
    re-evaluated on every style recalc of NetSuite's ever-mutating pages. */
 html.suitemate-v3-sc-open
-  body > div[data-widget="Popover"][data-system-search="window"] {
+  body > div[data-widget="Popover"][data-system-search="window"],
+html.suitemate-v3-sc-open .suitemate-v3-sc-native-popover {
   opacity: 0 !important;
   pointer-events: none !important;
 }

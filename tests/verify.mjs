@@ -392,8 +392,13 @@ assert.match(
 const searchCentreStyleSource = await readFile(resolve(root, "src/search-centre/search-centre.css"), "utf8");
 assert.match(
   searchCentreStyleSource,
-  /html\.suitemate-v3-sc-open[\s\S]{0,120}body > div\[data-widget="Popover"\]\[data-system-search="window"\][\s\S]{0,40}opacity: 0 !important;\n\s*pointer-events: none !important/,
-  "The native popover must stay opacity-hidden (never display:none — its widget measures its own geometry; flat selector, never :has()) while the Search Centre is open"
+  /html\.suitemate-v3-sc-open[\s\S]{0,120}body > div\[data-widget="Popover"\]\[data-system-search="window"\],\nhtml\.suitemate-v3-sc-open \.suitemate-v3-sc-native-popover \{\n  opacity: 0 !important;\n  pointer-events: none !important/,
+  "The native popover must stay opacity-hidden (never display:none — its widget measures its own geometry) via BOTH flat selectors: the attribute match and the runtime-stamped fallback class"
+);
+assert.match(
+  searchCentreRuntimeSource,
+  /classList\.add\("suitemate-v3-sc-native-popover"\)/,
+  "The runtime no longer stamps the fallback hide class on the native popover"
 );
 assert.match(
   searchCentreStyleSource,
