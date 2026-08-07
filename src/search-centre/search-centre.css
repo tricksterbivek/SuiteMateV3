@@ -106,7 +106,13 @@ html.suitemate-v3-sc-open .suitemate-v3-sc-native-popover {
   width: 100%;
   height: 42px;
   margin: 0;
+  /* Page styles (uif and the V1 restyle) stomp input padding; without the
+     !important longhands the text starts flush-left UNDER the search icon
+     and runs beneath the shortcut badge (user-reported). Same doubled
+     pattern the Recent Records search field ships. */
   padding: 8px 118px 8px 38px;
+  padding-right: 118px !important;
+  padding-left: 38px !important;
   color: var(--text-1, light-dark(#1f2937, #e5e7eb));
   background: var(--field-backgroud-color, light-dark(#fff, #20242b));
   border: 1px solid var(--sc-border);
